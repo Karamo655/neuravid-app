@@ -1,0 +1,328 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<!--NV_CONFIG--><script src="nv-config.js"></script><!--/NV_CONFIG-->
+<!--NV_DEMO--><script id="nv-demo">
+/* NEURAVID — LA DÉMONSTRATION dans chaque module (injectée en tête de page, avant le module).
+   Jamais dans l'application ni avec un serveur (NV_API_BASE). Allumée si l'accueil l'a allumée pour la session
+   (sessionStorage « nv_demo » = 1), ou « #demo » dans l'adresse, ou une page ouverte comme fichier (file:, content:).
+   Elle permet seulement d'ouvrir les autres modules à côté (NV_MODULES_BASE) avec le même visiteur de démonstration ;
+   chaque module garde ses propres règles (rien d'inventé hors de la démonstration). */
+(function(){ try{ var dansApp = !!(window.flutter_inappwebview || window.NVLien || window.ReactNativeWebView), h = location.hash || '', s = null; try{ s = sessionStorage.getItem('nv_demo'); }catch(e){ s = null; }
+  if(dansApp || (typeof window.NV_API_BASE === 'string' && window.NV_API_BASE) || s === '0' || /(^#|&)demo=0(&|$)/.test(h)) return;
+  if(!(s === '1' || /(^#|&)demo(=1)?(&|$)/.test(h) || /^(file|content):$/.test(location.protocol))) return;
+  window.NV_DEMO = true; try{ sessionStorage.setItem('nv_demo', '1'); }catch(e){ /* rien */ }
+  if(!window.NV_MODULES_BASE) window.NV_MODULES_BASE = './';
+  if(!window.NV_USER) window.NV_USER = {id:'demo', handle:'visiteur', prenom:'Aya', age:25, majeur:true, iso:'GN'};
+}catch(e){ /* rien */ } })();
+</script><!--/NV_DEMO-->
+
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0B0720">
+<title>NEURAVID · Le signalement</title>
+<!--
+  NEURAVID — Le signalement (id « Report », fichier NV_MODULE_Report.html).
+  S'ouvre depuis n'importe quel module par ouvrir('Report', ctx). Contexte lu dans sessionStorage['nv_ctx_Report'] :
+    {clip|video|live|battle|film|casting|prestation|user|type+id, auteur, depuis|via, urgent, mineur, contester, extrait, cid}
+  Serveur : POST {NV_API_BASE}/v1/signalements (contrat dans NOTE_AFAQ_Report.md). Catégories = celles du bouclier.
+  Sans serveur, dans l'application : l'événement « report_submit » part vers l'application, qui confirme par
+  window.NVReportConfirm({idem, success, id, reason}). Rien n'est jamais déclaré « reçu » sans confirmation.
+-->
+<style>
+:root{--fond:#0B0720;--fond2:#150E33;--carte:rgba(255,255,255,.06);--trait:rgba(255,255,255,.14);--encre:#F7F3FF;--brume:#CFC8EA;--pale:#9C93C4;
+  --or:#FFC93D;--teal:#2EE6C5;--violet:#8B5CF6;--rose:#F0459A;--rouge:#FF5A6E;color-scheme:dark}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--fond);color:var(--encre);font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;-webkit-text-size-adjust:100%}
+body{min-height:100vh;background:radial-gradient(120% 60% at 50% -10%,#2A1660 0%,var(--fond) 60%) fixed}
+button,textarea{font:inherit;color:inherit}
+.page{max-width:560px;margin:0 auto;padding:max(12px,env(safe-area-inset-top)) 16px calc(28px + env(safe-area-inset-bottom))}
+header{display:flex;align-items:center;gap:12px;margin-bottom:14px}
+.retour{width:44px;height:44px;border-radius:50%;border:1px solid var(--trait);background:var(--carte);font-size:22px;display:grid;place-items:center;cursor:pointer;flex:none}
+[dir=rtl] .retour span{display:inline-block;transform:scaleX(-1)}
+.logo{width:40px;height:46px;flex:none;clip-path:polygon(50% 0,100% 25%,100% 75%,50% 100%,0 75%,0 25%);background:linear-gradient(160deg,var(--teal),var(--violet) 55%,var(--rose));display:grid;place-items:center;font-size:19px}
+h1{margin:0;font-size:1.3rem;line-height:1.2}
+.sous{margin:2px 0 0;color:var(--pale);font-size:.86rem}
+.bandeau{border:1px solid rgba(255,201,61,.45);background:rgba(255,201,61,.1);color:var(--or);border-radius:14px;padding:10px 12px;font-weight:700;font-size:.9rem;margin-bottom:12px}
+.urgence{border:1px solid rgba(255,90,110,.6);background:rgba(255,90,110,.12);color:#FFD5DB;border-radius:14px;padding:11px 12px;font-weight:700;font-size:.92rem;margin:0 0 12px;display:flex;gap:10px;align-items:flex-start}
+.urgence b{font-size:1.2rem;line-height:1}
+.cible{display:flex;gap:12px;align-items:center;background:var(--carte);border:1px solid var(--trait);border-radius:16px;padding:12px;margin-bottom:16px}
+.cible .hx{width:46px;height:52px;flex:none;clip-path:polygon(50% 0,100% 25%,100% 75%,50% 100%,0 75%,0 25%);background:linear-gradient(160deg,#3B2A7A,#24184F);display:grid;place-items:center;font-size:22px}
+.cible small{display:block;color:var(--pale);font-size:.78rem}
+.cible strong{display:block;font-size:1rem}
+.cible em{display:block;font-style:normal;color:var(--brume);font-size:.86rem;overflow-wrap:anywhere}
+h2{font-size:1rem;margin:0 0 10px}
+.grille{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-bottom:16px}
+.cat{position:relative;border:0;background:none;padding:0;cursor:pointer;aspect-ratio:1/1.08;min-height:92px}
+.cat .fond{position:absolute;inset:0;clip-path:polygon(50% 0,100% 25%,100% 75%,50% 100%,0 75%,0 25%);background:var(--trait)}
+.cat .dedans{position:absolute;inset:2px;clip-path:polygon(50% 0,100% 25%,100% 75%,50% 100%,0 75%,0 25%);background:#1A1240;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;padding:10px 8px;text-align:center}
+.cat .ico{font-size:22px;line-height:1}
+.cat .nom{font-size:.76rem;font-weight:700;line-height:1.15;overflow-wrap:anywhere}
+.cat.urg .fond{background:rgba(255,90,110,.55)}
+.cat[aria-pressed=true] .fond{background:linear-gradient(160deg,var(--teal),var(--violet),var(--rose))}
+.cat[aria-pressed=true] .dedans{background:#2A1A63}
+.cat:focus-visible{outline:none}.cat:focus-visible .fond{background:var(--or)}
+label.lib{display:block;font-weight:700;margin:0 0 6px;font-size:.95rem}
+textarea{width:100%;min-height:96px;resize:vertical;border-radius:14px;border:1px solid var(--trait);background:rgba(0,0,0,.25);padding:10px 12px;font-size:.95rem;line-height:1.4}
+textarea:focus-visible{outline:2px solid var(--or);outline-offset:1px}
+.aide{display:flex;justify-content:space-between;gap:10px;color:var(--pale);font-size:.8rem;margin:6px 2px 16px}
+.joint{color:var(--brume);font-size:.85rem;margin:-8px 2px 14px}
+.envoyer{width:100%;min-height:52px;border:0;border-radius:26px;background:linear-gradient(90deg,var(--teal),var(--violet) 55%,var(--rose));color:#fff;font-weight:800;font-size:1rem;cursor:pointer}
+.envoyer[disabled]{opacity:.55;cursor:default}
+.envoyer:focus-visible,.retour:focus-visible,.fin:focus-visible{outline:2px solid var(--or);outline-offset:3px}
+.msg{min-height:1.4em;margin:10px 2px 0;color:#FFD5DB;font-size:.9rem;font-weight:600}
+.recu{text-align:center;padding:26px 6px}
+.recu .hx{width:84px;height:96px;margin:0 auto 14px;clip-path:polygon(50% 0,100% 25%,100% 75%,50% 100%,0 75%,0 25%);background:linear-gradient(160deg,var(--teal),var(--violet) 55%,var(--rose));display:grid;place-items:center;font-size:40px}
+.recu h2{font-size:1.15rem}
+.recu p{color:var(--brume);margin:6px 0}
+.fin{margin-top:18px;min-height:48px;padding:0 28px;border-radius:24px;border:1px solid var(--trait);background:var(--carte);font-weight:800;cursor:pointer}
+[hidden]{display:none!important}
+@media (max-width:340px){.grille{gap:6px}.cat .nom{font-size:.7rem}}
+@media (prefers-reduced-motion:no-preference){.recu .hx{animation:pop .35s ease-out}@keyframes pop{from{transform:scale(.6);opacity:0}to{transform:none;opacity:1}}}
+</style>
+</head>
+<body>
+<div class="page">
+  <header>
+    <button class="retour" id="retour" type="button" aria-label="Revenir"><span aria-hidden="true">‹</span></button>
+    <div class="logo" aria-hidden="true">⚑</div>
+    <div><h1 id="titre">Signaler</h1><p class="sous" id="sous">La sécurité de tous sur NEURAVID</p></div>
+  </header>
+  <div class="bandeau" id="bandeauDemo" hidden>Démonstration : ce signalement n'est envoyé à personne.</div>
+  <main id="formulaire">
+    <div class="urgence" id="urgence" hidden role="note"><b aria-hidden="true">!</b><span>Quelqu'un est en danger immédiat ? Appelez d'abord les secours de votre pays.</span></div>
+    <section class="cible" aria-labelledby="cibleLib">
+      <div class="hx" id="cibleIco" aria-hidden="true">▶</div>
+      <div><small id="cibleLib">Ce que vous signalez</small><strong id="cibleType">Quelque chose sur NEURAVID</strong><em id="cibleAuteur" hidden></em></div>
+    </section>
+    <section id="zoneCats">
+      <h2 id="question">Que se passe-t-il ?</h2>
+      <div class="grille" id="grille" role="group" aria-labelledby="question"></div>
+    </section>
+    <label class="lib" for="precision" id="precisionLib">Ajouter une précision (facultatif)</label>
+    <textarea id="precision" maxlength="500" placeholder="Ce qui s'est passé, en quelques mots. Ne donnez pas d'informations privées."></textarea>
+    <div class="aide"><span id="precisionAide"></span><span id="compte" aria-live="polite">0/500</span></div>
+    <p class="joint" id="joint" hidden>Le texte que vous avez choisi de joindre sera transmis.</p>
+    <button class="envoyer" id="envoyer" type="button">Envoyer le signalement</button>
+    <p class="msg" id="msg" role="alert"></p>
+  </main>
+  <section class="recu" id="recu" hidden aria-live="polite">
+    <div class="hx" aria-hidden="true">✓</div>
+    <h2 id="recuTitre">Merci. Votre signalement est bien reçu.</h2>
+    <p id="recuTexte">Il sera examiné selon les règles de NEURAVID.</p>
+    <p id="recuNum" hidden></p>
+    <p id="recuDemo" hidden>Démonstration : ce signalement n'est envoyé à personne.</p>
+    <button class="fin" id="fin" type="button">Terminé</button>
+  </section>
+</div>
+<script type="application/json" id="nvI18n-en">{"Signaler": "Report", "La sécurité de tous sur NEURAVID": "Everyone's safety on NEURAVID", "Revenir": "Go back", "Ce que vous signalez": "What you are reporting", "Une vidéo": "A video", "Un direct": "A live", "Un film": "A film", "Un duel": "A battle", "Une prestation": "A performance", "Un casting": "A casting call", "Une personne": "A person", "Un message": "A message", "Une conversation": "A conversation", "Une flamme": "A flame", "Un résultat": "A result", "Quelque chose sur NEURAVID": "Something on NEURAVID", "de {0}": "by {0}", "Que se passe-t-il ?": "What is happening?", "Une vie en danger": "A life in danger", "Un enfant en danger": "A child in danger", "Violence": "Violence", "Haine": "Hate", "Harcèlement": "Harassment", "Contenu sexuel": "Sexual content", "Arnaque": "Scam", "Spam": "Spam", "Autre chose": "Something else", "Quelqu'un est en danger immédiat ? Appelez d'abord les secours de votre pays.": "Is someone in immediate danger? Call your country's emergency services first.", "Ajouter une précision (facultatif)": "Add details (optional)", "Ce qui s'est passé, en quelques mots. Ne donnez pas d'informations privées.": "What happened, in a few words. Do not share private information.", "Envoyer le signalement": "Send the report", "Choisissez d'abord ce qui se passe.": "First choose what is happening.", "Merci. Votre signalement est bien reçu.": "Thank you. Your report has been received.", "Il sera examiné selon les règles de NEURAVID.": "It will be reviewed under NEURAVID's rules.", "Numéro : {0}": "Number: {0}", "Démonstration : ce signalement n'est envoyé à personne.": "Demonstration: this report is not sent to anyone.", "Le signalement se fait dans l'application NEURAVID connectée.": "Reporting works in the connected NEURAVID app.", "Vous avez déjà signalé ceci.": "You have already reported this.", "Trop de signalements en peu de temps. Réessayez plus tard.": "Too many reports in a short time. Try again later.", "Connectez-vous pour signaler.": "Sign in to report.", "L'envoi a échoué. Vérifiez votre connexion et réessayez.": "Sending failed. Check your connection and try again.", "L'application n'a pas encore confirmé. Réessayez dans un instant.": "The app has not confirmed yet. Try again in a moment.", "Demander un nouvel examen": "Ask for a new review", "Ce que vous contestez": "What you are disputing", "Expliquez pourquoi cette décision vous semble fausse.": "Explain why this decision seems wrong to you.", "Envoyer la demande": "Send the request", "Merci. Votre demande de nouvel examen est bien reçue.": "Thank you. Your request for a new review has been received.", "Une explication est nécessaire pour un nouvel examen.": "An explanation is needed for a new review.", "Envoi…": "Sending…", "Terminé": "Done", "Le texte que vous avez choisi de joindre sera transmis.": "The text you chose to attach will be sent."}</script>
+<script type="application/json" id="nvI18n-es">{"Signaler": "Denunciar", "La sécurité de tous sur NEURAVID": "La seguridad de todos en NEURAVID", "Revenir": "Volver", "Ce que vous signalez": "Lo que denuncias", "Une vidéo": "Un vídeo", "Un direct": "Un directo", "Un film": "Una película", "Un duel": "Una batalla", "Une prestation": "Una actuación", "Un casting": "Un casting", "Une personne": "Una persona", "Un message": "Un mensaje", "Une conversation": "Una conversación", "Une flamme": "Una llama", "Un résultat": "Un resultado", "Quelque chose sur NEURAVID": "Algo en NEURAVID", "de {0}": "de {0}", "Que se passe-t-il ?": "¿Qué está pasando?", "Une vie en danger": "Una vida en peligro", "Un enfant en danger": "Un niño en peligro", "Violence": "Violencia", "Haine": "Odio", "Harcèlement": "Acoso", "Contenu sexuel": "Contenido sexual", "Arnaque": "Estafa", "Spam": "Spam", "Autre chose": "Otra cosa", "Quelqu'un est en danger immédiat ? Appelez d'abord les secours de votre pays.": "¿Alguien está en peligro inmediato? Llama primero a los servicios de emergencia de tu país.", "Ajouter une précision (facultatif)": "Añadir detalles (opcional)", "Ce qui s'est passé, en quelques mots. Ne donnez pas d'informations privées.": "Lo que pasó, en pocas palabras. No compartas información privada.", "Envoyer le signalement": "Enviar la denuncia", "Choisissez d'abord ce qui se passe.": "Primero elige lo que está pasando.", "Merci. Votre signalement est bien reçu.": "Gracias. Hemos recibido tu denuncia.", "Il sera examiné selon les règles de NEURAVID.": "Se revisará según las normas de NEURAVID.", "Numéro : {0}": "Número: {0}", "Démonstration : ce signalement n'est envoyé à personne.": "Demostración: esta denuncia no se envía a nadie.", "Le signalement se fait dans l'application NEURAVID connectée.": "Las denuncias se hacen en la aplicación NEURAVID conectada.", "Vous avez déjà signalé ceci.": "Ya has denunciado esto.", "Trop de signalements en peu de temps. Réessayez plus tard.": "Demasiadas denuncias en poco tiempo. Inténtalo más tarde.", "Connectez-vous pour signaler.": "Inicia sesión para denunciar.", "L'envoi a échoué. Vérifiez votre connexion et réessayez.": "El envío falló. Comprueba tu conexión e inténtalo de nuevo.", "L'application n'a pas encore confirmé. Réessayez dans un instant.": "La aplicación aún no ha confirmado. Inténtalo en un momento.", "Demander un nouvel examen": "Pedir una nueva revisión", "Ce que vous contestez": "Lo que impugnas", "Expliquez pourquoi cette décision vous semble fausse.": "Explica por qué esta decisión te parece errónea.", "Envoyer la demande": "Enviar la solicitud", "Merci. Votre demande de nouvel examen est bien reçue.": "Gracias. Hemos recibido tu solicitud de nueva revisión.", "Une explication est nécessaire pour un nouvel examen.": "Se necesita una explicación para una nueva revisión.", "Envoi…": "Enviando…", "Terminé": "Listo", "Le texte que vous avez choisi de joindre sera transmis.": "Se enviará el texto que elegiste adjuntar."}</script>
+<script type="application/json" id="nvI18n-pt">{"Signaler": "Denunciar", "La sécurité de tous sur NEURAVID": "A segurança de todos na NEURAVID", "Revenir": "Voltar", "Ce que vous signalez": "O que você está denunciando", "Une vidéo": "Um vídeo", "Un direct": "Uma live", "Un film": "Um filme", "Un duel": "Uma batalha", "Une prestation": "Uma apresentação", "Un casting": "Um casting", "Une personne": "Uma pessoa", "Un message": "Uma mensagem", "Une conversation": "Uma conversa", "Une flamme": "Uma chama", "Un résultat": "Um resultado", "Quelque chose sur NEURAVID": "Algo na NEURAVID", "de {0}": "de {0}", "Que se passe-t-il ?": "O que está acontecendo?", "Une vie en danger": "Uma vida em perigo", "Un enfant en danger": "Uma criança em perigo", "Violence": "Violência", "Haine": "Ódio", "Harcèlement": "Assédio", "Contenu sexuel": "Conteúdo sexual", "Arnaque": "Golpe", "Spam": "Spam", "Autre chose": "Outra coisa", "Quelqu'un est en danger immédiat ? Appelez d'abord les secours de votre pays.": "Alguém está em perigo imediato? Ligue primeiro para os serviços de emergência do seu país.", "Ajouter une précision (facultatif)": "Adicionar detalhes (opcional)", "Ce qui s'est passé, en quelques mots. Ne donnez pas d'informations privées.": "O que aconteceu, em poucas palavras. Não compartilhe informações privadas.", "Envoyer le signalement": "Enviar a denúncia", "Choisissez d'abord ce qui se passe.": "Primeiro escolha o que está acontecendo.", "Merci. Votre signalement est bien reçu.": "Obrigado. Sua denúncia foi recebida.", "Il sera examiné selon les règles de NEURAVID.": "Ela será analisada segundo as regras da NEURAVID.", "Numéro : {0}": "Número: {0}", "Démonstration : ce signalement n'est envoyé à personne.": "Demonstração: esta denúncia não é enviada a ninguém.", "Le signalement se fait dans l'application NEURAVID connectée.": "As denúncias são feitas no app NEURAVID conectado.", "Vous avez déjà signalé ceci.": "Você já denunciou isto.", "Trop de signalements en peu de temps. Réessayez plus tard.": "Denúncias demais em pouco tempo. Tente mais tarde.", "Connectez-vous pour signaler.": "Entre na sua conta para denunciar.", "L'envoi a échoué. Vérifiez votre connexion et réessayez.": "O envio falhou. Verifique sua conexão e tente de novo.", "L'application n'a pas encore confirmé. Réessayez dans un instant.": "O app ainda não confirmou. Tente de novo em instantes.", "Demander un nouvel examen": "Pedir uma nova análise", "Ce que vous contestez": "O que você está contestando", "Expliquez pourquoi cette décision vous semble fausse.": "Explique por que esta decisão parece errada.", "Envoyer la demande": "Enviar o pedido", "Merci. Votre demande de nouvel examen est bien reçue.": "Obrigado. Seu pedido de nova análise foi recebido.", "Une explication est nécessaire pour un nouvel examen.": "É preciso uma explicação para uma nova análise.", "Envoi…": "Enviando…", "Terminé": "Pronto", "Le texte que vous avez choisi de joindre sera transmis.": "O texto que você escolheu anexar será enviado."}</script>
+<script type="application/json" id="nvI18n-ar">{"Signaler": "إبلاغ", "La sécurité de tous sur NEURAVID": "سلامة الجميع على NEURAVID", "Revenir": "رجوع", "Ce que vous signalez": "ما تُبلّغ عنه", "Une vidéo": "فيديو", "Un direct": "بث مباشر", "Un film": "فيلم", "Un duel": "مواجهة", "Une prestation": "أداء", "Un casting": "تجربة أداء", "Une personne": "شخص", "Un message": "رسالة", "Une conversation": "محادثة", "Une flamme": "شعلة", "Un résultat": "نتيجة", "Quelque chose sur NEURAVID": "شيء على NEURAVID", "de {0}": "من {0}", "Que se passe-t-il ?": "ماذا يحدث؟", "Une vie en danger": "حياة في خطر", "Un enfant en danger": "طفل في خطر", "Violence": "عنف", "Haine": "كراهية", "Harcèlement": "تحرّش", "Contenu sexuel": "محتوى جنسي", "Arnaque": "احتيال", "Spam": "رسائل مزعجة", "Autre chose": "شيء آخر", "Quelqu'un est en danger immédiat ? Appelez d'abord les secours de votre pays.": "هل هناك شخص في خطر فوري؟ اتصل أولاً بخدمات الطوارئ في بلدك.", "Ajouter une précision (facultatif)": "أضف تفاصيل (اختياري)", "Ce qui s'est passé, en quelques mots. Ne donnez pas d'informations privées.": "ما حدث، في كلمات قليلة. لا تشارك معلومات خاصة.", "Envoyer le signalement": "إرسال البلاغ", "Choisissez d'abord ce qui se passe.": "اختر أولاً ما يحدث.", "Merci. Votre signalement est bien reçu.": "شكراً. تم استلام بلاغك.", "Il sera examiné selon les règles de NEURAVID.": "ستتم مراجعته وفق قواعد NEURAVID.", "Numéro : {0}": "الرقم: {0}", "Démonstration : ce signalement n'est envoyé à personne.": "عرض تجريبي: لا يُرسل هذا البلاغ إلى أحد.", "Le signalement se fait dans l'application NEURAVID connectée.": "يتم الإبلاغ في تطبيق NEURAVID المتصل.", "Vous avez déjà signalé ceci.": "لقد أبلغت عن هذا من قبل.", "Trop de signalements en peu de temps. Réessayez plus tard.": "بلاغات كثيرة في وقت قصير. حاول لاحقاً.", "Connectez-vous pour signaler.": "سجّل الدخول للإبلاغ.", "L'envoi a échoué. Vérifiez votre connexion et réessayez.": "فشل الإرسال. تحقق من اتصالك وحاول مجدداً.", "L'application n'a pas encore confirmé. Réessayez dans un instant.": "لم يؤكد التطبيق بعد. حاول بعد لحظة.", "Demander un nouvel examen": "طلب مراجعة جديدة", "Ce que vous contestez": "ما تعترض عليه", "Expliquez pourquoi cette décision vous semble fausse.": "اشرح لماذا يبدو لك هذا القرار خاطئاً.", "Envoyer la demande": "إرسال الطلب", "Merci. Votre demande de nouvel examen est bien reçue.": "شكراً. تم استلام طلب المراجعة الجديدة.", "Une explication est nécessaire pour un nouvel examen.": "يلزم تقديم شرح لطلب مراجعة جديدة.", "Envoi…": "جارٍ الإرسال…", "Terminé": "تم", "Le texte que vous avez choisi de joindre sera transmis.": "سيتم إرسال النص الذي اخترت إرفاقه."}</script>
+<script type="application/json" id="nvI18n-sw">{"Signaler": "Ripoti", "La sécurité de tous sur NEURAVID": "Usalama wa wote kwenye NEURAVID", "Revenir": "Rudi", "Ce que vous signalez": "Unachoripoti", "Une vidéo": "Video", "Un direct": "Matangazo ya moja kwa moja", "Un film": "Filamu", "Un duel": "Pambano", "Une prestation": "Onyesho", "Un casting": "Usaili wa waigizaji", "Une personne": "Mtu", "Un message": "Ujumbe", "Une conversation": "Mazungumzo", "Une flamme": "Mwali", "Un résultat": "Tokeo", "Quelque chose sur NEURAVID": "Kitu kwenye NEURAVID", "de {0}": "ya {0}", "Que se passe-t-il ?": "Nini kinaendelea?", "Une vie en danger": "Maisha hatarini", "Un enfant en danger": "Mtoto hatarini", "Violence": "Vurugu", "Haine": "Chuki", "Harcèlement": "Unyanyasaji", "Contenu sexuel": "Maudhui ya ngono", "Arnaque": "Utapeli", "Spam": "Barua taka", "Autre chose": "Kitu kingine", "Quelqu'un est en danger immédiat ? Appelez d'abord les secours de votre pays.": "Kuna mtu yuko hatarini sasa hivi? Piga simu kwanza huduma za dharura za nchi yako.", "Ajouter une précision (facultatif)": "Ongeza maelezo (si lazima)", "Ce qui s'est passé, en quelques mots. Ne donnez pas d'informations privées.": "Kilichotokea, kwa maneno machache. Usitoe taarifa za faragha.", "Envoyer le signalement": "Tuma ripoti", "Choisissez d'abord ce qui se passe.": "Kwanza chagua kinachoendelea.", "Merci. Votre signalement est bien reçu.": "Asante. Ripoti yako imepokelewa.", "Il sera examiné selon les règles de NEURAVID.": "Itakaguliwa kulingana na sheria za NEURAVID.", "Numéro : {0}": "Nambari: {0}", "Démonstration : ce signalement n'est envoyé à personne.": "Maonyesho: ripoti hii haitumwi kwa mtu yeyote.", "Le signalement se fait dans l'application NEURAVID connectée.": "Kuripoti hufanyika kwenye programu ya NEURAVID iliyounganishwa.", "Vous avez déjà signalé ceci.": "Tayari umeripoti hili.", "Trop de signalements en peu de temps. Réessayez plus tard.": "Ripoti nyingi mno kwa muda mfupi. Jaribu tena baadaye.", "Connectez-vous pour signaler.": "Ingia ili uripoti.", "L'envoi a échoué. Vérifiez votre connexion et réessayez.": "Kutuma kumeshindikana. Angalia mtandao wako na ujaribu tena.", "L'application n'a pas encore confirmé. Réessayez dans un instant.": "Programu bado haijathibitisha. Jaribu tena baada ya muda mfupi.", "Demander un nouvel examen": "Omba ukaguzi mpya", "Ce que vous contestez": "Unachopinga", "Expliquez pourquoi cette décision vous semble fausse.": "Eleza kwa nini uamuzi huu unaonekana si sahihi.", "Envoyer la demande": "Tuma ombi", "Merci. Votre demande de nouvel examen est bien reçue.": "Asante. Ombi lako la ukaguzi mpya limepokelewa.", "Une explication est nécessaire pour un nouvel examen.": "Maelezo yanahitajika kwa ukaguzi mpya.", "Envoi…": "Inatuma…", "Terminé": "Imekamilika", "Le texte que vous avez choisi de joindre sera transmis.": "Maandishi uliyochagua kuambatisha yatatumwa."}</script>
+<script type="application/json" id="nvI18n-ha">{"Signaler": "Kai rahoto", "La sécurité de tous sur NEURAVID": "Tsaron kowa a NEURAVID", "Revenir": "Koma", "Ce que vous signalez": "Abin da kake kai rahoto", "Une vidéo": "Bidiyo", "Un direct": "Kai tsaye", "Un film": "Fim", "Un duel": "Fafatawa", "Une prestation": "Wasan kwaikwayo", "Un casting": "Zaɓen 'yan wasa", "Une personne": "Mutum", "Un message": "Saƙo", "Une conversation": "Tattaunawa", "Une flamme": "Harshen wuta", "Un résultat": "Sakamako", "Quelque chose sur NEURAVID": "Wani abu a NEURAVID", "de {0}": "na {0}", "Que se passe-t-il ?": "Me ke faruwa?", "Une vie en danger": "Rai cikin haɗari", "Un enfant en danger": "Yaro cikin haɗari", "Violence": "Tashin hankali", "Haine": "Ƙiyayya", "Harcèlement": "Cin zarafi", "Contenu sexuel": "Abun jima'i", "Arnaque": "Damfara", "Spam": "Saƙonnin banza", "Autre chose": "Wani abu dabam", "Quelqu'un est en danger immédiat ? Appelez d'abord les secours de votre pays.": "Akwai wanda ke cikin haɗari yanzu? Ka fara kiran agajin gaggawa na ƙasarka.", "Ajouter une précision (facultatif)": "Ƙara bayani (ba dole ba)", "Ce qui s'est passé, en quelques mots. Ne donnez pas d'informations privées.": "Abin da ya faru, a taƙaice. Kada ka ba da bayanan sirri.", "Envoyer le signalement": "Aika rahoto", "Choisissez d'abord ce qui se passe.": "Da farko zaɓi abin da ke faruwa.", "Merci. Votre signalement est bien reçu.": "Na gode. An karɓi rahotonka.", "Il sera examiné selon les règles de NEURAVID.": "Za a duba shi bisa ƙa'idodin NEURAVID.", "Numéro : {0}": "Lamba: {0}", "Démonstration : ce signalement n'est envoyé à personne.": "Nunawa: ba a aika wannan rahoton ga kowa ba.", "Le signalement se fait dans l'application NEURAVID connectée.": "Ana kai rahoto a cikin manhajar NEURAVID da aka haɗa.", "Vous avez déjà signalé ceci.": "Ka riga ka kai rahoton wannan.", "Trop de signalements en peu de temps. Réessayez plus tard.": "Rahotanni sun yi yawa cikin ɗan lokaci. Sake gwadawa daga baya.", "Connectez-vous pour signaler.": "Shiga don kai rahoto.", "L'envoi a échoué. Vérifiez votre connexion et réessayez.": "Aikawa ta kasa. Duba haɗinka ka sake gwadawa.", "L'application n'a pas encore confirmé. Réessayez dans un instant.": "Manhajar ba ta tabbatar ba tukuna. Sake gwadawa nan ba da jimawa ba.", "Demander un nouvel examen": "Nemi sabon bincike", "Ce que vous contestez": "Abin da kake ƙalubalanta", "Expliquez pourquoi cette décision vous semble fausse.": "Bayyana dalilin da yasa kake ganin wannan hukunci bai dace ba.", "Envoyer la demande": "Aika buƙata", "Merci. Votre demande de nouvel examen est bien reçue.": "Na gode. An karɓi buƙatarka ta sabon bincike.", "Une explication est nécessaire pour un nouvel examen.": "Ana buƙatar bayani don sabon bincike.", "Envoi…": "Ana aikawa…", "Terminé": "An gama", "Le texte que vous avez choisi de joindre sera transmis.": "Za a aika rubutun da ka zaɓa ka haɗa."}</script>
+<script type="application/json" id="nvI18n-yo">{"Signaler": "Fi ẹjọ́ sùn", "La sécurité de tous sur NEURAVID": "Ààbò gbogbo ènìyàn lórí NEURAVID", "Revenir": "Padà", "Ce que vous signalez": "Ohun tí o ń fi sùn", "Une vidéo": "Fídíò", "Un direct": "Ìgbóhùnsáfẹ́fẹ́ ààyè", "Un film": "Fíìmù", "Un duel": "Ìdíje", "Une prestation": "Eré orí ìtàgé", "Un casting": "Ìyànsípò òṣèré", "Une personne": "Ènìyàn kan", "Un message": "Ọ̀rọ̀ kan", "Une conversation": "Ìjíròrò", "Une flamme": "Ọwọ́ iná", "Un résultat": "Àbájáde", "Quelque chose sur NEURAVID": "Nǹkan kan lórí NEURAVID", "de {0}": "láti ọwọ́ {0}", "Que se passe-t-il ?": "Kí ló ń ṣẹlẹ̀?", "Une vie en danger": "Ẹ̀mí kan wà nínú ewu", "Un enfant en danger": "Ọmọdé kan wà nínú ewu", "Violence": "Ìwà ipá", "Haine": "Ìkórìíra", "Harcèlement": "Ìyọlẹ́nu", "Contenu sexuel": "Àkóónú ìbálòpọ̀", "Arnaque": "Jìbìtì", "Spam": "Àwọn ìfiránṣẹ́ àìwúlò", "Autre chose": "Nǹkan míràn", "Quelqu'un est en danger immédiat ? Appelez d'abord les secours de votre pays.": "Ṣé ẹnìkan wà nínú ewu báyìí? Kọ́kọ́ pe àwọn olùrànlọ́wọ́ pàjáwìrì orílẹ̀-èdè rẹ.", "Ajouter une précision (facultatif)": "Fi àlàyé kún un (kò pọn dandan)", "Ce qui s'est passé, en quelques mots. Ne donnez pas d'informations privées.": "Ohun tó ṣẹlẹ̀, ní ọ̀rọ̀ díẹ̀. Má ṣe fi ìsọfúnni àṣírí sílẹ̀.", "Envoyer le signalement": "Fi ẹ̀sùn ránṣẹ́", "Choisissez d'abord ce qui se passe.": "Kọ́kọ́ yan ohun tó ń ṣẹlẹ̀.", "Merci. Votre signalement est bien reçu.": "O ṣé. A ti gba ẹ̀sùn rẹ.", "Il sera examiné selon les règles de NEURAVID.": "A ó yẹ̀ ẹ́ wò gẹ́gẹ́ bí òfin NEURAVID.", "Numéro : {0}": "Nọ́mbà: {0}", "Démonstration : ce signalement n'est envoyé à personne.": "Àfihàn: a kò fi ẹ̀sùn yìí ránṣẹ́ sí ẹnikẹ́ni.", "Le signalement se fait dans l'application NEURAVID connectée.": "Ẹ̀sùn ni a ń fi sùn nínú ìṣàfilọ́lẹ̀ NEURAVID tó so pọ̀.", "Vous avez déjà signalé ceci.": "O ti fi èyí sùn tẹ́lẹ̀.", "Trop de signalements en peu de temps. Réessayez plus tard.": "Ẹ̀sùn ti pọ̀ jù láàrín ìgbà díẹ̀. Gbìyànjú lẹ́yìn náà.", "Connectez-vous pour signaler.": "Wọlé láti fi ẹ̀sùn sùn.", "L'envoi a échoué. Vérifiez votre connexion et réessayez.": "Ìfiránṣẹ́ kùnà. Ṣàyẹ̀wò ìsopọ̀ rẹ kí o sì tún gbìyànjú.", "L'application n'a pas encore confirmé. Réessayez dans un instant.": "Ìṣàfilọ́lẹ̀ kò tíì jẹ́rìí sí i. Tún gbìyànjú láìpẹ́.", "Demander un nouvel examen": "Béèrè àyẹ̀wò tuntun", "Ce que vous contestez": "Ohun tí o ń tako", "Expliquez pourquoi cette décision vous semble fausse.": "Ṣàlàyé ìdí tí ìpinnu yìí fi dà bí àṣìṣe sí ọ.", "Envoyer la demande": "Fi ìbéèrè ránṣẹ́", "Merci. Votre demande de nouvel examen est bien reçue.": "O ṣé. A ti gba ìbéèrè rẹ fún àyẹ̀wò tuntun.", "Une explication est nécessaire pour un nouvel examen.": "A nílò àlàyé fún àyẹ̀wò tuntun.", "Envoi…": "Ó ń fi ránṣẹ́…", "Terminé": "Ó ti parí", "Le texte que vous avez choisi de joindre sera transmis.": "A ó fi ọ̀rọ̀ tí o yàn láti so mọ́ ọn ránṣẹ́."}</script>
+<script type="application/json" id="nvI18n-wo">{"Signaler": "Yégle", "La sécurité de tous sur NEURAVID": "Kaarange ñépp ci NEURAVID", "Revenir": "Dellu", "Ce que vous signalez": "Li ngay yégle", "Une vidéo": "Benn widewoo", "Un direct": "Benn direct", "Un film": "Benn film", "Un duel": "Benn bëre", "Une prestation": "Benn wone", "Un casting": "Benn casting", "Une personne": "Benn nit", "Un message": "Benn bataaxal", "Une conversation": "Benn waxtaan", "Une flamme": "Benn tàkk", "Un résultat": "Benn njureef", "Quelque chose sur NEURAVID": "Lenn ci NEURAVID", "de {0}": "bu {0}", "Que se passe-t-il ?": "Lan moo xew?", "Une vie en danger": "Benn bakkan ci musiba", "Un enfant en danger": "Benn xale ci musiba", "Violence": "Fitna", "Haine": "Mbañeel", "Harcèlement": "Sonal", "Contenu sexuel": "Lu jëm ci sëy", "Arnaque": "Nax", "Spam": "Bataaxal yu amul njariñ", "Autre chose": "Leneen", "Quelqu'un est en danger immédiat ? Appelez d'abord les secours de votre pays.": "Am na nit ku nekk ci musiba léegi? Woolal ndimbal yu gaaw yu sa réew ba pare.", "Ajouter une précision (facultatif)": "Yokk leeral (du war)", "Ce qui s'est passé, en quelques mots. Ne donnez pas d'informations privées.": "Li xew, ci ay baat yu néew. Bul joxe xibaar yu kumpa.", "Envoyer le signalement": "Yónnee yégle bi", "Choisissez d'abord ce qui se passe.": "Tànnal li xew ba pare.", "Merci. Votre signalement est bien reçu.": "Jërëjëf. Yégle bi agsi na.", "Il sera examiné selon les règles de NEURAVID.": "Dees na ko seet ci sàrti NEURAVID.", "Numéro : {0}": "Nimero: {0}", "Démonstration : ce signalement n'est envoyé à personne.": "Wone: yégle bii yónneewul kenn.", "Le signalement se fait dans l'application NEURAVID connectée.": "Yégle dafay def ci aplikaasioŋ NEURAVID bu lëkkaloo.", "Vous avez déjà signalé ceci.": "Yégle nga lii ba noppi.", "Trop de signalements en peu de temps. Réessayez plus tard.": "Yégle yi bari nañu ci diir bu gàtt. Jéemaatal ci kanam.", "Connectez-vous pour signaler.": "Duggal ngir yégle.", "L'envoi a échoué. Vérifiez votre connexion et réessayez.": "Yónnee bi antuwul. Seetal sa lëkkalekaay te jéemaat.", "L'application n'a pas encore confirmé. Réessayez dans un instant.": "Aplikaasioŋ bi dëggalagul. Jéemaatal ci kanam tuuti.", "Demander un nouvel examen": "Laaj ñu seetaat ko", "Ce que vous contestez": "Li ngay gàntu", "Expliquez pourquoi cette décision vous semble fausse.": "Leeralal lu tax ngay xalaat ne dogal bii baaxul.", "Envoyer la demande": "Yónnee laaj bi", "Merci. Votre demande de nouvel examen est bien reçue.": "Jërëjëf. Sa laaj ngir ñu seetaat agsi na.", "Une explication est nécessaire pour un nouvel examen.": "Leeral war na ngir ñu seetaat ko.", "Envoi…": "Mu ngi yónnee…", "Terminé": "Jeex na", "Le texte que vous avez choisi de joindre sera transmis.": "Mbind mi nga tànn ngir boole ko dees na ko yónnee."}</script>
+<script type="application/json" id="nvI18n-bm">{"Signaler": "Ka kunnafoni di", "La sécurité de tous sur NEURAVID": "Bɛɛ ka lakanali NEURAVID kan", "Revenir": "Segin", "Ce que vous signalez": "I bɛ kunnafoni min di", "Une vidéo": "Widewo dɔ", "Un direct": "Direct dɔ", "Un film": "Filimu dɔ", "Un duel": "Kɛlɛ dɔ", "Une prestation": "Jirali dɔ", "Un casting": "Casting dɔ", "Une personne": "Mɔgɔ dɔ", "Un message": "Cikan dɔ", "Une conversation": "Baro dɔ", "Une flamme": "Tasuma dɔ", "Un résultat": "Jaabi dɔ", "Quelque chose sur NEURAVID": "Fɛn dɔ NEURAVID kan", "de {0}": "{0} ta", "Que se passe-t-il ?": "Mun bɛ kɛra?", "Une vie en danger": "Ɲɛnamaya dɔ bɛ farati la", "Un enfant en danger": "Den dɔ bɛ farati la", "Violence": "Fanga baara", "Haine": "Kɔnɔnajugu", "Harcèlement": "Tɔɔrɔli", "Contenu sexuel": "Cɛ ni muso ka kow", "Arnaque": "Nanbara", "Spam": "Cikan nafantanw", "Autre chose": "Fɛn wɛrɛ", "Quelqu'un est en danger immédiat ? Appelez d'abord les secours de votre pays.": "Mɔgɔ dɔ bɛ farati la sisan wa? Fɔlɔ i ka jamana dɛmɛbaga teliw wele.", "Ajouter une précision (facultatif)": "Kunnafoni fara a kan (a man wajibi)", "Ce qui s'est passé, en quelques mots. Ne donnez pas d'informations privées.": "Min kɛra, kuma dama dama la. Kana i ka gundo kunnafoniw di.", "Envoyer le signalement": "Kunnafoni ci", "Choisissez d'abord ce qui se passe.": "Fɔlɔ, min bɛ kɛra, o sugandi.", "Merci. Votre signalement est bien reçu.": "I ni ce. I ka kunnafoni sera.", "Il sera examiné selon les règles de NEURAVID.": "A bɛna lajɛ ka kɛɲɛ ni NEURAVID ka sariyaw ye.", "Numéro : {0}": "Nimɔrɔ: {0}", "Démonstration : ce signalement n'est envoyé à personne.": "Jirali: nin kunnafoni ma ci mɔgɔ si ma.", "Le signalement se fait dans l'application NEURAVID connectée.": "Kunnafoni dili bɛ kɛ NEURAVID aplikasiyɔn jɛlen kɔnɔ.", "Vous avez déjà signalé ceci.": "I ye nin kunnafoni di ka ban.", "Trop de signalements en peu de temps. Réessayez plus tard.": "Kunnafoniw cayara waati surun kɔnɔ. A lajɛ tugun kɔfɛ.", "Connectez-vous pour signaler.": "Don i ka jatebɔsɛbɛn na walasa ka kunnafoni di.", "L'envoi a échoué. Vérifiez votre connexion et réessayez.": "Ciden ma se ka taa. I ka jɛɲɔgɔnya lajɛ ka segin a kan.", "L'application n'a pas encore confirmé. Réessayez dans un instant.": "Aplikasiyɔn ma a sinsin fɔlɔ. A lajɛ tugun sɔɔni.", "Demander un nouvel examen": "Lajɛli kura ɲini", "Ce que vous contestez": "I bɛ min sɔsɔ", "Expliquez pourquoi cette décision vous semble fausse.": "A ɲɛfɔ mun na nin latigɛ man ɲi i ma.", "Envoyer la demande": "Ɲinini ci", "Merci. Votre demande de nouvel examen est bien reçue.": "I ni ce. I ka lajɛli kura ɲinini sera.", "Une explication est nécessaire pour un nouvel examen.": "Ɲɛfɔli ka kan ka kɛ lajɛli kura kama.", "Envoi…": "A bɛ ci…", "Terminé": "A banna", "Le texte que vous avez choisi de joindre sera transmis.": "I ye sɛbɛn min sugandi ka fara a kan, o bɛna ci."}</script>
+<script type="application/json" id="nvI18n-ln">{"Signaler": "Kosakola", "La sécurité de tous sur NEURAVID": "Libateli ya bato nyonso na NEURAVID", "Revenir": "Kozonga", "Ce que vous signalez": "Oyo ozali kosakola", "Une vidéo": "Video moko", "Un direct": "Direct moko", "Un film": "Filme moko", "Un duel": "Etumba moko", "Une prestation": "Lisano moko", "Un casting": "Casting moko", "Une personne": "Moto moko", "Un message": "Nsango moko", "Une conversation": "Lisolo moko", "Une flamme": "Moto ya mɔ́tɔ moko", "Un résultat": "Mbano moko", "Quelque chose sur NEURAVID": "Eloko moko na NEURAVID", "de {0}": "ya {0}", "Que se passe-t-il ?": "Nini ezali kosalema?", "Une vie en danger": "Bomoi moko na likama", "Un enfant en danger": "Mwana moko na likama", "Violence": "Makambo ya makasi", "Haine": "Koyina", "Harcèlement": "Konyokola", "Contenu sexuel": "Makambo ya kosangisa nzoto", "Arnaque": "Bokosi", "Spam": "Nsango ya mpamba", "Autre chose": "Eloko mosusu", "Quelqu'un est en danger immédiat ? Appelez d'abord les secours de votre pays.": "Moto moko azali na likama sikoyo? Benga liboso basali ya lisalisi ya mbangu ya ekolo na yo.", "Ajouter une précision (facultatif)": "Bakisa ndimbola (ezali na makasi te)", "Ce qui s'est passé, en quelques mots. Ne donnez pas d'informations privées.": "Oyo esalemaki, na maloba moke. Kopesa te makambo na yo ya sekele.", "Envoyer le signalement": "Tinda bosakoli", "Choisissez d'abord ce qui se passe.": "Pona liboso oyo ezali kosalema.", "Merci. Votre signalement est bien reçu.": "Matondi. Bosakoli na yo ekomi.", "Il sera examiné selon les règles de NEURAVID.": "Ekotalelama na kolanda mibeko ya NEURAVID.", "Numéro : {0}": "Nimero: {0}", "Démonstration : ce signalement n'est envoyé à personne.": "Kolakisa: bosakoli oyo etindami epai ya moto moko te.", "Le signalement se fait dans l'application NEURAVID connectée.": "Bosakoli esalemaka na aplikasio NEURAVID oyo ekangami.", "Vous avez déjà signalé ceci.": "Osili kosakola likambo oyo.", "Trop de signalements en peu de temps. Réessayez plus tard.": "Bosakoli ebele mingi na ntango moke. Meka lisusu na nsima.", "Connectez-vous pour signaler.": "Kota na konti na yo mpo na kosakola.", "L'envoi a échoué. Vérifiez votre connexion et réessayez.": "Kotinda elongi te. Tala boyokani na yo mpe meka lisusu.", "L'application n'a pas encore confirmé. Réessayez dans un instant.": "Aplikasio endimi naino te. Meka lisusu mwa moke.", "Demander un nouvel examen": "Senga botaleli ya sika", "Ce que vous contestez": "Oyo ozali kowangana", "Expliquez pourquoi cette décision vous semble fausse.": "Limbola mpo na nini mokano oyo emonani na yo mabe.", "Envoyer la demande": "Tinda bosengi", "Merci. Votre demande de nouvel examen est bien reçue.": "Matondi. Bosengi na yo ya botaleli ya sika ekomi.", "Une explication est nécessaire pour un nouvel examen.": "Ndimbola esengeli mpo na botaleli ya sika.", "Envoi…": "Ezali kotindama…", "Terminé": "Esili", "Le texte que vous avez choisi de joindre sera transmis.": "Maloba oyo oponaki kokangisa ekotindama."}</script>
+
+<script>
+(function(){
+'use strict';
+var MOI = 'Report';
+function dbg(e){ try{ if(window.NV_DEBUG) console.warn('[Report]', e); }catch(x){} }
+function $(id){ return document.getElementById(id); }
+
+/* ---------- langue (même ordre que les autres modules : choix enregistré, NV_LANG, téléphone) ---------- */
+var LANGUES = ['fr','en','es','pt','ar','sw','ha','yo','wo','bm','ln'];
+var DICO = {};
+LANGUES.forEach(function(l){ var el = document.getElementById('nvI18n-' + l); if(el){ try{ DICO[l] = JSON.parse(el.textContent); }catch(e){ dbg(e); } } });
+function langue(){
+  try{ var v = localStorage.getItem('nv_ui_langue'); if(v){ v = JSON.parse(v); if(typeof v === 'string' && LANGUES.indexOf(v) >= 0) return v; } }catch(e){ dbg(e); }
+  try{ if(window.NV_LANG){ var n = String(window.NV_LANG).slice(0, 2).toLowerCase(); if(LANGUES.indexOf(n) >= 0) return n; } }catch(e){ dbg(e); }
+  var t = String(navigator.language || 'fr').slice(0, 2).toLowerCase(); return LANGUES.indexOf(t) >= 0 ? t : 'fr';
+}
+var L = langue();
+function T(fr){ var a = arguments, s = (L !== 'fr' && DICO[L] && DICO[L][fr]) || fr; return s.replace(/\{(\d)\}/g, function(m, i){ var v = a[+i + 1]; return v == null ? '' : String(v); }); }
+document.documentElement.lang = L; if(L === 'ar') document.documentElement.dir = 'rtl';
+
+/* ---------- contexte ---------- */
+var CTX = {};
+try{ var brut = sessionStorage.getItem('nv_ctx_' + MOI); if(brut) CTX = JSON.parse(brut) || {}; }catch(e){ dbg(e); }
+try{ if(window.NV_CTX && typeof window.NV_CTX === 'object') CTX = window.NV_CTX; }catch(e){ dbg(e); }
+var DEPUIS = CTX.depuis || CTX.via || null;
+var CONTESTER = !!CTX.contester;
+
+function auteurDe(c){ var a = c.auteur || c.author || null; if(!a) return null; if(typeof a === 'string') return a; return a.handle ? (String(a.handle).charAt(0) === '@' ? a.handle : '@' + a.handle) : (a.nom || a.id || null); }
+function cibleDe(c){
+  var t = c.type ? String(c.type) : null;
+  if(c.live) return {type:'direct', id:c.live};
+  if(c.battle) return {type:'duel', id:c.battle};
+  if(c.film) return {type:'film', id:c.film, clip:c.clip || null};
+  if(c.casting) return {type:'casting', id:c.casting};
+  if(c.prestation) return {type:'prestation', id:c.prestation, clip:c.clip || null};
+  if(c.video) return {type:'video', id:c.video, clip:c.clip || null};
+  if(t && c.id != null) return {type:t, id:c.id};
+  if(c.clip) return {type:'video', id:c.clip, clip:c.clip};
+  if(c.user || c.avec) return {type:'personne', id:c.user || c.avec};
+  return {type:'general', id:null};
+}
+var CIBLE = cibleDe(CTX);
+var TYPES = {video:['Une vidéo','▶'], clip:['Une vidéo','▶'], direct:['Un direct','◉'], live:['Un direct','◉'], film:['Un film','🎞'], duel:['Un duel','⚔'],
+  prestation:['Une prestation','🎭'], casting:['Un casting','🎬'], personne:['Une personne','👤'], user:['Une personne','👤'], compte:['Une personne','👤'],
+  message:['Un message','✉'], conversation:['Une conversation','💬'], groupe:['Une conversation','💬'], flamme:['Une flamme','🔥'], general:['Quelque chose sur NEURAVID','⬡']};
+function typeAffiche(){ if(CONTESTER) return ['Un résultat','⚖']; return TYPES[CIBLE.type] || ['Quelque chose sur NEURAVID','⬡']; }
+
+/* ---------- catégories : exactement celles du bouclier (serveur), les deux urgences en premier ---------- */
+var CATS = [
+  {k:'danger_vie', nom:'Une vie en danger', ico:'🆘', urg:true},
+  {k:'exploitation_mineurs', nom:'Un enfant en danger', ico:'🧒', urg:true},
+  {k:'violence', nom:'Violence', ico:'✊'},
+  {k:'haine', nom:'Haine', ico:'🗯'},
+  {k:'harcelement', nom:'Harcèlement', ico:'🎯'},
+  {k:'sexuel', nom:'Contenu sexuel', ico:'🔞'},
+  {k:'arnaque', nom:'Arnaque', ico:'🪤'},
+  {k:'spam', nom:'Spam', ico:'📨'},
+  {k:'autre', nom:'Autre chose', ico:'…'}
+];
+var CHOIX = null;
+
+/* ---------- mode : démonstration, serveur, application ---------- */
+function base(){ var b = (typeof window.NV_API_BASE === 'string' && window.NV_API_BASE) ? window.NV_API_BASE : ''; return b.replace(/\/+$/, ''); }
+function dansApp(){ return !!(window.flutter_inappwebview || window.NVLien); }
+var DEMO = window.NV_DEMO === true && !base();
+
+function emit(type, payload){
+  var msg = {source:'neuravid', module:MOI, type:type, payload:payload || {}};
+  if(window.NVemit){ try{ window.NVemit(type, msg.payload); }catch(e){ dbg(e); } }
+  try{ if(window.parent && window.parent !== window) window.parent.postMessage(msg, '*'); }catch(e){ dbg(e); }
+  try{ if(window.flutter_inappwebview) window.flutter_inappwebview.callHandler('nvEvent', msg); }catch(e){ dbg(e); }
+  try{ window.dispatchEvent(new CustomEvent('nv:' + type, {detail:msg.payload})); }catch(e){ dbg(e); }
+}
+function idem(){ return 'rp-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 10); }
+
+/* ---------- navigation ---------- */
+var ANCIENS_IDS = {SalleBaobab:'Baobab', WalletUniverse:'Recolte', Wallet:'Recolte', Tip:'Recolte', ArtsUniverse:'ArenaArts', MusicLibrary:'Griot', Sons:'Griot', NVStage:'Artistes', NVCinema:'CinemaWorld'};
+function ouvrir(id, ctx){
+  id = ANCIENS_IDS[id] || id;
+  emit('open_module', {target:id, via:MOI, contexte:ctx || null});
+  if(ctx){ try{ sessionStorage.setItem('nv_ctx_' + id, JSON.stringify(ctx)); }catch(e){ dbg(e); } }
+  try{ if(window.NVLien && typeof window.NVLien.ouvrir === 'function'){ window.NVLien.ouvrir('NV' + id, ctx || null); return true; } }catch(e){ dbg(e); }
+  var b = window.NV_MODULES_BASE || ''; if(b && b.slice(-1) !== '/') b += '/';
+  location.href = b + 'NV_MODULE_' + (id === 'Player' ? 'Iris' : id) + '.html'; return true;
+}
+function quitter(){
+  try{ sessionStorage.removeItem('nv_ctx_' + MOI); }catch(e){ dbg(e); }
+  emit('report_close', {});
+  if(history.length > 1 && document.referrer && document.referrer.indexOf(location.host) >= 0){ try{ history.back(); return; }catch(e){ dbg(e); } }
+  if(window.flutter_inappwebview && !window.NVLien){ try{ history.back(); return; }catch(e){ dbg(e); } }
+  var vers = (typeof DEPUIS === 'string' && /^[A-Z][A-Za-z]+$/.test(DEPUIS)) ? DEPUIS : 'Home';
+  ouvrir(vers);
+}
+
+/* ---------- affichage ---------- */
+function traduirePage(){
+  ['titre','sous','question','precisionLib','envoyer','recuTitre','recuTexte','fin','cibleLib','joint'].forEach(function(id){ var el = $(id); if(el) el.textContent = T(el.textContent); });
+  $('bandeauDemo').textContent = T('Démonstration : ce signalement n\'est envoyé à personne.');
+  $('recuDemo').textContent = $('bandeauDemo').textContent;
+  $('urgence').querySelector('span').textContent = T('Quelqu\'un est en danger immédiat ? Appelez d\'abord les secours de votre pays.');
+  $('precision').placeholder = T('Ce qui s\'est passé, en quelques mots. Ne donnez pas d\'informations privées.');
+  $('retour').setAttribute('aria-label', T('Revenir'));
+}
+function rendre(){
+  traduirePage();
+  if(CONTESTER){
+    $('titre').textContent = T('Demander un nouvel examen'); $('cibleLib').textContent = T('Ce que vous contestez');
+    $('zoneCats').hidden = true; $('precisionLib').textContent = T('Expliquez pourquoi cette décision vous semble fausse.');
+    $('envoyer').textContent = T('Envoyer la demande'); $('recuTitre').textContent = T('Merci. Votre demande de nouvel examen est bien reçue.');
+  }
+  document.title = 'NEURAVID · ' + $('titre').textContent;
+  var ta = typeAffiche(); $('cibleIco').textContent = ta[1]; $('cibleType').textContent = T(ta[0]);
+  var au = auteurDe(CTX); if(au){ $('cibleAuteur').hidden = false; $('cibleAuteur').textContent = T('de {0}', au); }
+  if(CTX.extrait){ $('joint').hidden = false; }
+  $('bandeauDemo').hidden = !DEMO;
+  if(CTX.urgent) $('urgence').hidden = false;
+  var g = $('grille'); g.innerHTML = '';
+  var ordre = CATS.slice(); if(CTX.mineur){ ordre.sort(function(a, b){ return (b.k === 'exploitation_mineurs') - (a.k === 'exploitation_mineurs'); }); }
+  ordre.forEach(function(c){
+    var b = document.createElement('button'); b.type = 'button'; b.className = 'cat' + (c.urg ? ' urg' : ''); b.dataset.cat = c.k; b.setAttribute('aria-pressed', 'false');
+    var f = document.createElement('span'); f.className = 'fond'; var d = document.createElement('span'); d.className = 'dedans';
+    var i = document.createElement('span'); i.className = 'ico'; i.setAttribute('aria-hidden', 'true'); i.textContent = c.ico;
+    var n = document.createElement('span'); n.className = 'nom'; n.textContent = T(c.nom);
+    d.appendChild(i); d.appendChild(n); b.appendChild(f); b.appendChild(d); g.appendChild(b);
+  });
+}
+function choisir(k){
+  CHOIX = k; [].forEach.call($('grille').querySelectorAll('.cat'), function(b){ b.setAttribute('aria-pressed', b.dataset.cat === k ? 'true' : 'false'); });
+  var c = CATS.filter(function(x){ return x.k === k; })[0];
+  $('urgence').hidden = !(CTX.urgent || (c && c.urg)); $('msg').textContent = '';
+}
+
+/* ---------- envoi ---------- */
+var EN_COURS = false, ATTENTES = {};
+function corps(){
+  var c = {cible:{type:CIBLE.type, id:CIBLE.id}, motif:CONTESTER ? 'recours' : 'signalement', depuis:DEPUIS || null, langue:L};
+  if(CIBLE.clip) c.cible.clip = CIBLE.clip;
+  var au = CTX.auteur && typeof CTX.auteur === 'object' ? (CTX.auteur.id || null) : null; if(au) c.cible.auteur = au;
+  if(CTX.cid) c.cible.conversation = CTX.cid;
+  if(CONTESTER){ c.cible.type = CTX.type || CIBLE.type; c.cible.id = CTX.id != null ? CTX.id : CIBLE.id; }
+  else c.categorie = CHOIX;
+  var p = $('precision').value.trim(); if(p) c.precision = p.slice(0, 500);
+  if(CTX.extrait) c.extrait = String(CTX.extrait).slice(0, 500);
+  if(CTX.urgent) c.urgent = true; if(CTX.mineur) c.mineur = true;
+  return c;
+}
+function etat(occupe){ EN_COURS = occupe; var b = $('envoyer'); b.disabled = occupe; b.textContent = occupe ? T('Envoi…') : T(CONTESTER ? 'Envoyer la demande' : 'Envoyer le signalement'); }
+function reussi(num){
+  $('formulaire').hidden = true; $('recu').hidden = false;
+  if(num){ $('recuNum').hidden = false; $('recuNum').textContent = T('Numéro : {0}', num); }
+  $('recuDemo').hidden = !DEMO; $('bandeauDemo').hidden = true;
+  emit('report_done', {motif:CONTESTER ? 'recours' : 'signalement', categorie:CHOIX, id:num || null, demo:DEMO});
+  try{ sessionStorage.removeItem('nv_ctx_' + MOI); }catch(e){ dbg(e); }
+  setTimeout(function(){ try{ $('fin').focus(); }catch(e){} }, 50);
+}
+function erreur(t){ $('msg').textContent = t; etat(false); }
+function envoyer(){
+  if(EN_COURS) return;
+  if(!CONTESTER && !CHOIX){ erreur(T('Choisissez d\'abord ce qui se passe.')); try{ $('grille').querySelector('.cat').focus(); }catch(e){} return; }
+  if(CONTESTER && !$('precision').value.trim()){ erreur(T('Une explication est nécessaire pour un nouvel examen.')); $('precision').focus(); return; }
+  $('msg').textContent = ''; etat(true);
+  var c = corps(), k = idem();
+  if(DEMO){ setTimeout(function(){ reussi(null); }, 400); return; }
+  var b = base();
+  if(b){
+    var h = {'Content-Type':'application/json', 'Idempotency-Key':k}; if(window.NV_TOKEN) h.Authorization = 'Bearer ' + window.NV_TOKEN;
+    fetch(b + '/v1/signalements', {method:'POST', headers:h, body:JSON.stringify(c)}).then(function(r){
+      if(r.status === 401) return erreur(T('Connectez-vous pour signaler.'));
+      if(r.status === 409) return erreur(T('Vous avez déjà signalé ceci.'));
+      if(r.status === 429) return erreur(T('Trop de signalements en peu de temps. Réessayez plus tard.'));
+      if(!r.ok) return erreur(T('L\'envoi a échoué. Vérifiez votre connexion et réessayez.'));
+      return r.json().catch(function(){ return {}; }).then(function(j){ reussi(j && j.id ? String(j.id) : null); });
+    }).catch(function(e){ dbg(e); erreur(T('L\'envoi a échoué. Vérifiez votre connexion et réessayez.')); });
+    return;
+  }
+  if(window.flutter_inappwebview){
+    ATTENTES[k] = true; emit('report_submit', {idem:k, signalement:c});
+    setTimeout(function(){ if(ATTENTES[k]){ delete ATTENTES[k]; erreur(T('L\'application n\'a pas encore confirmé. Réessayez dans un instant.')); } }, 15000);
+    return;
+  }
+  erreur(T('Le signalement se fait dans l\'application NEURAVID connectée.'));
+}
+window.NVReportConfirm = function(r){
+  r = r || {}; if(!r.idem || !ATTENTES[r.idem]) return false; delete ATTENTES[r.idem];
+  if(r.success) reussi(r.id ? String(r.id) : null); else erreur(typeof r.reason === 'string' && r.reason ? r.reason : T('L\'envoi a échoué. Vérifiez votre connexion et réessayez.'));
+  return true;
+};
+
+/* ---------- gestes ---------- */
+rendre();
+$('grille').addEventListener('click', function(e){ var b = e.target.closest('.cat'); if(b) choisir(b.dataset.cat); });
+$('precision').addEventListener('input', function(){ $('compte').textContent = this.value.length + '/500'; });
+$('envoyer').addEventListener('click', envoyer);
+$('retour').addEventListener('click', quitter);
+$('fin').addEventListener('click', quitter);
+emit('report_open', {cible:CIBLE.type, motif:CONTESTER ? 'recours' : 'signalement', depuis:DEPUIS || null});
+})();
+</script>
+</body>
+</html>
