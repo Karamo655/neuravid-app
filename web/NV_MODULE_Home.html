@@ -700,6 +700,30 @@ html.globe-ouvert,html.globe-ouvert body{overflow:hidden}
 #ciel .decouverte,#ciel .reprendre,#ciel .assistant{background:none!important;border:0!important;box-shadow:none!important;backdrop-filter:none!important;-webkit-backdrop-filter:none!important;animation:none!important;text-shadow:none}
 #ciel .ge,#ciel .ge b,#ciel .ge strong,#ciel .ge h3{color:#fff!important}#ciel .ge p,#ciel .ge small:not(:first-child),#ciel .ge span:not(:first-child){color:#EEEAFF!important}
 
+
+/* ════════ Le menu « Tous les univers » en verre givré (novembre 2026) : le ciel reste visible derrière, chaque univers a son bord de couleur ════════ */
+.feuille-tiroir .voile{background:rgba(4,2,14,.28)}
+.feuille[data-k=tiroir]{background:linear-gradient(180deg,rgba(40,24,96,.46),rgba(16,10,44,.58));backdrop-filter:blur(20px) saturate(1.6);-webkit-backdrop-filter:blur(20px) saturate(1.6);
+  border-top:1px solid rgba(255,255,255,.34);box-shadow:0 -20px 60px rgba(0,0,0,.35),inset 0 1px 0 rgba(255,255,255,.4)}
+.feuille[data-k=tiroir] h2,.feuille[data-k=tiroir] h3{text-shadow:0 1px 3px rgba(6,3,24,.6)}
+.feuille[data-k=tiroir] h3{color:#EEEAFF}
+.feuille[data-k=tiroir] .grille-mod button{
+  background-color:rgba(14,10,40,.22);
+  background-image:linear-gradient(115deg,rgba(255,255,255,0) 30%,rgba(255,255,255,.2) 46%,rgba(255,255,255,0) 62%),radial-gradient(90% 70% at 50% 18%,color-mix(in srgb,var(--c) 30%,transparent),transparent 72%),linear-gradient(150deg,rgba(255,255,255,.2),rgba(255,255,255,.05) 42%,rgba(255,255,255,.1));
+  background-size:260% 100%,100% 100%,100% 100%;background-repeat:no-repeat;background-position:120% 0,0 0,0 0;
+  backdrop-filter:blur(14px) saturate(1.6) brightness(1.04);-webkit-backdrop-filter:blur(14px) saturate(1.6) brightness(1.04);
+  border:1.5px solid color-mix(in srgb,var(--c) 85%,transparent);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.42),0 0 0 1px color-mix(in srgb,var(--c) 18%,transparent),0 0 14px color-mix(in srgb,var(--c) 34%,transparent),0 8px 26px rgba(8,4,30,.18);
+  color:#fff;text-shadow:0 1px 3px rgba(6,3,24,.6);
+  animation:glaceEclatT 11s ease-in-out infinite;animation-delay:calc(var(--k,0) * -1.3s)}
+.feuille[data-k=tiroir] .grille-mod button:hover,.feuille[data-k=tiroir] .grille-mod button:focus-visible{box-shadow:inset 0 1px 0 rgba(255,255,255,.5),0 0 0 2px color-mix(in srgb,var(--c) 70%,transparent),0 0 22px color-mix(in srgb,var(--c) 50%,transparent)}
+.feuille[data-k=tiroir] .v2-niveaux button{background:rgba(255,255,255,.1);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);border:1px solid rgba(255,255,255,.22)}
+@keyframes glaceEclatT{0%,62%{background-position:120% 0,0 0,0 0}88%,100%{background-position:-20% 0,0 0,0 0}}
+@media (prefers-reduced-motion:reduce){.feuille[data-k=tiroir] .grille-mod button{animation:none}}
+.leger .feuille[data-k=tiroir]{backdrop-filter:none;-webkit-backdrop-filter:none;background:rgba(20,12,51,.94)}
+.leger .feuille[data-k=tiroir] .grille-mod button{animation:none;backdrop-filter:none;-webkit-backdrop-filter:none;background-color:rgba(14,10,40,.5)}
+@media (prefers-reduced-transparency:reduce){.feuille[data-k=tiroir]{backdrop-filter:none;-webkit-backdrop-filter:none;background:#140C33}.feuille[data-k=tiroir] .grille-mod button{backdrop-filter:none;-webkit-backdrop-filter:none;background:#1A1240}}
+
 /* le repère de l'aperçu : une seule ligne, discrète et professionnelle */
 #ciel .demo-bandeau{width:auto;max-width:94%;align-self:center;flex-wrap:nowrap;gap:8px;padding:4px 4px 4px 12px;border-radius:999px;font-size:11.5px;line-height:1.2;white-space:nowrap;margin:0 auto 8px}
 #ciel .demo-bandeau b{font-weight:800;letter-spacing:.02em}#ciel .demo-bandeau span{color:#F4F1FF;opacity:.9;overflow:hidden;text-overflow:ellipsis}
@@ -1060,13 +1084,13 @@ document.addEventListener('input', function(e){ var el = e.target; var f = el &&
 /* ════════ Les feuilles, l'attente ════════ */
 var FEUILLE = {k:null};
 function ouvrirFeuille(titre, html, k){ document.body.classList.add('feuille-ouverte');
-  var f = $('feuille'), v = $('voile'), dejaOuverte = !f.hidden; FEUILLE.k = k || titre;
+  var f = $('feuille'), v = $('voile'), dejaOuverte = !f.hidden; FEUILLE.k = k || titre; f.setAttribute('data-k', k || ''); document.body.classList.toggle('feuille-tiroir', k === 'tiroir');
   if(!dejaOuverte) FEUILLE.retour = document.activeElement;
   poser(f, '<div class="tete"><h2 id="fTitre" tabindex="-1">' + esc(titre) + '</h2><button class="rond" data-a="fermerFeuille" aria-label="Fermer">' + ico('fermer') + '</button></div>' + html);
   f.hidden = false; v.hidden = false; try{ $('app').inert = true; }catch(e){ dbg(e); } requestAnimationFrame(function(){ f.classList.add('on'); v.classList.add('on'); var t = $('fTitre'); if(t && !dejaOuverte) try{ t.focus({preventScroll:true}); }catch(e){ dbg(e); } });
   if(!dejaOuverte) try{ history.pushState({pf:'feuille'}, ''); }catch(e){ dbg(e); }
 }
-function fermerFeuille(sansHisto){ var f = $('feuille'), v = $('voile'); if(f.hidden) return; document.body.classList.remove('feuille-ouverte'); try{ $('app').inert = false; }catch(e){ dbg(e); } f.classList.remove('on'); v.classList.remove('on'); FEUILLE.k = null; var r = FEUILLE.retour; FEUILLE.retour = null; if(r && r.focus && document.contains(r)) try{ r.focus({preventScroll:true}); }catch(e){ dbg(e); } setTimeout(function(){ if(!FEUILLE.k){ f.hidden = true; v.hidden = true; } }, 220); if(!sansHisto){ try{ if(history.state && history.state.pf === 'feuille') retourNotre(); }catch(e){ dbg(e); } } }
+function fermerFeuille(sansHisto){ var f = $('feuille'), v = $('voile'); if(f.hidden) return; document.body.classList.remove('feuille-ouverte', 'feuille-tiroir'); try{ $('app').inert = false; }catch(e){ dbg(e); } f.classList.remove('on'); v.classList.remove('on'); FEUILLE.k = null; var r = FEUILLE.retour; FEUILLE.retour = null; if(r && r.focus && document.contains(r)) try{ r.focus({preventScroll:true}); }catch(e){ dbg(e); } setTimeout(function(){ if(!FEUILLE.k){ f.hidden = true; v.hidden = true; } }, 220); if(!sansHisto){ try{ if(history.state && history.state.pf === 'feuille') retourNotre(); }catch(e){ dbg(e); } } }
 A.fermerFeuille = function(){ fermerFeuille(); };
 /* fermer la feuille PUIS agir : le retour d'historique de la feuille est consommé d'abord (sinon une entrée morte resterait) */
 var APRES = null;
