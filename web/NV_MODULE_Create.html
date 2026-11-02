@@ -1485,6 +1485,9 @@ function boucleCamera(){
   CAM.raf = requestAnimationFrame(tour);
 }
 var FLOU = {cv:null, g:null};
+/* sur un téléphone, la caméra remplit tout l'écran (recadrée), comme toutes les caméras : certains navigateurs livrent
+   une image couchée même téléphone debout ; le fond flou n'est gardé que pour un écran d'ordinateur */
+function camPleinEcran(){ try{ return window.matchMedia('(pointer:coarse)').matches || /Android|iPhone|iPad|Mobile/i.test(navigator.userAgent); }catch(e){ return false; } }
 function fondFlou(g, L, H, src, c, mir){
   if(!FLOU.cv){ FLOU.cv = document.createElement('canvas'); FLOU.cv.width = 36; FLOU.cv.height = 64; FLOU.g = FLOU.cv.getContext('2d'); }
   var k = 36 / L; FLOU.g.drawImage(src, c.x * k, c.y * k, c.w * k, c.h * k);
@@ -1501,7 +1504,7 @@ function dessinerScene(g, L, H, src, t){
   var c = cadrer(src.videoWidth, src.videoHeight, L, H), perte = 1 - (L * H) / (c.w * c.h);
   g.save(); g.fillStyle = '#000'; g.fillRect(0, 0, L, H);
   /* une image couchée perdrait plus de 12 % : elle est montée entière, sur un fond flou fait d'elle-même (v22 : NVCadrage) */
-  if(perte > .12 && !CAM.ecran){ fondFlou(g, L, H, src, c, mir); c = cadrer(src.videoWidth, src.videoHeight, L, H, 'contain'); }
+  if(perte > .12 && !CAM.ecran && !camPleinEcran()){ fondFlou(g, L, H, src, c, mir); c = cadrer(src.videoWidth, src.videoHeight, L, H, 'contain'); }
   CAM.cadre = {x:c.x, y:c.y, w:c.w, h:c.h, L:L, H:H};
   if(CANVAS_FILTRE) g.filter = cssImage(CAM.filtre, null) === 'none' ? (grade(CAM.grade).css || 'none') : cssImage(CAM.filtre, null) + (grade(CAM.grade).css ? ' ' + grade(CAM.grade).css : '');
   if(mir){ g.translate(L, 0); g.scale(-1, 1); }
@@ -6720,6 +6723,8 @@ curseurChange = function(id, v){
 var BEA_PREF = lire('nv_forge_beaute', null) || {look:'naturel', intensite:.7};
 function poserLookPrefere(){
   var l = (CTX.defi && CTX.defi.interdits) || []; if(l.indexOf('beaute') >= 0 || !BEA_PREF.look || BEA.look) return;
+  /* le look préféré n'est posé qu'avec le suivi précis du visage : sans lui, la retouche douce lisserait le centre de l'image, pas le visage */
+  if(!iaPret('visage')){ if(!iaAbsent('visage')) iaActiver('visage').then(function(){ if(iaPret('visage') && CAM.ouvert) poserLookPrefere(); }); return; }
   if(!LOOKS.some(function(x){ return x.k === BEA_PREF.look; })) return;
   BEA.intensite = borne(+BEA_PREF.intensite || .7, .1, 1); appliquerLook(BEA_PREF.look);
   if(beaPrecise() && !iaPret('visage') && !iaAbsent('visage')) iaActiver('visage').then(function(){ besoinsIA(); if(CAM.tiroir === 'beaute') majTiroir(); });
