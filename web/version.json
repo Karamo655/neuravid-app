@@ -1,6 +1,6 @@
 {
- "version": "2026.11.02-6bd0abe6d4bd",
- "date": "2026-11-02T18:25:30Z",
+ "version": "2026.11.02-ab61b3dbbaaa",
+ "date": "2026-11-02T18:56:51Z",
  "entree": "index.html",
  "modules": [
   "NV_MODULE_Arena.html",
@@ -84,8 +84,8 @@
    "taille": 1400095
   },
   "NV_MODULE_Create.html": {
-   "sha256": "84046d46d16f760e0b4d05723b718aeab77bbe996dfcfc918abbb061e6380b89",
-   "taille": 1836662
+   "sha256": "ca3c2a84e73f8790280b000a490e2976870ff1982f0115792509cd5824c77d4d",
+   "taille": 1838928
   },
   "NV_MODULE_Dashboard.html": {
    "sha256": "4d2057ae3f5770694bf07d1e420ca22f57d09a4fab845a70540f28a7723dcfe2",
@@ -1158,6 +1158,10 @@
   "ia/LICENCE_MediaPipe_Apache-2.0.txt": {
    "sha256": "379dc9be621e253a565b178cfefb3b18976a56b6a10a9f7678f297cfed21f31a",
    "taille": 11643
+  },
+  "ia/face_landmarker.task": {
+   "sha256": "64184e229b263107bc2b804c6625db1341ff2bb731874b0bcc2fe6544e0bc9ff",
+   "taille": 3758596
   },
   "ia/selfie_segmenter.tflite": {
    "sha256": "191ac9529ae506ee0beefa6b2c945a172dab9d07d1e802a290a4e4038226658b",
