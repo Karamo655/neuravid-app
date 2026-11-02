@@ -1269,7 +1269,7 @@ A.tiroir = function(){ ouvrirFeuille(tr('Tous les univers'), FAMILLES.map(functi
   return '<h3>' + esc(f[0]) + '</h3><div class="grille-mod">' + l.map(function(m, k){ return '<button data-a="ouvrirMod" data-v="' + m.id + '" style="--c:' + m.c + ';--k:' + k + '">' + gemme(m) + '<span>' + esc(m.n) + '</span></button>'; }).join('') + '</div>'; }).join('') +
   '<h3>' + esc('Langue') + '</h3>' + blocLangue() + '<h3>' + esc('Le ciel') + '</h3>' + interrupteur('voix', 'Annoncer les victoires à voix haute', voixAutorisee()) + interrupteur('voixAccueil', 'Me souhaiter la bienvenue à voix haute (jamais entre 22 h et 7 h)', voixAccueil()) +
   '<h3>' + esc('Ce téléphone') + '</h3>' + '<p class="v2-note">' + esc('Animations des trois mondes') + (LEGER.auto ? ' · ' + esc(tr('ce téléphone est réglé en léger')) : '') + '</p><div class="v2-niveaux" role="group" aria-label="' + esc(tr('Animations des trois mondes')) + '">' + [['auto', 'Automatique'], ['legere', 'Légères'], ['complete', 'Complètes']].map(function(x){ return '<button data-a="animation" data-v="' + x[0] + '" aria-pressed="' + (niveauAnimation() === x[0]) + '">' + esc(x[1]) + '</button>'; }).join('') + '</div>' +
-  interrupteur('portails', 'Transitions vers les univers (portails)', lire('nv_accueil_portails', 'oui') !== 'non') + interrupteur('assistant', 'Afficher l\'assistant du ciel', assistantVisible()) + interrupteur('filPays', 'Garder le pays choisi d\'un monde à l\'autre', filPays()) +
+  interrupteur('portails', 'Transitions vers les univers (portails)', lire('nv_accueil_portails', 'oui') !== 'non') + interrupteur('filPays', 'Garder le pays choisi d\'un monde à l\'autre', filPays()) +
   '<button class="ligne-tiroir" data-a="partagerCiel">' + ico('partager') + '<span>' + esc('Partager le ciel du jour') + '</span></button>' + (INSTALL.e && !lire('nv_accueil_installe', 0) ? '<button class="ligne-tiroir" data-a="installer">' + ico('partager') + '<span>' + esc('Ajouter NEURAVID à l\'écran d\'accueil') + '</span></button>' : ''), 'tiroir'); };
 A.ouvrirMod = function(id){ fermerPuis(function(){ entrer(id); }); };
 function interrupteur(k, t, on){ return '<button class="interrupteur" role="switch" aria-checked="' + !!on + '" data-a="bascule" data-v="' + k + '"><span>' + esc(t) + '</span><i aria-hidden="true"></i></button>'; }
@@ -2758,7 +2758,8 @@ function rendreV2(){ rendreEntreeGlobe(); if(GLB.ouvert) rendreGlobeUI(); rendre
 
 /* ════════════════ LE CIEL ════════════════ */
 /* ─── l'assistant du ciel : une question (écrite ou dite), des propositions ; la personne choisit ─── */
-function assistantVisible(){ return lire('nv_accueil_assistant', 'oui') !== 'non'; }
+/* retiré de l'accueil (2 novembre 2026, décision de Karamo) : la recherche passe par la loupe de l'en-tête (La Boussole) */
+function assistantVisible(){ return false; }
 function rendreAssistant(){ var el = $('assistant'); if(!el) return; if(!assistantVisible()){ el.hidden = true; el.innerHTML = ''; return; } el.hidden = false; if(el.querySelector('input')) return;
   var voix = !!(window.SpeechRecognition || window.webkitSpeechRecognition);
   poser(el, '<form class="as-f" data-assistant><span class="as-ic" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 3l1.8 4.6L18.5 9l-4.7 1.6L12 15l-1.8-4.4L5.5 9l4.7-1.4z"/><path d="M18 15l.8 2 2 .8-2 .8-.8 2-.8-2-2-.8 2-.8z"/></svg></span>' +
