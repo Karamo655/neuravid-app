@@ -1,6 +1,6 @@
 {
- "version": "2026.11.02-58e62194eae4",
- "date": "2026-11-02T11:36:20Z",
+ "version": "2026.11.02-06e2bf198bab",
+ "date": "2026-11-02T17:04:40Z",
  "entree": "index.html",
  "modules": [
   "NV_MODULE_Arena.html",
@@ -80,12 +80,12 @@
    "taille": 1017025
   },
   "NV_MODULE_Conteur.html": {
-   "sha256": "d6df81971e10440ba9fdb0689414425ad86c11a873b163c570791ab1fe379d15",
-   "taille": 1399143
+   "sha256": "75f14fd22d3841eb8bcb49f60a7b5a895d2cc749e56dadea9b762048e7050404",
+   "taille": 1400095
   },
   "NV_MODULE_Create.html": {
-   "sha256": "6a288876f24a2a24bb75d95a10f14202e1fc6b6133db110a6b31879c7c633c40",
-   "taille": 1831477
+   "sha256": "088d2e0700859cfc3b1f2e3e5bc601b539f52d5fb8df4b290b41ecc6b64043ce",
+   "taille": 1833967
   },
   "NV_MODULE_Dashboard.html": {
    "sha256": "4d2057ae3f5770694bf07d1e420ca22f57d09a4fab845a70540f28a7723dcfe2",
@@ -116,12 +116,12 @@
    "taille": 1000453
   },
   "NV_MODULE_Live.html": {
-   "sha256": "93cb7d08b8d545857697737e7d96bc69380e33e57f758f82b2c0af49daae9bd8",
-   "taille": 3842365
+   "sha256": "0739db1492ba06cb6bf1be5f06f094f83df6af6faf1592035cffad2e55945eca",
+   "taille": 3843317
   },
   "NV_MODULE_Live_leger.html": {
-   "sha256": "015d76ae94b51ce7ca48208d83dc3e94566556daf3e9cfbb05ebcc3f01026034",
-   "taille": 2345804
+   "sha256": "acbb9f61bb2b27abff53c430bfe7d6356eed97810dbf88a5741c985e722cb4c5",
+   "taille": 2346756
   },
   "NV_MODULE_LoveUniverse.html": {
    "sha256": "fe3199f7dc0842990e2e70b6dc2686f95aabfc6e9fe0cb299a86061559ea0715",
@@ -184,12 +184,12 @@
    "taille": 1046913
   },
   "NV_MODULE_Studio.html": {
-   "sha256": "6fd0e427ec2dbff164b900e08846d444639208cd89122f0c04126bf0d70d7dc7",
-   "taille": 1262861
+   "sha256": "37005fc21accec2eaebd814149560c5bf0cdff28897a8676326ba70b9901b23c",
+   "taille": 1263813
   },
   "NV_MODULE_ViralStorm.html": {
-   "sha256": "9530e5a5e73c9d8bc736af28e9c69a330edbc59e591be40967a62ae1f479a477",
-   "taille": 1031318
+   "sha256": "82c015db322d5f693c80b35f294d9bcb81faaa791b8615d39becfaf51b593363",
+   "taille": 1032270
   },
   "cadeaux3d/1f0cf.webp": {
    "sha256": "06bc2293f925386fd47d7c71ca561ba9e911274fcf6188fa8617170ba1705253",
