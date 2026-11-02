@@ -1429,11 +1429,34 @@ function fermerCamera(){
   arreterFlux(); CAM.ouvert = false; fermerTiroir(true);
   arreterMusiquePrise(); duoArreter();
 }
+/* ouvrir la caméra debout, en bonne définition : certains navigateurs de téléphone livrent une petite image couchée (640 × 480) même
+   téléphone debout, et la remplir à l'écran la grossit et la floute. On essaie trois demandes, dans l'ordre, et on garde la première
+   qui donne une image debout ; sinon la meilleure obtenue. La demande retenue est notée (✦ → Moteur). */
+function camDebout(f){ try{ var s = f.getVideoTracks()[0].getSettings(); return !(s.width && s.height && s.width > s.height); }catch(e){ return true; } }
+function camOuvrirDebout(){
+  var md = navigator.mediaDevices, son = {echoCancellation:true, noiseSuppression:true, autoGainControl:true}, telephone = window.innerHeight > window.innerWidth;
+  var demandes = [
+    {facingMode:CAM.face, width:{ideal:1280}, height:{ideal:720}, frameRate:{ideal:30}},
+    {facingMode:CAM.face, width:{ideal:720}, height:{ideal:1280}, aspectRatio:{ideal:9 / 16}, frameRate:{ideal:30}},
+    {facingMode:CAM.face, width:{min:480, ideal:1080}, height:{min:640, ideal:1920}}
+  ];
+  var meilleur = null, i = 0;
+  function essai(){
+    var d = demandes[i];
+    return md.getUserMedia({video:d, audio:son}).then(function(f){
+      CAM.essaiCam = i + 1;
+      if(!telephone || camDebout(f) || i >= demandes.length - 1){ if(meilleur && meilleur !== f) meilleur.getTracks().forEach(function(t){ t.stop(); }); return f; }
+      if(meilleur) meilleur.getTracks().forEach(function(t){ t.stop(); });
+      meilleur = f; meilleur.getTracks().forEach(function(t){ t.stop(); }); meilleur = null; i++; return essai();
+    }, function(e){ if(i === 0) throw e; if(i >= demandes.length - 1) return md.getUserMedia({video:demandes[0], audio:son}); i++; return essai(); });
+  }
+  return essai();
+}
 function demarrerFlux(){
   arreterFlux(true);
   var g = ++CAM.gen;
   var p = CAM.ecran && navigator.mediaDevices.getDisplayMedia ? navigator.mediaDevices.getDisplayMedia({video:true, audio:true})
-    : navigator.mediaDevices.getUserMedia({video:{facingMode:CAM.face, width:{ideal:720}, height:{ideal:1280}, aspectRatio:{ideal:9 / 16}, frameRate:{ideal:30}}, audio:{echoCancellation:true, noiseSuppression:true, autoGainControl:true}});
+    : camOuvrirDebout();
   p.then(function(f){
     if(!CAM.ouvert || g !== CAM.gen){ f.getTracks().forEach(function(t){ t.stop(); }); return; }
     CAM.flux = f; CAM.piste = f.getVideoTracks()[0] || null; EXPO.piste = CAM.piste;
@@ -5833,7 +5856,7 @@ function corpsMoteur(){
 }
 function mesuresMoteur(){
   var tv = CAM.toile ? CAM.toile.width + ' × ' + CAM.toile.height : '—', sc = {}; try{ sc = CAM.piste && CAM.piste.getSettings ? CAM.piste.getSettings() : {}; }catch(e){ dbg(e); }
-  var tc = sc.width && sc.height ? sc.width + ' × ' + sc.height + (sc.zoom != null ? ' · zoom ' + (Math.round(sc.zoom * 10) / 10) : '') : '—';
+  var tc = sc.width && sc.height ? sc.width + ' × ' + sc.height + (sc.zoom != null ? ' · zoom ' + (Math.round(sc.zoom * 10) / 10) : '') + (CAM.essaiCam ? ' · ' + CAM.essaiCam + '/3' : '') : '—';
   return '<p>' + phrase('Image : {0}', '<span data-brut>' + esc(tv) + '</span>') + '</p><p>' + phrase('Caméra : {0}', '<span data-brut>' + esc(tc) + '</span>') + '</p><p>' + phrase('Images par seconde : {0}', '<span data-brut>' + esc(MOTEUR.fps != null ? String(MOTEUR.fps) : '—') + '</span>') + '</p><p>' +
     phrase('Batterie : {0}', '<span data-brut>' + esc(MOTEUR.batterie != null ? Math.round(MOTEUR.batterie * 100) + ' %' : '—') + '</span>') + (MOTEUR.charge ? ' · ' + esc('en charge') : '') + '</p><p>' + phrase('Processeurs : {0}', '<span data-brut>' + esc(coeurs() ? String(coeurs()) : '—') + '</span>') + '</p>';
 }
