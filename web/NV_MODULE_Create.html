@@ -1429,26 +1429,38 @@ function fermerCamera(){
   arreterFlux(); CAM.ouvert = false; fermerTiroir(true);
   arreterMusiquePrise(); duoArreter();
 }
-/* ouvrir la caméra debout, en bonne définition : certains navigateurs de téléphone livrent une petite image couchée (640 × 480) même
-   téléphone debout, et la remplir à l'écran la grossit et la floute. On essaie trois demandes, dans l'ordre, et on garde la première
-   qui donne une image debout ; sinon la meilleure obtenue. La demande retenue est notée (✦ → Moteur). */
-function camDebout(f){ try{ var s = f.getVideoTracks()[0].getSettings(); return !(s.width && s.height && s.width > s.height); }catch(e){ return true; } }
+/* ouvrir la caméra debout, en bonne définition, avec TOUT le champ du capteur. Un navigateur de téléphone à qui l'on demande une taille
+   (ou rien : il prend alors 640 × 480) découpe l'image du capteur pour l'obtenir (« crop-and-scale ») : l'image devient couchée, petite,
+   et la remplir à l'écran la grossit deux fois et la floute. On demande donc d'abord le format natif du capteur, sans découpe
+   (resizeMode « none ») ; le navigateur le tourne lui-même à la verticale. Si l'image reste couchée, deux demandes debout suivent ;
+   on garde la première image debout, sinon la meilleure obtenue. La demande retenue est notée (✦ → Moteur). */
+function camTaille(f){ try{ var s = f.getVideoTracks()[0].getSettings(); return {w:s.width || 0, h:s.height || 0}; }catch(e){ return {w:0, h:0}; } }
+function camDebout(f){ var t = camTaille(f); return !(t.w && t.h && t.w > t.h); }
+/* le sens réel de l'image : celui des images reçues (un navigateur peut annoncer le format du capteur et livrer l'image tournée) */
+function camDeboutReel(f){
+  return new Promise(function(ok){
+    var v = document.createElement('video'), fini = false, fin = function(r){ if(fini) return; fini = true; try{ v.srcObject = null; }catch(e){ dbg(e); } ok(r); };
+    v.muted = true; v.playsInline = true;
+    v.onloadedmetadata = function(){ fin(v.videoWidth && v.videoHeight ? v.videoHeight >= v.videoWidth : camDebout(f)); };
+    setTimeout(function(){ fin(camDebout(f)); }, 1500);
+    try{ v.srcObject = f; v.play().catch(dbg); }catch(e){ fin(camDebout(f)); }
+  });
+}
 function camOuvrirDebout(){
   var md = navigator.mediaDevices, son = {echoCancellation:true, noiseSuppression:true, autoGainControl:true}, telephone = window.innerHeight > window.innerWidth;
   var demandes = [
-    {facingMode:CAM.face, width:{ideal:1280}, height:{ideal:720}, frameRate:{ideal:30}},
-    {facingMode:CAM.face, width:{ideal:720}, height:{ideal:1280}, aspectRatio:{ideal:9 / 16}, frameRate:{ideal:30}},
+    {facingMode:CAM.face, resizeMode:'none', width:{ideal:1920}, height:{ideal:1920}, frameRate:{ideal:30}},
+    {facingMode:CAM.face, resizeMode:'none', width:{ideal:1080}, height:{ideal:1920}, frameRate:{ideal:30}},
     {facingMode:CAM.face, width:{min:480, ideal:1080}, height:{min:640, ideal:1920}}
   ];
-  var meilleur = null, i = 0;
+  var i = 0;
   function essai(){
     var d = demandes[i];
     return md.getUserMedia({video:d, audio:son}).then(function(f){
       CAM.essaiCam = i + 1;
-      if(!telephone || camDebout(f) || i >= demandes.length - 1){ if(meilleur && meilleur !== f) meilleur.getTracks().forEach(function(t){ t.stop(); }); return f; }
-      if(meilleur) meilleur.getTracks().forEach(function(t){ t.stop(); });
-      meilleur = f; meilleur.getTracks().forEach(function(t){ t.stop(); }); meilleur = null; i++; return essai();
-    }, function(e){ if(i === 0) throw e; if(i >= demandes.length - 1) return md.getUserMedia({video:demandes[0], audio:son}); i++; return essai(); });
+      if(!telephone || i >= demandes.length - 1) return f;
+      return camDeboutReel(f).then(function(debout){ if(debout) return f; f.getTracks().forEach(function(t){ t.stop(); }); i++; return essai(); });
+    }, function(e){ if(i === 0 && !(e && /Overconstrained|Type/i.test(e.name || ''))) throw e; if(i >= demandes.length - 1) return md.getUserMedia({video:{facingMode:CAM.face}, audio:son}); i++; return essai(); });
   }
   return essai();
 }
@@ -1468,7 +1480,6 @@ function demarrerFlux(){
     /* le champ le plus large possible, comme les caméras des téléphones : le zoom au minimum ; et une image debout si le téléphone est debout */
     try{ var st0 = CAM.piste.getSettings ? CAM.piste.getSettings() : {};
       if(cap.zoom && st0.zoom != null && st0.zoom > cap.zoom.min) CAM.piste.applyConstraints({advanced:[{zoom:cap.zoom.min}]}).catch(dbg);
-      if(!CAM.ecran && st0.width > st0.height && window.innerHeight > window.innerWidth) CAM.piste.applyConstraints({width:{ideal:720}, height:{ideal:1280}, aspectRatio:{ideal:9 / 16}}).catch(dbg);
     }catch(e){ dbg(e); }
     boucleCamera(); majRail();
     /* le cadrage portrait : si le téléphone donne une image couchée, on le dit une fois */
@@ -1669,7 +1680,8 @@ function calculPoids(k){
 function appliquerPoids(){
   var c = calculPoids(CAM.poids), t = CAM.piste; if(!t || !t.applyConstraints || CAM.ecran) return;
   var s = {}; try{ s = t.getSettings(); }catch(e){ dbg(e); }
-  var d = c.hauteur, lg = Math.round(d * 16 / 9), contr = s.width > s.height ? {width:{ideal:lg}, height:{ideal:d}} : {width:{ideal:d}, height:{ideal:lg}};
+  /* sans découpe : le navigateur choisit le format natif le plus proche, le champ du capteur reste entier (le poids se règle au débit) */
+  var d = c.hauteur, lg = Math.round(d * 16 / 9), contr = s.width > s.height ? {resizeMode:'none', width:{ideal:lg}, height:{ideal:d}} : {resizeMode:'none', width:{ideal:d}, height:{ideal:lg}};
   try{ t.applyConstraints(contr).catch(dbg); }catch(e){ dbg(e); }
 }
 function meilleurType(){
@@ -5856,7 +5868,8 @@ function corpsMoteur(){
 }
 function mesuresMoteur(){
   var tv = CAM.toile ? CAM.toile.width + ' × ' + CAM.toile.height : '—', sc = {}; try{ sc = CAM.piste && CAM.piste.getSettings ? CAM.piste.getSettings() : {}; }catch(e){ dbg(e); }
-  var tc = sc.width && sc.height ? sc.width + ' × ' + sc.height + (sc.zoom != null ? ' · zoom ' + (Math.round(sc.zoom * 10) / 10) : '') + (CAM.essaiCam ? ' · ' + CAM.essaiCam + '/3' : '') : '—';
+  var vb = $('camBrute'), vw = vb && vb.videoWidth ? vb.videoWidth + ' × ' + vb.videoHeight + ' / ' : '';
+  var tc = sc.width && sc.height ? vw + sc.width + ' × ' + sc.height + (sc.resizeMode === 'none' ? ' · 1:1' : sc.resizeMode ? ' · ✂' : '') + (sc.zoom != null ? ' · zoom ' + (Math.round(sc.zoom * 10) / 10) : '') + (CAM.essaiCam ? ' · ' + CAM.essaiCam + '/3' : '') : '—';
   return '<p>' + phrase('Image : {0}', '<span data-brut>' + esc(tv) + '</span>') + '</p><p>' + phrase('Caméra : {0}', '<span data-brut>' + esc(tc) + '</span>') + '</p><p>' + phrase('Images par seconde : {0}', '<span data-brut>' + esc(MOTEUR.fps != null ? String(MOTEUR.fps) : '—') + '</span>') + '</p><p>' +
     phrase('Batterie : {0}', '<span data-brut>' + esc(MOTEUR.batterie != null ? Math.round(MOTEUR.batterie * 100) + ' %' : '—') + '</span>') + (MOTEUR.charge ? ' · ' + esc('en charge') : '') + '</p><p>' + phrase('Processeurs : {0}', '<span data-brut>' + esc(coeurs() ? String(coeurs()) : '—') + '</span>') + '</p>';
 }
