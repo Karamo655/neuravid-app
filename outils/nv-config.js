@@ -12,12 +12,14 @@
   var CONFIG = {
     api: '',                 /* adresse du serveur, sans « / » final. Vide = aucune adresse. */
     avatarOrigines: [],      /* origines autorisées pour les photos des créateurs (ex. 'https://cdn.neuravid.com') */
-    iaServeur: ''            /* serveur d'IA (idées de défis de La Ruche : POST /v1/ia/idees-defi). Vide = les idées du guide de chaque défi. */
+    iaServeur: '',           /* serveur d'IA (idées de défis de La Ruche : POST /v1/ia/idees-defi). Vide = les idées du guide de chaque défi. */
+    modules: './'            /* où sont les autres modules : './' = à côté de cette page (site web). L'application peut poser NV_MODULES_BASE elle-même. */
   };
   try{
     if(CONFIG.api && !window.NV_API_BASE) window.NV_API_BASE = CONFIG.api;
     if(CONFIG.avatarOrigines.length && !window.NV_AVATAR_ORIGINES) window.NV_AVATAR_ORIGINES = CONFIG.avatarOrigines.slice();
     if(CONFIG.iaServeur && !window.NV_IA_SERVEUR) window.NV_IA_SERVEUR = CONFIG.iaServeur;
+    if(CONFIG.modules && !window.NV_MODULES_BASE) window.NV_MODULES_BASE = CONFIG.modules;
     /* NV_IA_BASE garde un seul sens : le dossier du moteur de vision de La Forge (sans valeur : « /ia/ » à côté des modules). */
   }catch(e){ /* rien */ }
 })();

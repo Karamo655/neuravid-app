@@ -1,6 +1,6 @@
 {
  "version": "2026.11.02-1bffa7dadfc7",
- "date": "2026-11-02T06:08:34Z",
+ "date": "2026-11-02T06:54:51Z",
  "entree": "index.html",
  "modules": [
   "NV_MODULE_Arena.html",
@@ -1212,8 +1212,8 @@
    "taille": 600
   },
   "nv-config.js": {
-   "sha256": "1f60e31be34275884c2392e380f5a44455f2db1669153f9113489fb789e5a78b",
-   "taille": 1731
+   "sha256": "997b7d08a77743457dad2694efd5f3e9f711fa9ec194f9bad0e07dce02116f9a",
+   "taille": 1983
   },
   "sw-tamtam.js": {
    "sha256": "ae450786dddafc66b2546265cc0c8bc8746e94f9948788514e799ecb6ddc9b16",
