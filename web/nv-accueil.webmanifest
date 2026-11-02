@@ -1,0 +1,17 @@
+{
+  "name": "NEURAVID",
+  "short_name": "NEURAVID",
+  "description": "Vrais défis, vrais talents.",
+  "lang": "fr",
+  "start_url": "NV_MODULE_Home.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0B0720",
+  "theme_color": "#0B0720",
+  "icons": [
+    {"src": "icones/nv-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any"},
+    {"src": "icones/nv-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any"},
+    {"src": "icones/nv-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable"}
+  ]
+}

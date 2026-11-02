@@ -1,0 +1,1223 @@
+{
+ "version": "2026.11.02-1bffa7dadfc7",
+ "date": "2026-11-02T06:08:34Z",
+ "entree": "index.html",
+ "modules": [
+  "NV_MODULE_Arena.html",
+  "NV_MODULE_ArenaArts.html",
+  "NV_MODULE_Artistes.html",
+  "NV_MODULE_Baobab.html",
+  "NV_MODULE_Baobab_leger.html",
+  "NV_MODULE_Battle.html",
+  "NV_MODULE_CallUniverse.html",
+  "NV_MODULE_ChallengeUniverse.html",
+  "NV_MODULE_CinemaWorld.html",
+  "NV_MODULE_Conteur.html",
+  "NV_MODULE_Create.html",
+  "NV_MODULE_Dashboard.html",
+  "NV_MODULE_Etendard.html",
+  "NV_MODULE_Etendard_leger.html",
+  "NV_MODULE_Events.html",
+  "NV_MODULE_Griot.html",
+  "NV_MODULE_Home.html",
+  "NV_MODULE_Iris.html",
+  "NV_MODULE_Live.html",
+  "NV_MODULE_Live_leger.html",
+  "NV_MODULE_LoveUniverse.html",
+  "NV_MODULE_MissMaster.html",
+  "NV_MODULE_Notifications.html",
+  "NV_MODULE_Orbite.html",
+  "NV_MODULE_Passeport.html",
+  "NV_MODULE_Phare.html",
+  "NV_MODULE_Phare_leger.html",
+  "NV_MODULE_Player.html",
+  "NV_MODULE_Profile.html",
+  "NV_MODULE_Recolte.html",
+  "NV_MODULE_Recolte_leger.html",
+  "NV_MODULE_Reglages.html",
+  "NV_MODULE_Report.html",
+  "NV_MODULE_Search.html",
+  "NV_MODULE_StoryUniverse.html",
+  "NV_MODULE_Studio.html",
+  "NV_MODULE_ViralStorm.html"
+ ],
+ "config": "nv-config.js (exclu de l'empreinte : il change selon le déploiement)",
+ "fichiers": {
+  "NV_MODULE_Arena.html": {
+   "sha256": "0244c29c1ed6b331f5d7e8a25d07a8fe6428f15bc8be53fffec011ff353cfc8a",
+   "taille": 1139454
+  },
+  "NV_MODULE_ArenaArts.html": {
+   "sha256": "50c22e1a68a27c84fc20362decfff05def98f2f043e7d3dc6458e724b1ae3743",
+   "taille": 1959842
+  },
+  "NV_MODULE_Artistes.html": {
+   "sha256": "de462c8c73e8d8cc857cbcfa66023d70ad7e1bb7bec74776df074b90ce779ce0",
+   "taille": 1220273
+  },
+  "NV_MODULE_Baobab.html": {
+   "sha256": "c9619ab0dd444b196235dbdc409668d8be51d392a735e954e8f50db967ae52f2",
+   "taille": 3223431
+  },
+  "NV_MODULE_Baobab_leger.html": {
+   "sha256": "724f77c18ecef34eb266bea417e0d02deff8e95d3b79b584defbe5afdf227eb8",
+   "taille": 756485
+  },
+  "NV_MODULE_Battle.html": {
+   "sha256": "39c7e5c431443ba4ff34855584e1d8d1043e8348d82f218616ed73d5db4a8d13",
+   "taille": 1395706
+  },
+  "NV_MODULE_CallUniverse.html": {
+   "sha256": "494de4fc8b0ff5ae703c83b5080cf0e876a35210bd44085c83bd4c75aebe08b4",
+   "taille": 1285744
+  },
+  "NV_MODULE_ChallengeUniverse.html": {
+   "sha256": "fa82644356524c3ceb809e3c7f61853283eb825b9f6397c3f7f25dfb42b480c6",
+   "taille": 1810719
+  },
+  "NV_MODULE_CinemaWorld.html": {
+   "sha256": "1340a0cf8c5f798defdabad946e82bc88fccfb2fc2a3ca1d7b0c424c7fb699d8",
+   "taille": 1017025
+  },
+  "NV_MODULE_Conteur.html": {
+   "sha256": "d6df81971e10440ba9fdb0689414425ad86c11a873b163c570791ab1fe379d15",
+   "taille": 1399143
+  },
+  "NV_MODULE_Create.html": {
+   "sha256": "59734da5cbe47e945b9118478adb984a6a30886b4ba49b7f0f5f522a56994a2a",
+   "taille": 1830743
+  },
+  "NV_MODULE_Dashboard.html": {
+   "sha256": "4d2057ae3f5770694bf07d1e420ca22f57d09a4fab845a70540f28a7723dcfe2",
+   "taille": 396701
+  },
+  "NV_MODULE_Etendard.html": {
+   "sha256": "2082d472c6232f45d166146d8bcc8c05fc18e80b339c96d1f15c6211502b661a",
+   "taille": 536353
+  },
+  "NV_MODULE_Etendard_leger.html": {
+   "sha256": "2636ce49f367dd893602468172ee949d9f2cedf28765ac58a0c88a63b908c4ef",
+   "taille": 290987
+  },
+  "NV_MODULE_Events.html": {
+   "sha256": "5cb5931b5837196ec8d9b2272888d7fd972eab45fb1254e7a09153c67ec6edd1",
+   "taille": 1684678
+  },
+  "NV_MODULE_Griot.html": {
+   "sha256": "e08c555c33585f8a2ebfd6fece6a1455b0837a084c6d4f6906651d159a584567",
+   "taille": 257080
+  },
+  "NV_MODULE_Home.html": {
+   "sha256": "eb7525c2d45af70cea54d18e8e37b98cbf0140f8f339d3679ee047e3c31da3a6",
+   "taille": 1107084
+  },
+  "NV_MODULE_Iris.html": {
+   "sha256": "7bd8f743509e3b6361ad5a49566cfdd9e2e0cbebecb15a020e2380fe5f6f86aa",
+   "taille": 1000453
+  },
+  "NV_MODULE_Live.html": {
+   "sha256": "93cb7d08b8d545857697737e7d96bc69380e33e57f758f82b2c0af49daae9bd8",
+   "taille": 3842365
+  },
+  "NV_MODULE_Live_leger.html": {
+   "sha256": "015d76ae94b51ce7ca48208d83dc3e94566556daf3e9cfbb05ebcc3f01026034",
+   "taille": 2345804
+  },
+  "NV_MODULE_LoveUniverse.html": {
+   "sha256": "fe3199f7dc0842990e2e70b6dc2686f95aabfc6e9fe0cb299a86061559ea0715",
+   "taille": 1466595
+  },
+  "NV_MODULE_MissMaster.html": {
+   "sha256": "e00d635ff5d25a64a948df33dff5ac134a11063fae6ca52cac94da0242699823",
+   "taille": 929900
+  },
+  "NV_MODULE_Notifications.html": {
+   "sha256": "13962904b4c35da5c1cb99d37b67044dca352f48e680a33c5eb73dacd9751250",
+   "taille": 489200
+  },
+  "NV_MODULE_Orbite.html": {
+   "sha256": "e07e2581eded378b64c48c37718492ec6918c3cf9492746e2c6b19a800e78ebf",
+   "taille": 1420360
+  },
+  "NV_MODULE_Passeport.html": {
+   "sha256": "fe56384f5d52e68848784f09134cee94a39b9ff3d96a489e12fa1d658a4923eb",
+   "taille": 516364
+  },
+  "NV_MODULE_Phare.html": {
+   "sha256": "c0f390338c639b653110c25aac6d31c2681fe67126f4c4c832fcdc09d8c592e1",
+   "taille": 811061
+  },
+  "NV_MODULE_Phare_leger.html": {
+   "sha256": "7aa16c9c29233986dd8416dadd72af33db22bcd310a77b6da409ceff182466b8",
+   "taille": 404054
+  },
+  "NV_MODULE_Player.html": {
+   "sha256": "ce6e7d0f48ad1b8c7b26a867089730c6cf6702da22fde902d7d278a594a018bb",
+   "taille": 2592
+  },
+  "NV_MODULE_Profile.html": {
+   "sha256": "2e7e4c317bce01faf0e68cfe02db4d49ed83a04121d30a3d16ff8852945ada73",
+   "taille": 682375
+  },
+  "NV_MODULE_Recolte.html": {
+   "sha256": "94ac8cb092fa3135d1df7fefd1d2d3c2c0d3a4ccf34d7cb9cd9abee705d463bd",
+   "taille": 1234025
+  },
+  "NV_MODULE_Recolte_leger.html": {
+   "sha256": "7c7ec5143440288456a95cdc6fe26ab0c41b73c8b1a992c142cf6f09692b5772",
+   "taille": 380271
+  },
+  "NV_MODULE_Reglages.html": {
+   "sha256": "b0b4cfda9e55b4ab631fb4fd49f73bee29a08ac4673505ba61cf576b764791a9",
+   "taille": 539694
+  },
+  "NV_MODULE_Report.html": {
+   "sha256": "6cce6e1f3423723ce36deb2b4f5dc9df533ee13d2775e525c127d999f94e3727",
+   "taille": 53719
+  },
+  "NV_MODULE_Search.html": {
+   "sha256": "08a1b1fc83feb69581c4c1810144e60cd8bb922a400c80c497397f30b079b9b2",
+   "taille": 1109918
+  },
+  "NV_MODULE_StoryUniverse.html": {
+   "sha256": "f557d4b7c14a29d0791da7b9135e22e91ca0b1c4fb0ab3648e631faecf7aa91b",
+   "taille": 1046913
+  },
+  "NV_MODULE_Studio.html": {
+   "sha256": "6fd0e427ec2dbff164b900e08846d444639208cd89122f0c04126bf0d70d7dc7",
+   "taille": 1262861
+  },
+  "NV_MODULE_ViralStorm.html": {
+   "sha256": "9530e5a5e73c9d8bc736af28e9c69a330edbc59e591be40967a62ae1f479a477",
+   "taille": 1031318
+  },
+  "cadeaux3d/1f0cf.webp": {
+   "sha256": "06bc2293f925386fd47d7c71ca561ba9e911274fcf6188fa8617170ba1705253",
+   "taille": 2694
+  },
+  "cadeaux3d/1f300.webp": {
+   "sha256": "a9f087e491c7c0504282b9b6db971f98cfda4a1c9ffead2ab4a84f19b005eae1",
+   "taille": 8864
+  },
+  "cadeaux3d/1f304.webp": {
+   "sha256": "d644cf3a9ac323d269105589378f5f8868056dde485a832f4a2708a4de373942",
+   "taille": 3668
+  },
+  "cadeaux3d/1f305.webp": {
+   "sha256": "9cd214b714c418054831bd31abf8a56a0d31856e57f70b0dd9e345b844b79161",
+   "taille": 3638
+  },
+  "cadeaux3d/1f308.webp": {
+   "sha256": "c56a8bcd96bad867ae9776e9bc45c96c5d4cd01a201de83213d842b065e54008",
+   "taille": 5338
+  },
+  "cadeaux3d/1f30a.webp": {
+   "sha256": "3b5d47caafd71bb1f203201b12906779131356c5a462b77aba747ae31e77ea78",
+   "taille": 4906
+  },
+  "cadeaux3d/1f30b.webp": {
+   "sha256": "ddcbe38dba7ee8abf48ca721a27a5860d15f6e4a6251407a1a5b68c95ef45344",
+   "taille": 3800
+  },
+  "cadeaux3d/1f30c.webp": {
+   "sha256": "26720c1b1892e665ed5156a90e101ee88686aed706ad554d264e275417a717fa",
+   "taille": 4296
+  },
+  "cadeaux3d/1f30d.webp": {
+   "sha256": "0eedd33ca7a577357f2b9a641518b02ccdf122796a1b6b8247491c2f9f5e7d92",
+   "taille": 4796
+  },
+  "cadeaux3d/1f318.webp": {
+   "sha256": "b558f666159a08f080e1ecc641597ace2ca775004d747d4d8cb233f5c9df836e",
+   "taille": 4664
+  },
+  "cadeaux3d/1f319.webp": {
+   "sha256": "7af13c82ab5c08281c0b648f1365d11da3f8feac925d113dd87c98d1faced25d",
+   "taille": 3812
+  },
+  "cadeaux3d/1f31f.webp": {
+   "sha256": "345ada7e1315c83c8b601127ffe598b40c1876190f54c135f0b32e2b022af6b3",
+   "taille": 6034
+  },
+  "cadeaux3d/1f320.webp": {
+   "sha256": "58ababac69617354723112aec79b37c1cd0fc35b1fe9f68152b5020548654541",
+   "taille": 3462
+  },
+  "cadeaux3d/1f327.webp": {
+   "sha256": "0ad3caa41a2965a16e97b82a20609e0df9e0f9ed874e7470e12b096a677b82d9",
+   "taille": 5354
+  },
+  "cadeaux3d/1f329.webp": {
+   "sha256": "2c3be38cedd630af3d5ce9beae2d786556481130887f2870ab18db2139a44300",
+   "taille": 4002
+  },
+  "cadeaux3d/1f32a.webp": {
+   "sha256": "19ece9b32d3c067bb58a037f37601cd497b5f9fd27465108e17a1ae33a0fa30a",
+   "taille": 3644
+  },
+  "cadeaux3d/1f32c.webp": {
+   "sha256": "3b6dd97bb26ba489d66b6d5d1f61b24efd249364fbf745201158d5a57f15b6f5",
+   "taille": 4514
+  },
+  "cadeaux3d/1f330.webp": {
+   "sha256": "cc8be2e54d0c22d935d8a520917c0e56a7c6ce71d1333dae8515dbcf023c37a6",
+   "taille": 3232
+  },
+  "cadeaux3d/1f333.webp": {
+   "sha256": "c116d96e0229d81642271f5d02383922869fed68e765f415a001f155a5395473",
+   "taille": 3188
+  },
+  "cadeaux3d/1f334.webp": {
+   "sha256": "f3dc578f61c7e0235d370a54f25755299720b2fd4b18ab7667502419a7b4662a",
+   "taille": 3672
+  },
+  "cadeaux3d/1f337.webp": {
+   "sha256": "6e330664f665fea0c96d84f4582f07652787743403400efd7ab82a67a5f00003",
+   "taille": 4448
+  },
+  "cadeaux3d/1f338.webp": {
+   "sha256": "855fb89ba1e3269462bbce9b7d6685a7832f139ad99806d49293a2330c6b2ded",
+   "taille": 5418
+  },
+  "cadeaux3d/1f339.webp": {
+   "sha256": "5efb1f692588b8c6234ecc15ca800444ab06aab25dac813969d8ee07375e46ab",
+   "taille": 3870
+  },
+  "cadeaux3d/1f33a.webp": {
+   "sha256": "a209409a532795967fb14e64c29d62f4020ff7cd0856d3d59ab2cf19880082c7",
+   "taille": 5766
+  },
+  "cadeaux3d/1f33b.webp": {
+   "sha256": "ccec2c8d4d247a866167a6223da80d636fa6cbfc0b6f917af2d4be00b36d7eb2",
+   "taille": 5800
+  },
+  "cadeaux3d/1f33c.webp": {
+   "sha256": "a21aa4bf5edde23429abba6a3ebaced9a7bb7213c571aaadfc777e72d045dce8",
+   "taille": 4490
+  },
+  "cadeaux3d/1f33e.webp": {
+   "sha256": "a665a042f73fd202be6f88885d36f46d22460b2adde3d294c0b05191a35cbfae",
+   "taille": 4892
+  },
+  "cadeaux3d/1f33f.webp": {
+   "sha256": "1583b0d0c69b7a55ccc1e04d82b86aa0913a991b468bb2a03f8d73c537e82246",
+   "taille": 6318
+  },
+  "cadeaux3d/1f342.webp": {
+   "sha256": "c583951c0afe50f15deb347c78dc9cdc0c7418fc284a787550495893002363eb",
+   "taille": 5810
+  },
+  "cadeaux3d/1f34c.webp": {
+   "sha256": "5ae0386ca001d37ab000f28ebe2769afb246f58123e00cdff67cf52c498baa60",
+   "taille": 5378
+  },
+  "cadeaux3d/1f34d.webp": {
+   "sha256": "a77d770e457d6b63e7a1dfb9020cff3090c9377bdfcb608b1417e2592ced36d1",
+   "taille": 4718
+  },
+  "cadeaux3d/1f353.webp": {
+   "sha256": "9aaee980a1b886bc9533c50482c6a5d909163ef5b7721f269c0707ab996497c5",
+   "taille": 4148
+  },
+  "cadeaux3d/1f366.webp": {
+   "sha256": "91950086018bf5325b0ad1e7848be12c2af0c31cca4da73ad72433280ce5c9ef",
+   "taille": 3632
+  },
+  "cadeaux3d/1f369.webp": {
+   "sha256": "81b921cc40c05687ac9405f34abb8c2687b269b05a83b19ebb41dc0eecc4381a",
+   "taille": 6358
+  },
+  "cadeaux3d/1f36b.webp": {
+   "sha256": "71fb78e45dc67cd9d690e1729cd7dbf172d393f937ebba5a57bbb53a241b266d",
+   "taille": 4134
+  },
+  "cadeaux3d/1f36c.webp": {
+   "sha256": "3f8ceee8f7b02f3611150da8333b6661f9ba3040dee475a849c035f74bb77dad",
+   "taille": 6284
+  },
+  "cadeaux3d/1f36d.webp": {
+   "sha256": "d935fec7a7fa18420e993906afa8b59b7c5ddfbb6a3f1bcdbcc931c415f0b4ca",
+   "taille": 5078
+  },
+  "cadeaux3d/1f36f.webp": {
+   "sha256": "730c60c3ccf57870fb58ad25c8f7696358f83fd4e8f101d7fa1ae829abea6d21",
+   "taille": 4204
+  },
+  "cadeaux3d/1f370.webp": {
+   "sha256": "6e8e9031b4f7dd659164e10e9714d862d02a1e71fb63b4ec8a647c58f6b12802",
+   "taille": 5528
+  },
+  "cadeaux3d/1f372.webp": {
+   "sha256": "0cfe1f0db6324bf7e3f7b655a1d54422dbea6ccc08b2b54f5ced0942855230ee",
+   "taille": 5938
+  },
+  "cadeaux3d/1f375.webp": {
+   "sha256": "ee7bb48e57086f09ce5294345e0e9a16faa3d6a5dea2d3ac67677e687068f9c9",
+   "taille": 4116
+  },
+  "cadeaux3d/1f37e.webp": {
+   "sha256": "9838ee19599903527447680b1ab2350b1ad27b939dfc026ae8052d49c188368c",
+   "taille": 4100
+  },
+  "cadeaux3d/1f37f.webp": {
+   "sha256": "c1365bc2bacc4bc425a4cb4e76ba7d2e3002b03644dc924bb4da04f867fc7df6",
+   "taille": 5104
+  },
+  "cadeaux3d/1f381.webp": {
+   "sha256": "426b30e64615a8960b71c82fb54d87ea7b9fd728da3e82f9b70fffa6d3aa548e",
+   "taille": 3498
+  },
+  "cadeaux3d/1f382.webp": {
+   "sha256": "5fc73ea3315dba19221add2c3ffea72a0d3b6768d8a46f66edc232a74391e649",
+   "taille": 5810
+  },
+  "cadeaux3d/1f386.webp": {
+   "sha256": "255bcbf560e446c2b28f802c09b3b3a73fc204d1d1811b8eb02abec15f0f232f",
+   "taille": 5598
+  },
+  "cadeaux3d/1f387.webp": {
+   "sha256": "046d3837233ed7d9724c7914dc9ee2ccdd3edba886ef5a0d672b1bebd224730c",
+   "taille": 5662
+  },
+  "cadeaux3d/1f388.webp": {
+   "sha256": "1eff5dc10db047e7e14888c5bc0d0886b7182da8e558d31e2a375be145e23dda",
+   "taille": 4396
+  },
+  "cadeaux3d/1f389.webp": {
+   "sha256": "1e0c1bb1eecddee4ecc02ae2e9a7e7c12d9b0710e1983fabbec43f6fb9dad4d5",
+   "taille": 9386
+  },
+  "cadeaux3d/1f38a.webp": {
+   "sha256": "d74afe8923866562595382c222f079ecf9c67ed5b3cd0a7ab68c9d185a30ccd3",
+   "taille": 8252
+  },
+  "cadeaux3d/1f396.webp": {
+   "sha256": "f0652b8ac88300e897e05eef5d9678d38ec1ca20d72a50cf979ab754e802cd22",
+   "taille": 4664
+  },
+  "cadeaux3d/1f39e.webp": {
+   "sha256": "cf6f255f3c17cb409a14392f28076fb2ff3e5e565eb3e166513bcc64827fd66b",
+   "taille": 2940
+  },
+  "cadeaux3d/1f39f.webp": {
+   "sha256": "707a1f1cb7eb3523f4299a359d79321e9bf6e18a6c27e366fe1a431114023387",
+   "taille": 3150
+  },
+  "cadeaux3d/1f3a1.webp": {
+   "sha256": "87ad4b111c5659a70a1cdfac65829b7323e0c47326b1bd32ebff9e2eb71bef85",
+   "taille": 9910
+  },
+  "cadeaux3d/1f3a4.webp": {
+   "sha256": "876e84bf56a2376de29c799e7ca55c48439ec843a7bd17f03ad4c22158adc70e",
+   "taille": 3784
+  },
+  "cadeaux3d/1f3a5.webp": {
+   "sha256": "fa362598f5f018cabb95d7505e0f4062ba5d7ec0be05e39c1cffa2fe5ce40ad5",
+   "taille": 4146
+  },
+  "cadeaux3d/1f3a6.webp": {
+   "sha256": "5ebfacd211a1223fc305c12821c950d129f40cf62ab28d1eda223bf3ef48df88",
+   "taille": 3074
+  },
+  "cadeaux3d/1f3a7.webp": {
+   "sha256": "0f3d3f4d7041dcd8924ed80f8b76a2f7e531feecfdc94289839d8d34d05c1a87",
+   "taille": 5970
+  },
+  "cadeaux3d/1f3aa.webp": {
+   "sha256": "3e84dee16431de1af3fefd78391d779905e76f7249d4cc19007612acc5775034",
+   "taille": 5026
+  },
+  "cadeaux3d/1f3ac.webp": {
+   "sha256": "1f134d62ac87c197efebafa8beb9d321aada19288bba71f6c8a70217ca227f07",
+   "taille": 3778
+  },
+  "cadeaux3d/1f3ad.webp": {
+   "sha256": "4651dbebf4abe45bbe6fba7f9c3cb1d55858488a7080625dd28dae76717a2d6e",
+   "taille": 7848
+  },
+  "cadeaux3d/1f3ae.webp": {
+   "sha256": "13eb13793fe10a94953ccb79d48e446e6fe32694b24d9941288d2ffd98b294f5",
+   "taille": 4710
+  },
+  "cadeaux3d/1f3af.webp": {
+   "sha256": "f24769898fafece13da9e6d82beee5cb86389254932d2dabfa2d1b70f9af39be",
+   "taille": 6288
+  },
+  "cadeaux3d/1f3b2.webp": {
+   "sha256": "f95d494b6499a7a7e546d4ca549e22f12a76b6b9513a09019d4f242562840e34",
+   "taille": 4040
+  },
+  "cadeaux3d/1f3b5.webp": {
+   "sha256": "b450a51697a15e36e135d648aa50ef486a1a584232e68dc3f01fec31e240f361",
+   "taille": 4108
+  },
+  "cadeaux3d/1f3b6.webp": {
+   "sha256": "e2415bf844834bfaea7fe33acf1b0b5da44117e4673c04b151ccddb179a5575e",
+   "taille": 4904
+  },
+  "cadeaux3d/1f3b7.webp": {
+   "sha256": "2974e3f46f9dc758c797276382a4d95a58faf5534c975188dedd0412e12c38c7",
+   "taille": 4486
+  },
+  "cadeaux3d/1f3b8.webp": {
+   "sha256": "9f106ca35fa1cf615ca00a3faaf12f760b86371fca1d5616d5174e5d146e59c2",
+   "taille": 5474
+  },
+  "cadeaux3d/1f3b9.webp": {
+   "sha256": "da823a3531eed265218d9b0ebb4e99839cf0c05f1c0ce86d991f9ce6c74079d2",
+   "taille": 1642
+  },
+  "cadeaux3d/1f3ba.webp": {
+   "sha256": "e76a250815c9c97017c575d018cb47918025f8b33b3e69403fd19b28c54630a5",
+   "taille": 7150
+  },
+  "cadeaux3d/1f3bb.webp": {
+   "sha256": "19a9ba9303d5e6ec4a30519f569a67bdf8fa571ee7511c0c5f8a374d1758865b",
+   "taille": 6516
+  },
+  "cadeaux3d/1f3c1.webp": {
+   "sha256": "ea7a4b00c69d8d1ef42bd14c19e6ed27d1fbb473c0b922ea03974be32e65c0b6",
+   "taille": 8766
+  },
+  "cadeaux3d/1f3c5.webp": {
+   "sha256": "a437685514cf9c10f5b5534ebc853c3d4daaa36d34d847fbca97b193d43fa728",
+   "taille": 5678
+  },
+  "cadeaux3d/1f3c6.webp": {
+   "sha256": "5d063ca843ff05c02fba3e2ec83f239b484159db27eb2986b61f70287a7dc61a",
+   "taille": 4504
+  },
+  "cadeaux3d/1f3ce.webp": {
+   "sha256": "c859bf466da6c1a1497e6e6abdbffb935042d86012934417d255e072ede7e4e2",
+   "taille": 3544
+  },
+  "cadeaux3d/1f3d6.webp": {
+   "sha256": "127aff1024894bbadeceb8ce76c3da97bdd96229c9c23d05874c1e47cc4b02fa",
+   "taille": 5576
+  },
+  "cadeaux3d/1f3db.webp": {
+   "sha256": "159dafdfa7e304387749a25cd3e004728c0a75fbb880f4c475d441d7b0523d7f",
+   "taille": 2676
+  },
+  "cadeaux3d/1f3dd.webp": {
+   "sha256": "be8eb95ea98079f3d7b931bb4d09290972063065b88021892a41005794546e94",
+   "taille": 4906
+  },
+  "cadeaux3d/1f3de.webp": {
+   "sha256": "f50b947334366a18aac5cf9b4a7a6d9de0d9c2294e9c5354dca7cd792cdd890a",
+   "taille": 3516
+  },
+  "cadeaux3d/1f3df.webp": {
+   "sha256": "bed5fa838d4cfae45ae265d6db592f47ac460cf1b59847a792c664765f3c9210",
+   "taille": 5204
+  },
+  "cadeaux3d/1f3e9.webp": {
+   "sha256": "aa1adc5bfa0540f538dbe1869ebfb483216d54767f03c949eb953ccca4ae998d",
+   "taille": 4766
+  },
+  "cadeaux3d/1f3ee.webp": {
+   "sha256": "b0f6d2551e6caa5ff0c7b1ee61cc51159baa67e8dcac1604ae281ad32d982037",
+   "taille": 3988
+  },
+  "cadeaux3d/1f3ef.webp": {
+   "sha256": "714fcd041fdc23d4a138c3c7b7911f9bf4ac8b57ab5b2fa9dc130bef26ce6a95",
+   "taille": 4398
+  },
+  "cadeaux3d/1f3f0.webp": {
+   "sha256": "a25f38c78174cc96ead7c15a01c4bea173c2d505c3a7ad51b5fa6ca70fc34531",
+   "taille": 4838
+  },
+  "cadeaux3d/1f3f5.webp": {
+   "sha256": "49ca8dd33d8aaa48d7ff99429f31e57d2a8f5c61a31bafeecd073bf151c00d58",
+   "taille": 6750
+  },
+  "cadeaux3d/1f3fa.webp": {
+   "sha256": "6628ba8b8dde8503537d293f90e93ddaaa31c3c1795e7602d21a586d4efb1d97",
+   "taille": 4704
+  },
+  "cadeaux3d/1f405.webp": {
+   "sha256": "4853c720b7e6cf40ed7bbfacadb042900200441f4c271c0a6a19f651b3496295",
+   "taille": 5764
+  },
+  "cadeaux3d/1f406.webp": {
+   "sha256": "18a4f2d8ebf880cb36f98c8d943cc1134b9f8e353e87d2bc3374ddce7fc86edb",
+   "taille": 5216
+  },
+  "cadeaux3d/1f409.webp": {
+   "sha256": "0d8f862af75626a723a21f7ce98ae54e26da2de07406781dbe2595f64e10a319",
+   "taille": 7568
+  },
+  "cadeaux3d/1f40a.webp": {
+   "sha256": "925eb608ac50fc05f30e4a80c8538f1aad41c938119ded73362b3338f554b1f6",
+   "taille": 6638
+  },
+  "cadeaux3d/1f40e.webp": {
+   "sha256": "cef78601503f0de6ab0735b5a504d0994bd1f67765c38a2ace86c136deb68f62",
+   "taille": 6410
+  },
+  "cadeaux3d/1f412.webp": {
+   "sha256": "48b1df838edd618fd4da8355dfe40470c5c856ffe7a8cd048f06ea1f7f7fac99",
+   "taille": 6652
+  },
+  "cadeaux3d/1f418.webp": {
+   "sha256": "5c09c545a77dca9c348c46d8a59a978b65e25ce1e887c1a41609b66df2c304f1",
+   "taille": 3792
+  },
+  "cadeaux3d/1f41a.webp": {
+   "sha256": "faff09f2faddc4937a6a88183b8c7bc31bb5bf2abaadecee3025404a999d2ad0",
+   "taille": 3554
+  },
+  "cadeaux3d/1f422.webp": {
+   "sha256": "6bd5caf60930cb0d18dc5942a29f56d5b8da338d0d874b4f3d175edf39f237a8",
+   "taille": 3608
+  },
+  "cadeaux3d/1f426.webp": {
+   "sha256": "a2e1e099e79efe116aed00bbbf813674053840de8ad346a5c99728bdb42693f9",
+   "taille": 4628
+  },
+  "cadeaux3d/1f428.webp": {
+   "sha256": "1b0f3b7a8cf85547fcfcdf65fda1139395646e71f03a86211b9238c4695bec28",
+   "taille": 3684
+  },
+  "cadeaux3d/1f42b.webp": {
+   "sha256": "82b014e9a7e54637cb49bde46aff9925eb7ec443e71dbd55b51a70fb4dd1220c",
+   "taille": 5336
+  },
+  "cadeaux3d/1f42c.webp": {
+   "sha256": "d322a7066cfd1634cce9ee4e9c649c51d7ae8cf3d4349df709c252079b315d91",
+   "taille": 5088
+  },
+  "cadeaux3d/1f42f.webp": {
+   "sha256": "1c1119624b73431323517b574134adaca73801b6af5863c696347cb6dfa2d6fd",
+   "taille": 6112
+  },
+  "cadeaux3d/1f430.webp": {
+   "sha256": "d948faf9b5b132bcadbfc429035d27050e2483cc7ba40c058e4e18314794f7f2",
+   "taille": 4540
+  },
+  "cadeaux3d/1f431.webp": {
+   "sha256": "113e5f7a0c5aeb5b61b8ef1c63b7bf0d610df5b9d5d7268a6d11d35d3d6c961b",
+   "taille": 4986
+  },
+  "cadeaux3d/1f433.webp": {
+   "sha256": "f824d170855a4120ec1c6e182b165c0c0dd6d1fc61ac07bfa2b7dfcbcfb75436",
+   "taille": 7292
+  },
+  "cadeaux3d/1f435.webp": {
+   "sha256": "f1f3b1ef6f8946915e5b04fed10e6bd5efb68f473942e84768c0bd79f2ed8e0e",
+   "taille": 4652
+  },
+  "cadeaux3d/1f436.webp": {
+   "sha256": "46d8939f74627e3e8928b27cecaa5be665135ea8ca871d6973e0ba71e0351a0d",
+   "taille": 4248
+  },
+  "cadeaux3d/1f438.webp": {
+   "sha256": "431b01a736a533a92c9ea793e1cfdb2f4b41866459de28ddd50e77c665e9f266",
+   "taille": 5642
+  },
+  "cadeaux3d/1f43a.webp": {
+   "sha256": "2c08fa10bcd787e59469b4d2afc261d4b60dfa8a3352b6aaebc071f5999d9816",
+   "taille": 4834
+  },
+  "cadeaux3d/1f43c.webp": {
+   "sha256": "e5601a67838f40193c38b3a4e7632695679b3f5603bcc93761be2effc92db42f",
+   "taille": 4674
+  },
+  "cadeaux3d/1f43e.webp": {
+   "sha256": "3435f773a7892abd549fccadec814289455ad688afa0ca633466665aa069d4d1",
+   "taille": 5358
+  },
+  "cadeaux3d/1f441.webp": {
+   "sha256": "8b9a205801f4536d9b7ba835303b66fe5f9d6802e27b76460b04169eb9c8fadc",
+   "taille": 4450
+  },
+  "cadeaux3d/1f44a.webp": {
+   "sha256": "229823030fe9d43733887c2f3ec062123578b0df1d95b0078b5560f4d47da211",
+   "taille": 3658
+  },
+  "cadeaux3d/1f44f.webp": {
+   "sha256": "2ed84bd7e7b37e2db19deac98a850ca29776f6e937b79a2f361c284ad3e8ca78",
+   "taille": 5498
+  },
+  "cadeaux3d/1f451.webp": {
+   "sha256": "248bd696274e4bd0760b84541ba4c5bbc00454a95d9978458c7ece6043bbf035",
+   "taille": 5940
+  },
+  "cadeaux3d/1f452.webp": {
+   "sha256": "048f79e5e5d4d0e5b9284916b4c1ae2b6a6893813428683ba0693105bb5417e5",
+   "taille": 4096
+  },
+  "cadeaux3d/1f454.webp": {
+   "sha256": "0dcfd983088dcec77c9e0d860ffe517e272c0128856377cca69a59aad66f21b2",
+   "taille": 3970
+  },
+  "cadeaux3d/1f457.webp": {
+   "sha256": "03522bafd0ef8fb84f2fb09a43a76b3782bf7830a0e64aba7f549d56278bd978",
+   "taille": 4662
+  },
+  "cadeaux3d/1f458.webp": {
+   "sha256": "81acfdff47d6979857bd74a0cfb3eac376681861dc33e50d350c11576c7cd564",
+   "taille": 4670
+  },
+  "cadeaux3d/1f45c.webp": {
+   "sha256": "1e80058c989444877306bb4a269cc3fbaf077b3c8c6a542ba7ac3a0363d5ce29",
+   "taille": 4224
+  },
+  "cadeaux3d/1f45f.webp": {
+   "sha256": "7161b2873fcab2f26be01be97753289232e73540c2a317a4ab9485dfffacbca3",
+   "taille": 4250
+  },
+  "cadeaux3d/1f460.webp": {
+   "sha256": "029f6876d76ce4cb6c80e2642a1cf9dab4663465099eead0e8072dc227fef027",
+   "taille": 3892
+  },
+  "cadeaux3d/1f468-200d-1f680.webp": {
+   "sha256": "a337cd75c223c815d52dfa13781020792215d9b8e83e32e3f0778bc12f9181d2",
+   "taille": 4878
+  },
+  "cadeaux3d/1f469-200d-2764-200d-1f468.webp": {
+   "sha256": "305b9f0a938f91191017d8aab17d22f261e4baeec407271150a4afcbc2148dff",
+   "taille": 7286
+  },
+  "cadeaux3d/1f47b.webp": {
+   "sha256": "cc35ed2b39cc5f0d32f8b67ec556ff5cf821074404a354ef15b7f82a1e16ad4a",
+   "taille": 4268
+  },
+  "cadeaux3d/1f47e.webp": {
+   "sha256": "64a14364655c52ebd7a548ef8d7186ef0b0a67b9627bf7d6070e972355373cb4",
+   "taille": 4636
+  },
+  "cadeaux3d/1f484.webp": {
+   "sha256": "17dcbdc2dd8403e0202002f7985bac7ae1063d22ec5c0f05fe2e2fcf7da4b305",
+   "taille": 2430
+  },
+  "cadeaux3d/1f48b.webp": {
+   "sha256": "775d15f96cbb95d7130a81b816c146cf90a56e191e20f809ba093596e5e3e6db",
+   "taille": 6372
+  },
+  "cadeaux3d/1f48c.webp": {
+   "sha256": "12a58ca64540cdf12f8859dcfcbed0949975935718ee539d1f6ba64d06614f50",
+   "taille": 2872
+  },
+  "cadeaux3d/1f48d.webp": {
+   "sha256": "bc5259c8d5ab70c1c0ba40373350aa6dd705eb4e6d4416a2ea347fc70ea9ec9f",
+   "taille": 5186
+  },
+  "cadeaux3d/1f48e.webp": {
+   "sha256": "d87c428a15f8b0f70c27b5d97838d5182f31af923bb4cf875c63ebf98f5be7bb",
+   "taille": 3748
+  },
+  "cadeaux3d/1f490.webp": {
+   "sha256": "bcdc5300e4a8afedf8acd35ec5c7b9d9c71893fdff87b33d0986016ef553f2d0",
+   "taille": 6034
+  },
+  "cadeaux3d/1f495.webp": {
+   "sha256": "8557e2386c92886c532114a65903ec7f96c0173e3d554648081322421991c809",
+   "taille": 4940
+  },
+  "cadeaux3d/1f496.webp": {
+   "sha256": "ce041b13aa646516831e0f069decb2db887a1e5d789446f3ace12d1b5ac53a1c",
+   "taille": 5456
+  },
+  "cadeaux3d/1f497.webp": {
+   "sha256": "6616cbbf8277ba960da4b8d695a58c485861104e980247191bf76dc3e3c34d26",
+   "taille": 5232
+  },
+  "cadeaux3d/1f49d.webp": {
+   "sha256": "aba2cbfd1cda2c8d511e6339ba3f4c601e9a5b0719256aedc1f353ba75b8f4ab",
+   "taille": 5604
+  },
+  "cadeaux3d/1f4a5.webp": {
+   "sha256": "8342bf0b528a8235f2556069c805e8a5a87c72631571e9bc73dc871b8bfd785f",
+   "taille": 6454
+  },
+  "cadeaux3d/1f4a7.webp": {
+   "sha256": "4e77d24e5c02855d33529af51adae6fee3ea3455fb63c73ce957c9315035a9ab",
+   "taille": 3170
+  },
+  "cadeaux3d/1f4aa.webp": {
+   "sha256": "741122d70b2d2dcfbbcae5cf98e6dde3f1c57e9591dea7278c83e1cd0f539f2e",
+   "taille": 4346
+  },
+  "cadeaux3d/1f4ab.webp": {
+   "sha256": "4095ea42286492bee19624070e3206d1768c6e01c98cf2a9e65249cf7e85f420",
+   "taille": 5950
+  },
+  "cadeaux3d/1f4ae.webp": {
+   "sha256": "45c98432d6fefaa835516f160a56dd8f1a6932e7e3edbc28bf5a62002afc6af3",
+   "taille": 6866
+  },
+  "cadeaux3d/1f4af.webp": {
+   "sha256": "1f0acd98525b59e22818b7a30dfe75810c924d349b9b6ff4d1576c5b07f16963",
+   "taille": 9450
+  },
+  "cadeaux3d/1f4bc.webp": {
+   "sha256": "c162f0b8f3638ed4f81ec776ad3ce6ccbf89fa163106838d7721e19cf664d5cc",
+   "taille": 2094
+  },
+  "cadeaux3d/1f4bf.webp": {
+   "sha256": "c73282beb8abd15894bf668a93bce155356b047a8f39fb487a832710782c3475",
+   "taille": 3752
+  },
+  "cadeaux3d/1f4c0.webp": {
+   "sha256": "84161e3fa99d6b089c7a3009cb7ba8d3db55df16ae09f11296e9261b464d2218",
+   "taille": 5044
+  },
+  "cadeaux3d/1f4e3.webp": {
+   "sha256": "647979a50ed60903410827747ef2e19e622c2667a4b5a76fc3aba9933bab34da",
+   "taille": 5496
+  },
+  "cadeaux3d/1f4fd.webp": {
+   "sha256": "9403fe3abb9186a269afafb448553f00ceaee5ccc2f22855d3fb69e3955da98e",
+   "taille": 6996
+  },
+  "cadeaux3d/1f514.webp": {
+   "sha256": "9c362f679d07b032965f4926119d397556272bbf92ac3933ab7fd4061fdb8c04",
+   "taille": 3364
+  },
+  "cadeaux3d/1f525.webp": {
+   "sha256": "fa9eb99ddb44281af3c47726c17b9099255db1c635014b0afff4f665ee1324f8",
+   "taille": 4250
+  },
+  "cadeaux3d/1f52d.webp": {
+   "sha256": "995fb4a5020262345d3760d546d650eed958bc8d58f7e29add6b9db44ff54250",
+   "taille": 6728
+  },
+  "cadeaux3d/1f54a.webp": {
+   "sha256": "7fddc0c164f63146d60dbc6e83b63f04cabbc617610d40420fd4b9c9f1ed4b5e",
+   "taille": 4710
+  },
+  "cadeaux3d/1f56f.webp": {
+   "sha256": "c7b329ac8fddf0b6bf87338f7b69192953dc02629581a08817ee19924b40cb55",
+   "taille": 2810
+  },
+  "cadeaux3d/1f576.webp": {
+   "sha256": "a307a7db0b37a512cc7f55e931e642281435d980ac3119a12b868f8cbbd5445b",
+   "taille": 3202
+  },
+  "cadeaux3d/1f579.webp": {
+   "sha256": "e13475ed7765ef3e9e1d0f58802df97a4d7ba0f07e66170a6470860501bd38d1",
+   "taille": 4078
+  },
+  "cadeaux3d/1f5fa.webp": {
+   "sha256": "dbf8af66afdd464ebf813b5bca5ee1aeef82dd9834c14eacd45febf9020b790c",
+   "taille": 4178
+  },
+  "cadeaux3d/1f5fd.webp": {
+   "sha256": "b3ae24f4e288ef96f24f2d62037cf8bae1458f1f9300170a33fe96f2351d5162",
+   "taille": 5804
+  },
+  "cadeaux3d/1f602.webp": {
+   "sha256": "fc8d54df7b58896a24a0caa67a3065d0a9c7f1781a5797d03d428da6a30a7d67",
+   "taille": 5958
+  },
+  "cadeaux3d/1f60e.webp": {
+   "sha256": "68e54909ee6cfb928a42205fd93f355acc7ed99ac37c018c871aace94336ad62",
+   "taille": 6166
+  },
+  "cadeaux3d/1f64c.webp": {
+   "sha256": "f2157a2c103a220916fb71b5775652bec9e65aa454ff0fd98cfc7d9d45559a9b",
+   "taille": 6240
+  },
+  "cadeaux3d/1f64f.webp": {
+   "sha256": "6382c47de6a796517ec0856086bf65a2e5d8249da2b9c018bba4d5d70e5ccd07",
+   "taille": 3612
+  },
+  "cadeaux3d/1f680.webp": {
+   "sha256": "1d073000c76499c560057aeae7595a9ee74923e6be0ee9d3e4d685ca57f93f8a",
+   "taille": 5464
+  },
+  "cadeaux3d/1f681.webp": {
+   "sha256": "0f92cd5b663bbca6b765af70d45d9682b946a0c11cd53b35d6785509bebecda3",
+   "taille": 6138
+  },
+  "cadeaux3d/1f682.webp": {
+   "sha256": "76360da3495ea5506a98a26caaf7e5c2e5a2d720821a5595d73ff30aee85a58d",
+   "taille": 3930
+  },
+  "cadeaux3d/1f6cb.webp": {
+   "sha256": "364bed0272ba086ec21b22eefe40bdd568964e0274662afdb81cde3ba126e55a",
+   "taille": 3692
+  },
+  "cadeaux3d/1f6d6.webp": {
+   "sha256": "874528ed5a0f1ff6ffe77dfb051144f46466c22b0f235addbbb8e10d6a233609",
+   "taille": 2998
+  },
+  "cadeaux3d/1f6e1.webp": {
+   "sha256": "7f831ab3f0b220de8fbfc5379ceee229d50210382c8609d92e4275d3f23896dd",
+   "taille": 3836
+  },
+  "cadeaux3d/1f6e5.webp": {
+   "sha256": "6a246d41f5c05ec4683b4672451d7ebc7afd5824d79adf3a8d1f112e2f3bfbd2",
+   "taille": 3242
+  },
+  "cadeaux3d/1f6f0.webp": {
+   "sha256": "381ae02641cb6e4055680c5d221eeba2971d0df9e5ba953edad6ad3df7aa47d7",
+   "taille": 6796
+  },
+  "cadeaux3d/1f6f8.webp": {
+   "sha256": "a7d1efb5f3ffa153f89d44a47ac0daaf5b33c555aa9b82d4d3fc416833ad6274",
+   "taille": 4330
+  },
+  "cadeaux3d/1f916.webp": {
+   "sha256": "8c86665216b737107228be7dafdfe9cfe93ffdfb5ecfde253c9739c476be02eb",
+   "taille": 5006
+  },
+  "cadeaux3d/1f91d.webp": {
+   "sha256": "1015060be8c7bfb6ea0cade137f18705b4bec7393cd784a012389dbfc4ce0a15",
+   "taille": 4740
+  },
+  "cadeaux3d/1f921.webp": {
+   "sha256": "1f478f272510c1e77ab785585d139d9872405d9973f4dd5ff3f88aee586bd507",
+   "taille": 8282
+  },
+  "cadeaux3d/1f923.webp": {
+   "sha256": "36d8faac8352a94f10ca08a9592075e7448703b432f839a89e42e947965233d9",
+   "taille": 6722
+  },
+  "cadeaux3d/1f929.webp": {
+   "sha256": "fc4caaa200bd192b4b0c3b8b91ff97705b5f3cfb58f07aa60aee7b92354d23b0",
+   "taille": 6098
+  },
+  "cadeaux3d/1f940.webp": {
+   "sha256": "5f9fa1c69fcc0065007868d65576452d1f8f556f8611a4a596b30191b82ac2a2",
+   "taille": 6020
+  },
+  "cadeaux3d/1f941.webp": {
+   "sha256": "8b1161a2d68924b9f758e2853a17866ead6c45bddcb96b3dea67d4ec763674c7",
+   "taille": 5696
+  },
+  "cadeaux3d/1f942.webp": {
+   "sha256": "b81b6b79e4e7b9f1406dee4ff76bb2462be71b303062ef3c1691bb196edc073a",
+   "taille": 5076
+  },
+  "cadeaux3d/1f947.webp": {
+   "sha256": "83f6dae433a7e3a4cf3f00a5c5110047e9ba45cdf05da25dd7c51423f9b7b2f8",
+   "taille": 5478
+  },
+  "cadeaux3d/1f948.webp": {
+   "sha256": "7dca4d9fbb18bccdf9208969d98d08e82ec1309093765620603f6e6f3d7ddace",
+   "taille": 4890
+  },
+  "cadeaux3d/1f949.webp": {
+   "sha256": "5a07972c689f39b308d909343dce92b1f4f03047148aa32df7509662aca78bde",
+   "taille": 5034
+  },
+  "cadeaux3d/1f94a.webp": {
+   "sha256": "80381cde35c9c2d8aea34046ca9082021bdbf99795268a7e7209c450ebb8ca4d",
+   "taille": 2998
+  },
+  "cadeaux3d/1f94b.webp": {
+   "sha256": "ef794063f09162db0af07fec05d733f913f029e40cdbfe7fbe54cede78ece04a",
+   "taille": 3236
+  },
+  "cadeaux3d/1f95c.webp": {
+   "sha256": "6099428aeff3d090bcd99ffe52f3ef973be6fb6aeafa4a16f3c04455334c378e",
+   "taille": 4550
+  },
+  "cadeaux3d/1f965.webp": {
+   "sha256": "cfd6c2af73991fa0f3bc91bbda0672d46aac92ae8f548ba95a434bf2b2b5014c",
+   "taille": 5834
+  },
+  "cadeaux3d/1f96d.webp": {
+   "sha256": "3c2801585c8eaa6307bba2e7a3b39f88e8e78c55a434d924b5e009bcef6b3fd7",
+   "taille": 4184
+  },
+  "cadeaux3d/1f973.webp": {
+   "sha256": "59f345aab91ba1d2066e6c7ff25bad5bb2c2a9cf423b7db7e137eb44a6ee6900",
+   "taille": 7358
+  },
+  "cadeaux3d/1f97b.webp": {
+   "sha256": "1b5b90ed8db9ab583818ad87a2efe9dc6a3d6af5dbf1acff4c2d755822c5ba29",
+   "taille": 4442
+  },
+  "cadeaux3d/1f981.webp": {
+   "sha256": "e61188b2f80656199a888a5c6695b52bd06aefe1702a2f88ebc5015e148312e1",
+   "taille": 5792
+  },
+  "cadeaux3d/1f984.webp": {
+   "sha256": "db07b9018436402f0d35243e421f38569983aa3a8bd3c80ea86c3a17743f54f0",
+   "taille": 5246
+  },
+  "cadeaux3d/1f985.webp": {
+   "sha256": "986ac535998e0e962812cf7342a78d0056df4a13cdd537abe74855817ebe8982",
+   "taille": 3464
+  },
+  "cadeaux3d/1f986.webp": {
+   "sha256": "2c79fbb2785fdbcfff1f056b41033c64c1b5c696cd3602d4e67319fcd858a1df",
+   "taille": 4128
+  },
+  "cadeaux3d/1f988.webp": {
+   "sha256": "522515fd3a55b4ec3180ba44f22fc9d3ab00faca87566b5a22317ea2aedc1bba",
+   "taille": 4800
+  },
+  "cadeaux3d/1f989.webp": {
+   "sha256": "81525a43a0dcef6ca16e23ffc14d8b955ec592b74fb7a545203760dedd338c87",
+   "taille": 6098
+  },
+  "cadeaux3d/1f98a.webp": {
+   "sha256": "c288557ab01f30fba2a8817d4487dcd245a83bcd3aa77e6e507b750f2aef38c6",
+   "taille": 5276
+  },
+  "cadeaux3d/1f98b.webp": {
+   "sha256": "109a3f72c61959edb1947858aa680758aaf7ee99bf9bce4f61623a88317993c6",
+   "taille": 9462
+  },
+  "cadeaux3d/1f98d.webp": {
+   "sha256": "19dd872caaa4aaba7dee9e92a750b53b43fabe0f6a7f184ae1adc68228500c9b",
+   "taille": 3890
+  },
+  "cadeaux3d/1f98f.webp": {
+   "sha256": "910440b8df30f5d4426efce86672c0385e6158a10bb246eed0dec87c20805095",
+   "taille": 3544
+  },
+  "cadeaux3d/1f992.webp": {
+   "sha256": "a0a192f923cb552c9792e2619fd59360e5cad4e27a27aa7ba4c6fba90b378f83",
+   "taille": 6218
+  },
+  "cadeaux3d/1f993.webp": {
+   "sha256": "a9676b0dca96d8fa34f8e9b19c88197ecefc4cab7e0c9df7be98ebf4c38f6972",
+   "taille": 6406
+  },
+  "cadeaux3d/1f99a.webp": {
+   "sha256": "d44f7d0c6d01f8df664763058c954278f865cdc4d638d514473ff0077830011d",
+   "taille": 7648
+  },
+  "cadeaux3d/1f99b.webp": {
+   "sha256": "268c0f104be31fb6846a71a35a7ba31c5bfa2490d11ef2e644324650d8eba7d1",
+   "taille": 3532
+  },
+  "cadeaux3d/1f99c.webp": {
+   "sha256": "72fc391d4475e98593e4353ec48e1a2f934f463904b516a6402e60d6bfa8089f",
+   "taille": 5188
+  },
+  "cadeaux3d/1f9a2.webp": {
+   "sha256": "ed9ce16a6a104a46e07f5d8e891dda0185374af258bdf78e305a1f11b330dc9b",
+   "taille": 3840
+  },
+  "cadeaux3d/1f9a9.webp": {
+   "sha256": "0ada631769f61e2489bce198251f5929464478d283d5f99617dc117897e79fa9",
+   "taille": 4488
+  },
+  "cadeaux3d/1f9c1.webp": {
+   "sha256": "a50a3ffecef03e0f6f5bd7bb7c7f5262e121b89a1bfe20c58dfca9be308639a5",
+   "taille": 5690
+  },
+  "cadeaux3d/1f9e2.webp": {
+   "sha256": "bd0ae4b8a94f26790bdb46a6d47b8187b50b3ab3f90a6fdfa64e12bc4f822146",
+   "taille": 3614
+  },
+  "cadeaux3d/1f9e3.webp": {
+   "sha256": "ea85b3df3bc98893f208e14bebf5e72b572b8da44d50e8cb26296c6b99f6092f",
+   "taille": 5768
+  },
+  "cadeaux3d/1f9e9.webp": {
+   "sha256": "93a95fed57cc3724525903592afe77a81bd16838712c77562db4c7b8600620bd",
+   "taille": 6416
+  },
+  "cadeaux3d/1f9ed.webp": {
+   "sha256": "83e48745a1e4a9ce7c980350768dfe3a8dab9a580d9560276329aacef24c24e4",
+   "taille": 6348
+  },
+  "cadeaux3d/1f9f5.webp": {
+   "sha256": "b5ac65538d05ab804c536ddb5da5f4eecd353797d56d1d7ea7e22406716e666b",
+   "taille": 6088
+  },
+  "cadeaux3d/1f9f8.webp": {
+   "sha256": "ba84791a077a4dbe687d3733dc851466f9d664c1dd20555354e357dc5f695c36",
+   "taille": 6338
+  },
+  "cadeaux3d/1f9fa.webp": {
+   "sha256": "aff19e7bab1f0281c2ef765d6eba25720e2edb673da5c9316ed315f98375e049",
+   "taille": 5032
+  },
+  "cadeaux3d/1fa82.webp": {
+   "sha256": "d19ba55e6b8d2c8dff211456efeb0cf30e7f536cc5eddaf32ad644188358d6b2",
+   "taille": 7908
+  },
+  "cadeaux3d/1fa84.webp": {
+   "sha256": "f764ea4d4d6ecc2e2b41931f9c7ae8825cb2ab6fd23e6e373b50db24b401827a",
+   "taille": 5314
+  },
+  "cadeaux3d/1fa85.webp": {
+   "sha256": "c87cb4704a2e04fdc40c8624fafa8b8faec9034e6bbaf7a800bc00e01691b14e",
+   "taille": 5414
+  },
+  "cadeaux3d/1fa90.webp": {
+   "sha256": "ec328832e709d8e3827fbada2fd7e0a0d4fe45f7f17f74faed83cf12af217920",
+   "taille": 4988
+  },
+  "cadeaux3d/1fa94.webp": {
+   "sha256": "10ba5ce800c0887fda811170e4cdbdaa2027e2bbc993c0ac95e1be211581ad41",
+   "taille": 6534
+  },
+  "cadeaux3d/1fa95.webp": {
+   "sha256": "6b1cd9a7ffbc07b98d005bb90e1f66c7de577ac3f4bc0e103e6e2f597ea400b1",
+   "taille": 5082
+  },
+  "cadeaux3d/1fa98.webp": {
+   "sha256": "ef351807c0577424a5f395713a5b00aa5630b89c65369867d744fcec57dbbf3c",
+   "taille": 3492
+  },
+  "cadeaux3d/1faad.webp": {
+   "sha256": "d91235c1eb49c9eb83ef806b2333f81ee75675c71d198c3f9d51f52da844f7c8",
+   "taille": 6650
+  },
+  "cadeaux3d/1fab5.webp": {
+   "sha256": "4a4780ba639bffb00414e616915a899c3fe17f221db38b5a436ecd03734ebb25",
+   "taille": 3086
+  },
+  "cadeaux3d/1fab6.webp": {
+   "sha256": "bdda4e2c73f819f0c83f10b4d013f51de666c6a7b407e570f23cac900c250c28",
+   "taille": 4064
+  },
+  "cadeaux3d/1fab7.webp": {
+   "sha256": "0b1d49b656a20a07db443f8d406209b1f8b47428c0f86813c96d545ad4a69766",
+   "taille": 6438
+  },
+  "cadeaux3d/1fad6.webp": {
+   "sha256": "d60865072374a6ca182ff1ed2ea3f154367bde4daa226bc22e2a0ec8db426ead",
+   "taille": 4668
+  },
+  "cadeaux3d/231a.webp": {
+   "sha256": "9a69b1d6b0582a0767344e1622dcb7173aa0bb63eedecf510d25e1f8bb9fd19d",
+   "taille": 4708
+  },
+  "cadeaux3d/2600.webp": {
+   "sha256": "b61b9cb8cffeea536273ac7896762e9b32f31caa3e2c10996d3968b84d206d08",
+   "taille": 4530
+  },
+  "cadeaux3d/2604.webp": {
+   "sha256": "03ad3ded7adb74be7f51bece3617b06aa936a3eab31a7225956f49fcbb2d631b",
+   "taille": 3982
+  },
+  "cadeaux3d/2614.webp": {
+   "sha256": "249f667a36d6f2c5cb9062a11edeb6cb3538996ffbe2f5ef151f6cf4884a30a2",
+   "taille": 5114
+  },
+  "cadeaux3d/2615.webp": {
+   "sha256": "9f3f336ded4b6ea26dc195419e2658cbd25a356f0160924574f8d6d3319069fa",
+   "taille": 4584
+  },
+  "cadeaux3d/265f.webp": {
+   "sha256": "e6700cba5d8d02fff39c2efef5ed855fd3946b9364ff40efdd1780ef9034ccab",
+   "taille": 2718
+  },
+  "cadeaux3d/26a1.webp": {
+   "sha256": "8af408eb30807b44c8365fc853ddb6790d628ab74727725959f553bf9d1e1f5f",
+   "taille": 2530
+  },
+  "cadeaux3d/26c4.webp": {
+   "sha256": "261edb6b35f7812fc29ed156c8cc8fa47ff525fe8c59a36ff1496510c7e879b5",
+   "taille": 5024
+  },
+  "cadeaux3d/26c8.webp": {
+   "sha256": "85364bc282d5e6ec8e6aa6e16c6b53bf0916596f55f617bdb5a1773599194566",
+   "taille": 7004
+  },
+  "cadeaux3d/26f0.webp": {
+   "sha256": "7f99192334251d95acd4a481b12e7b9a8064c0aeacea8958f02c844b4dd2b4ec",
+   "taille": 2676
+  },
+  "cadeaux3d/26f5.webp": {
+   "sha256": "08426e00c2c7ff72288b465ef3042dbac0f01c8723db6e2974af0b4d935dc672",
+   "taille": 4268
+  },
+  "cadeaux3d/2708.webp": {
+   "sha256": "218a3e7f12059571e9b76e78f6bd9c6105057ba515321b7f67b05bdf3daeabce",
+   "taille": 6034
+  },
+  "cadeaux3d/2728.webp": {
+   "sha256": "5d5610956939d068f4dd3e99ae1b4da90ca24806aefac091f27761ad69c379d3",
+   "taille": 6236
+  },
+  "cadeaux3d/2744.webp": {
+   "sha256": "35106af31fb3a900d1578c98cd7970dac43cc5a0a9ee822238a3d2bf3ad307be",
+   "taille": 8900
+  },
+  "cadeaux3d/2b22.webp": {
+   "sha256": "911a78acc3f4188ef1f6ff800828431265bbd8fb5dfb0f23decaf1b5face7c55",
+   "taille": 7616
+  },
+  "cadeaux3d/2b50.webp": {
+   "sha256": "90256de5fc13174939ef63fce42795fd0ea578d40c745f09e150377500c9565b",
+   "taille": 3978
+  },
+  "cadeaux3d/LICENCE_Fluent_Emoji_MIT.txt": {
+   "sha256": "0c579b764ea17abdd95bcf1eaab0a744221cc7e8e07af7252c9393e760bf9852",
+   "taille": 1300
+  },
+  "cadeaux3d/index.json": {
+   "sha256": "980ba646495513fd2379f9ea32eeda70a609a5eea51743f1a5d23f86cd1c8898",
+   "taille": 5357
+  },
+  "demo.html": {
+   "sha256": "a3fdd43ee8a838303016dba74789629cef0c637ce69bc8d63431e29906c57685",
+   "taille": 671
+  },
+  "ia/LICENCE_MediaPipe_Apache-2.0.txt": {
+   "sha256": "379dc9be621e253a565b178cfefb3b18976a56b6a10a9f7678f297cfed21f31a",
+   "taille": 11643
+  },
+  "ia/selfie_segmenter.tflite": {
+   "sha256": "191ac9529ae506ee0beefa6b2c945a172dab9d07d1e802a290a4e4038226658b",
+   "taille": 249537
+  },
+  "ia/vision_bundle.js": {
+   "sha256": "98db72469ffb176f5e9f2687be0f70783893aca681f7789c34b872b0a764371a",
+   "taille": 155465
+  },
+  "ia/vision_wasm_internal.js": {
+   "sha256": "e170ee67dd4e16c1a6fcd8840a206687e5a59b22c20e4a902bc445b095454d73",
+   "taille": 323377
+  },
+  "ia/vision_wasm_internal.wasm": {
+   "sha256": "8da277a733926eacd0474b8704b36742d6ec3231c57a860c5b889dff8f1df886",
+   "taille": 11756954
+  },
+  "ia/vision_wasm_module_internal.js": {
+   "sha256": "da8934057f147b622e82cfb4c0dbd85461c598e268588b5a8ba9ca963a8ff82d",
+   "taille": 323415
+  },
+  "ia/vision_wasm_module_internal.wasm": {
+   "sha256": "2dabd8e23c60984628beb7bb338764c81a08e6837145273f59578684b5d53c1b",
+   "taille": 11756972
+  },
+  "ia/vision_wasm_nosimd_internal.js": {
+   "sha256": "e81d715a3d42cc3373602eb2f7aff795d164934db680e32496b65dab537f9658",
+   "taille": 323180
+  },
+  "ia/vision_wasm_nosimd_internal.wasm": {
+   "sha256": "a28483cd42e74e855bf5ebdb6b40d9b66a5b49e35e95020bc97669e6822a3192",
+   "taille": 10960242
+  },
+  "icones/nv-192.png": {
+   "sha256": "726e92e6b7809a73c670becc9b16101517a5d8de8ad7b6730d8cd471901dea5f",
+   "taille": 24337
+  },
+  "icones/nv-512.png": {
+   "sha256": "22286e0b83c10335bcbc5597844805f3ea422ede01f78f05fdbaf74214d57c0d",
+   "taille": 118618
+  },
+  "icones/nv-maskable-512.png": {
+   "sha256": "93586904db000563b0fa877071f2cc70c42bf5406af3e45ce581f380f019c461",
+   "taille": 108585
+  },
+  "index.html": {
+   "sha256": "f0e3dea81440b42e694b1ef1098d5e2d157b4c4db8787fb0628a425be08722ab",
+   "taille": 680
+  },
+  "nv-accueil.webmanifest": {
+   "sha256": "7787d6e408e3134f0a64cc533859c004a4037a140414bec45a8a1e9f2f7c69b0",
+   "taille": 600
+  },
+  "nv-config.js": {
+   "sha256": "1f60e31be34275884c2392e380f5a44455f2db1669153f9113489fb789e5a78b",
+   "taille": 1731
+  },
+  "sw-tamtam.js": {
+   "sha256": "ae450786dddafc66b2546265cc0c8bc8746e94f9948788514e799ecb6ddc9b16",
+   "taille": 7841
+  }
+ }
+}

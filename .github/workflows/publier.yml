@@ -1,0 +1,34 @@
+# NEURAVID — publication automatique de la référence.
+# À chaque envoi sur la branche main : on vérifie que web/ est complet et intact (empreintes de version.json),
+# puis on publie web/ sur le site (GitHub Pages). L'application, qui ouvre ce site, voit la mise à jour sans nouvel APK.
+# Domaine : réglez « app.neuravid.com » dans Settings → Pages → Custom domain (à la racine du domaine).
+name: Publier NEURAVID
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+concurrency:
+  group: pages
+  cancel-in-progress: true
+jobs:
+  publier:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploiement.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Vérifier la référence (aucun fichier manquant ni modifié)
+        run: python3 outils/verifier_reference.py web web
+      - name: Vérifier que chaque module ouvert par un bouton existe
+        run: python3 outils/audit_liens_statique.py web
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: web
+      - id: deploiement
+        uses: actions/deploy-pages@v4

@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<!--NV_CONFIG--><script src="nv-config.js"></script><!--/NV_CONFIG-->
+<!--NV_DEMO--><script id="nv-demo">
+/* NEURAVID — LA DÉMONSTRATION dans chaque module (injectée en tête de page, avant le module).
+   Jamais dans l'application ni avec un serveur (NV_API_BASE). Allumée si l'accueil l'a allumée pour la session
+   (sessionStorage « nv_demo » = 1), ou « #demo » dans l'adresse, ou une page ouverte comme fichier (file:, content:).
+   Elle permet seulement d'ouvrir les autres modules à côté (NV_MODULES_BASE) avec le même visiteur de démonstration ;
+   chaque module garde ses propres règles (rien d'inventé hors de la démonstration). */
+(function(){ try{ var dansApp = !!(window.flutter_inappwebview || window.NVLien || window.ReactNativeWebView), h = location.hash || '', s = null; try{ s = sessionStorage.getItem('nv_demo'); }catch(e){ s = null; }
+  if(dansApp || (typeof window.NV_API_BASE === 'string' && window.NV_API_BASE) || s === '0' || /(^#|&)demo=0(&|$)/.test(h)) return;
+  if(!(s === '1' || /(^#|&)demo(=1)?(&|$)/.test(h) || /^(file|content):$/.test(location.protocol))) return;
+  window.NV_DEMO = true; try{ sessionStorage.setItem('nv_demo', '1'); }catch(e){ /* rien */ }
+  if(!window.NV_MODULES_BASE) window.NV_MODULES_BASE = './';
+  if(!window.NV_USER) window.NV_USER = {id:'demo', handle:'visiteur', prenom:'Aya', age:25, majeur:true, iso:'GN'};
+}catch(e){ /* rien */ } })();
+</script><!--/NV_DEMO-->
+
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>NEURAVID</title>
+<style>html,body{margin:0;height:100%;background:#0B0720;color:#F7F3FF;font-family:system-ui,sans-serif}a{color:#FFC93D}p{margin:0;padding:24px 16px;text-align:center}</style>
+<!--
+  NEURAVID — « Player » est l'identifiant du lecteur principal ; son fichier est NV_MODULE_Iris.html.
+  Ce relais existe seulement pour la navigation hors application (navigateur, démonstration) :
+  ouvrir('Player', ctx) dépose le contexte dans sessionStorage['nv_ctx_Player'] et va vers NV_MODULE_Player.html ;
+  ce relais garde l'adresse (#… et ?…) et le contexte, puis ouvre Iris. Dans l'application, NVLien.ouvrir('NVPlayer')
+  mène directement au lecteur : ce fichier n'y sert pas. Un seul lecteur, aucun doublon.
+-->
+<script>
+(function(){
+  var cible = 'NV_MODULE_Iris.html' + (location.search || '') + (location.hash || '');
+  try{ location.replace(cible); }catch(e){ location.href = cible; }
+})();
+</script>
+</head>
+<body>
+<p><a href="NV_MODULE_Iris.html">Ouvrir le lecteur</a></p>
+</body>
+</html>
