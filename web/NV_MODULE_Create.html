@@ -4260,12 +4260,15 @@ var IA_FICHIERS = {
   profondeur:'depth_anything_v2_small_q8.onnx'       /* profondeur réelle (photos, montage) */
 };
 var IA = {base:null, vision:null, attente:null, fs:null, outils:{}, etat:{}, raison:{}, res:{}, dernier:{}, cadence:{visage:15, mains:12, corps:12, multiclasse:8, segmentation:15}, temps:{}, tour:0, besoin:{}, horloge:0};
-function iaBase(){
-  if(IA.base) return IA.base;
-  var b = window.NV_IA_BASE;
-  if(!b){ try{ b = new URL(baseModules() ? baseModules() + '../ia/' : '../ia/', location.href).href; }catch(e){ b = '../ia/'; } }
-  b = String(b); if(b.slice(-1) !== '/') b += '/'; IA.base = b; return b;
+/* où est le dossier « ia » : à côté des modules (site web, nouvelle application : web/ia/), sinon un cran au-dessus (ancienne APK : assets/ia).
+   Les deux places sont essayées ; la première qui répond est gardée. NV_IA_BASE, s'il est posé, est seul utilisé. */
+function iaBases(){
+  if(window.NV_IA_BASE){ var f = String(window.NV_IA_BASE); return [f.slice(-1) === '/' ? f : f + '/']; }
+  var b = baseModules(), l = [], vus = {};
+  [b ? b + 'ia/' : './ia/', b ? b + '../ia/' : '../ia/'].forEach(function(c){ try{ c = new URL(c, location.href).href; }catch(e){ dbg(e); } if(!vus[c]){ vus[c] = 1; l.push(c); } });
+  return l;
 }
+function iaBase(){ return IA.base || iaBases()[0]; }
 function iaChemin(cle){ var m = window.NV_IA_MODELES || {}; if(cle === 'segmentation' && window.NV_IA_MODEL) return window.NV_IA_MODEL; return m[cle] || iaBase() + IA_FICHIERS[cle]; }
 /* lire un fichier de l'application (XHR : marche aussi en file:// quand la WebView l'autorise) */
 function iaLire(url){
@@ -4282,14 +4285,23 @@ function iaVision(){
   if(V && V.FilesetResolver){ IA.vision = V; return Promise.resolve(V); }
   if(IA.attente) return IA.attente;
   IA.attente = new Promise(function(ok, ko){
-    var s = document.createElement('script'); s.src = iaBase() + 'vision_bundle.js'; s.async = true;
-    var fini = false, garde = setTimeout(function(){ if(!fini){ fini = true; ko(new Error('moteur')); } }, 12000);
-    s.onload = function(){ if(fini) return; fini = true; clearTimeout(garde); var W = window.Vision || window.MediaPipeTasksVision; if(W && W.FilesetResolver){ IA.vision = W; ok(W); } else ko(new Error('moteur')); };
-    s.onerror = function(){ if(fini) return; fini = true; clearTimeout(garde); ko(new Error('moteur')); };
-    document.head.appendChild(s);
+    var bases = IA.base ? [IA.base] : iaBases(), n = 0;
+    (function essai(){
+      var base = bases[n], s = document.createElement('script'); s.src = base + 'vision_bundle.js'; s.async = true;
+      var fini = false, garde = setTimeout(function(){ if(!fini){ fini = true; ko(new Error('moteur')); } }, 12000);
+      s.onload = function(){ if(fini) return; fini = true; clearTimeout(garde); var W = window.Vision || window.MediaPipeTasksVision; if(W && W.FilesetResolver){ IA.base = base; IA.vision = W; ok(W); } else ko(new Error('moteur')); };
+      s.onerror = function(){ if(fini) return; fini = true; clearTimeout(garde); try{ s.remove(); }catch(e){ dbg(e); } if(++n < bases.length) essai(); else ko(new Error('moteur')); };
+      document.head.appendChild(s);
+    })();
   });
   IA.attente.catch(function(){ IA.attente = null; });
   return IA.attente;
+}
+/* lire un modèle : à la place retenue, sinon aux autres (le moteur peut avoir été chargé par l'application) */
+function iaLireModele(cle){
+  var m = window.NV_IA_MODELES || {}; if(m[cle] || (cle === 'segmentation' && window.NV_IA_MODEL)) return iaLire(iaChemin(cle));
+  var bases = IA.base ? [IA.base].concat(iaBases().filter(function(b){ return b !== IA.base; })) : iaBases(), n = 0;
+  return (function essai(){ var b = bases[n]; return iaLire(b + IA_FICHIERS[cle]).then(function(r){ if(!IA.base || !IA.fs) IA.base = b; return r; }, function(e){ if(++n < bases.length) return essai(); throw e; }); })();
 }
 function iaFileset(){ if(IA.fs) return Promise.resolve(IA.fs); return iaVision().then(function(V){ return V.FilesetResolver.forVisionTasks(iaBase().replace(/\/$/, '')); }).then(function(f){ IA.fs = f; return f; }); }
 var IA_RAISONS = {absent:'ce modèle arrivera avec une prochaine version de l\'application', moteur:'le moteur d\'IA n\'a pas pu démarrer sur ce téléphone', lent:'il était trop lourd pour ce téléphone'};
@@ -4314,7 +4326,7 @@ function iaActiver(cle){
   if(IA.outils[cle]) return Promise.resolve(IA.outils[cle]);
   if(IA.etat[cle] === 'absent' || IA.etat[cle] === 'eteint') return Promise.resolve(null);
   if(IA.etat[cle] && IA.etat[cle].then) return IA.etat[cle];
-  var p = (cle === 'profondeur' ? profCharger() : Promise.all([iaVision(), iaFileset(), iaLire(iaChemin(cle))]).then(function(r){ return iaCreer(cle, r[2], r[0], r[1]); }))
+  var p = (cle === 'profondeur' ? profCharger() : iaVision().then(function(V){ return iaLireModele(cle).then(function(buf){ return iaFileset().then(function(fs){ return iaCreer(cle, buf, V, fs); }); }); }))
     .then(function(o){ IA.outils[cle] = o; IA.etat[cle] = 'pret'; emit('ia_prete', {modele:cle}); majPanneauIA(); return o; })
     .catch(function(e){ dbg(e); IA.etat[cle] = 'absent'; IA.raison[cle] = e && e.message === 'moteur' ? 'moteur' : 'absent'; majPanneauIA(); return null; });
   IA.etat[cle] = p; return p;
@@ -6497,7 +6509,7 @@ nouveauProjet = function(){ var r = _nouveauProjetNx.apply(this, arguments); DEP
      d'elle-même si elle éclaircit la peau. Rien ne change la couleur de la peau ni la forme du visage.
    Tout est ajouté à l'outil « Visage » existant : la retouche douce, les masques, le maquillage, la barbe, l'âge restent.
    ════════════════════════════════════════════════════════════════════ */
-var BEA = {peau:0, mat:0, cernes:0, regard:0, sourcils:0, barbe:0, dents:0, sculpt:0, look:null, intensite:1, garde:true, k:1, ecart:null,
+var BEA = {peau:0, mat:0, cernes:0, regard:0, sourcils:0, barbe:0, dents:0, sculpt:0, look:null, intensite:1, garde:true, k:1, ecart:null, comp:0,
   avant:null, tAvant:0, tMesure:0, temps:[], lent:false, eteint:false, raison:''};
 var BEA_CLES = ['peau', 'mat', 'cernes', 'regard', 'sourcils', 'barbe', 'dents', 'sculpt'];
 var BEA_NOMS = {peau:'Peau', mat:'Matité', cernes:'Cernes', regard:'Regard', sourcils:'Sourcils', barbe:'Barbe nette', dents:'Sourire', sculpt:'Lumière sculptée'};
@@ -6641,7 +6653,7 @@ function appliquerBeaute(g, L, H, mir){
   /* la peau : un lissage fin (moyenne locale), qui ne change pas la luminosité moyenne */
   if(BEA.peau > .02) poser(calque('beaP', src.cv, 'blur(' + Math.max(1, larg * (BEA.lent ? .010 : .013) * s) + 'px)', peau), 'source-over', BEA.peau * .78);
   /* la matité : les brillances ramenées vers la peau autour, sans jamais éclaircir */
-  if(BEA.mat > .02) poser(calque('beaMt', src.cv, 'blur(' + Math.max(2, larg * .05 * s) + 'px)', peau), 'darken', BEA.mat * .8);
+  if(BEA.mat > .02) poser(calque('beaMt', src.cv, 'blur(' + Math.max(2, larg * .05 * s) + 'px)', peau), 'darken', BEA.mat * .5);
   /* les cernes : sous chaque œil, la peau voisine prend le relais de l'ombre */
   if(BEA.cernes > .02){
     var cz = [OEIL_D_BAS, OEIL_G_BAS].map(function(idx){ var b = pointsV(idx, L, H, mir).slice(1, -1); return b.map(function(p){ return {x:p.x, y:p.y + larg * .014}; }).concat(b.slice().reverse().map(function(p){ return {x:p.x, y:p.y + larg * .085}; })); });
@@ -6667,6 +6679,9 @@ function appliquerBeaute(g, L, H, mir){
     t.g.globalCompositeOperation = 'destination-in'; t.g.drawImage(peau, 0, 0); t.g.globalCompositeOperation = 'source-over';
     poser(t.cv, 'soft-light', BEA.sculpt * .55 * k);
   }
+  /* le teint équilibré : si la beauté a assombri ou terni la peau (pénombre, peau foncée), la clarté d'origine est rendue,
+     avec le grain de la peau d'origine — jamais au-delà de la clarté de départ (mesurée avant / après) */
+  if(BEA.comp > .01 && peau) poser(calque('beaE', src.cv, 'brightness(1.16) saturate(1.05)', peau), 'source-over', BEA.comp);
   chrono(BEA, performance.now() - t0, 12, 26, 10, function(){
     if(!BEA.lent){ BEA.lent = true; BEA.temps = []; return; }
     BEA.peau = BEA.mat = BEA.sculpt = 0; BEA.raison = 'la beauté sur mesure était trop lourde pour ce téléphone'; emit('beaute_allegee', {}); toast('Beauté allégée : la peau, la matité et la lumière sculptée sont coupées sur ce téléphone.', 4200); majTiroir(); majRail();
@@ -6692,7 +6707,7 @@ appliquerRetouche = function(g, L, H, src, mir){
   var now = performance.now(), frais = iaPret('visage') && IA.res.visage && now - IA.res.visage.t < 600;
   if(frais && (CAM.tiroir === 'beaute' || retoucheActive()) && now - BEA.tMesure > 700){ BEA.tMesure = now; mesurerTeint(src); }
   BEA.avant = null;
-  if(BEA.garde && frais && retoucheEclaircit() && now - BEA.tAvant > 400 && VIS.k === 'none'){ BEA.tAvant = now; BEA.avant = lirePeauToile(g, L, H, mir); }
+  if(BEA.garde && frais && (retoucheEclaircit() || beaPrecise()) && now - BEA.tAvant > 400 && VIS.k === 'none'){ BEA.tAvant = now; BEA.avant = lirePeauToile(g, L, H, mir); }
   if(RET.lissage > .02 || RET.eclat > .02 || RET.chaleur > .02){
     var k = BEA.garde ? BEA.k : 1, l0 = RET.lissage, e0 = RET.eclat, c0 = RET.chaleur;
     RET.lissage *= k; RET.eclat *= k; RET.chaleur *= k;
@@ -6708,6 +6723,8 @@ dessinerVisagePrecis = function(g, L, H, mir){
   var e = apres - BEA.avant; BEA.ecart = BEA.ecart == null ? e : BEA.ecart + (e - BEA.ecart) * .35;
   /* plus de 3 points de clarté gagnés : la retouche se retient ; sous 1,5 : elle revient doucement */
   if(BEA.ecart > 3) BEA.k = Math.max(.3, BEA.k * .85); else if(BEA.ecart < 1.5) BEA.k = Math.min(1, BEA.k + .04);
+  /* assombrie : la clarté d'origine revient peu à peu ; trop claire : elle se retire */
+  if(BEA.ecart < -1) BEA.comp = Math.min(.85, BEA.comp + .06); else if(BEA.ecart > .5) BEA.comp = Math.max(0, BEA.comp - .06);
   var el = $('beaGarde'); if(el) el.textContent = texteGarde();
 };
 function texteGarde(){
@@ -6719,7 +6736,7 @@ var _retoucheActiveBea = retoucheActive;
 retoucheActive = function(){ return _retoucheActiveBea() || beaPrecise(); };
 var _besoinsIABea = besoinsIA;
 besoinsIA = function(){ _besoinsIABea(); if(beaPrecise() || (CAM.tiroir === 'beaute' && iaPret('visage'))) IA.besoin.visage = true; };
-function zeroBeaute(){ BEA_CLES.forEach(function(c){ BEA[c] = 0; }); BEA.look = null; BEA.k = 1; BEA.ecart = null; }
+function zeroBeaute(){ BEA_CLES.forEach(function(c){ BEA[c] = 0; }); BEA.look = null; BEA.k = 1; BEA.ecart = null; BEA.comp = 0; }
 var _revenirOriginalBea = revenirOriginal;
 revenirOriginal = function(){ zeroBeaute(); return _revenirOriginalBea.apply(this, arguments); };
 var _eteindreInterditsBea = eteindreInterdits;
@@ -6795,13 +6812,19 @@ function phbSource(){
   var cle = PHO.mid + '|' + JSON.stringify(PHB.v) + '|' + JSON.stringify(PHB.fx); if(PHB.cv && PHB.cle === cle) return PHB.cv;
   var k = Math.min(1, 1600 / Math.max(PHO.img.naturalWidth, PHO.img.naturalHeight)), c = PHB.cv || document.createElement('canvas'); c.width = Math.round(PHO.img.naturalWidth * k); c.height = Math.round(PHO.img.naturalHeight * k);
   var g = c.getContext('2d'), L = c.width, H = c.height; g.drawImage(PHO.img, 0, 0, L, H);
-  var sv = {}, sfx = {}, sres = IA.res.visage, scad = CAM.cadre, slent = BEA.lent, steint = BEA.eteint;
+  var sv = {}, sfx = {}, sres = IA.res.visage, scad = CAM.cadre, slent = BEA.lent, steint = BEA.eteint, scomp = BEA.comp;
   BEA_CLES.forEach(function(x){ sv[x] = BEA[x]; BEA[x] = PHB.v[x] || 0; });
   ['levres', 'paupieres', 'blush', 'eclat', 'iris', 'barbe', 'age', 'lunettes', 'couronne', 'sourire', 'clin'].forEach(function(x){ sfx[x] = FX[x]; FX[x] = PHB.fx[x] || (typeof FX[x] === 'boolean' ? false : null); });
   try{ IA.res.visage = {p:PHB.visage.p, t:performance.now(), lacet:PHB.visage.lacet || 0, roulis:PHB.visage.roulis || 0, b:{}}; CAM.cadre = null; BEA.lent = false; BEA.eteint = false;
-    appliquerBeaute(g, L, H, false); if(PHB.fx.levres || PHB.fx.paupieres || PHB.fx.blush) _dessinerVisagePrecisBea(g, L, H, false);
+    var l0 = lirePeauToile(g, L, H, false), essais = [0, .3, .55, .8];
+    for(var n = 0; n < essais.length; n++){
+      if(n){ g.drawImage(PHO.img, 0, 0, L, H); } BEA.comp = essais[n]; appliquerBeaute(g, L, H, false);
+      var l1 = l0 == null ? null : lirePeauToile(g, L, H, false); PHB.ecart = l1 == null ? null : l1 - l0;
+      if(l1 == null || l1 >= l0 - 1) break;
+    }
+    if(PHB.fx.levres || PHB.fx.paupieres || PHB.fx.blush) _dessinerVisagePrecisBea(g, L, H, false);
   }catch(e){ dbg(e); }
-  finally{ BEA_CLES.forEach(function(x){ BEA[x] = sv[x]; }); Object.keys(sfx).forEach(function(x){ FX[x] = sfx[x]; }); IA.res.visage = sres; CAM.cadre = scad; BEA.lent = slent; BEA.eteint = steint; BEA.temps = []; }
+  finally{ BEA_CLES.forEach(function(x){ BEA[x] = sv[x]; }); Object.keys(sfx).forEach(function(x){ FX[x] = sfx[x]; }); IA.res.visage = sres; CAM.cadre = scad; BEA.lent = slent; BEA.eteint = steint; BEA.comp = scomp; BEA.temps = []; }
   c.naturalWidth = L; c.naturalHeight = H; c.complete = true; PHB.cv = c; PHB.cle = cle; return c;
 }
 var _dessinerPhotoBea = dessinerPhoto;
