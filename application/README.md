@@ -25,7 +25,7 @@ A Flutter shell around the NEURAVID website, the same principle as `flutter/neur
   - `compileSdk` / `targetSdk` 36 (Google Play requirement since 31 Aug 2026), `minSdk` 24 ;
   - signed from the secrets `ANDROID_KEYSTORE_BASE64`, `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS` and `ANDROID_KEY_PASSWORD` (Karamo's upload key ; Play App Signing holds the app signing key) ;
   - without these secrets, it builds with a throwaway key, marked as a pre-release « ESSAI ». That build is for testing only, never for Google Play ;
-  - outputs `NEURAVID.aab` and `NEURAVID.apk`, published in Releases as `application-N` ;
+  - outputs `NEURAVID_installer_sur_le_telephone.apk` and (signed builds only) `NEURAVID_pour_Google_Play_seulement.aab`, published in Releases as `application-N` (a trial build has no .aab) ;
   - optional upload to Google Play as a draft (`r0adkll/upload-google-play`, secret `PLAY_SERVICE_ACCOUNT_JSON`). The first upload of a new app must be done by hand in the Play Console.
 - **iOS** (macOS runner):
   - `flutter build ios --no-codesign`, then `xcodebuild archive` and `-exportArchive` with automatic cloud signing through an App Store Connect API key (Admin role) ;
