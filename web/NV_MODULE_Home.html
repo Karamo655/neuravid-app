@@ -337,6 +337,10 @@ body.feuille-ouverte .boussole{opacity:0;pointer-events:none}
 .facettes{transform-box:fill-box;transform-origin:center;animation:tourne 18s linear infinite}
 @keyframes tourne{to{transform:rotate(360deg)}}
 .nb .facettes{animation-duration:10s}
+/* un univers réservé à un âge que l'on ne connaît pas encore : présent, avec son âge, un peu en retrait */
+.grille-mod button.a-verifier{position:relative}
+.grille-mod button.a-verifier .gemme{filter:saturate(.75) brightness(.9)}
+.grille-mod .age-min{position:absolute;top:7px;right:7px;font-style:normal;font-size:10.5px;font-weight:800;line-height:1;padding:4px 6px 3px;border-radius:999px;color:#fff;background:rgba(11,7,32,.72);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--c) 70%,#fff 10%);z-index:1}
 /* derrière une feuille ouverte (menu « Tous les univers »…), plus rien ne tourne : le verre dépoli reste net, sans scintillement */
 body.feuille-ouverte .facettes{animation-play-state:paused}
 body.feuille-ouverte #tete .paupiere{transition:none}
@@ -1324,13 +1328,19 @@ A.chercher = function(){ entrer('Search'); };
 /* ════════ Le tiroir : tous les univers, par famille ════════ */
 var FAMILLES = [['Regarder et participer', ['Player', 'Live', 'Baobab', 'StoryUniverse', 'Events']], ['Les défis et les concours', ['ChallengeUniverse', 'Orbite', 'Battle', 'ViralStorm', 'Arena', 'Artistes', 'MissMaster', 'ArenaArts', 'CinemaWorld', 'LoveUniverse']],
   ['Créer', ['Create', 'Studio', 'Conteur', 'Griot']], ['Moi et les autres', ['Profile', 'Passeport', 'Dashboard', 'CallUniverse', 'Notifications', 'Search', 'Reglages', 'Conditions']], ['L\'argent et les marques', ['Recolte', 'Phare', 'Etendard']]];
-A.tiroir = function(){ ouvrirFeuille(tr('Tous les univers'), FAMILLES.map(function(f){ var l = f[1].map(function(id){ return REGP[id]; }).filter(function(m){ return m && permis(m); }); if(!l.length) return '';
-  return '<h3>' + esc(f[0]) + '</h3><div class="grille-mod">' + l.map(function(m, k){ return '<button data-a="ouvrirMod" data-v="' + m.id + '" style="--c:' + m.c + ';--k:' + k + '">' + gemme(m) + '<span>' + esc(m.n) + '</span></button>'; }).join('') + '</div>'; }).join('') +
+A.tiroir = function(){ ouvrirFeuille(tr('Tous les univers'), FAMILLES.map(function(f){ var l = f[1].map(function(id){ return REGP[id]; }).filter(function(m){ return m && (permis(m) || ageAVerifier(m)); }); if(!l.length) return '';
+  return '<h3>' + esc(f[0]) + '</h3><div class="grille-mod">' + l.map(function(m, k){ return '<button data-a="ouvrirMod" data-v="' + m.id + '"' + (permis(m) ? '' : ' class="a-verifier" aria-label="' + esc(phraseTexte('{0} est réservé aux {1} ans et plus.', tr(m.n), m.age)) + '"') + ' style="--c:' + m.c + ';--k:' + k + '">' + gemme(m) + (permis(m) ? '' : '<i class="age-min" aria-hidden="true">' + m.age + '+</i>') + '<span>' + esc(m.n) + '</span></button>'; }).join('') + '</div>'; }).join('') +
   '<h3>' + esc('Langue') + '</h3>' + blocLangue() + '<h3>' + esc('Le ciel') + '</h3>' + interrupteur('voix', 'Annoncer les victoires à voix haute', voixAutorisee()) + interrupteur('voixAccueil', 'Me souhaiter la bienvenue à voix haute (jamais entre 22 h et 7 h)', voixAccueil()) +
   '<h3>' + esc('Ce téléphone') + '</h3>' + '<p class="v2-note">' + esc('Animations des trois mondes') + (LEGER.auto ? ' · ' + esc(tr('ce téléphone est réglé en léger')) : '') + '</p><div class="v2-niveaux" role="group" aria-label="' + esc(tr('Animations des trois mondes')) + '">' + [['auto', 'Automatique'], ['legere', 'Légères'], ['complete', 'Complètes']].map(function(x){ return '<button data-a="animation" data-v="' + x[0] + '" aria-pressed="' + (niveauAnimation() === x[0]) + '">' + esc(x[1]) + '</button>'; }).join('') + '</div>' +
   interrupteur('portails', 'Transitions vers les univers (portails)', lire('nv_accueil_portails', 'oui') !== 'non') + interrupteur('filPays', 'Garder le pays choisi d\'un monde à l\'autre', filPays()) +
   '<button class="ligne-tiroir" data-a="partagerCiel">' + ico('partager') + '<span>' + esc('Partager le ciel du jour') + '</span></button>' + (INSTALL.e && !lire('nv_accueil_installe', 0) ? '<button class="ligne-tiroir" data-a="installer">' + ico('partager') + '<span>' + esc('Ajouter NEURAVID à l\'écran d\'accueil') + '</span></button>' : ''), 'tiroir'); };
-A.ouvrirMod = function(id){ fermerPuis(function(){ entrer(id); }); };
+/* 3 novembre 2026 : Miss & Master et La Récolte (18 ans) n'apparaissaient pas du tout dans le menu tant que l'âge n'était pas connu.
+   Maintenant, si l'âge est inconnu (visiteur), le carreau est là avec « 18+ » : le toucher dit pourquoi et comment entrer.
+   Une personne dont l'âge connu est trop jeune ne le voit toujours pas. (L'aperçu a un profil d'exemple de 25 ans : tout y est ouvert.) */
+function ageAVerifier(m){ var u = window.NV_USER; return !!(m && m.age && age() == null && !(u && u.majeur === false)); }
+A.ouvrirMod = function(id){ var m = REGP[id];
+  if(m && !permis(m)){ entrer(id); return; }
+  fermerPuis(function(){ entrer(id); }); };
 function interrupteur(k, t, on){ return '<button class="interrupteur" role="switch" aria-checked="' + !!on + '" data-a="bascule" data-v="' + k + '"><span>' + esc(t) + '</span><i aria-hidden="true"></i></button>'; }
 A.bascule = function(k, el){ if(k === 'voixAccueil'){ A.voixAccueil(); el.setAttribute('aria-checked', voixAccueil()); return; }
   if(k === 'leger'){ var lg = !LEGER.on; ecrire('nv_accueil_leger', lg === LEGER.auto ? null : lg ? 'oui' : 'non'); if(lg === LEGER.auto) try{ localStorage.removeItem('nv_accueil_leger'); }catch(e){ dbg(e); } calculerLeger(); el.setAttribute('aria-checked', LEGER.on); jouerMondes(); rendreMaintenant(); return; }
