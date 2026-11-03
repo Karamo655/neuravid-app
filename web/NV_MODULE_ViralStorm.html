@@ -17,10 +17,6 @@
 }catch(e){ /* rien */ } })();
 </script><!--/NV_DEMO-->
 
-
-
-
-
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#070a1c">
@@ -49,7 +45,7 @@
             GET  /v1/storm/chaines/:id                  → {id, defi, maillons:[{clip, iso, pays, nom}]}
             vidéo de partage : les vidéos du serveur doivent être servies avec Access-Control-Allow-Origin.
   sortie  : nvEvent (storm_*, participation_*, gift_*, view, …)
-  Règles  : vraie vidéo obligatoire · participation dès 13 ans · direct dès 16 ans · argent 18 ans et plus.
+  Règles  : vraie vidéo obligatoire · participation dès 13 ans · regarder un direct dès 13 ans, monter sur scène dès 16 ans (3 nov. 2026) · argent 18 ans et plus.
 -->
 <style>
 :root{
@@ -1803,6 +1799,7 @@ var CSS = '' +
 '#nvr-liste .reacs{display:flex;flex-wrap:wrap;gap:5px;margin-top:6px}#nvr-liste .reacs button{border:0;height:24px;padding:0 8px;border-radius:12px;font:inherit;font-size:12.5px;color:#fff;background:rgba(255,255,255,.08)}#nvr-liste .reacs button.mien{background:rgba(255,197,49,.22);box-shadow:inset 0 0 0 1px rgba(255,197,49,.6)}' +
 '#nvr-liste ul.rep{list-style:none;margin:6px 0 0;padding:0 0 0 8px;border-left:2px solid rgba(255,255,255,.08)}#nvr-liste ul.rep li{padding:8px 0;border:0}#nvr-liste ul.rep .av{width:28px;height:31px;font-size:12px}' +
 '#nvr-liste .plus{border:0;background:none;padding:6px 0 0;font:inherit;font-size:12.5px;font-weight:800;color:#7fe3ff}' +
+'.nvr-trad{margin:6px 0 0;padding-left:10px;border-left:2px solid rgba(255,255,255,.35);opacity:.95}.nvr-trad-note{display:block;margin-top:3px;font-size:12px;opacity:.75}' +
 '.nvr-sticker{display:inline-flex;align-items:center;gap:8px;margin-top:5px;padding:6px 12px 6px 6px;border-radius:20px;background:linear-gradient(110deg,rgba(224,36,154,.35),rgba(108,43,217,.35))}.nvr-sticker i{font-style:normal;font-size:34px;line-height:1;animation:nvrHop 1.6s ease-in-out infinite}.nvr-sticker b{font-size:14px}' +
 '@keyframes nvrHop{0%,100%{transform:translateY(0) rotate(0)}30%{transform:translateY(-6px) rotate(-8deg)}60%{transform:translateY(0) rotate(6deg)}}' +
 '#nvr-pop{position:fixed;z-index:84;display:none;gap:4px;padding:6px;border-radius:24px;background:#2a1a66;box-shadow:0 10px 30px rgba(0,0,0,.5)}#nvr-pop.on{display:flex}#nvr-pop button{border:0;width:40px;height:40px;border-radius:50%;background:none;font-size:24px;transition:transform .12s}#nvr-pop button:active{transform:scale(1.3)}' +
@@ -2022,7 +2019,31 @@ function corpsC(c){
   if(c.type === 'voice') return '<div class="nvr-vocal" data-src="' + esc(src || '') + '"><button class="lire" aria-label="Écouter">' + svg('lire') + '</button><span class="onde">' + onde(c.id) + '</span><span>' + temps(c.duration) + '</span></div>';
   if(c.type === 'video') return '<div class="nvr-vid"><video playsinline preload="metadata" src="' + esc(src || '') + '"></video><button class="j" aria-label="Lire">' + svg('lire') + '</button></div>';
   if(c.type === 'sticker'){ var st = STICKERS[+c.sticker] || STICKERS[0]; return (c.text ? '<p dir="auto">' + avecMentions(c.text) + '</p>' : '') + '<div class="nvr-sticker"><i>' + st[0] + '</i><b>' + esc(st[1]) + '</b></div>'; }
-  return '<p dir="auto"' + (seulementEmojis(c.text) ? ' class="gros"' : '') + '>' + avecMentions(c.text) + '</p>';
+  return '<p dir="auto"' + (seulementEmojis(c.text) ? ' class="gros"' : '') + '>' + avecMentions(c.text) + '</p>' + tradC(c);
+}
+/* ── La traduction d'un commentaire, à la demande (« 🌐 Traduire »), seulement si le serveur l'annonce ──
+   POST /v1/ia/pont/traduire {texte, langueCible, demande:true, contexte:'commentaire'} → {texte, traduit, auto, limite}
+   Toujours marquée « Traduction automatique » ; jamais de traduction faite en arrière-plan. */
+var IA = {trad:null};
+function capIA(){
+  if(IA.trad !== null || !api()) return; IA.trad = false;
+  try{ fetch(api() + '/v1/ia/capacites', {mode:'cors', headers:entetes()}).then(function(r){ return r.ok ? r.json() : null; })
+    .then(function(o){ IA.trad = !!(o && o.pont && o.pont.traductionCommentaires === true); }).catch(function(){}); }catch(e){}
+}
+function langueUI(){ var l = String(R.NV_LANGUE_UI || R.NV_LANG || document.documentElement.lang || 'fr').slice(0, 2).toLowerCase(); return /^[a-z]{2}$/.test(l) ? l : 'fr'; }
+function tradC(c){
+  if(!c.trad) return '';
+  return '<p dir="auto" class="nvr-trad">' + esc(c.trad.texte) + '</p><small class="nvr-trad-note">🌐 ' + esc('Traduction automatique') + (c.trad.limite ? ' · ' + esc('à vérifier') : '') + '</small>';
+}
+function traduireC(c){
+  if(!api() || !c.text) return;
+  fetch(api() + '/v1/ia/pont/traduire', {method:'POST', mode:'cors', headers:entetes({'Content-Type':'application/json'}),
+    body:JSON.stringify({texte:String(c.text).slice(0, 2000), langueCible:langueUI(), demande:true, contexte:'commentaire'})})
+    .then(function(r){ return r.ok ? r.json() : Promise.reject(r.status); })
+    .then(function(o){ if(!o || typeof o.texte !== 'string') throw 0;
+      if(o.traduit === false){ dire('Ce commentaire est déjà dans votre langue.'); return; }
+      c.trad = {texte:o.texte.slice(0, 4000), limite:!!o.limite}; emit('comment_translate', {comment:c.id}); rendreListe(); })
+    .catch(function(){ dire('Traduction impossible pour l\'instant.'); });
 }
 function itemC(c, topId, proprio, estRep){
   var badges = (c.byOwner ? '<span class="badge b-auteur">Auteur</span>' : '') + (c.id === topId ? '<span class="badge b-top">⭐ Top</span>' : '') + (c.pinned ? '<span class="badge b-pin">📌 Épinglé</span>' : '');
@@ -2102,6 +2123,7 @@ function feOuverte(){ var f = $('nvr-fe'); return !!(f && f.classList.contains('
 function fermerFe(viaRetour){ cacherFe(); if(viaRetour) fePousse = false; else depilerFe(); }
 function menuC(c){
   var o = ouvert; if(!o) return; var proprio = !!o.clip.moi, b = [];
+  if(IA.trad && !c.mine && c.text && (c.type === 'text' || c.type === 'sticker') && !c.trad) b.push({ico:'🌐', lib:'Traduire', fn:function(){ traduireC(c); }});
   if(c.type === 'text' && c.text) b.push({ico:'📋', lib:'Copier le texte', fn:function(){ try{ navigator.clipboard.writeText(c.text).then(function(){ dire('Texte copié.'); }, function(){}); }catch(e){} }});
   if(proprio && !c.parent) b.push({ico:'📌', lib:c.pinned ? 'Désépingler' : 'Épingler en tête (3 au maximum)', fn:function(){ epingler(c); }});
   if(proprio && !c.mine) b.push({ico:c.hidden ? '👁️' : '🙈', lib:c.hidden ? 'Afficher de nouveau' : 'Masquer pour les autres', fn:function(){ masquer(c); }});
@@ -2202,7 +2224,7 @@ function media(on){ try{ if(ouvert && ouvert.opts && typeof ouvert.opts.onMedia 
 function compteur(o){ try{ if(o && o.opts && typeof o.opts.onCompte === 'function') o.opts.onCompte(typeof o.clip.comments === 'number' && serveur(o.clip) ? o.clip.comments : etat(o.clip.id).comsLocaux, serveur(o.clip)); }catch(e){} }
 var pousse = false;
 function ouvrirComs(o){
-  monter(); ouvert = o; reponse = null; deplies = {}; majRepond();
+  monter(); ouvert = o; reponse = null; deplies = {}; majRepond(); capIA();
   $('nvr-titre').textContent = 'Commentaires';
   $('nvr-regle').textContent = (o.opts.pauseComs && !o.clip.moi) ? '🛡️ ' + o.opts.pauseComs : (o.opts.regleComs || 'Restez bienveillant : les moqueries sur le physique sont retirées.');
   $('nvr-bas').style.display = (o.opts.pauseComs && !o.clip.moi) ? 'none' : '';
@@ -3347,10 +3369,11 @@ function estMajeur(){ var u = window.NV_USER || {}; if(typeof u.age === 'number'
 function spectateurMineur(){ var u = window.NV_USER || {}; return (typeof u.age === 'number' && u.age < 18) || u.majeur === false; }
 
 /* ════════ Les règles (réglables depuis NEURAVID) ════════ */
-var REGLES = {eclairsJour:5, ageParticipation:13, ageDirect:16, ageArgent:18, chaineHeures:48, dureeMaxAbsolue:600, partageMax:60, repartition:{createur:70, neuravid:30}};
+/* 3 nov. 2026 : regarder un direct 13 ans ; monter sur la scène en direct (animer) 16 ans */
+var REGLES = {eclairsJour:5, ageParticipation:13, ageDirect:13, ageAnimer:16, ageArgent:18, chaineHeures:48, dureeMaxAbsolue:600, partageMax:60, repartition:{createur:70, neuravid:30}};
 window.NVStormRegles = function(o){
   o = o || {};
-  ['eclairsJour', 'ageParticipation', 'ageDirect', 'ageArgent', 'chaineHeures', 'dureeMaxAbsolue', 'partageMax'].forEach(function(k){ if(typeof o[k] === 'number' && o[k] >= 0) REGLES[k] = o[k]; });
+  ['eclairsJour', 'ageParticipation', 'ageDirect', 'ageAnimer', 'ageArgent', 'chaineHeures', 'dureeMaxAbsolue', 'partageMax'].forEach(function(k){ if(typeof o[k] === 'number' && o[k] >= 0) REGLES[k] = o[k]; });
   DEFIS.forEach(function(d){ d.max = Math.max(d.min, Math.min(d.fixe ? d.max0 : Math.max(d.max0, REGLES.dureeMaxAbsolue), REGLES.dureeMaxAbsolue)); });
   if(o.repartition && typeof o.repartition.createur === 'number' && o.repartition.createur >= 0 && o.repartition.createur <= 100){ var nv = typeof o.repartition.neuravid === 'number' ? o.repartition.neuravid : 100 - o.repartition.createur; REGLES.repartition = {createur:o.repartition.createur, neuravid:nv}; o.repartition.neuravid = nv; try{ if(window.NVCadeaux) NVCadeaux.config({repartition:{beneficiaire:o.repartition.createur, neuravid:o.repartition.neuravid}}); }catch(e){} }
   rendre();
@@ -4420,7 +4443,7 @@ function rendreGT(){
     '<li>Tout le mois, relevez des défis. Les éclairs du public font monter vos vidéos.</li>' +
     '<li>À la fin du mois, la vidéo qui a reçu le plus d\'éclairs dans chaque pays reçoit la couronne de son pays.</li>' +
     '<li>Les couronnés s\'affrontent en direct dans la Salle Baobab, et le public élit la couronne mondiale.</li></ol>' +
-    '<p class="petit">Pour monter sur la scène en direct, il faut avoir ' + REGLES.ageDirect + ' ans ou plus : la vidéo d\'un champion plus jeune est diffusée pendant la finale. Seuls les vrais éclairs comptent.</p></details>';
+    '<p class="petit">Pour monter sur la scène en direct, il faut avoir ' + REGLES.ageAnimer + ' ans ou plus : la vidéo d\'un champion plus jeune est diffusée pendant la finale. Seuls les vrais éclairs comptent.</p></details>';
   if(!GT || GT.phase === 'qualifications') h += '<button class="btn plein large" data-relever="" style="margin-top:12px">Relever un défi pour le mois</button>';
   el.innerHTML = h + '</div>';
   spGagnants();

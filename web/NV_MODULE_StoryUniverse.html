@@ -17,10 +17,6 @@
 }catch(e){ /* rien */ } })();
 </script><!--/NV_DEMO-->
 
-
-
-
-
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#120c2e">
@@ -1655,6 +1651,7 @@ var CSS = '' +
 '#nvr-liste .reacs{display:flex;flex-wrap:wrap;gap:5px;margin-top:6px}#nvr-liste .reacs button{border:0;height:24px;padding:0 8px;border-radius:12px;font:inherit;font-size:12.5px;color:#fff;background:rgba(255,255,255,.08)}#nvr-liste .reacs button.mien{background:rgba(255,197,49,.22);box-shadow:inset 0 0 0 1px rgba(255,197,49,.6)}' +
 '#nvr-liste ul.rep{list-style:none;margin:6px 0 0;padding:0 0 0 8px;border-left:2px solid rgba(255,255,255,.08)}#nvr-liste ul.rep li{padding:8px 0;border:0}#nvr-liste ul.rep .av{width:28px;height:31px;font-size:12px}' +
 '#nvr-liste .plus{border:0;background:none;padding:6px 0 0;font:inherit;font-size:12.5px;font-weight:800;color:#7fe3ff}' +
+'.nvr-trad{margin:6px 0 0;padding-left:10px;border-left:2px solid rgba(255,255,255,.35);opacity:.95}.nvr-trad-note{display:block;margin-top:3px;font-size:12px;opacity:.75}' +
 '.nvr-sticker{display:inline-flex;align-items:center;gap:8px;margin-top:5px;padding:6px 12px 6px 6px;border-radius:20px;background:linear-gradient(110deg,rgba(224,36,154,.35),rgba(108,43,217,.35))}.nvr-sticker i{font-style:normal;font-size:34px;line-height:1;animation:nvrHop 1.6s ease-in-out infinite}.nvr-sticker b{font-size:14px}' +
 '@keyframes nvrHop{0%,100%{transform:translateY(0) rotate(0)}30%{transform:translateY(-6px) rotate(-8deg)}60%{transform:translateY(0) rotate(6deg)}}' +
 '#nvr-pop{position:fixed;z-index:84;display:none;gap:4px;padding:6px;border-radius:24px;background:#2a1a66;box-shadow:0 10px 30px rgba(0,0,0,.5)}#nvr-pop.on{display:flex}#nvr-pop button{border:0;width:40px;height:40px;border-radius:50%;background:none;font-size:24px;transition:transform .12s}#nvr-pop button:active{transform:scale(1.3)}' +
@@ -1874,7 +1871,31 @@ function corpsC(c){
   if(c.type === 'voice') return '<div class="nvr-vocal" data-src="' + esc(src || '') + '"><button class="lire" aria-label="Écouter">' + svg('lire') + '</button><span class="onde">' + onde(c.id) + '</span><span>' + temps(c.duration) + '</span></div>';
   if(c.type === 'video') return '<div class="nvr-vid"><video playsinline preload="metadata" src="' + esc(src || '') + '"></video><button class="j" aria-label="Lire">' + svg('lire') + '</button></div>';
   if(c.type === 'sticker'){ var st = STICKERS[+c.sticker] || STICKERS[0]; return (c.text ? '<p dir="auto">' + avecMentions(c.text) + '</p>' : '') + '<div class="nvr-sticker"><i>' + st[0] + '</i><b>' + esc(st[1]) + '</b></div>'; }
-  return '<p dir="auto"' + (seulementEmojis(c.text) ? ' class="gros"' : '') + '>' + avecMentions(c.text) + '</p>';
+  return '<p dir="auto"' + (seulementEmojis(c.text) ? ' class="gros"' : '') + '>' + avecMentions(c.text) + '</p>' + tradC(c);
+}
+/* ── La traduction d'un commentaire, à la demande (« 🌐 Traduire »), seulement si le serveur l'annonce ──
+   POST /v1/ia/pont/traduire {texte, langueCible, demande:true, contexte:'commentaire'} → {texte, traduit, auto, limite}
+   Toujours marquée « Traduction automatique » ; jamais de traduction faite en arrière-plan. */
+var IA = {trad:null};
+function capIA(){
+  if(IA.trad !== null || !api()) return; IA.trad = false;
+  try{ fetch(api() + '/v1/ia/capacites', {mode:'cors', headers:entetes()}).then(function(r){ return r.ok ? r.json() : null; })
+    .then(function(o){ IA.trad = !!(o && o.pont && o.pont.traductionCommentaires === true); }).catch(function(){}); }catch(e){}
+}
+function langueUI(){ var l = String(R.NV_LANGUE_UI || R.NV_LANG || document.documentElement.lang || 'fr').slice(0, 2).toLowerCase(); return /^[a-z]{2}$/.test(l) ? l : 'fr'; }
+function tradC(c){
+  if(!c.trad) return '';
+  return '<p dir="auto" class="nvr-trad">' + esc(c.trad.texte) + '</p><small class="nvr-trad-note">🌐 ' + esc('Traduction automatique') + (c.trad.limite ? ' · ' + esc('à vérifier') : '') + '</small>';
+}
+function traduireC(c){
+  if(!api() || !c.text) return;
+  fetch(api() + '/v1/ia/pont/traduire', {method:'POST', mode:'cors', headers:entetes({'Content-Type':'application/json'}),
+    body:JSON.stringify({texte:String(c.text).slice(0, 2000), langueCible:langueUI(), demande:true, contexte:'commentaire'})})
+    .then(function(r){ return r.ok ? r.json() : Promise.reject(r.status); })
+    .then(function(o){ if(!o || typeof o.texte !== 'string') throw 0;
+      if(o.traduit === false){ dire('Ce commentaire est déjà dans votre langue.'); return; }
+      c.trad = {texte:o.texte.slice(0, 4000), limite:!!o.limite}; emit('comment_translate', {comment:c.id}); rendreListe(); })
+    .catch(function(){ dire('Traduction impossible pour l\'instant.'); });
 }
 function itemC(c, topId, proprio, estRep){
   var badges = (c.byOwner ? '<span class="badge b-auteur">Auteur</span>' : '') + (c.id === topId ? '<span class="badge b-top">⭐ Top</span>' : '') + (c.pinned ? '<span class="badge b-pin">📌 Épinglé</span>' : '');
@@ -1954,6 +1975,7 @@ function feOuverte(){ var f = $('nvr-fe'); return !!(f && f.classList.contains('
 function fermerFe(viaRetour){ cacherFe(); if(viaRetour) fePousse = false; else depilerFe(); }
 function menuC(c){
   var o = ouvert; if(!o) return; var proprio = !!o.clip.moi, b = [];
+  if(IA.trad && !c.mine && c.text && (c.type === 'text' || c.type === 'sticker') && !c.trad) b.push({ico:'🌐', lib:'Traduire', fn:function(){ traduireC(c); }});
   if(c.type === 'text' && c.text) b.push({ico:'📋', lib:'Copier le texte', fn:function(){ try{ navigator.clipboard.writeText(c.text).then(function(){ dire('Texte copié.'); }, function(){}); }catch(e){} }});
   if(proprio && !c.parent) b.push({ico:'📌', lib:c.pinned ? 'Désépingler' : 'Épingler en tête (3 au maximum)', fn:function(){ epingler(c); }});
   if(proprio && !c.mine) b.push({ico:c.hidden ? '👁️' : '🙈', lib:c.hidden ? 'Afficher de nouveau' : 'Masquer pour les autres', fn:function(){ masquer(c); }});
@@ -2054,7 +2076,7 @@ function media(on){ try{ if(ouvert && ouvert.opts && typeof ouvert.opts.onMedia 
 function compteur(o){ try{ if(o && o.opts && typeof o.opts.onCompte === 'function') o.opts.onCompte(typeof o.clip.comments === 'number' && serveur(o.clip) ? o.clip.comments : etat(o.clip.id).comsLocaux, serveur(o.clip)); }catch(e){} }
 var pousse = false;
 function ouvrirComs(o){
-  monter(); ouvert = o; reponse = null; deplies = {}; majRepond();
+  monter(); ouvert = o; reponse = null; deplies = {}; majRepond(); capIA();
   $('nvr-titre').textContent = 'Commentaires';
   $('nvr-regle').textContent = (o.opts.pauseComs && !o.clip.moi) ? '🛡️ ' + o.opts.pauseComs : (o.opts.regleComs || 'Restez bienveillant : les moqueries sur le physique sont retirées.');
   $('nvr-bas').style.display = (o.opts.pauseComs && !o.clip.moi) ? 'none' : '';
@@ -3204,8 +3226,9 @@ function estMajeur(){
   return lire(cleCompte('nv_majeur'), false) === true;
 }
 function estMineur(){ return ageConnu() && !estMajeur(); }
-/* 16 ans pour le direct (salons, Regarder ensemble) : seulement si l'âge est connu */
-function peutDirect(){ var u = window.NV_USER || {}; if(typeof u.age === 'number') return u.age >= REGLES.ageDirect; return estMajeur(); }
+/* le direct en spectateur (salons, Regarder ensemble) : 13 ans depuis le 3 nov. 2026 (avant : 16 ans, âge connu) ;
+   si le serveur remonte l'âge au-dessus de 13 ans, l'âge doit être connu (le plus protecteur) */
+function peutDirect(){ var u = window.NV_USER || {}; if(typeof u.age === 'number') return u.age >= REGLES.ageDirect; if(REGLES.ageDirect <= REGLES.ageEntrer) return true; return estMajeur(); }
 
 /* ════════ Les règles (le serveur peut les remplacer) ════════ */
 var REGLES = {
@@ -3213,7 +3236,7 @@ var REGLES = {
   dureeMax:600,            /* une vidéo : jusqu'à 10 minutes */
   dureeMinDefi:3,          /* une réponse à un défi : une vraie vidéo d'au moins 3 secondes */
   photoSecondes:7, texteSecondes:7, voixMax:120,
-  ageEntrer:13, ageDirect:16, ageArgent:18,
+  ageEntrer:13, ageDirect:13, ageAnimer:16, ageArgent:18,   /* 3 nov. 2026 : regarder un direct 13 ans, animer 16 ans */
   capsuleMaxJours:365, capsuleMinHeures:1,
   flashMinutes:60, editionMinutes:5, rappelHeures:3, chaineVerifieePays:10, serieMaxEpisodes:60, duoPart:50, epreuveMin:3, epreuveMax:10,
   repartition:{createur:70, neuravid:30},
@@ -5791,7 +5814,7 @@ surPlus('boutons', function(s){ return s.premiere && s.premiere.at <= Date.now()
 var SALON = {id:null, t:0, depuis:null, l:[]};
 CLIC_PLUS.salon = function(s){
   suspendre(true); SALON = {id:s.id, t:0, depuis:null, l:[]};
-  var ecrire16 = peutDirect();   /* écrire dans un salon : 16 ans, âge connu */
+  var ecrire16 = peutDirect();   /* écrire dans un salon : 13 ans depuis le 3 nov. 2026 (REGLES.ageDirect) */
   ouvrirFeuille('💬 Le salon de la première', '<div id="salonL" class="salon-l" aria-live="polite"><p class="petit">Chargement…</p></div>' + (ecrire16 ? '<div class="rangee"><input id="salonT" maxlength="200" dir="auto" placeholder="Votre message" style="flex:1;min-height:44px;border-radius:12px;padding:0 12px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.18)"><button class="btn astre" data-act="x-salon-env">Envoyer</button></div>' : '<p class="petit">Le salon s\'écrit à partir de 16 ans ; vous pouvez le lire.</p>'), function(){ clearInterval(SALON.t); SALON.id = null; if(lecteurOuvert()) suspendre(false); });
   var lireSalon = function(){ if(!SALON.id || !api()) return; fetch(api() + '/v1/stories/' + encodeURIComponent(SALON.id) + '/salon' + (SALON.depuis ? '?depuis=' + encodeURIComponent(SALON.depuis) : ''), {headers:entetes(), mode:'cors'}).then(function(r){ return r.ok ? r.json() : null; }).then(function(d){ if(!d || !SALON.id) return; var l = Array.isArray(d.items) ? d.items : []; l.forEach(function(m){ if(m && m.id && !SALON.l.some(function(x){ return x.id === m.id; })) SALON.l.push({id:txt(m.id, 60), p:normPersonne(m.personne || {}), t:txt(m.texte, 200)}); }); SALON.l = SALON.l.slice(-150); SALON.depuis = d.suivant || SALON.depuis; rendreSalon(); }).catch(dbg); };
   lireSalon(); SALON.t = setInterval(lireSalon, 4000);
@@ -6028,7 +6051,7 @@ surPlus('contexte', function(){ return S && S.collectif ? '<span class="puce-h">
 
 /* ════════ Regarder ensemble : un salon où la story avance pour tout le monde ════════ */
 var ENS = {id:null, hote:false, t:0, dernier:null, membres:null};
-/* le direct : 16 ans, âge connu (comme les salons) */
+/* Regarder ensemble : un direct en spectateur, 13 ans depuis le 3 nov. 2026 (comme les salons) */
 surPlus('menu', function(s){ return api() && connecte() && !s.moi && peutDirect() ? '<button class="btn large" style="margin-top:8px" data-act="x-ensemble">👥 Regarder ensemble</button>' : ''; });
 ACT_PLUS['x-ensemble'] = function(b){
   var g = L.groupes[L.g]; if(!g || !peutDirect()) return; b.dataset.fait = '1';

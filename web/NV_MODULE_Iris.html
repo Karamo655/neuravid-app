@@ -3683,14 +3683,17 @@ function quitterComs(){
    Iris lit toutes les vidéos de NEURAVID, quel que soit le module qui les a publiées : vidéos (.mp4, .webm), replays,
    flux HLS (.m3u8) et directs (WHEP en temps réel, ou HLS). Un module ouvre une vidéo avec
    ouvrir('Player', {clip:<id ou objet>, liste:[…], index, depuis:'<module>'}) ou window.NVPlayer.openClip(…).
-   Âges : 16 ans pour un direct, 18 pour Miss & Master (ou l'âge minimum donné par le serveur) ; âge inconnu : 13 ans seulement. */
-var AGE_MODULES = {Live:16, MissMaster:18};
+   Âges (3 novembre 2026) : regarder un direct dès 13 ans ; un direct « public averti » 16 ans (ageMin donné par le serveur) ;
+   18 pour Miss & Master (ou l'âge minimum donné par le serveur) ; âge inconnu : 13 ans seulement. */
+var AGE_DIRECT_REGARDER = 13;
+var AGE_MODULES = {Live:AGE_DIRECT_REGARDER, MissMaster:18};
 function urlFlux(u){ u = typeof u === 'string' ? u.trim() : ''; return /^https:\/\//.test(u) || /^http:\/\/(127\.0\.0\.1|localhost)(:\d+)?\//.test(u) ? u : ''; }
 function jouable(v){ return !!(v && (v.src || v.whep || v.hls)); }
 function ageMinimum(v){
   var a = +(v.ageMin || v.age_min || v.ageMinimum); if(isFinite(a) && a >= 13 && a <= 21) return a;
   var m = AGE_MODULES[v.module] || 13;
-  return (v.type === 'direct' || v.type === 'live' || v.live === true) ? Math.max(16, m) : m;
+  if(v.publicAverti === true) m = Math.max(16, m);      /* un direct « public averti » : 16 ans (inchangé) */
+  return (v.type === 'direct' || v.type === 'live' || v.live === true) ? Math.max(AGE_DIRECT_REGARDER, m) : m;
 }
 function ageOk(v){
   var min = v.ageMin || 13; if(min <= 13) return true;
