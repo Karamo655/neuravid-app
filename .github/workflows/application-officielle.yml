@@ -1,0 +1,314 @@
+# NEURAVID — l'application OFFICIELLE (Google Play et App Store), construite par GitHub. Propriétaire : Karamo Fanta Sacko.
+# L'application ouvre le site : les écrans se mettent à jour par le site, sans nouvelle version sur les magasins.
+# Guide pas à pas : application/GUIDE.md (français) et application/README.md (English).
+#
+# Lancer : onglet « Actions » → « Application officielle » → « Run workflow ».
+#   - plateformes : android, ios ou les deux ;
+#   - envoyer : oui = envoie aussi la version aux magasins (Google Play en brouillon sur la piste choisie, App Store Connect / TestFlight).
+# Un envoi sur « main » qui touche application/ construit seulement (vérification), sans rien envoyer aux magasins.
+#
+# Secrets (Settings → Secrets and variables → Actions) — aucun n'est écrit dans ce dépôt :
+#   Android : ANDROID_KEYSTORE_BASE64, ANDROID_KEYSTORE_PASSWORD, ANDROID_KEY_ALIAS, ANDROID_KEY_PASSWORD
+#             (+ PLAY_SERVICE_ACCOUNT_JSON pour l'envoi automatique à Google Play)
+#   iPhone  : APPLE_TEAM_ID, APP_STORE_CONNECT_KEY_ID, APP_STORE_CONNECT_ISSUER_ID, APP_STORE_CONNECT_KEY_P8
+# Sans les secrets Android, l'application est signée avec une clé d'ESSAI (pour installer et essayer, jamais pour Google Play).
+# Sans les secrets Apple, l'application iPhone est seulement compilée (vérification), pas signée ni envoyée.
+name: Application officielle
+on:
+  workflow_dispatch:
+    inputs:
+      plateformes:
+        description: 'Plateformes'
+        type: choice
+        options: [les deux, android, ios]
+        default: les deux
+      envoyer:
+        description: 'Envoyer aux magasins (Google Play en brouillon, App Store Connect / TestFlight)'
+        type: boolean
+        default: false
+      piste:
+        description: 'Piste Google Play'
+        type: choice
+        options: [internal, alpha, beta, production]
+        default: internal
+  push:
+    branches: [main]
+    paths:
+      - 'application/**'
+      - '.github/workflows/application-officielle.yml'
+permissions:
+  contents: write
+concurrency:
+  group: application-officielle
+  cancel-in-progress: false
+env:
+  FLUTTER_CHANNEL: stable
+jobs:
+  reglages:
+    runs-on: ubuntu-latest
+    outputs:
+      nom: ${{ steps.r.outputs.nom }}
+      identifiant: ${{ steps.r.outputs.identifiant }}
+      org: ${{ steps.r.outputs.org }}
+      projet: ${{ steps.r.outputs.projet }}
+      version: ${{ steps.r.outputs.version }}
+      site: ${{ steps.r.outputs.site }}
+      depart: ${{ steps.r.outputs.depart }}
+      android: ${{ steps.r.outputs.android }}
+      ios: ${{ steps.r.outputs.ios }}
+      envoyer: ${{ steps.r.outputs.envoyer }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: r
+        run: |
+          set -e
+          lire(){ grep -E "^$1=" application/config.env | head -1 | cut -d= -f2-; }
+          ID=$(lire IDENTIFIANT)
+          echo "$ID" | grep -Eq '^[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*)+$' || { echo "::error::IDENTIFIANT invalide : $ID"; exit 1; }
+          {
+            echo "nom=$(lire NOM)"; echo "identifiant=$ID"; echo "org=${ID%.*}"; echo "projet=${ID##*.}"
+            echo "version=$(lire VERSION)"; echo "site=$(lire SITE)"; echo "depart=$(lire DEPART)"
+          } >> "$GITHUB_OUTPUT"
+          P="${{ github.event.inputs.plateformes || 'les deux' }}"
+          [ "$P" = ios ] && echo "android=non" >> "$GITHUB_OUTPUT" || echo "android=oui" >> "$GITHUB_OUTPUT"
+          [ "$P" = android ] && echo "ios=non" >> "$GITHUB_OUTPUT" || echo "ios=oui" >> "$GITHUB_OUTPUT"
+          [ "${{ github.event_name }}" = workflow_dispatch ] && [ "${{ github.event.inputs.envoyer }}" = true ] && echo "envoyer=oui" >> "$GITHUB_OUTPUT" || echo "envoyer=non" >> "$GITHUB_OUTPUT"
+
+  android:
+    needs: reglages
+    if: needs.reglages.outputs.android == 'oui'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      NOM: ${{ needs.reglages.outputs.nom }}
+      ID: ${{ needs.reglages.outputs.identifiant }}
+      VERSION: ${{ needs.reglages.outputs.version }}
+      NUMERO: ${{ github.run_number }}
+      KS_B64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+      KS_PASS: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+      KS_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+      KS_KEYPASS: ${{ secrets.ANDROID_KEY_PASSWORD }}
+      PLAY_JSON: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: ${{ env.FLUTTER_CHANNEL }}
+          cache: true
+      - name: Créer le projet
+        run: |
+          flutter --version
+          flutter create --org "${{ needs.reglages.outputs.org }}" --project-name "${{ needs.reglages.outputs.projet }}" --platforms android projet
+          cp application/lib/main.dart projet/lib/main.dart
+          rm -rf projet/test
+          cd projet && flutter pub add flutter_inappwebview:^6.1.5 permission_handler:^11.3.1 url_launcher:^6.3.0
+      - name: Embarquer le site (copie hors connexion)
+        run: |
+          mkdir -p projet/assets && cp -r web projet/assets/web
+          python3 - <<'EOF'
+          import os
+          dossiers = sorted(set(os.path.relpath(d, 'projet') + '/' for d, _, f in os.walk('projet/assets/web') if f))
+          p = 'projet/pubspec.yaml'; s = open(p, encoding='utf8').read()
+          s = s.replace('  uses-material-design: true', '  uses-material-design: true\n  assets:\n' + ''.join('    - %s\n' % d for d in dossiers), 1)
+          open(p, 'w', encoding='utf8').write(s); print(len(dossiers), 'dossiers embarqués')
+          EOF
+      - name: Réglages Android (nom, autorisations, versions d'Android, signature, icône)
+        run: |
+          python3 - <<'EOF'
+          import os, re
+          nom = os.environ['NOM']
+          m = 'projet/android/app/src/main/AndroidManifest.xml'; s = open(m, encoding='utf8').read()
+          perms = ''.join('    <uses-permission android:name="android.permission.%s"/>\n' % p for p in
+                          ['INTERNET', 'CAMERA', 'RECORD_AUDIO', 'MODIFY_AUDIO_SETTINGS', 'ACCESS_COARSE_LOCATION', 'ACCESS_FINE_LOCATION', 'VIBRATE'])
+          perms += '    <uses-feature android:name="android.hardware.camera" android:required="false"/>\n    <uses-feature android:name="android.hardware.microphone" android:required="false"/>\n'
+          s = re.sub(r'(<manifest[^>]*>\n)', lambda x: x.group(1) + perms, s, count=1)
+          s = re.sub(r'android:label="[^"]*"', 'android:label="%s"' % nom, s, count=1)
+          # les liens extérieurs (courriel, sites) : Android 11+ demande de déclarer ce que l'on ouvre
+          intents = ('        <intent><action android:name="android.intent.action.VIEW"/><data android:scheme="https"/></intent>\n'
+                     '        <intent><action android:name="android.intent.action.SENDTO"/><data android:scheme="mailto"/></intent>\n')
+          if '<queries>' in s: s = s.replace('<queries>', '<queries>\n' + intents, 1)
+          else: s = s.replace('</manifest>', '    <queries>\n' + intents + '    </queries>\n</manifest>', 1)
+          open(m, 'w', encoding='utf8').write(s)
+          kts = os.path.exists('projet/android/app/build.gradle.kts')
+          g = 'projet/android/app/build.gradle' + ('.kts' if kts else ''); s = open(g, encoding='utf8').read()
+          # Google Play : Android 16 (API 36) exigé pour les nouvelles applications et les mises à jour (depuis le 31 août 2026)
+          s = re.sub(r'compileSdk\s*=\s*flutter\.compileSdkVersion', 'compileSdk = 36', s)
+          s = re.sub(r'targetSdk\s*=\s*flutter\.targetSdkVersion', 'targetSdk = 36', s)
+          s = re.sub(r'minSdk\s*=\s*flutter\.minSdkVersion', 'minSdk = 24', s)
+          s = re.sub(r'compileSdkVersion\s+flutter\.compileSdkVersion', 'compileSdkVersion 36', s)
+          s = re.sub(r'targetSdkVersion\s+flutter\.targetSdkVersion', 'targetSdkVersion 36', s)
+          s = re.sub(r'minSdkVersion\s+flutter\.minSdkVersion', 'minSdkVersion 24', s)
+          if kts:
+              s = 'import java.util.Properties\nimport java.io.FileInputStream\n' + s
+              s = s.replace('android {', 'val cle = Properties().apply { val f = rootProject.file("key.properties"); if (f.exists()) load(FileInputStream(f)) }\n\nandroid {', 1)
+              bloc = ('    signingConfigs {\n        create("release") {\n            keyAlias = cle.getProperty("keyAlias")\n            keyPassword = cle.getProperty("keyPassword")\n'
+                      '            storeFile = file(cle.getProperty("storeFile"))\n            storePassword = cle.getProperty("storePassword")\n        }\n    }\n\n    buildTypes {')
+              s = s.replace('    buildTypes {', bloc, 1)
+              s = s.replace('signingConfig = signingConfigs.getByName("debug")', 'signingConfig = signingConfigs.getByName("release")')
+          else:
+              s = s.replace('android {', "def cle = new Properties()\ndef fcle = rootProject.file('key.properties')\nif (fcle.exists()) { fcle.withReader('UTF-8') { cle.load(it) } }\n\nandroid {", 1)
+              bloc = ("    signingConfigs {\n        release {\n            keyAlias cle['keyAlias']\n            keyPassword cle['keyPassword']\n"
+                      "            storeFile file(cle['storeFile'])\n            storePassword cle['storePassword']\n        }\n    }\n\n    buildTypes {")
+              s = s.replace('    buildTypes {', bloc, 1)
+              s = re.sub(r'signingConfig\s*=?\s*signingConfigs\.debug', 'signingConfig = signingConfigs.release', s)
+          assert 'targetSdk' in s and '36' in s, 'targetSdk non trouvé'
+          assert 'release' in s and 'signingConfigs' in s
+          open(g, 'w', encoding='utf8').write(s)
+          print(g, 'réglé')
+          EOF
+          python3 -m pip install --quiet pillow
+          python3 - <<'EOF'
+          from PIL import Image
+          src = Image.open('application/icone_1024.png').convert('RGBA')
+          for nom, t in [('mdpi', 48), ('hdpi', 72), ('xhdpi', 96), ('xxhdpi', 144), ('xxxhdpi', 192)]:
+              src.resize((t, t), Image.LANCZOS).save('projet/android/app/src/main/res/mipmap-%s/ic_launcher.png' % nom)
+          EOF
+      - name: Signature
+        id: signature
+        run: |
+          cd projet/android
+          if [ -n "$KS_B64" ] && [ -n "$KS_PASS" ] && [ -n "$KS_ALIAS" ]; then
+            echo "$KS_B64" | base64 -d > app/upload-keystore.jks
+            printf 'storePassword=%s\nkeyPassword=%s\nkeyAlias=%s\nstoreFile=upload-keystore.jks\n' "$KS_PASS" "${KS_KEYPASS:-$KS_PASS}" "$KS_ALIAS" > key.properties
+            echo "officielle=oui" >> "$GITHUB_OUTPUT"; echo "Signature : la clé de Karamo (secrets du dépôt)."
+          else
+            P=essai$(date +%s)
+            keytool -genkeypair -v -keystore app/upload-keystore.jks -storepass "$P" -keypass "$P" -alias essai -keyalg RSA -keysize 2048 -validity 365 -dname "CN=NEURAVID essai" >/dev/null 2>&1
+            printf 'storePassword=%s\nkeyPassword=%s\nkeyAlias=essai\nstoreFile=upload-keystore.jks\n' "$P" "$P" > key.properties
+            echo "officielle=non" >> "$GITHUB_OUTPUT"
+            echo "::warning::Pas de clé de signature dans les secrets : version d'ESSAI (à installer et essayer), pas pour Google Play."
+          fi
+      - name: Construire (Google Play et installation directe)
+        run: |
+          cd projet
+          D="--dart-define=NV_SITE=${{ needs.reglages.outputs.site }} --dart-define=NV_DEPART=${{ needs.reglages.outputs.depart }}"
+          flutter build appbundle --release --build-name "$VERSION" --build-number "$NUMERO" $D
+          flutter build apk --release --build-name "$VERSION" --build-number "$NUMERO" $D
+          cp build/app/outputs/bundle/release/app-release.aab ../NEURAVID.aab
+          cp build/app/outputs/flutter-apk/app-release.apk ../NEURAVID.apk
+          ls -la ../NEURAVID.aab ../NEURAVID.apk
+      - uses: actions/upload-artifact@v4
+        with:
+          name: NEURAVID_android_${{ github.run_number }}
+          path: |
+            NEURAVID.aab
+            NEURAVID.apk
+      - name: Envoyer à Google Play (brouillon)
+        if: needs.reglages.outputs.envoyer == 'oui' && steps.signature.outputs.officielle == 'oui' && env.PLAY_JSON != ''
+        uses: r0adkll/upload-google-play@v1
+        with:
+          serviceAccountJsonPlainText: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+          packageName: ${{ needs.reglages.outputs.identifiant }}
+          releaseFiles: NEURAVID.aab
+          track: ${{ github.event.inputs.piste || 'internal' }}
+          status: draft
+      - name: Publier dans Releases
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if [ "${{ steps.signature.outputs.officielle }}" = oui ]; then
+            NOTE="Application officielle NEURAVID $VERSION (construction $NUMERO), signée avec la clé de Karamo. NEURAVID.aab : pour Google Play. NEURAVID.apk : pour installer directement sur un téléphone Android."; PRE=""
+          else
+            NOTE="ESSAI — NEURAVID $VERSION (construction $NUMERO), signée avec une clé d'essai : à installer pour essayer, NE PAS envoyer à Google Play. Ajoutez la clé de signature dans les secrets du dépôt (voir application/GUIDE.md)."; PRE="--prerelease"
+          fi
+          gh release create "application-$NUMERO" NEURAVID.aab NEURAVID.apk $PRE --title "NEURAVID $VERSION — application officielle (n° $NUMERO)" --notes "$NOTE"
+
+  ios:
+    needs: reglages
+    if: needs.reglages.outputs.ios == 'oui'
+    runs-on: macos-latest
+    timeout-minutes: 90
+    env:
+      NOM: ${{ needs.reglages.outputs.nom }}
+      ID: ${{ needs.reglages.outputs.identifiant }}
+      VERSION: ${{ needs.reglages.outputs.version }}
+      NUMERO: ${{ github.run_number }}
+      TEAM: ${{ secrets.APPLE_TEAM_ID }}
+      ASC_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
+      ASC_ISSUER: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+      ASC_P8: ${{ secrets.APP_STORE_CONNECT_KEY_P8 }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: ${{ env.FLUTTER_CHANNEL }}
+          cache: true
+      - name: Créer le projet
+        run: |
+          flutter --version; xcodebuild -version
+          flutter create --org "${{ needs.reglages.outputs.org }}" --project-name "${{ needs.reglages.outputs.projet }}" --platforms ios projet
+          cp application/lib/main.dart projet/lib/main.dart
+          rm -rf projet/test
+          cd projet && flutter pub add flutter_inappwebview:^6.1.5 permission_handler:^11.3.1 url_launcher:^6.3.0
+      - name: Embarquer le site (copie hors connexion)
+        run: |
+          mkdir -p projet/assets && cp -r web projet/assets/web
+          python3 - <<'EOF'
+          import os
+          dossiers = sorted(set(os.path.relpath(d, 'projet') + '/' for d, _, f in os.walk('projet/assets/web') if f))
+          p = 'projet/pubspec.yaml'; s = open(p, encoding='utf8').read()
+          s = s.replace('  uses-material-design: true', '  uses-material-design: true\n  assets:\n' + ''.join('    - %s\n' % d for d in dossiers), 1)
+          open(p, 'w', encoding='utf8').write(s); print(len(dossiers), 'dossiers embarqués')
+          EOF
+      - name: Réglages iPhone (nom, textes des autorisations, icône, version d'iOS)
+        run: |
+          P=projet/ios/Runner/Info.plist
+          pb(){ /usr/libexec/PlistBuddy -c "Delete :$1" "$P" 2>/dev/null || true; /usr/libexec/PlistBuddy -c "Add :$1 $2 $3" "$P"; }
+          pb CFBundleDisplayName string "$NOM"
+          pb NSCameraUsageDescription string "NEURAVID utilise la caméra pour filmer vos vidéos, vos défis et vos directs."
+          pb NSMicrophoneUsageDescription string "NEURAVID utilise le micro pour le son de vos vidéos, de vos directs et de vos appels."
+          pb NSLocationWhenInUseUsageDescription string "NEURAVID utilise votre position seulement si vous choisissez de la partager (votre pays, les directs proches)."
+          pb NSPhotoLibraryUsageDescription string "NEURAVID ouvre vos photos et vidéos seulement quand vous choisissez d'en publier une."
+          pb NSPhotoLibraryAddUsageDescription string "NEURAVID enregistre dans vos photos les vidéos que vous choisissez de garder."
+          pb ITSAppUsesNonExemptEncryption bool false
+          sed -i '' -E "s/^# platform :ios, '[0-9.]+'/platform :ios, '13.0'/" projet/ios/Podfile || true
+          python3 - <<'EOF'
+          import json, shutil, os
+          d = 'projet/ios/Runner/Assets.xcassets/AppIcon.appiconset'
+          for f in os.listdir(d): os.remove(os.path.join(d, f))
+          shutil.copy('application/icone_1024.png', d + '/icone_1024.png')   # sans transparence (exigé par l'App Store)
+          json.dump({'images': [{'filename': 'icone_1024.png', 'idiom': 'universal', 'platform': 'ios', 'size': '1024x1024'}], 'info': {'author': 'xcode', 'version': 1}}, open(d + '/Contents.json', 'w'), indent=2)
+          EOF
+      - name: Compiler
+        run: |
+          cd projet
+          flutter build ios --release --no-codesign --build-name "$VERSION" --build-number "$NUMERO" \
+            --dart-define=NV_SITE=${{ needs.reglages.outputs.site }} --dart-define=NV_DEPART=${{ needs.reglages.outputs.depart }}
+      - name: Signer et préparer pour l'App Store
+        id: signer
+        run: |
+          if [ -z "$TEAM" ] || [ -z "$ASC_KEY_ID" ] || [ -z "$ASC_ISSUER" ] || [ -z "$ASC_P8" ]; then
+            echo "::warning::Pas de secrets Apple : l'application iPhone est compilée (vérification) mais ni signée ni envoyée. Voir application/GUIDE.md."
+            echo "fait=non" >> "$GITHUB_OUTPUT"; exit 0
+          fi
+          K="$RUNNER_TEMP/AuthKey_$ASC_KEY_ID.p8"; printf '%s' "$ASC_P8" > "$K"
+          A=(-allowProvisioningUpdates -authenticationKeyPath "$K" -authenticationKeyID "$ASC_KEY_ID" -authenticationKeyIssuerID "$ASC_ISSUER")
+          cd projet/ios
+          xcodebuild -workspace Runner.xcworkspace -scheme Runner -configuration Release -destination 'generic/platform=iOS' \
+            -archivePath "$RUNNER_TEMP/NEURAVID.xcarchive" archive DEVELOPMENT_TEAM="$TEAM" CODE_SIGN_STYLE=Automatic "${A[@]}"
+          if [ "${{ needs.reglages.outputs.envoyer }}" = oui ]; then DEST=upload; else DEST=export; fi
+          cat > "$RUNNER_TEMP/export.plist" <<EOF
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0"><dict>
+            <key>method</key><string>app-store-connect</string>
+            <key>destination</key><string>$DEST</string>
+            <key>teamID</key><string>$TEAM</string>
+            <key>signingStyle</key><string>automatic</string>
+            <key>uploadSymbols</key><true/>
+          </dict></plist>
+          EOF
+          xcodebuild -exportArchive -archivePath "$RUNNER_TEMP/NEURAVID.xcarchive" -exportOptionsPlist "$RUNNER_TEMP/export.plist" \
+            -exportPath "$RUNNER_TEMP/ipa" "${A[@]}"
+          ls -la "$RUNNER_TEMP/ipa" || true
+          echo "fait=oui" >> "$GITHUB_OUTPUT"
+          [ "$DEST" = upload ] && echo "Envoyée à App Store Connect : elle apparaîtra dans TestFlight après le traitement d'Apple (10 à 30 minutes)." || true
+      - uses: actions/upload-artifact@v4
+        if: steps.signer.outputs.fait == 'oui'
+        with:
+          name: NEURAVID_iphone_${{ github.run_number }}
+          path: ${{ runner.temp }}/ipa
