@@ -1057,7 +1057,7 @@ function nomFichier(s){ return (txt(s, 60) || 'neuravid').normalize('NFD').repla
    Un bandeau le dit clairement : les noms et les chiffres sont des exemples ; ils seront remplacés par ceux du serveur.
    ════════════════════════════════════════════════════════════════════ */
 var DEMO = {on:false, t:0};
-(function(){ try{ var dansApp = !!(window.flutter_inappwebview || window.NVLien || window.ReactNativeWebView), h = location.hash || '', s = null; try{ s = sessionStorage.getItem('nv_demo'); }catch(e){ s = null; }
+(function(){ try{ var dansApp = !window.NV_APERCU && !!(window.flutter_inappwebview || window.NVLien || window.ReactNativeWebView), h = location.hash || '', s = null; try{ s = sessionStorage.getItem('nv_demo'); }catch(e){ s = null; }
   var refus = /(^#|&)demo=0(&|$)/.test(h) || s === '0', veut = /(^#|&)demo(=1)?(&|$)/.test(h) || window.NV_DEMO === true || s === '1' || /^(file|content):$/.test(location.protocol);
   if(dansApp || api() || refus || !veut){ if(/(^#|&)demo=0(&|$)/.test(h)) try{ sessionStorage.setItem('nv_demo', '0'); }catch(e){ /* rien */ } return; }
   DEMO.on = true; window.NV_DEMO = true; try{ sessionStorage.setItem('nv_demo', '1'); }catch(e){ /* rien */ }

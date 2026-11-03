@@ -7,8 +7,10 @@
    Jamais dans l'application ni avec un serveur (NV_API_BASE). Allumée si l'accueil l'a allumée pour la session
    (sessionStorage « nv_demo » = 1), ou « #demo » dans l'adresse, ou une page ouverte comme fichier (file:, content:).
    Elle permet seulement d'ouvrir les autres modules à côté (NV_MODULES_BASE) avec le même visiteur de démonstration ;
-   chaque module garde ses propres règles (rien d'inventé hors de la démonstration). */
-(function(){ try{ var dansApp = !!(window.flutter_inappwebview || window.NVLien || window.ReactNativeWebView), h = location.hash || '', s = null; try{ s = sessionStorage.getItem('nv_demo'); }catch(e){ s = null; }
+   chaque module garde ses propres règles (rien d'inventé hors de la démonstration).
+   Seule exception à « jamais dans l'application » : l'APK « NEURAVID Aperçu » pose window.NV_APERCU = true (3 nov. 2026) ;
+   l'application de production ne le pose jamais. */
+(function(){ try{ var dansApp = !window.NV_APERCU && !!(window.flutter_inappwebview || window.NVLien || window.ReactNativeWebView), h = location.hash || '', s = null; try{ s = sessionStorage.getItem('nv_demo'); }catch(e){ s = null; }
   if(dansApp || (typeof window.NV_API_BASE === 'string' && window.NV_API_BASE) || s === '0' || /(^#|&)demo=0(&|$)/.test(h)) return;
   if(!(s === '1' || /(^#|&)demo(=1)?(&|$)/.test(h) || /^(file|content):$/.test(location.protocol))) return;
   window.NV_DEMO = true; try{ sessionStorage.setItem('nv_demo', '1'); }catch(e){ /* rien */ }

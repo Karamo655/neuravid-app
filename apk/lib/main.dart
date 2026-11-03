@@ -55,11 +55,15 @@ class _EcranNeuravidState extends State<EcranNeuravid> {
   bool _enSecours = false;
 
   /// Posé avant tout script de chaque page : les modules s'ouvrent entre eux, la langue du téléphone.
+  /// NV_APERCU (3 nov. 2026) : chaque module éteint l'aperçu quand il voit « window.flutter_inappwebview » (l'application
+  /// de production). Cette APK est l'aperçu : elle le dit, et les modules gardent leurs exemples (repère « Aperçu »).
+  /// L'application de production ne pose JAMAIS ce drapeau.
   UserScript _depart(String base) {
     final langue = WidgetsBinding.instance.platformDispatcher.locale.languageCode;
     return UserScript(
       source: '''
 window.NV_MODULES_BASE = ${jsonEncode(base)};
+window.NV_APERCU = true;
 if(!window.NV_LANG) window.NV_LANG = ${jsonEncode(langue)};
 ''',
       injectionTime: UserScriptInjectionTime.AT_DOCUMENT_START,
@@ -106,10 +110,6 @@ if(!window.NV_LANG) window.NV_LANG = ${jsonEncode(langue)};
               geolocationEnabled: true,
               supportZoom: false,
               transparentBackground: true, // pas d'écran blanc au chargement : le fond nuit de l'application se voit
-              // 3 nov. 2026 : sans ce réglage, chaque page voyait « window.flutter_inappwebview », se croyait dans l'application
-              // de production et éteignait l'aperçu (L'Empreinte, La Terre… restaient vides). L'aperçu n'utilise pas ce pont JavaScript :
-              // la caméra, le micro et la position passent par Android (onPermissionRequest), pas par lui.
-              javaScriptBridgeEnabled: false,
             ),
             onWebViewCreated: (c) {
               _controleur = c;
