@@ -5351,9 +5351,19 @@ function demarrerCamera(){
   if(d.flux && d.flux.active) return Promise.resolve(d.flux);
   if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){ $('stuMsg').textContent = 'Ce téléphone ne donne pas accès à la caméra ici. Le direct se lance depuis l\'application NEURAVID.'; return Promise.resolve(null); }
   $('stuMsg').textContent = 'La caméra s\'allume…';
-  return navigator.mediaDevices.getUserMedia({video:{facingMode:d.facing, width:{ideal:1080}, height:{ideal:1920}, frameRate:{ideal:30}}, audio:{echoCancellation:true, noiseSuppression:true, autoGainControl:true}})
+  return camEntiere(d.facing, {echoCancellation:true, noiseSuppression:true, autoGainControl:true})
     .then(function(s){ if(D() !== d || !studioOuvert()){ s.getTracks().forEach(function(t){ try{ t.stop(); }catch(e){ dbg(e); } }); return null; } d.flux = s; var v = $('stuVideo'); v.srcObject = s; v.classList.toggle('miroir', d.facing === 'user'); v.play().catch(function(){}); $('stuMsg').textContent = ''; appliquerPistes(); return s; })
     .catch(function(e){ dbg(e); if(D() !== d) return null; $('stuMsg').textContent = e && e.name === 'NotAllowedError' ? 'La caméra est refusée. Autorisez la caméra et le micro pour NEURAVID dans les réglages du téléphone.' : 'La caméra ne s\'ouvre pas. Fermez les autres applications qui l\'utilisent, puis réessayez.'; return null; });
+}
+/* la caméra avec TOUT le champ du capteur (3 novembre 2026, comme La Forge) : une taille demandée (1080 × 1920) faisait découper
+   l'image par le navigateur du téléphone — image trop serrée et floue. On demande le format natif, sans découpe (resizeMode « none »),
+   le navigateur le tourne lui-même ; si ce téléphone refuse la demande, la caméra simple. */
+function camEntiere(face, son){
+  var md = navigator.mediaDevices, v = {facingMode:face, resizeMode:'none', width:{ideal:1920}, height:{ideal:1920}, frameRate:{ideal:30}};
+  return md.getUserMedia({video:v, audio:son || false}).catch(function(e){
+    if(e && (e.name === 'NotAllowedError' || e.name === 'SecurityError')) throw e;
+    return md.getUserMedia({video:{facingMode:face}, audio:son || false});
+  });
 }
 function appliquerPistes(){ var d = D(); if(!d || !d.flux) return; d.flux.getAudioTracks().forEach(function(t){ t.enabled = d.micro; }); d.flux.getVideoTracks().forEach(function(t){ t.enabled = d.camera && !d.audioSeul; }); }
 function couperCamera(){ var d = D(); if(d && d.flux){ d.flux.getTracks().forEach(function(t){ try{ t.stop(); }catch(e){ dbg(e); } }); d.flux = null; } $('stuVideo').srcObject = null; }
@@ -5362,7 +5372,7 @@ function retourner(){
   var d = D(); if(!d || !d.flux || !navigator.mediaDevices) return;
   var face = d.facing === 'user' ? 'environment' : 'user', vieille = d.flux.getVideoTracks()[0];
   if(vieille) try{ vieille.stop(); }catch(e){ dbg(e); }
-  navigator.mediaDevices.getUserMedia({video:{facingMode:face, width:{ideal:1080}, height:{ideal:1920}, frameRate:{ideal:30}}})
+  camEntiere(face, false)
     .then(function(s){
       if(D() !== d || !d.flux){ s.getTracks().forEach(function(t){ t.stop(); }); return; }
       var vt = s.getVideoTracks()[0]; d.facing = face;
