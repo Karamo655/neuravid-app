@@ -724,6 +724,21 @@ html.globe-ouvert,html.globe-ouvert body{overflow:hidden}
 .leger .feuille[data-k=tiroir] .grille-mod button{animation:none;backdrop-filter:none;-webkit-backdrop-filter:none;background-color:rgba(14,10,40,.5)}
 @media (prefers-reduced-transparency:reduce){.feuille[data-k=tiroir]{backdrop-filter:none;-webkit-backdrop-filter:none;background:#140C33}.feuille[data-k=tiroir] .grille-mod button{backdrop-filter:none;-webkit-backdrop-filter:none;background:#1A1240}}
 
+
+/* 3 novembre 2026 — correctif de l'application Android : un flou d'arrière-plan DANS un panneau déjà flouté (carreaux du menu) se dessine mal
+   dans la vue web d'Android (carreaux qui disparaissent, rectangles décalés). Le panneau garde son verre ; les carreaux gardent le même
+   aspect de verre (dégradé, bord de couleur, halo) SANS second flou, et le reflet passe par une couche qui glisse (transform), plus légère. */
+.feuille[data-k=tiroir] .grille-mod button{backdrop-filter:none!important;-webkit-backdrop-filter:none!important;animation:none!important;
+  background-color:rgba(30,18,78,.55)!important;background-image:radial-gradient(90% 70% at 50% 18%,color-mix(in srgb,var(--c) 30%,transparent),transparent 72%),linear-gradient(150deg,rgba(255,255,255,.18),rgba(255,255,255,.04) 42%,rgba(255,255,255,.09))!important;
+  background-size:100% 100%!important;position:relative;overflow:hidden;isolation:isolate}
+.feuille[data-k=tiroir] .grille-mod button::after{content:"";position:absolute;inset:0;z-index:-1;pointer-events:none;
+  background:linear-gradient(115deg,rgba(255,255,255,0) 35%,rgba(255,255,255,.22) 50%,rgba(255,255,255,0) 65%);transform:translateX(-120%);
+  animation:glaceReflet 11s ease-in-out infinite;animation-delay:calc(var(--k,0) * -1.3s);will-change:transform}
+@keyframes glaceReflet{0%,62%{transform:translateX(-120%)}88%,100%{transform:translateX(120%)}}
+@media (prefers-reduced-motion:reduce){.feuille[data-k=tiroir] .grille-mod button::after{animation:none;display:none}}
+.leger .feuille[data-k=tiroir] .grille-mod button::after{display:none}
+.feuille[data-k=tiroir] .v2-niveaux button{backdrop-filter:none!important;-webkit-backdrop-filter:none!important}
+
 /* le repère de l'aperçu : une seule ligne, discrète et professionnelle */
 #ciel .demo-bandeau{width:auto;max-width:94%;align-self:center;flex-wrap:nowrap;gap:8px;padding:4px 4px 4px 12px;border-radius:999px;font-size:11.5px;line-height:1.2;white-space:nowrap;margin:0 auto 8px}
 #ciel .demo-bandeau b{font-weight:800;letter-spacing:.02em}#ciel .demo-bandeau span{color:#F4F1FF;opacity:.9;overflow:hidden;text-overflow:ellipsis}

@@ -88,6 +88,7 @@ if(!window.NV_LANG) window.NV_LANG = ${jsonEncode(langue)};
         }
       },
       child: Scaffold(
+        backgroundColor: const Color(0xFF0B0720),
         body: SafeArea(
           child: InAppWebView(
             initialUrlRequest: URLRequest(url: WebUri(kSite + kDepart)),
@@ -104,7 +105,7 @@ if(!window.NV_LANG) window.NV_LANG = ${jsonEncode(langue)};
               useHybridComposition: true,
               geolocationEnabled: true,
               supportZoom: false,
-              transparentBackground: false,
+              transparentBackground: true, // pas d'écran blanc au chargement : le fond nuit de l'application se voit
             ),
             onWebViewCreated: (c) {
               _controleur = c;
