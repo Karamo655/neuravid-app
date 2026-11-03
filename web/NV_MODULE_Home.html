@@ -337,6 +337,9 @@ body.feuille-ouverte .boussole{opacity:0;pointer-events:none}
 .facettes{transform-box:fill-box;transform-origin:center;animation:tourne 18s linear infinite}
 @keyframes tourne{to{transform:rotate(360deg)}}
 .nb .facettes{animation-duration:10s}
+/* derrière une feuille ouverte (menu « Tous les univers »…), plus rien ne tourne : le verre dépoli reste net, sans scintillement */
+body.feuille-ouverte .facettes{animation-play-state:paused}
+body.feuille-ouverte #tete .paupiere{transition:none}
 .nb .ondes .o1,.nb .ondes .o2{animation:onde 2.2s ease-out infinite}
 .nb .ondes .o2{animation-delay:.35s}
 @keyframes onde{0%{opacity:.25}40%{opacity:1}100%{opacity:.25}}
@@ -1099,14 +1102,14 @@ document.addEventListener('input', function(e){ var el = e.target; var f = el &&
 
 /* ════════ Les feuilles, l'attente ════════ */
 var FEUILLE = {k:null};
-function ouvrirFeuille(titre, html, k){ document.body.classList.add('feuille-ouverte');
+function ouvrirFeuille(titre, html, k){ document.body.classList.add('feuille-ouverte'); logoFige(true);
   var f = $('feuille'), v = $('voile'), dejaOuverte = !f.hidden; FEUILLE.k = k || titre; f.setAttribute('data-k', k || ''); document.body.classList.toggle('feuille-tiroir', k === 'tiroir');
   if(!dejaOuverte) FEUILLE.retour = document.activeElement;
   poser(f, '<div class="tete"><h2 id="fTitre" tabindex="-1">' + esc(titre) + '</h2><button class="rond" data-a="fermerFeuille" aria-label="Fermer">' + ico('fermer') + '</button></div>' + html);
   f.hidden = false; v.hidden = false; try{ $('app').inert = true; }catch(e){ dbg(e); } requestAnimationFrame(function(){ f.classList.add('on'); v.classList.add('on'); var t = $('fTitre'); if(t && !dejaOuverte) try{ t.focus({preventScroll:true}); }catch(e){ dbg(e); } });
   if(!dejaOuverte) try{ history.pushState({pf:'feuille'}, ''); }catch(e){ dbg(e); }
 }
-function fermerFeuille(sansHisto){ var f = $('feuille'), v = $('voile'); if(f.hidden) return; document.body.classList.remove('feuille-ouverte', 'feuille-tiroir'); try{ $('app').inert = false; }catch(e){ dbg(e); } f.classList.remove('on'); v.classList.remove('on'); FEUILLE.k = null; var r = FEUILLE.retour; FEUILLE.retour = null; if(r && r.focus && document.contains(r)) try{ r.focus({preventScroll:true}); }catch(e){ dbg(e); } setTimeout(function(){ if(!FEUILLE.k){ f.hidden = true; v.hidden = true; } }, 220); if(!sansHisto){ try{ if(history.state && history.state.pf === 'feuille') retourNotre(); }catch(e){ dbg(e); } } }
+function fermerFeuille(sansHisto){ var f = $('feuille'), v = $('voile'); if(f.hidden) return; document.body.classList.remove('feuille-ouverte', 'feuille-tiroir'); logoFige(false); try{ $('app').inert = false; }catch(e){ dbg(e); } f.classList.remove('on'); v.classList.remove('on'); FEUILLE.k = null; var r = FEUILLE.retour; FEUILLE.retour = null; if(r && r.focus && document.contains(r)) try{ r.focus({preventScroll:true}); }catch(e){ dbg(e); } setTimeout(function(){ if(!FEUILLE.k){ f.hidden = true; v.hidden = true; } }, 220); if(!sansHisto){ try{ if(history.state && history.state.pf === 'feuille') retourNotre(); }catch(e){ dbg(e); } } }
 A.fermerFeuille = function(){ fermerFeuille(); };
 /* fermer la feuille PUIS agir : le retour d'historique de la feuille est consommé d'abord (sinon une entrée morte resterait) */
 var APRES = null;
@@ -1264,11 +1267,25 @@ function logoMot(){ var x = 0, d = ''; 'NEURAVID'.split('').forEach(function(l){
     '<mask id="lgK" maskUnits="userSpaceOnUse" x="-2" y="-2" width="' + (w + 4) + '" height="26"><g fill="none" stroke="#fff" stroke-width="4.2" stroke-linejoin="miter" stroke-linecap="square">' + d + '</g></mask>' +
     '<g mask="url(#lgK)"><rect x="-2" y="-2" width="' + (w + 4) + '" height="26" fill="url(#lgM)"/><rect x="-2" y="-2" width="' + (w + 4) + '" height="26" fill="url(#lgS)"/></g></svg>'; }
 /* l'œil cligne (rarement) et suit l'inclinaison / le défilement */
-var OEIL = {x:0, y:0};
+var OEIL = {x:0, y:0, cx:0, cy:0, ax:null, ay:null, raf:0};
+function feuilleDevant(){ return document.body.classList.contains('feuille-ouverte'); }
 function vieDuLogo(){ var m = $('logoMarque'); if(!m) return; var pa = m.querySelector('.paupiere');
-  function cligne(){ if(!document.hidden && !CALME.on && pa){ pa.classList.add('cligne'); setTimeout(function(){ pa.classList.remove('cligne'); }, 180); } setTimeout(cligne, 4500 + Math.random() * 7000); }
+  function cligne(){ if(!document.hidden && !CALME.on && !feuilleDevant() && pa){ pa.classList.add('cligne'); setTimeout(function(){ pa.classList.remove('cligne'); }, 180); } setTimeout(cligne, 4500 + Math.random() * 7000); }
   setTimeout(cligne, 2600); }
-function regarder(dx, dy){ var r = document.querySelector('#logoMarque .regard'); if(!r) return; OEIL.x = borne(dx, -6, 6); OEIL.y = borne(dy, -3, 3); r.setAttribute('transform', 'translate(' + OEIL.x.toFixed(1) + ' ' + OEIL.y.toFixed(1) + ')'); }
+/* 3 novembre 2026 : le regard suivait chaque secousse de la main (le capteur envoie ~60 mesures par seconde), le logo « tremblait ».
+   Maintenant : une cible, un glissement doux (une image sur deux au plus), une zone morte qui ignore le tremblement de la main,
+   et l'œil se fige quand une feuille (le menu « Tous les univers »…) est ouverte devant lui. */
+function regarder(dx, dy){ OEIL.cx = borne(dx, -6, 6); OEIL.cy = borne(dy, -3, 3); if(!OEIL.raf) OEIL.raf = requestAnimationFrame(oeilPas); }
+function oeilPas(){ OEIL.raf = 0; var r = document.querySelector('#logoMarque .regard'); if(!r || feuilleDevant() || document.hidden) return;
+  var ex = OEIL.cx - OEIL.x, ey = OEIL.cy - OEIL.y;
+  if(Math.abs(ex) < .4 && Math.abs(ey) < .4) return;
+  OEIL.x += ex * .1; OEIL.y += ey * .1;
+  var nx = Math.round(OEIL.x * 4) / 4, ny = Math.round(OEIL.y * 4) / 4;
+  if(nx !== OEIL.ax || ny !== OEIL.ay){ OEIL.ax = nx; OEIL.ay = ny; r.setAttribute('transform', 'translate(' + nx + ' ' + ny + ')'); }
+  OEIL.raf = requestAnimationFrame(oeilPas); }
+/* derrière une feuille, le logo de l'en-tête ne bouge plus du tout (le verre dépoli n'a plus rien à recalculer) */
+function logoFige(on){ ['logoMarque', 'logoMot'].forEach(function(id){ var s = $(id) && $(id).querySelector('svg'); if(!s) return; try{ if(on) s.pauseAnimations(); else s.unpauseAnimations(); }catch(e){ dbg(e); } });
+  if(!on && !OEIL.raf) OEIL.raf = requestAnimationFrame(oeilPas); }
 
 /* ════════ LES CINQ BOUTONS DU BAS ════════
    L'accueil (les trois mondes dans une case), Le Direct (l'onde), Iris au centre (l'œil qui voit le monde),
@@ -1322,7 +1339,7 @@ A.bascule = function(k, el){ if(k === 'voixAccueil'){ A.voixAccueil(); el.setAtt
 function voixAutorisee(){ try{ return localStorage.getItem('nv_voix') === 'oui'; }catch(e){ return false; } }
 
 /* l'en-tête devient du verre dès qu'on quitte le haut du ciel ; l'œil du logo suit la descente */
-function suivreDefilement(){ var y = window.scrollY || 0, t = $('tete'); if(t) t.classList.toggle('verre', y > 40); regarder(OEIL.x, borne(y / 400, 0, 3) - 1); }
+function suivreDefilement(){ var y = window.scrollY || 0, t = $('tete'); if(t) t.classList.toggle('verre', y > 40); regarder(OEIL.cx, borne(y / 400, 0, 3) - 1); }
 
 /* ════════════════════════════════════════════════════════════════════
    1 · LE CIEL — le ciel réel de chez vous
