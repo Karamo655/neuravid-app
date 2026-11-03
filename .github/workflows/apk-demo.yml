@@ -1,0 +1,85 @@
+# NEURAVID Aperçu — construit l'application Android de démonstration complète, sur les serveurs de GitHub.
+# L'application ouvre la démonstration publiée (tous les modules, repère « Aperçu »), avec web/ embarqué pour le hors-connexion.
+# Le fichier .apk est publié dans « Releases » du dépôt (apk-apercu-N). Paquet : com.neuravid.apercu (distinct de l'APK d'Afaq).
+name: APK de démonstration
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'apk/**'
+      - '.github/workflows/apk-demo.yml'
+permissions:
+  contents: write
+concurrency:
+  group: apk-demo
+  cancel-in-progress: true
+jobs:
+  construire:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: '3.24.5'
+          cache: true
+      - name: Créer le projet Flutter
+        run: |
+          flutter create --org com.neuravid --project-name apercu --platforms android app
+          cp apk/lib/main.dart app/lib/main.dart
+          rm -rf app/test
+          cd app
+          flutter pub add flutter_inappwebview:6.1.5 permission_handler:11.3.1
+      - name: Embarquer web/ (copie de secours hors connexion)
+        run: |
+          mkdir -p app/assets
+          cp -r web app/assets/web
+          rm -f app/assets/web/nv-config.js && cp web/nv-config.js app/assets/web/nv-config.js
+          python3 - <<'EOF'
+          import os
+          dossiers = sorted(set(os.path.relpath(d, 'app') + '/' for d, _, f in os.walk('app/assets/web') if f))
+          p = 'app/pubspec.yaml'; s = open(p, encoding='utf8').read()
+          s = s.replace('  uses-material-design: true', '  uses-material-design: true\n  assets:\n' + ''.join('    - %s\n' % d for d in dossiers), 1)
+          open(p, 'w', encoding='utf8').write(s)
+          print(len(dossiers), 'dossiers embarqués')
+          EOF
+      - name: Réglages Android (nom, autorisations, icône, version minimale)
+        run: |
+          python3 - <<'EOF'
+          import re
+          m = 'app/android/app/src/main/AndroidManifest.xml'; s = open(m, encoding='utf8').read()
+          perms = ''.join('    <uses-permission android:name="android.permission.%s"/>\n' % p for p in
+                          ['INTERNET', 'CAMERA', 'RECORD_AUDIO', 'MODIFY_AUDIO_SETTINGS', 'ACCESS_COARSE_LOCATION', 'ACCESS_FINE_LOCATION', 'VIBRATE'])
+          s = re.sub(r'(<manifest[^>]*>\n)', lambda x: x.group(1) + perms, s, count=1)
+          s = re.sub(r'android:label="[^"]*"', 'android:label="NEURAVID Aperçu"', s, count=1)
+          open(m, 'w', encoding='utf8').write(s)
+          g = 'app/android/app/build.gradle'; s = open(g, encoding='utf8').read()
+          s = s.replace('minSdk = flutter.minSdkVersion', 'minSdk = 24').replace('minSdkVersion flutter.minSdkVersion', 'minSdkVersion 24')
+          open(g, 'w', encoding='utf8').write(s)
+          EOF
+          for d in mdpi:48 hdpi:72 xhdpi:96 xxhdpi:144 xxxhdpi:192; do
+            convert web/icones/nv-512.png -resize ${d#*:}x${d#*:} app/android/app/src/main/res/mipmap-${d%%:*}/ic_launcher.png
+          done
+      - name: Construire l'APK
+        run: |
+          cd app
+          flutter build apk --release
+          cp build/app/outputs/flutter-apk/app-release.apk ../NEURAVID_Apercu.apk
+          ls -la ../NEURAVID_Apercu.apk
+      - uses: actions/upload-artifact@v4
+        with:
+          name: NEURAVID_Apercu
+          path: NEURAVID_Apercu.apk
+      - name: Publier dans Releases
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "apk-apercu-${{ github.run_number }}" NEURAVID_Apercu.apk \
+            --title "NEURAVID Aperçu — démonstration complète (n° ${{ github.run_number }})" \
+            --notes "Application Android de démonstration : tous les modules et toutes les fonctions, avec le repère « Aperçu » (données d'illustration). Elle ouvre la démonstration publiée sur le site, toujours à jour, et garde une copie pour le hors-connexion. Paquet com.neuravid.apercu, signature de démonstration : à installer à côté de l'application NEURAVID, pas à la place. Pour Afaq : base de travail, voir apk/README.md."
