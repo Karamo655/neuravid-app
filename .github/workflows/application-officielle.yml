@@ -231,6 +231,9 @@ jobs:
           else
             NOTE="ESSAI — NEURAVID $VERSION (construction $NUMERO), signée avec une clé d'essai, pour essayer seulement. Sur un téléphone Android : téléchargez NEURAVID_installer_sur_le_telephone.apk. Pour la version Google Play, ajoutez la clé de signature dans les secrets du dépôt (voir application/GUIDE.md)."
             gh release create "application-$NUMERO" "NEURAVID_installer_sur_le_telephone.apk" --prerelease --title "NEURAVID $VERSION — ESSAI (n° $NUMERO)" --notes "$NOTE"
+            # le .aab d'essai, en brouillon (invisible du public) : il peut être signé ensuite avec la clé de Karamo, hors de GitHub
+            cp NEURAVID.aab "NEURAVID_aab_a_signer.aab"
+            gh release create "aab-a-signer-$NUMERO" "NEURAVID_aab_a_signer.aab" --draft --title "Brouillon : .aab à signer (n° $NUMERO)" --notes "Fichier de travail, pas pour le téléphone."
           fi
 
   ios:
