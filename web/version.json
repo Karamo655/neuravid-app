@@ -1,6 +1,6 @@
 {
- "version": "2026.11.03-c3aea43f6e50",
- "date": "2026-11-03T04:48:54Z",
+ "version": "2026.11.03-d8538102ee61",
+ "date": "2026-11-03T05:57:58Z",
  "entree": "index.html",
  "modules": [
   "NV_MODULE_Arena.html",
@@ -113,8 +113,8 @@
    "taille": 257080
   },
   "NV_MODULE_Home.html": {
-   "sha256": "584a68c4b1ba84a6889be38516fb9e4489374716c9cb21e1e43b4c252ff17eba",
-   "taille": 1135065
+   "sha256": "cbb8313487634e832671e87f34e702f01c1b3d22b9be3908e338f4d4ec80e027",
+   "taille": 1202513
   },
   "NV_MODULE_Iris.html": {
    "sha256": "2a8aa9220d56fd6ad512ef8d1098e11b3279193a333bac0805fdcc6a94a08f88",
@@ -1201,16 +1201,16 @@
    "taille": 10960242
   },
   "icones/nv-192.png": {
-   "sha256": "726e92e6b7809a73c670becc9b16101517a5d8de8ad7b6730d8cd471901dea5f",
-   "taille": 24337
+   "sha256": "663044bd51929b312cca9507a6ba4f288beb0579f27e164ba4c20d27f50dd2b0",
+   "taille": 38064
   },
   "icones/nv-512.png": {
-   "sha256": "22286e0b83c10335bcbc5597844805f3ea422ede01f78f05fdbaf74214d57c0d",
-   "taille": 118618
+   "sha256": "e211b07782ed3ef3e6d6e9c95a29b258747e9e18f306b974195d97d2fa9f59a0",
+   "taille": 190132
   },
   "icones/nv-maskable-512.png": {
-   "sha256": "93586904db000563b0fa877071f2cc70c42bf5406af3e45ce581f380f019c461",
-   "taille": 108585
+   "sha256": "2c1c3dfd6cbfadcb1b6effb23850c6ae8838c4f3f504c9d4cfa5a699d27eb373",
+   "taille": 154099
   },
   "index.html": {
    "sha256": "f0e3dea81440b42e694b1ef1098d5e2d157b4c4db8787fb0628a425be08722ab",
