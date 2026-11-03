@@ -106,6 +106,10 @@ if(!window.NV_LANG) window.NV_LANG = ${jsonEncode(langue)};
               geolocationEnabled: true,
               supportZoom: false,
               transparentBackground: true, // pas d'écran blanc au chargement : le fond nuit de l'application se voit
+              // 3 nov. 2026 : sans ce réglage, chaque page voyait « window.flutter_inappwebview », se croyait dans l'application
+              // de production et éteignait l'aperçu (L'Empreinte, La Terre… restaient vides). L'aperçu n'utilise pas ce pont JavaScript :
+              // la caméra, le micro et la position passent par Android (onPermissionRequest), pas par lui.
+              javaScriptBridgeEnabled: false,
             ),
             onWebViewCreated: (c) {
               _controleur = c;
