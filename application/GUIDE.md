@@ -43,11 +43,11 @@ Dans ce cas : **Actions → Application officielle → Run workflow**, avec « E
    - **Actions → Application officielle → Run workflow** ;
    - plateformes : android ; envoi aux magasins : non coché.
    - Après environ 15 minutes, la version apparaît dans **Releases** (`application-N`), avec deux fichiers :
-     - `NEURAVID.aab`, pour Google Play ;
-     - `NEURAVID.apk`, pour installer directement sur un téléphone.
+     - `NEURAVID_installer_sur_le_telephone.apk` : **le seul à ouvrir sur un téléphone** ;
+     - `NEURAVID_pour_Google_Play_seulement.aab` : à déposer dans la Play Console. Il ne s'installe pas sur un téléphone : l'ouvrir sur le téléphone renvoie vers le Play Store.
 4. **Faire le premier envoi à la main** (Google l'exige pour une nouvelle application).
    - Play Console → **Tests → Test interne → Créer une version** ;
-   - importez `NEURAVID.aab` ;
+   - importez `NEURAVID_pour_Google_Play_seulement.aab` ;
    - acceptez la **signature d'application par Google Play**.
 5. **Facultatif : l'envoi automatique pour les fois suivantes.**
    - Créez un **compte de service** Google Cloud avec sa clé JSON.

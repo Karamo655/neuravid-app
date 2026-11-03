@@ -214,12 +214,18 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          # 3 nov. 2026 : sur le téléphone, ouvrir le .aab envoie vers le Play Store (Android ne sait pas l'installer).
+          # Le fichier pour le téléphone vient donc en premier et le .aab porte un nom qui dit à quoi il sert ;
+          # une version d'ESSAI n'a pas de .aab du tout (Google Play le refuserait).
+          cp NEURAVID.apk "NEURAVID_installer_sur_le_telephone.apk"
           if [ "${{ steps.signature.outputs.officielle }}" = oui ]; then
-            NOTE="Application officielle NEURAVID $VERSION (construction $NUMERO), signée avec la clé de Karamo. NEURAVID.aab : pour Google Play. NEURAVID.apk : pour installer directement sur un téléphone Android."; PRE=""
+            cp NEURAVID.aab "NEURAVID_pour_Google_Play_seulement.aab"
+            NOTE="Application officielle NEURAVID $VERSION (construction $NUMERO), signée avec la clé de Karamo. Sur un téléphone Android : téléchargez NEURAVID_installer_sur_le_telephone.apk. Pour Google Play : NEURAVID_pour_Google_Play_seulement.aab, à déposer dans la Play Console (il ne s'installe pas sur un téléphone)."
+            gh release create "application-$NUMERO" "NEURAVID_installer_sur_le_telephone.apk" "NEURAVID_pour_Google_Play_seulement.aab" --title "NEURAVID $VERSION — application officielle (n° $NUMERO)" --notes "$NOTE"
           else
-            NOTE="ESSAI — NEURAVID $VERSION (construction $NUMERO), signée avec une clé d'essai : à installer pour essayer, NE PAS envoyer à Google Play. Ajoutez la clé de signature dans les secrets du dépôt (voir application/GUIDE.md)."; PRE="--prerelease"
+            NOTE="ESSAI — NEURAVID $VERSION (construction $NUMERO), signée avec une clé d'essai, pour essayer seulement. Sur un téléphone Android : téléchargez NEURAVID_installer_sur_le_telephone.apk. Pour la version Google Play, ajoutez la clé de signature dans les secrets du dépôt (voir application/GUIDE.md)."
+            gh release create "application-$NUMERO" "NEURAVID_installer_sur_le_telephone.apk" --prerelease --title "NEURAVID $VERSION — ESSAI (n° $NUMERO)" --notes "$NOTE"
           fi
-          gh release create "application-$NUMERO" NEURAVID.aab NEURAVID.apk $PRE --title "NEURAVID $VERSION — application officielle (n° $NUMERO)" --notes "$NOTE"
 
   ios:
     needs: reglages
