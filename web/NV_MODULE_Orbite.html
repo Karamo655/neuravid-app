@@ -17,10 +17,6 @@
 }catch(e){ /* rien */ } })();
 </script><!--/NV_DEMO-->
 
-
-
-
-
 <meta charset="utf-8"/>
 <meta http-equiv="Content-Security-Policy" content="default-src 'self' https: data: blob:; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; img-src 'self' https: http: data: blob:; media-src 'self' https: http: data: blob:; connect-src 'self' https: http://localhost:* http://127.0.0.1:*; object-src 'none'; base-uri 'none'; form-action 'none'"/>
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover"/>
@@ -3725,6 +3721,7 @@ var CSS = '' +
 '#nvr-liste .reacs{display:flex;flex-wrap:wrap;gap:5px;margin-top:6px}#nvr-liste .reacs button{border:0;height:24px;padding:0 8px;border-radius:12px;font:inherit;font-size:12.5px;color:#fff;background:rgba(255,255,255,.08)}#nvr-liste .reacs button.mien{background:rgba(255,197,49,.22);box-shadow:inset 0 0 0 1px rgba(255,197,49,.6)}' +
 '#nvr-liste ul.rep{list-style:none;margin:6px 0 0;padding:0 0 0 8px;border-left:2px solid rgba(255,255,255,.08)}#nvr-liste ul.rep li{padding:8px 0;border:0}#nvr-liste ul.rep .av{width:28px;height:31px;font-size:12px}' +
 '#nvr-liste .plus{border:0;background:none;padding:6px 0 0;font:inherit;font-size:12.5px;font-weight:800;color:#7fe3ff}' +
+'.nvr-trad{margin:6px 0 0;padding-left:10px;border-left:2px solid rgba(255,255,255,.35);opacity:.95}.nvr-trad-note{display:block;margin-top:3px;font-size:12px;opacity:.75}' +
 '.nvr-sticker{display:inline-flex;align-items:center;gap:8px;margin-top:5px;padding:6px 12px 6px 6px;border-radius:20px;background:linear-gradient(110deg,rgba(224,36,154,.35),rgba(108,43,217,.35))}.nvr-sticker i{font-style:normal;font-size:34px;line-height:1;animation:nvrHop 1.6s ease-in-out infinite}.nvr-sticker b{font-size:14px}' +
 '@keyframes nvrHop{0%,100%{transform:translateY(0) rotate(0)}30%{transform:translateY(-6px) rotate(-8deg)}60%{transform:translateY(0) rotate(6deg)}}' +
 '#nvr-pop{position:fixed;z-index:84;display:none;gap:4px;padding:6px;border-radius:24px;background:#2a1a66;box-shadow:0 10px 30px rgba(0,0,0,.5)}#nvr-pop.on{display:flex}#nvr-pop button{border:0;width:40px;height:40px;border-radius:50%;background:none;font-size:24px;transition:transform .12s}#nvr-pop button:active{transform:scale(1.3)}' +
@@ -3944,7 +3941,31 @@ function corpsC(c){
   if(c.type === 'voice') return '<div class="nvr-vocal" data-src="' + esc(src || '') + '"><button class="lire" aria-label="Écouter">' + svg('lire') + '</button><span class="onde">' + onde(c.id) + '</span><span>' + temps(c.duration) + '</span></div>';
   if(c.type === 'video') return '<div class="nvr-vid"><video playsinline preload="metadata" src="' + esc(src || '') + '"></video><button class="j" aria-label="Lire">' + svg('lire') + '</button></div>';
   if(c.type === 'sticker'){ var st = STICKERS[+c.sticker] || STICKERS[0]; return (c.text ? '<p dir="auto">' + avecMentions(c.text) + '</p>' : '') + '<div class="nvr-sticker"><i>' + st[0] + '</i><b>' + esc(st[1]) + '</b></div>'; }
-  return '<p dir="auto"' + (seulementEmojis(c.text) ? ' class="gros"' : '') + '>' + avecMentions(c.text) + '</p>';
+  return '<p dir="auto"' + (seulementEmojis(c.text) ? ' class="gros"' : '') + '>' + avecMentions(c.text) + '</p>' + tradC(c);
+}
+/* ── La traduction d'un commentaire, à la demande (« 🌐 Traduire »), seulement si le serveur l'annonce ──
+   POST /v1/ia/pont/traduire {texte, langueCible, demande:true, contexte:'commentaire'} → {texte, traduit, auto, limite}
+   Toujours marquée « Traduction automatique » ; jamais de traduction faite en arrière-plan. */
+var IA = {trad:null};
+function capIA(){
+  if(IA.trad !== null || !api()) return; IA.trad = false;
+  try{ fetch(api() + '/v1/ia/capacites', {mode:'cors', headers:entetes()}).then(function(r){ return r.ok ? r.json() : null; })
+    .then(function(o){ IA.trad = !!(o && o.pont && o.pont.traductionCommentaires === true); }).catch(function(){}); }catch(e){}
+}
+function langueUI(){ var l = String(R.NV_LANGUE_UI || R.NV_LANG || document.documentElement.lang || 'fr').slice(0, 2).toLowerCase(); return /^[a-z]{2}$/.test(l) ? l : 'fr'; }
+function tradC(c){
+  if(!c.trad) return '';
+  return '<p dir="auto" class="nvr-trad">' + esc(c.trad.texte) + '</p><small class="nvr-trad-note">🌐 ' + esc('Traduction automatique') + (c.trad.limite ? ' · ' + esc('à vérifier') : '') + '</small>';
+}
+function traduireC(c){
+  if(!api() || !c.text) return;
+  fetch(api() + '/v1/ia/pont/traduire', {method:'POST', mode:'cors', headers:entetes({'Content-Type':'application/json'}),
+    body:JSON.stringify({texte:String(c.text).slice(0, 2000), langueCible:langueUI(), demande:true, contexte:'commentaire'})})
+    .then(function(r){ return r.ok ? r.json() : Promise.reject(r.status); })
+    .then(function(o){ if(!o || typeof o.texte !== 'string') throw 0;
+      if(o.traduit === false){ dire('Ce commentaire est déjà dans votre langue.'); return; }
+      c.trad = {texte:o.texte.slice(0, 4000), limite:!!o.limite}; emit('comment_translate', {comment:c.id}); rendreListe(); })
+    .catch(function(){ dire('Traduction impossible pour l\'instant.'); });
 }
 function itemC(c, topId, proprio, estRep){
   var badges = (c.byOwner ? '<span class="badge b-auteur">Auteur</span>' : '') + (c.id === topId ? '<span class="badge b-top">⭐ Top</span>' : '') + (c.pinned ? '<span class="badge b-pin">📌 Épinglé</span>' : '');
@@ -4024,6 +4045,7 @@ function feOuverte(){ var f = $('nvr-fe'); return !!(f && f.classList.contains('
 function fermerFe(viaRetour){ cacherFe(); if(viaRetour) fePousse = false; else depilerFe(); }
 function menuC(c){
   var o = ouvert; if(!o) return; var proprio = !!o.clip.moi, b = [];
+  if(IA.trad && !c.mine && c.text && (c.type === 'text' || c.type === 'sticker') && !c.trad) b.push({ico:'🌐', lib:'Traduire', fn:function(){ traduireC(c); }});
   if(c.type === 'text' && c.text) b.push({ico:'📋', lib:'Copier le texte', fn:function(){ try{ navigator.clipboard.writeText(c.text).then(function(){ dire('Texte copié.'); }, function(){}); }catch(e){} }});
   if(proprio && !c.parent) b.push({ico:'📌', lib:c.pinned ? 'Désépingler' : 'Épingler en tête (3 au maximum)', fn:function(){ epingler(c); }});
   if(proprio && !c.mine) b.push({ico:c.hidden ? '👁️' : '🙈', lib:c.hidden ? 'Afficher de nouveau' : 'Masquer pour les autres', fn:function(){ masquer(c); }});
@@ -4124,7 +4146,7 @@ function media(on){ try{ if(ouvert && ouvert.opts && typeof ouvert.opts.onMedia 
 function compteur(o){ try{ if(o && o.opts && typeof o.opts.onCompte === 'function') o.opts.onCompte(typeof o.clip.comments === 'number' && serveur(o.clip) ? o.clip.comments : etat(o.clip.id).comsLocaux, serveur(o.clip)); }catch(e){} }
 var pousse = false;
 function ouvrirComs(o){
-  monter(); ouvert = o; reponse = null; deplies = {}; majRepond();
+  monter(); ouvert = o; reponse = null; deplies = {}; majRepond(); capIA();
   $('nvr-titre').textContent = 'Commentaires';
   $('nvr-regle').textContent = (o.opts.pauseComs && !o.clip.moi) ? '🛡️ ' + o.opts.pauseComs : (o.opts.regleComs || 'Restez bienveillant : les moqueries sur le physique sont retirées.');
   $('nvr-bas').style.display = (o.opts.pauseComs && !o.clip.moi) ? 'none' : '';
@@ -5890,7 +5912,7 @@ if(document.readyState === 'loading') document.addEventListener('DOMContentLoade
   var ctxEnCours = null;
 
   function capturer(ctx, msg){
-    if(!ageOk(ctx && ctx.siege ? REGLES_O.ageDirect : REGLES_O.ageParticipation, function(){ capturer(ctx, msg); })) return false;
+    if(!ageOk(ctx && ctx.siege ? REGLES_O.ageAnimer : REGLES_O.ageParticipation, function(){ capturer(ctx, msg); })) return false;
     ctxEnCours = {ctx:ctx, msg:msg};
     if(ctx.siege) return lancerStudio('video');
     ouvrirChoix(ctx);
@@ -5990,7 +6012,7 @@ if(document.readyState === 'loading') document.addEventListener('DOMContentLoade
   }
   function defierSiege(){
     var a = astreActif(); if(!a || a.maison) return;
-    if(!ageOk(REGLES_O.ageDirect, defierSiege)) return;
+    if(!ageOk(REGLES_O.ageAnimer, defierSiege)) return;
     var r = monRang(a);
     var ctx = {challenge:'siege_' + a.id, name:'Siège de ' + a.nom, module:'Orbite',
                astre:a.id, siege:true, rang:r};
@@ -7573,7 +7595,7 @@ if(document.readyState === 'loading') document.addEventListener('DOMContentLoade
      module quand l'application ne le prend pas en charge · les âges.
      Tout ce qui existait reste en place et garde son code.
      ═════════════════════════════════════════════════════════════════ */
-  var REGLES_O = {dureeMin:5, dureeMax:600, ageParticipation:13, ageDirect:16, ageArgent:18, ageBenevolat:18, tailleMaxMo:500, repartition:{createur:70, fonds:5, neuravid:25}};   /* v38 : 5 % pour Les Étoiles Solidaires, pris sur la part de NEURAVID */
+  var REGLES_O = {dureeMin:5, dureeMax:600, ageParticipation:13, ageDirect:13, ageAnimer:16, ageArgent:18, ageBenevolat:18, tailleMaxMo:500, repartition:{createur:70, fonds:5, neuravid:25}};   /* v38 : 5 % pour Les Étoiles Solidaires, pris sur la part de NEURAVID */
   function apiO(){ return window.NV_API_BASE ? String(window.NV_API_BASE).replace(/\/$/, '') : null; }
   function entetesO(h){ h = h || {}; if(window.NV_TOKEN) h.Authorization = 'Bearer ' + window.NV_TOKEN; return h; }
   function lireJ(k, d){ try{ var v = localStorage.getItem(k); return v == null ? d : JSON.parse(v); }catch(e){ return d; } }
@@ -7600,7 +7622,7 @@ if(document.readyState === 'loading') document.addEventListener('DOMContentLoade
   function relancerMinuterie(m){ if(m){ m.off = false; if(!m.id && !document.hidden) m.id = setInterval(m.fn, m.ms); } }
   document.addEventListener('visibilitychange', function(){ MINUTERIES.forEach(function(m){ clearInterval(m.id); m.id = 0; if(!document.hidden && !m.off) m.id = setInterval(m.fn, m.ms); }); });
 
-  /* ── Les âges : participer dès 13 ans, le direct dès 16, l'argent dès 18 ── */
+  /* ── Les âges : participer et REGARDER un direct dès 13 ans (3 nov. 2026), monter en direct (duel du siège, astre) dès 16, l'argent dès 18 ── */
   function ageO(){ var u = moiU(); return typeof u.age === 'number' ? u.age : null; }
   function estMajeurO(){ var u = moiU(); if(typeof u.age === 'number') return u.age >= 18; if(u.majeur === true) return true; if(u.majeur === false) return false; return !!lireJ('nv_orbite_18', false); }
   function spectateurMineurO(){ var u = moiU(); return (typeof u.age === 'number' && u.age < 18) || u.majeur === false; }
@@ -7651,6 +7673,8 @@ if(document.readyState === 'loading') document.addEventListener('DOMContentLoade
     if(seuil < 18 && lireJ('nv_orbite_' + seuil, false)) return true;
     avecAge(seuil, suite, motif); return false;
   }
+  /* 3 nov. 2026 — regarder un direct (duel, replays) : REGLES_O.ageDirect (13 ans) ; à 13 ans, un âge inconnu n'est pas questionné */
+  function regarderOk(suite){ var a = ageO(); if(a == null && REGLES_O.ageDirect <= REGLES_O.ageParticipation) return true; return ageOk(REGLES_O.ageDirect, suite); }
   window.NVOrbiteMajeur = function(suite){ if(estMajeurO()) return true; if(spectateurMineurO()){ toast('Les NVCoins sont réservés aux 18 ans et plus'); return false; } avecAge(18, suite || function(){}); return false; };
 
   /* ── La pile du bouton retour : lecteur, feuille, caméra, onglet ── */
@@ -8282,7 +8306,7 @@ if(document.readyState === 'loading') document.addEventListener('DOMContentLoade
     if(!ctxDepot){ var a = astreActif(); var c = (window.NVCameraReprise && window.NVCameraReprise.ctx) || {}; ctxDepot = {astre:c.astre || (a && a.id) || null, astreNom:a ? a.nom : '', defi:c.defi || (a ? 'orbite_' + a.id : null), titre:c.titre || null, siege:/^siege_/.test(c.defi || ''), saison:c.saison != null ? c.saison : null, dureeMax:+c.dureeMax > 0 ? +c.dureeMax : null}; }
     deposerO(blob, meta.seconds || null, meta.source || 'studio', false); return true;
   };
-  window.NVOrbite.regles = function(o){ o = o || {}; ['dureeMin', 'dureeMax', 'ageParticipation', 'ageDirect', 'ageArgent', 'ageBenevolat', 'tailleMaxMo'].forEach(function(k){ if(typeof o[k] === 'number' && o[k] > 0 && o[k] < 1e6 && (!/^age/.test(k) || (o[k] >= 13 && o[k] <= 21))) REGLES_O[k] = Math.round(o[k]); });   /* un âge publié reste entre 13 et 21 ans */ if(o.repartition && isFinite(o.repartition.createur)){ var rc = +o.repartition.createur, rf = isFinite(o.repartition.fonds) ? +o.repartition.fonds : 0; REGLES_O.repartition = {createur:rc, fonds:rf, neuravid:isFinite(o.repartition.neuravid) ? +o.repartition.neuravid : 100 - rc - rf}; configCadeauxO(); } rafraichirMoiO(); };
+  window.NVOrbite.regles = function(o){ o = o || {}; ['dureeMin', 'dureeMax', 'ageParticipation', 'ageDirect', 'ageAnimer', 'ageArgent', 'ageBenevolat', 'tailleMaxMo'].forEach(function(k){ if(typeof o[k] === 'number' && o[k] > 0 && o[k] < 1e6 && (!/^age/.test(k) || (o[k] >= 13 && o[k] <= 21))) REGLES_O[k] = Math.round(o[k]); });   /* un âge publié reste entre 13 et 21 ans */ if(o.repartition && isFinite(o.repartition.createur)){ var rc = +o.repartition.createur, rf = isFinite(o.repartition.fonds) ? +o.repartition.fonds : 0; REGLES_O.repartition = {createur:rc, fonds:rf, neuravid:isFinite(o.repartition.neuravid) ? +o.repartition.neuravid : 100 - rc - rf}; configCadeauxO(); } rafraichirMoiO(); };
   window.NVOrbite.mesParticipations = etatsServeur;
   function feteO(t){
     var f = $('ofete'); f.innerHTML = '<span class="pl" aria-hidden="true"></span><b>' + esc(t) + '</b>';
@@ -9013,7 +9037,7 @@ if(document.readyState === 'loading') document.addEventListener('DOMContentLoade
   /* ════ MON ESPACE D'ASTRE : revenus, transparence, projet, sous-titres, filleuls ════ */
   /* revue 5 — « Ouvrir mon orbite » : la première vidéo de l'astre vérifié, envoyée pour SON orbite */
   function ouvrirMonOrbite(){
-    if(!ageOk(REGLES_O.ageDirect, ouvrirMonOrbite, 'astre')) return;
+    if(!ageOk(REGLES_O.ageAnimer, ouvrirMonOrbite, 'astre')) return;   /* un astre se défend en direct : animer, 16 ans */
     emit('astre_open_orbit', {saison:(st.saison && st.saison.numero) || null});
     ouvrirFeuilleO('Ouvrir mon orbite', '<p class="ofp">Ta première vidéo ouvre ton orbite : c\'est elle que verront d\'abord tes futurs membres.</p><div class="orangee"><button class="cta or" data-ouv="filmer">● Filmer</button><button class="cta vide" data-ouv="importer">↥ Importer</button></div>');
   }
@@ -9160,7 +9184,7 @@ if(document.readyState === 'loading') document.addEventListener('DOMContentLoade
   }
   function regarderDuel(i){
     var x = V38.duelsListe && V38.duelsListe[i]; if(!x) return;
-    if(!ageOk(REGLES_O.ageDirect, function(){ regarderDuel(i); })) return;
+    if(!regarderOk(function(){ regarderDuel(i); })) return;   /* regarder : 13 ans (3 nov. 2026) */
     var s = salveDuel(x);
     LSset('nv_orbite_arene', JSON.stringify({at:Date.now(), jusqu:Date.now() + 30 * 60000, arene:s}));
     emit('arene_request', s);
@@ -9609,8 +9633,8 @@ if(document.readyState === 'loading') document.addEventListener('DOMContentLoade
     if((b = t.closest('[data-arene-chat]'))){ tchatDuelX(+b.getAttribute('data-arene-chat')); return; }
     if(t.closest('[data-resume]')){ var R = V38.arene && V38.arene.resume, v4 = R && normVid({id:'resume_' + (R.id || 'semaine'), url:R.url, affiche:R.affiche, titre:R.titre, auteur:'L\'Arène'}); if(v4 && v4.url) ouvrirLecteur([v4], 0, txt(R.titre, 60) || 'Les duels de la semaine'); return; }
     if((b = t.closest('[data-rclip]'))){ ouvrirLecteur(V38.replays || [], +b.getAttribute('data-rclip'), 'Les replays de l\'Arène'); return; }
-    /* oct. 2026 — NVStage retiré : les replays des duels sont ceux du Direct (16 ans et plus) */
-    if(t.closest('[data-aller-replays]')){ if(!ageOk(REGLES_O.ageDirect, function(){ ouvrirModule('Live', {depuis:'Orbite', replays:true, filtre:'orbite_replays'}); })) return; ouvrirModule('Live', {depuis:'Orbite', replays:true, filtre:'orbite_replays'}); return; }
+    /* oct. 2026 — NVStage retiré : les replays des duels sont ceux du Direct (regarder : 13 ans et plus depuis le 3 nov. 2026) */
+    if(t.closest('[data-aller-replays]')){ if(!regarderOk(function(){ ouvrirModule('Live', {depuis:'Orbite', replays:true, filtre:'orbite_replays'}); })) return; ouvrirModule('Live', {depuis:'Orbite', replays:true, filtre:'orbite_replays'}); return; }
     if(t.closest('[data-baobab-finale]')){ emit('salle_orbite_request', {evenement:'orbite_tournoi_finale', onglet:'orbite'}); ouvrirSalle('orbite-finale', 'finale'); return; }
     /* la découverte */
     if((b = t.closest('[data-flux]'))){ V38.flux = b.getAttribute('data-flux'); emit('decouverte_flux', {flux:V38.flux}); rendreDecouverte(); return; }

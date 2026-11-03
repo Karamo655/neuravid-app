@@ -3784,7 +3784,7 @@ var ORIGINES = {
   CinemaWorld:{nom:'Cinema World', ico:'🎞'}, LoveUniverse:{nom:'Love Universe', ico:'💞'}, StoryUniverse:{nom:'Story Universe', ico:'📖'},
   Battle:{nom:'Battle', ico:'🥊'}, ViralStorm:{nom:'Viral Storm', ico:'⚡'}, Orbite:{nom:'Orbite', ico:'🪐'},
   Arena:{nom:'The Nations\' Arena', ico:'🏟'}, ChallengeUniverse:{nom:'La Ruche des défis', ico:'🐝'},
-  Live:{nom:'Le Direct', ico:'🔴', age:16}, Baobab:{nom:'La Salle Baobab', ico:'🌳'}
+  Live:{nom:'Le Direct', ico:'🔴', age:13}, Baobab:{nom:'La Salle Baobab', ico:'🌳'}   /* Le Direct : regarder dès 13 ans (3 nov. 2026) */
 };
 /* les anciens identifiants et les formes reçues d'autres modules (« battle », « arenaarts », « ArtsUniverse ») */
 var ORIGINES_ALIAS = {artsuniverse:'ArenaArts', arenaworldarts:'ArenaArts', mosaique:'ArenaArts', voixdor:'Artistes', missandmaster:'MissMaster', cinema:'CinemaWorld', nationsarena:'Arena', challenges:'ChallengeUniverse', defis:'ChallengeUniverse', ruche:'ChallengeUniverse', direct:'Live'};
@@ -3802,7 +3802,7 @@ function peutAllerOrigine(m){
   var id = origineId(m); if(!id || id === MOI) return null;
   var a = ORIGINES[id].age;
   if(a === 18 && spectateurMineur()) return null;
-  if(a === 16 && age() != null && age() < 16) return null;
+  if(a > 13 && a < 18 && age() != null && age() < a) return null;
   return id;
 }
 function allerOrigine(m, finale){

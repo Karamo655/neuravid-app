@@ -17,10 +17,6 @@
 }catch(e){ /* rien */ } })();
 </script><!--/NV_DEMO-->
 
-
-
-
-
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#fff4ef">
@@ -40,7 +36,7 @@
       la rencontre (18+), les couples en direct.
 
   Zéro trucage : aucun couple, vote, chiffre, record, match ni confession n'est inventé.
-  Âges : entrer 13 ans · direct 16 ans · défis de couple, rencontre, confessions, cadeaux et soutien 18 ans.
+  Âges : entrer et regarder un direct 13 ans (3 nov. 2026) · défis de couple, rencontre, confessions, cadeaux et soutien 18 ans.
   Entrées (application) : NVSession({user, token}) · NVLoveVideos(liste) · NVLoveRegles(o) · NVLoveLangue(code, dico)
   Serveur : voir NOTE_AFAQ.md (routes /v1/love/*).
 -->
@@ -1638,6 +1634,7 @@ var CSS = '' +
 '#nvr-liste .reacs{display:flex;flex-wrap:wrap;gap:5px;margin-top:6px}#nvr-liste .reacs button{border:0;height:24px;padding:0 8px;border-radius:12px;font:inherit;font-size:12.5px;color:#fff;background:rgba(255,255,255,.08)}#nvr-liste .reacs button.mien{background:rgba(255,197,49,.22);box-shadow:inset 0 0 0 1px rgba(255,197,49,.6)}' +
 '#nvr-liste ul.rep{list-style:none;margin:6px 0 0;padding:0 0 0 8px;border-left:2px solid rgba(255,255,255,.08)}#nvr-liste ul.rep li{padding:8px 0;border:0}#nvr-liste ul.rep .av{width:28px;height:31px;font-size:12px}' +
 '#nvr-liste .plus{border:0;background:none;padding:6px 0 0;font:inherit;font-size:12.5px;font-weight:800;color:#7fe3ff}' +
+'.nvr-trad{margin:6px 0 0;padding-left:10px;border-left:2px solid rgba(255,255,255,.35);opacity:.95}.nvr-trad-note{display:block;margin-top:3px;font-size:12px;opacity:.75}' +
 '.nvr-sticker{display:inline-flex;align-items:center;gap:8px;margin-top:5px;padding:6px 12px 6px 6px;border-radius:20px;background:linear-gradient(110deg,rgba(224,36,154,.35),rgba(108,43,217,.35))}.nvr-sticker i{font-style:normal;font-size:34px;line-height:1;animation:nvrHop 1.6s ease-in-out infinite}.nvr-sticker b{font-size:14px}' +
 '@keyframes nvrHop{0%,100%{transform:translateY(0) rotate(0)}30%{transform:translateY(-6px) rotate(-8deg)}60%{transform:translateY(0) rotate(6deg)}}' +
 '#nvr-pop{position:fixed;z-index:84;display:none;gap:4px;padding:6px;border-radius:24px;background:#2a1a66;box-shadow:0 10px 30px rgba(0,0,0,.5)}#nvr-pop.on{display:flex}#nvr-pop button{border:0;width:40px;height:40px;border-radius:50%;background:none;font-size:24px;transition:transform .12s}#nvr-pop button:active{transform:scale(1.3)}' +
@@ -1857,7 +1854,31 @@ function corpsC(c){
   if(c.type === 'voice') return '<div class="nvr-vocal" data-src="' + esc(src || '') + '"><button class="lire" aria-label="Écouter">' + svg('lire') + '</button><span class="onde">' + onde(c.id) + '</span><span>' + temps(c.duration) + '</span></div>';
   if(c.type === 'video') return '<div class="nvr-vid"><video playsinline preload="metadata" src="' + esc(src || '') + '"></video><button class="j" aria-label="Lire">' + svg('lire') + '</button></div>';
   if(c.type === 'sticker'){ var st = STICKERS[+c.sticker] || STICKERS[0]; return (c.text ? '<p dir="auto">' + avecMentions(c.text) + '</p>' : '') + '<div class="nvr-sticker"><i>' + st[0] + '</i><b>' + esc(st[1]) + '</b></div>'; }
-  return '<p dir="auto"' + (seulementEmojis(c.text) ? ' class="gros"' : '') + '>' + avecMentions(c.text) + '</p>';
+  return '<p dir="auto"' + (seulementEmojis(c.text) ? ' class="gros"' : '') + '>' + avecMentions(c.text) + '</p>' + tradC(c);
+}
+/* ── La traduction d'un commentaire, à la demande (« 🌐 Traduire »), seulement si le serveur l'annonce ──
+   POST /v1/ia/pont/traduire {texte, langueCible, demande:true, contexte:'commentaire'} → {texte, traduit, auto, limite}
+   Toujours marquée « Traduction automatique » ; jamais de traduction faite en arrière-plan. */
+var IA = {trad:null};
+function capIA(){
+  if(IA.trad !== null || !api()) return; IA.trad = false;
+  try{ fetch(api() + '/v1/ia/capacites', {mode:'cors', headers:entetes()}).then(function(r){ return r.ok ? r.json() : null; })
+    .then(function(o){ IA.trad = !!(o && o.pont && o.pont.traductionCommentaires === true); }).catch(function(){}); }catch(e){}
+}
+function langueUI(){ var l = String(R.NV_LANGUE_UI || R.NV_LANG || document.documentElement.lang || 'fr').slice(0, 2).toLowerCase(); return /^[a-z]{2}$/.test(l) ? l : 'fr'; }
+function tradC(c){
+  if(!c.trad) return '';
+  return '<p dir="auto" class="nvr-trad">' + esc(c.trad.texte) + '</p><small class="nvr-trad-note">🌐 ' + esc('Traduction automatique') + (c.trad.limite ? ' · ' + esc('à vérifier') : '') + '</small>';
+}
+function traduireC(c){
+  if(!api() || !c.text) return;
+  fetch(api() + '/v1/ia/pont/traduire', {method:'POST', mode:'cors', headers:entetes({'Content-Type':'application/json'}),
+    body:JSON.stringify({texte:String(c.text).slice(0, 2000), langueCible:langueUI(), demande:true, contexte:'commentaire'})})
+    .then(function(r){ return r.ok ? r.json() : Promise.reject(r.status); })
+    .then(function(o){ if(!o || typeof o.texte !== 'string') throw 0;
+      if(o.traduit === false){ dire('Ce commentaire est déjà dans votre langue.'); return; }
+      c.trad = {texte:o.texte.slice(0, 4000), limite:!!o.limite}; emit('comment_translate', {comment:c.id}); rendreListe(); })
+    .catch(function(){ dire('Traduction impossible pour l\'instant.'); });
 }
 function itemC(c, topId, proprio, estRep){
   var badges = (c.byOwner ? '<span class="badge b-auteur">Auteur</span>' : '') + (c.id === topId ? '<span class="badge b-top">⭐ Top</span>' : '') + (c.pinned ? '<span class="badge b-pin">📌 Épinglé</span>' : '');
@@ -1937,6 +1958,7 @@ function feOuverte(){ var f = $('nvr-fe'); return !!(f && f.classList.contains('
 function fermerFe(viaRetour){ cacherFe(); if(viaRetour) fePousse = false; else depilerFe(); }
 function menuC(c){
   var o = ouvert; if(!o) return; var proprio = !!o.clip.moi, b = [];
+  if(IA.trad && !c.mine && c.text && (c.type === 'text' || c.type === 'sticker') && !c.trad) b.push({ico:'🌐', lib:'Traduire', fn:function(){ traduireC(c); }});
   if(c.type === 'text' && c.text) b.push({ico:'📋', lib:'Copier le texte', fn:function(){ try{ navigator.clipboard.writeText(c.text).then(function(){ dire('Texte copié.'); }, function(){}); }catch(e){} }});
   if(proprio && !c.parent) b.push({ico:'📌', lib:c.pinned ? 'Désépingler' : 'Épingler en tête (3 au maximum)', fn:function(){ epingler(c); }});
   if(proprio && !c.mine) b.push({ico:c.hidden ? '👁️' : '🙈', lib:c.hidden ? 'Afficher de nouveau' : 'Masquer pour les autres', fn:function(){ masquer(c); }});
@@ -2037,7 +2059,7 @@ function media(on){ try{ if(ouvert && ouvert.opts && typeof ouvert.opts.onMedia 
 function compteur(o){ try{ if(o && o.opts && typeof o.opts.onCompte === 'function') o.opts.onCompte(typeof o.clip.comments === 'number' && serveur(o.clip) ? o.clip.comments : etat(o.clip.id).comsLocaux, serveur(o.clip)); }catch(e){} }
 var pousse = false;
 function ouvrirComs(o){
-  monter(); ouvert = o; reponse = null; deplies = {}; majRepond();
+  monter(); ouvert = o; reponse = null; deplies = {}; majRepond(); capIA();
   $('nvr-titre').textContent = 'Commentaires';
   $('nvr-regle').textContent = (o.opts.pauseComs && !o.clip.moi) ? '🛡️ ' + o.opts.pauseComs : (o.opts.regleComs || 'Restez bienveillant : les moqueries sur le physique sont retirées.');
   $('nvr-bas').style.display = (o.opts.pauseComs && !o.clip.moi) ? 'none' : '';
@@ -3573,7 +3595,7 @@ function jour(){ var d = new Date(); return d.getUTCFullYear() + '-' + (d.getUTC
 function numJour(){ return Math.floor(Date.now() / 864e5); }
 function finJourUTC(){ var d = new Date(); d.setUTCHours(24, 0, 0, 0); return d.getTime(); }
 
-/* ── Les âges : entrer 13 ans, direct 16 ans ; les défis de couple, la rencontre, les confessions et l'argent 18 ans ── */
+/* ── Les âges : entrer et REGARDER un direct 13 ans (3 nov. 2026) ; les défis de couple, la rencontre, les confessions, lancer un direct de couple et l'argent 18 ans ── */
 function ageConnu(){ var u = window.NV_USER; return !!(u && (u.majeur === true || u.majeur === false || typeof u.age === 'number')); }
 function age(){ var u = window.NV_USER; return u && typeof u.age === 'number' ? u.age : null; }
 function estMajeur(){
@@ -3584,21 +3606,21 @@ function estMajeur(){
   return lire(cleCompte('nv_majeur'), false) === true;
 }
 function estMineur(){ return ageConnu() && !estMajeur(); }
-/* le direct : 16 ans, âge connu */
-function peutDirect(){ var a = age(), u = window.NV_USER || {}; if(a != null) return a >= REGLES.ageDirect; return u.majeur === true; }
+/* regarder un direct : 13 ans depuis le 3 nov. 2026 (avant : 16 ans, âge connu) ; si le serveur le remonte, l'âge doit être connu */
+function peutDirect(){ var a = age(), u = window.NV_USER || {}; if(a != null) return a >= REGLES.ageDirect; if(REGLES.ageDirect <= REGLES.ageEntree) return true; return u.majeur === true; }
 
 /* ════════ Les règles publiées (le serveur peut les remplacer) ════════ */
 var REGLES = {
   dureeMax:600, dureeMin:10,
-  ageEntree:13, ageDirect:16, ageCouple:18,
+  ageEntree:13, ageDirect:13, ageCouple:18,
   votesJour:10,                         /* les coups de cœur gratuits, par jour */
   repartition:{createur:70, neuravid:30, camp:70},   /* cadeaux : 70 % au couple (moitié chacun), 30 % NEURAVID ; camp : 70 % à la cagnotte, versée au couple vainqueur */
   confessionMax:400, dilemmesJour:30
 };
 function fusionRegles(o){
   if(!o || typeof o !== 'object') return;
-  /* les règles du serveur peuvent être plus strictes, jamais plus souples : âges 13 / 16 / 18 au moins, 10 minutes au plus */
-  var borne = {ageEntree:[13, 21], ageDirect:[16, 21], ageCouple:[18, 25], dureeMax:[30, 600], dureeMin:[3, 60], votesJour:[0, 1000], confessionMax:[50, 2000]};
+  /* les règles du serveur peuvent être plus strictes, jamais plus souples : âges 13 / 13 / 18 au moins, 10 minutes au plus */
+  var borne = {ageEntree:[13, 21], ageDirect:[13, 21], ageCouple:[18, 25], dureeMax:[30, 600], dureeMin:[3, 60], votesJour:[0, 1000], confessionMax:[50, 2000]};
   Object.keys(borne).forEach(function(k){ var v = o[k]; if(typeof v === 'number' && isFinite(v) && v >= borne[k][0] && v <= borne[k][1]) REGLES[k] = Math.round(v); });
   var r = o.repartition; if(r && typeof r === 'object'){
     if(typeof r.createur === 'number' && r.createur >= 0 && r.createur <= 100) REGLES.repartition.createur = r.createur, REGLES.repartition.neuravid = 100 - r.createur;
