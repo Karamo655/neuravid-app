@@ -967,7 +967,7 @@ function profilMinimal(){ var u = window.NV_USER || {}; if(!u.id && !u.handle) r
 
 /* ════════ La démonstration (comme l'accueil : jamais dans l'application ni avec un serveur ; bandeau clair) ════════ */
 var DEMO = {on:false};
-(function(){ try{ var dansApp = !!(window.flutter_inappwebview || window.NVLien || window.ReactNativeWebView), h = location.hash || '', s = null; try{ s = sessionStorage.getItem('nv_demo'); }catch(e){ s = null; }
+(function(){ try{ var dansApp = !window.NV_APERCU && !!(window.flutter_inappwebview || window.NVLien || window.ReactNativeWebView), h = location.hash || '', s = null; try{ s = sessionStorage.getItem('nv_demo'); }catch(e){ s = null; }
   var refus = /(^#|&)demo=0(&|$)/.test(h) || s === '0', veut = /(^#|&)demo(=1)?(&|$)/.test(h) || window.NV_DEMO === true || s === '1' || /^(file|content):$/.test(location.protocol);
   if(dansApp || api() || window.NV_API_BASE || refus || !veut) return; DEMO.on = true; window.NV_DEMO = true; try{ sessionStorage.setItem('nv_demo', '1'); }catch(e){ /* rien */ }
   if(!window.NV_MODULES_BASE) window.NV_MODULES_BASE = './'; if(!window.NV_USER) window.NV_USER = {id:'demo', handle:'visiteur', prenom:'Aya', nom:'Aya', age:25, majeur:true, iso:'GN'};
