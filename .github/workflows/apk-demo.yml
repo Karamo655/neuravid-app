@@ -63,9 +63,13 @@ jobs:
           s = s.replace('minSdk = flutter.minSdkVersion', 'minSdk = 24').replace('minSdkVersion flutter.minSdkVersion', 'minSdkVersion 24')
           open(g, 'w', encoding='utf8').write(s)
           EOF
-          for d in mdpi:48 hdpi:72 xhdpi:96 xxhdpi:144 xxxhdpi:192; do
-            convert web/icones/nv-512.png -resize ${d#*:}x${d#*:} app/android/app/src/main/res/mipmap-${d%%:*}/ic_launcher.png
-          done
+          python3 -m pip install --quiet pillow
+          python3 - <<'EOF'
+          from PIL import Image
+          src = Image.open('web/icones/nv-512.png').convert('RGBA')
+          for nom, t in [('mdpi', 48), ('hdpi', 72), ('xhdpi', 96), ('xxhdpi', 144), ('xxxhdpi', 192)]:
+              src.resize((t, t), Image.LANCZOS).save('app/android/app/src/main/res/mipmap-%s/ic_launcher.png' % nom)
+          EOF
       - name: Construire l'APK
         run: |
           cd app
