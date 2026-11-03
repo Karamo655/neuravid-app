@@ -33,6 +33,32 @@ A Flutter shell around the NEURAVID website, the same principle as `flutter/neur
   - destination `upload` (TestFlight) when « envoyer » is checked, `export` otherwise ;
   - without these secrets, the job only compiles.
 
+## Native bridge (3 November 2026)
+
+The modules hand some actions to the native app. The official app implements every one that does **not** need a server. Page side: `pont.js`, injected at document start and tested by `test/pont.test.js` (Playwright). Phone side: `lib/pont.dart`, tested by `test/pont_test.dart`, which runs in CI before every build.
+
+**Page side (`pont.js`):**
+- `window.NVLien.ouvrir('NV<id>', ctx)` opens a module: it stores `nv_ctx_<id>` and navigates (Player → Iris). Every module tries this first, so navigation is immediate.
+- `window.NVTelecharger(blob, nom)` sends the file in 2 MB chunks to the `nvEnregistrer` handler. `<a download>` links to `blob:` / `data:` URLs go the same way (La Forge « Garder », the Events calendar).
+- `navigator.share` (missing in Android WebView) is routed to the `nvPartager` handler. Sharing files is rejected with `NotSupportedError`, so the module uses its own fallback.
+- `window.open` is routed to the `nvOuvrirLien` handler.
+
+**Phone side, `nvEvent` handler:**
+- `open_module` / `open`: wrapped `payload`, or Orbite's raw `{type, module, live}`. `target` (with or without the `NV` prefix), `module` or `url` are all accepted. The app loads the module only if the page has not moved after 700 ms (most modules leave on their own), so nothing loads twice.
+- `module_close`: go back.
+- `share_request` / `share`: share sheet.
+- `share_video_file`: save to the gallery and return `{ok}`.
+- `save_file` / `download_request`: save the file, then dispatch `nv:file_saved`.
+- `download`: an https video is downloaded and saved.
+- `open_url`: external browser. `open_link`: in the app for our host, external browser otherwise.
+- `report_submit`, `loyalty_chest_request`, `battle_*_request`: immediate honest answer through `NVReportConfirm` / `NVFideliteCoffre` / `NVBattleConfirm` `{idem, success:false, reason}` (« not available yet: servers not connected »), instead of a 15–20 s timeout. **When the servers exist, forward these to the server instead.**
+
+**Other handlers:** `nvTelecharger` (the modules' own chunk protocol), `nvEnregistrer`, `nvPartager` and `nvOuvrirLien`.
+
+**Saving:** videos and images go to the gallery (`gal`, album NEURAVID) ; other files go to the share sheet (`share_plus`). The same file sent twice within 10 s is saved once.
+
+**Still to do, needs servers and native screens:** `login_required` → `NVSession`, verifications (phone, age, KYC), account requests, payments and in-app purchases, `push_subscribe` (FCM / APNs), `live_broadcast_request`, the Baobab `NVRoom*` functions, `qr_scan_request`. Until then, some modules display « l'application ouvre… » for these features.
+
 ## Still to do before public store submission (servers, not this shell)
 
 - Real servers behind `web/nv-config.js`.
