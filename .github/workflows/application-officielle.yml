@@ -43,6 +43,9 @@ concurrency:
   cancel-in-progress: false
 env:
   FLUTTER_CHANNEL: stable
+  # Android : la branche 3.35 de Flutter (outils Android 8.x, Android 16 / API 36 pris en charge). Flutter 3.47 passe aux outils
+  # Android 9, que le composant web (flutter_inappwebview 6.x) n'accepte pas encore (essai du 3 nov. 2026). iPhone : la dernière version.
+  FLUTTER_ANDROID: '3.35.x'
 jobs:
   reglages:
     runs-on: ubuntu-latest
@@ -98,6 +101,7 @@ jobs:
       - uses: subosito/flutter-action@v2
         with:
           channel: ${{ env.FLUTTER_CHANNEL }}
+          flutter-version: ${{ env.FLUTTER_ANDROID }}
           cache: true
       - name: Créer le projet
         run: |
