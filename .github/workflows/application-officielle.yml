@@ -107,17 +107,20 @@ jobs:
         run: |
           flutter --version
           flutter create --org "${{ needs.reglages.outputs.org }}" --project-name "${{ needs.reglages.outputs.projet }}" --platforms android projet
-          cp application/lib/main.dart projet/lib/main.dart
-          rm -rf projet/test
-          cd projet && flutter pub add flutter_inappwebview:^6.1.5 permission_handler:^11.3.1 url_launcher:^6.3.0
+          cp application/lib/*.dart projet/lib/
+          rm -rf projet/test && cp -r application/test projet/test
+          mkdir -p projet/assets && cp application/pont.js projet/assets/pont.js
+          cd projet && flutter pub add flutter_inappwebview:^6.1.5 permission_handler:^11.3.1 url_launcher:^6.3.0 share_plus:^10.1.4 gal:^2.3.1 path_provider:^2.1.5
+      - name: Essais du pont (Dart)
+        run: cd projet && flutter test
       - name: Embarquer le site (copie hors connexion)
         run: |
-          mkdir -p projet/assets && cp -r web projet/assets/web
+          cp -r web projet/assets/web
           python3 - <<'EOF'
           import os
           dossiers = sorted(set(os.path.relpath(d, 'projet') + '/' for d, _, f in os.walk('projet/assets/web') if f))
           p = 'projet/pubspec.yaml'; s = open(p, encoding='utf8').read()
-          s = s.replace('  uses-material-design: true', '  uses-material-design: true\n  assets:\n' + ''.join('    - %s\n' % d for d in dossiers), 1)
+          s = s.replace('  uses-material-design: true', '  uses-material-design: true\n  assets:\n    - assets/pont.js\n' + ''.join('    - %s\n' % d for d in dossiers), 1)
           open(p, 'w', encoding='utf8').write(s); print(len(dossiers), 'dossiers embarqués')
           EOF
       - name: Réglages Android (nom, autorisations, versions d'Android, signature, icône)
@@ -128,9 +131,12 @@ jobs:
           m = 'projet/android/app/src/main/AndroidManifest.xml'; s = open(m, encoding='utf8').read()
           perms = ''.join('    <uses-permission android:name="android.permission.%s"/>\n' % p for p in
                           ['INTERNET', 'CAMERA', 'RECORD_AUDIO', 'MODIFY_AUDIO_SETTINGS', 'ACCESS_COARSE_LOCATION', 'ACCESS_FINE_LOCATION', 'VIBRATE'])
+          # enregistrer une vidéo dans la galerie sur Android 7 à 9 (au-delà, aucune autorisation n'est demandée)
+          perms += '    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="29"/>\n'
           perms += '    <uses-feature android:name="android.hardware.camera" android:required="false"/>\n    <uses-feature android:name="android.hardware.microphone" android:required="false"/>\n'
           s = re.sub(r'(<manifest[^>]*>\n)', lambda x: x.group(1) + perms, s, count=1)
           s = re.sub(r'android:label="[^"]*"', 'android:label="%s"' % nom, s, count=1)
+          s = s.replace('<application', '<application android:requestLegacyExternalStorage="true"', 1)
           # les liens extérieurs (courriel, sites) : Android 11+ demande de déclarer ce que l'on ouvre
           intents = ('        <intent><action android:name="android.intent.action.VIEW"/><data android:scheme="https"/></intent>\n'
                      '        <intent><action android:name="android.intent.action.SENDTO"/><data android:scheme="mailto"/></intent>\n')
@@ -251,17 +257,20 @@ jobs:
         run: |
           flutter --version; xcodebuild -version
           flutter create --org "${{ needs.reglages.outputs.org }}" --project-name "${{ needs.reglages.outputs.projet }}" --platforms ios projet
-          cp application/lib/main.dart projet/lib/main.dart
-          rm -rf projet/test
-          cd projet && flutter pub add flutter_inappwebview:^6.1.5 permission_handler:^11.3.1 url_launcher:^6.3.0
+          cp application/lib/*.dart projet/lib/
+          rm -rf projet/test && cp -r application/test projet/test
+          mkdir -p projet/assets && cp application/pont.js projet/assets/pont.js
+          cd projet && flutter pub add flutter_inappwebview:^6.1.5 permission_handler:^11.3.1 url_launcher:^6.3.0 share_plus:^10.1.4 gal:^2.3.1 path_provider:^2.1.5
+      - name: Essais du pont (Dart)
+        run: cd projet && flutter test
       - name: Embarquer le site (copie hors connexion)
         run: |
-          mkdir -p projet/assets && cp -r web projet/assets/web
+          cp -r web projet/assets/web
           python3 - <<'EOF'
           import os
           dossiers = sorted(set(os.path.relpath(d, 'projet') + '/' for d, _, f in os.walk('projet/assets/web') if f))
           p = 'projet/pubspec.yaml'; s = open(p, encoding='utf8').read()
-          s = s.replace('  uses-material-design: true', '  uses-material-design: true\n  assets:\n' + ''.join('    - %s\n' % d for d in dossiers), 1)
+          s = s.replace('  uses-material-design: true', '  uses-material-design: true\n  assets:\n    - assets/pont.js\n' + ''.join('    - %s\n' % d for d in dossiers), 1)
           open(p, 'w', encoding='utf8').write(s); print(len(dossiers), 'dossiers embarqués')
           EOF
       - name: Réglages iPhone (nom, textes des autorisations, icône, version d'iOS)
