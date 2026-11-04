@@ -1340,7 +1340,7 @@ A.chercher = function(){ entrer('Search'); };
 var FAMILLES = [['Regarder et participer', ['Player', 'Live', 'Baobab', 'StoryUniverse', 'Events']], ['Les défis et les concours', ['ChallengeUniverse', 'Orbite', 'Battle', 'ViralStorm', 'Arena', 'Artistes', 'MissMaster', 'ArenaArts', 'CinemaWorld', 'LoveUniverse']],
   ['Créer', ['Create', 'Studio', 'Conteur', 'Griot']], ['Moi et les autres', ['Profile', 'Passeport', 'Dashboard', 'CallUniverse', 'Notifications', 'Search', 'Reglages', 'Conditions']], ['L\'argent et les marques', ['Recolte', 'Phare', 'Etendard']]];
 /* 4 nov. 2026 : une personne non connectée (hors aperçu) trouve L'Entrée en tête du menu */
-function blocEntree(){ if(window.NV_USER || window.NV_TOKEN || (typeof DEMO !== 'undefined' && DEMO.on)) return '';
+function blocEntree(){ var apercu = typeof DEMO !== 'undefined' && DEMO.on; if(!apercu && (window.NV_USER || window.NV_TOKEN)) return '';   /* dans l'aperçu : pour essayer L'Entrée (elle aussi en aperçu) */
   return '<button class="entree-tiroir" data-a="ouvrirEntree"><span class="et-hx" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 3a6 6 0 0 0-6 6v2M18 11V9a6 6 0 0 0-9-5.2M9 13v1a3 3 0 0 0 6 0v-3M12 11v4M6 15c0 3 2.7 6 6 6s6-3 6-6"/></svg></span><span><b>' + esc(T_ENTREE[0]) + '</b><small>' + esc(T_ENTREE[1]) + '</small></span></button>'; }
 var T_ENTREE = ['Se connecter ou créer mon compte', 'Sans mot de passe : votre empreinte, votre numéro ou un réseau social.'];
 A.ouvrirEntree = function(){ fermerPuis(function(){ ouvrir('Entree', {vue:'connexion', retour:MOI}); }); };
