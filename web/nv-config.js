@@ -22,4 +22,17 @@
     if(CONFIG.modules && !window.NV_MODULES_BASE) window.NV_MODULES_BASE = CONFIG.modules;
     /* NV_IA_BASE garde un seul sens : le dossier du moteur de vision de La Forge (sans valeur : « /ia/ » à côté des modules). */
   }catch(e){ /* rien */ }
+  /* 4 nov. 2026 — la session ouverte par L'Entrée (NV_MODULE_Entree.html) : { jeton, utilisateur, expire } dans localStorage
+     « nv_session ». Posée seulement si l'application ne l'a pas déjà fait ; une session expirée est oubliée. Jamais dans l'aperçu. */
+  try{
+    var apercu = !!window.NV_APERCU || /(^#|&)demo(=1)?(&|$)/.test(location.hash || '');
+    try{ if(sessionStorage.getItem('nv_demo') === '1') apercu = true; }catch(e){ /* rien */ }
+    if(!window.NV_TOKEN && !apercu){
+      var ses = JSON.parse(localStorage.getItem('nv_session') || 'null');
+      if(ses && typeof ses.jeton === 'string' && ses.jeton && (!ses.expire || ses.expire > Date.now())){
+        window.NV_TOKEN = ses.jeton;
+        if(ses.utilisateur && typeof ses.utilisateur === 'object' && !window.NV_USER) window.NV_USER = ses.utilisateur;
+      } else if(ses) localStorage.removeItem('nv_session');
+    }
+  }catch(e){ /* rien */ }
 })();

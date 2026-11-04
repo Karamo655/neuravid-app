@@ -258,6 +258,15 @@ if(!window.NV_LANG) window.NV_LANG = ${jsonEncode(langue)};
         }
         return null;
       }
+      case 'login_required': {
+        // 4 nov. 2026 : la connexion se fait dans L'Entrée (NV_MODULE_Entree.html) ; on revient ensuite au module
+        final avant = (await c.getUrl())?.toString() ?? (kSite + kDepart);
+        final cible = Uri.parse(avant).resolve('NV_MODULE_Entree.html').toString();
+        final ctx = {'vue': 'connexion', 'retour': msg['module'], 'raison': 'login_required', 'pour': p['pour']};
+        await c.evaluateJavascript(source: "try{ sessionStorage.setItem('nv_ctx_Entree', ${jsonEncode(jsonEncode(ctx))}); }catch(e){}");
+        await c.loadUrl(urlRequest: URLRequest(url: WebUri(cible)));
+        return null;
+      }
       case 'open_link': {
         await _ouvrirLien(p['url']?.toString());
         return null;
