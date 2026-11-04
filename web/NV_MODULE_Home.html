@@ -2109,8 +2109,11 @@ var GX = (function(){
       gr.addColorStop(0, hexAlpha(i % 4 ? col : melange(col, '#FFFFFF', .5), .32)); gr.addColorStop(1, hexAlpha(col, 0)); g.fillStyle = gr; g.fillRect(0, 0, N, N); }
     return (NUEES[col] = e); }
   /* l'anneau du cœur : un disque doré couché, en perspective, qui tourne et respire */
-  function anneau(t, R, co){ var ra = R * .085, n = 48; x.lineCap = 'round';
+  /* l'anneau est en unités du disque (rayon 1 = le bord de la galaxie) : P() multiplie lui-même par R.
+     (4 nov. 2026 : il était compté deux fois — rayon × R — et passait derrière la caméra : des traits de lumière sur l'en-tête) */
+  function anneau(t, R, co){ var ra = .085, n = 48; x.lineCap = 'round';
     for(var i = 0; i < n; i++){ var a = i / n * 6.28 + t * .9, b = a + 6.28 / n * .7, p1 = P(Math.cos(a) * ra, Math.sin(a) * ra, 0, R), p2 = P(Math.cos(b) * ra, Math.sin(b) * ra, 0, R), avant = p1.z > co.z;
+      if(!(p1.s > 0 && p1.s < 4 && p2.s > 0 && p2.s < 4)) continue;
       x.strokeStyle = 'rgba(255,' + (190 + (i % 3) * 20) + ',' + (120 + (i % 4) * 25) + ',' + ((avant ? .5 : .22) * (.7 + .3 * Math.sin(t * 2 + i))).toFixed(2) + ')'; x.lineWidth = (avant ? 2.4 : 1.4) * dpr * p1.s; x.beginPath(); x.moveTo(p1.x, p1.y); x.lineTo(p2.x, p2.y); x.stroke(); } }
   /* la supernova d'une victoire : trois ondes hexagonales qui s'ouvrent aux couleurs du drapeau, et un éclat qui pulse */
   function supernova(t, p, r, coul){ x.globalCompositeOperation = 'lighter';
