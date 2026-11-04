@@ -337,19 +337,13 @@ body.feuille-ouverte .boussole{opacity:0;pointer-events:none}
 .demo-bandeau{width:100%;max-width:560px;margin:0 0 8px;display:flex;flex-wrap:wrap;align-items:center;justify-content:center;gap:4px 10px;padding:8px 12px;border-radius:14px;background:rgba(255,201,61,.14);box-shadow:inset 0 0 0 1px rgba(255,201,61,.5);font-size:12.5px;line-height:1.35;text-align:center}
 .demo-bandeau[hidden]{display:none}.demo-bandeau b{color:#FFC93D;font-weight:850}.demo-bandeau button{padding:4px 10px;border-radius:10px;background:rgba(255,255,255,.12);font-weight:750;font-size:12px}
 /* ════ le logo vivant ════ */
-.paupiere{transform-box:fill-box;transform-origin:center;transition:transform .09s ease-in}
-.paupiere.cligne{transform:scaleY(.08)}
-.regard{transition:transform .5s cubic-bezier(.2,.8,.2,1)}
-.facettes{transform-box:fill-box;transform-origin:center;animation:tourne 18s linear infinite}
-@keyframes tourne{to{transform:rotate(360deg)}}
-.nb .facettes{animation-duration:10s}
+/* 4 novembre 2026 : l'iris tourne par l'animation du dessin lui-même (centre fixe), le clignement et le regard passent par l'attribut :
+   plus aucune transformation CSS sur l'œil, donc plus d'image qui saute d'avant en arrière dans la vue web d'Android */
 /* un univers réservé à un âge que l'on ne connaît pas encore : présent, avec son âge, un peu en retrait */
 .grille-mod button.a-verifier{position:relative}
 .grille-mod button.a-verifier .gemme{filter:saturate(.75) brightness(.9)}
 .grille-mod .age-min{position:absolute;top:7px;right:7px;font-style:normal;font-size:10.5px;font-weight:800;line-height:1;padding:4px 6px 3px;border-radius:999px;color:#fff;background:rgba(11,7,32,.72);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--c) 70%,#fff 10%);z-index:1}
 /* derrière une feuille ouverte (menu « Tous les univers »…), plus rien ne tourne : le verre dépoli reste net, sans scintillement */
-body.feuille-ouverte .facettes{animation-play-state:paused}
-body.feuille-ouverte #tete .paupiere{transition:none}
 .nb .ondes .o1,.nb .ondes .o2{animation:onde 2.2s ease-out infinite}
 .nb .ondes .o2{animation-delay:.35s}
 @keyframes onde{0%{opacity:.25}40%{opacity:1}100%{opacity:.25}}
@@ -754,6 +748,10 @@ html.globe-seul .globe{top:0!important;bottom:0!important}
   animation:glaceReflet 11s ease-in-out infinite;animation-delay:calc(var(--k,0) * -1.3s);will-change:transform}
 @keyframes glaceReflet{0%,62%{transform:translateX(-120%)}88%,100%{transform:translateX(120%)}}
 @media (prefers-reduced-motion:reduce){.feuille[data-k=tiroir] .grille-mod button::after{animation:none;display:none}}
+/* 4 novembre 2026 : le reflet qui passait sur les carreaux faisait « trembler » les images du menu sur téléphone : les carreaux restent immobiles */
+.feuille[data-k=tiroir] .grille-mod button::after{animation:none!important;display:none!important}
+/* derrière une feuille ouverte, tout le paysage s'arrête : le verre dépoli n'a plus rien à recalculer, les images restent nettes */
+body.feuille-ouverte #app *,body.feuille-ouverte #app *::before,body.feuille-ouverte #app *::after{animation-play-state:paused!important}
 .leger .feuille[data-k=tiroir] .grille-mod button::after{display:none}
 .feuille[data-k=tiroir] .v2-niveaux button{backdrop-filter:none!important;-webkit-backdrop-filter:none!important}
 
@@ -1095,7 +1093,7 @@ function demoCharger(){ if(!DEMO.on) return;
   PASS.s = {pays:3, modules:7, hvsMois:12, mois:{cle:cleMois(pm), hvs:40, victoires:2, pays:5, defis:6}}; rendrePasseport(); clearTimeout(votreMois.t); votreMois.t = setTimeout(function(){ votreMois(GEN.n); }, 4000);
   rendreBonjour(); majDescriptions(); bandeauDemo();
   /* les échanges entre pays passent dans la galaxie */
-  clearInterval(DEMO.t); DEMO.t = setInterval(function(){ if(document.hidden || !VUE.espace) return; var k = Object.keys(GAL.donnees || {}); if(k.length < 2) return; var a = k[Math.floor(Math.random() * k.length)], b = k[Math.floor(Math.random() * k.length)]; if(a !== b) ajouterFlux({id:'demo-' + Date.now(), de:a, vers:b, type:['vote', 'duel', 'cadeau', 'defi', 'collab'][Math.floor(Math.random() * 5)], at:Date.now()}); }, 3200);
+  clearInterval(DEMO.t); DEMO.t = setInterval(function(){ if(document.hidden || !VUE.espace || feuilleDevant()) return; var k = Object.keys(GAL.donnees || {}); if(k.length < 2) return; var a = k[Math.floor(Math.random() * k.length)], b = k[Math.floor(Math.random() * k.length)]; if(a !== b) ajouterFlux({id:'demo-' + Date.now(), de:a, vers:b, type:['vote', 'duel', 'cadeau', 'defi', 'collab'][Math.floor(Math.random() * 5)], at:Date.now()}); }, 3200);
   /* le petit tambour : trois nouvelles d'exemple */
   setTimeout(function(){ try{ if(window.NVCloche) window.NVCloche.pouls({n:3, niveau:'calme', raisons:[{texte:tr('Démonstration : Kadi a aimé votre vidéo.')}, {texte:tr('Démonstration : un défi se termine ce soir.')}, {texte:tr('Démonstration : Aya est en direct.')}]}); }catch(e){ dbg(e); } }, 1200);
   demoV2();
@@ -1117,14 +1115,14 @@ document.addEventListener('input', function(e){ var el = e.target; var f = el &&
 
 /* ════════ Les feuilles, l'attente ════════ */
 var FEUILLE = {k:null};
-function ouvrirFeuille(titre, html, k){ document.body.classList.add('feuille-ouverte'); logoFige(true);
+function ouvrirFeuille(titre, html, k){ document.body.classList.add('feuille-ouverte'); logoFige(true); try{ jouerMondes(); }catch(e){ dbg(e); }
   var f = $('feuille'), v = $('voile'), dejaOuverte = !f.hidden; FEUILLE.k = k || titre; f.setAttribute('data-k', k || ''); document.body.classList.toggle('feuille-tiroir', k === 'tiroir');
   if(!dejaOuverte) FEUILLE.retour = document.activeElement;
   poser(f, '<div class="tete"><h2 id="fTitre" tabindex="-1">' + esc(titre) + '</h2><button class="rond" data-a="fermerFeuille" aria-label="Fermer">' + ico('fermer') + '</button></div>' + html);
   f.hidden = false; v.hidden = false; try{ $('app').inert = true; }catch(e){ dbg(e); } requestAnimationFrame(function(){ f.classList.add('on'); v.classList.add('on'); var t = $('fTitre'); if(t && !dejaOuverte) try{ t.focus({preventScroll:true}); }catch(e){ dbg(e); } });
   if(!dejaOuverte) try{ history.pushState({pf:'feuille'}, ''); }catch(e){ dbg(e); }
 }
-function fermerFeuille(sansHisto){ var f = $('feuille'), v = $('voile'); if(f.hidden) return; document.body.classList.remove('feuille-ouverte', 'feuille-tiroir'); logoFige(false); try{ $('app').inert = false; }catch(e){ dbg(e); } f.classList.remove('on'); v.classList.remove('on'); FEUILLE.k = null; var r = FEUILLE.retour; FEUILLE.retour = null; if(r && r.focus && document.contains(r)) try{ r.focus({preventScroll:true}); }catch(e){ dbg(e); } setTimeout(function(){ if(!FEUILLE.k){ f.hidden = true; v.hidden = true; } }, 220); if(!sansHisto){ try{ if(history.state && history.state.pf === 'feuille') retourNotre(); }catch(e){ dbg(e); } } }
+function fermerFeuille(sansHisto){ var f = $('feuille'), v = $('voile'); if(f.hidden) return; document.body.classList.remove('feuille-ouverte', 'feuille-tiroir'); logoFige(false); try{ jouerMondes(); }catch(e){ dbg(e); } try{ $('app').inert = false; }catch(e){ dbg(e); } f.classList.remove('on'); v.classList.remove('on'); FEUILLE.k = null; var r = FEUILLE.retour; FEUILLE.retour = null; if(r && r.focus && document.contains(r)) try{ r.focus({preventScroll:true}); }catch(e){ dbg(e); } setTimeout(function(){ if(!FEUILLE.k){ f.hidden = true; v.hidden = true; } }, 220); if(!sansHisto){ try{ if(history.state && history.state.pf === 'feuille') retourNotre(); }catch(e){ dbg(e); } } }
 A.fermerFeuille = function(){ fermerFeuille(); };
 /* fermer la feuille PUIS agir : le retour d'historique de la feuille est consommé d'abord (sinon une entrée morte resterait) */
 var APRES = null;
@@ -1268,7 +1266,7 @@ function logoMarque(){
     '<path d="' + hexD(50, 55, 38) + '" fill="none" stroke="url(#lgH)" stroke-width="1.2" opacity=".45"/>' +
     '<g class="paupiere"><path d="M12 55Q50 21 88 55Q50 89 12 55Z" fill="#F7F3FF"/>' +
     '<g clip-path="url(#lgOeil)"><g class="regard"><circle cx="50" cy="55" r="20" fill="#3A12A0"/>' +
-    '<g class="facettes">' + p + '</g>' +
+    '<g class="facettes">' + p + '<animateTransform attributeName="transform" type="rotate" values="0 50 55;360 50 55" dur="18s" repeatCount="indefinite"/></g>' +
     '<path d="' + hexD(50, 55, 7) + '" fill="#0B0620"/><circle cx="44" cy="48" r="3.4" fill="#fff" opacity=".95"/><circle cx="56" cy="61" r="1.6" fill="#fff" opacity=".7"/></g></g>' +
     '<path d="M12 55Q50 21 88 55" fill="none" stroke="#0B0620" stroke-width="2.5" opacity=".35"/></g></svg>';
 }
@@ -1284,13 +1282,15 @@ function logoMot(){ var x = 0, d = ''; 'NEURAVID'.split('').forEach(function(l){
 /* l'œil cligne (rarement) et suit l'inclinaison / le défilement */
 var OEIL = {x:0, y:0, cx:0, cy:0, ax:null, ay:null, raf:0};
 function feuilleDevant(){ return document.body.classList.contains('feuille-ouverte'); }
+/* 4 novembre 2026 : le clignement se fait par l'attribut, centré sur l'œil (y = 55) ; plus de transformation CSS qui dessinait parfois une image cassée */
+function paupiere(pa, k){ try{ if(k >= 1) pa.removeAttribute('transform'); else pa.setAttribute('transform', 'translate(0 55) scale(1 ' + k + ') translate(0 -55)'); }catch(e){ dbg(e); } }
 function vieDuLogo(){ var m = $('logoMarque'); if(!m) return; var pa = m.querySelector('.paupiere');
-  function cligne(){ if(!document.hidden && !CALME.on && !feuilleDevant() && pa){ pa.classList.add('cligne'); setTimeout(function(){ pa.classList.remove('cligne'); }, 180); } setTimeout(cligne, 4500 + Math.random() * 7000); }
+  function cligne(){ if(!document.hidden && !CALME.on && !feuilleDevant() && pa){ paupiere(pa, .5); setTimeout(function(){ paupiere(pa, .08); }, 45); setTimeout(function(){ paupiere(pa, .5); }, 165); setTimeout(function(){ paupiere(pa, 1); }, 210); } setTimeout(cligne, 4500 + Math.random() * 7000); }
   setTimeout(cligne, 2600); }
 /* 3 novembre 2026 : le regard suivait chaque secousse de la main (le capteur envoie ~60 mesures par seconde), le logo « tremblait ».
    Maintenant : une cible, un glissement doux (une image sur deux au plus), une zone morte qui ignore le tremblement de la main,
    et l'œil se fige quand une feuille (le menu « Tous les univers »…) est ouverte devant lui. */
-function regarder(dx, dy){ OEIL.cx = borne(dx, -6, 6); OEIL.cy = borne(dy, -3, 3); if(!OEIL.raf) OEIL.raf = requestAnimationFrame(oeilPas); }
+function regarder(dx, dy){ var nx = borne(dx, -6, 6), ny = borne(dy, -3, 3); if(Math.abs(nx - OEIL.cx) < 1.2 && Math.abs(ny - OEIL.cy) < .8) return; OEIL.cx = nx; OEIL.cy = ny; if(!OEIL.raf) OEIL.raf = requestAnimationFrame(oeilPas); }
 function oeilPas(){ OEIL.raf = 0; var r = document.querySelector('#logoMarque .regard'); if(!r || feuilleDevant() || document.hidden) return;
   var ex = OEIL.cx - OEIL.x, ey = OEIL.cy - OEIL.y;
   if(Math.abs(ex) < .4 && Math.abs(ey) < .4) return;
@@ -1320,7 +1320,7 @@ function svgNav(k){
       '<filter id="nbLu" x="-30%" y="-30%" width="160%" height="160%"><feGaussianBlur stdDeviation="3.5"/></filter></defs>' +
       '<path d="' + hexD(38, 41, 36) + '" fill="url(#nbGi)" filter="url(#nbLu)" opacity=".55"/>' +
       '<path d="' + hexD(38, 41, 35) + '" fill="url(#nbGf)"/><path d="' + hexD(38, 41, 32.5) + '" fill="none" stroke="url(#nbGi)" stroke-width="4.5" stroke-linejoin="round"/>' +
-      '<path d="M12 41Q38 15 64 41Q38 67 12 41Z" fill="#F7F3FF"/><g clip-path="url(#nbOe)"><circle cx="38" cy="41" r="15.5" fill="#3A12A0"/><g class="facettes">' + f + '</g>' +
+      '<path d="M12 41Q38 15 64 41Q38 67 12 41Z" fill="#F7F3FF"/><g clip-path="url(#nbOe)"><circle cx="38" cy="41" r="15.5" fill="#3A12A0"/><g class="facettes">' + f + '<animateTransform attributeName="transform" type="rotate" values="0 38 41;360 38 41" dur="10s" repeatCount="indefinite"/></g>' +
       '<path d="' + hexD(38, 41, 5.4) + '" fill="#0B0620"/><circle cx="33.5" cy="35.5" r="2.6" fill="#fff"/></g></svg>'; }
   if(k === 'baobab') return '<svg viewBox="0 0 40 40" aria-hidden="true"><g fill="currentColor"><path d="M17 37c.6-4 1-9 .6-14-.2-2-1.6-3-3.6-4.6l1-.8c1.6 1 2.8 1.6 3.4 1.2.2-1.6-.6-3.2-1.8-4.6l1-.6c1.2 1.2 2 2.4 2.4 3.6.4-1.4 1.2-2.8 2.4-3.8l.8.8c-1.2 1.2-1.8 2.8-1.8 4.4.8.2 2.2-.6 3.8-1.6l.8.9c-2 1.6-3.6 2.8-3.8 4.8-.4 5 0 10 .8 14.3z"/><path d="M12 39h17" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></g>' +
     '<g class="feuilles">' + [[9, 12, 4.2], [16, 7.5, 4.6], [24, 7, 4.8], [31, 12, 4.2], [20, 13, 3.4]].map(function(p, i){ return '<path d="' + hexD(p[0], p[1], p[2]) + '" fill="' + (i % 2 ? '#2EE89F' : '#18B877') + '" opacity=".95"/>'; }).join('') + '</g></svg>';
@@ -1889,7 +1889,7 @@ A.prismePrec = function(){ arretAuto(); allerPrisme(PRISME.i - 1, true, true); f
 A.prismeSuiv = function(){ arretAuto(); allerPrisme(PRISME.i + 1, true, true); focusDevant(); };
 A.entrer = function(){ var m = PRISME.l[PRISME.i]; if(m) entrer(m.id); };
 /* il tourne seul (toutes les 5 s) tant qu'on ne l'a pas touché, et jamais en mouvement réduit */
-function autoPrisme(){ clearInterval(PRISME.auto); if(CALME.on) return; PRISME.auto = setInterval(function(){ if(!document.hidden && enVue('ciel')) allerPrisme(PRISME.i + 1, true); }, 5000); }
+function autoPrisme(){ clearInterval(PRISME.auto); if(CALME.on) return; PRISME.auto = setInterval(function(){ if(!document.hidden && enVue('ciel') && !feuilleDevant()) allerPrisme(PRISME.i + 1, true); /* 4 nov. 2026 : immobile derrière une feuille ouverte */ }, 5000); }
 function arretAuto(){ clearInterval(PRISME.auto); PRISME.auto = 0; clearTimeout(PRISME.reprise); PRISME.reprise = setTimeout(autoPrisme, 20000); }
 function gestesPrisme(){ var p = $('prisme'), d = null;
   p.addEventListener('pointerdown', function(e){ d = {x:e.clientX, y:e.clientY, r:PRISME.rot, bouge:false, id:e.pointerId}; arretAuto(); });
@@ -3498,7 +3498,7 @@ function miniGlobe(){ var c = $('cvGlobeMini'); if(!c || !c.getContext) return; 
   var at = g.createRadialGradient(W / 2, H / 2, R0 * .95, W / 2, H / 2, R0 * 1.14); at.addColorStop(0, 'rgba(46,230,197,.5)'); at.addColorStop(1, 'rgba(255,61,154,0)'); g.fillStyle = at; g.beginPath(); g.arc(W / 2, H / 2, R0 * 1.14, 0, 6.2832); g.fill();
   g.fillStyle = '#0D1C46'; g.beginPath(); g.arc(W / 2, H / 2, R0, 0, 6.2832); g.fill(); var T = GLB.terre;
   for(var k = 0; k < T.n; k += 2){ var px = T.v[3 * k], py = T.v[3 * k + 1], pz = T.v[3 * k + 2], x = px * ca + pz * sa, z1 = -px * sa + pz * ca, y = py * cb - z1 * sb, z = py * sb + z1 * cb; if(z <= 0) continue; var l = px * S[0] + py * S[1] + pz * S[2]; g.fillStyle = l > .05 ? '#3FE0B8' : l > -.1 ? '#F2A65A' : '#5A44C0'; g.fillRect(W / 2 + x * R0 - 1, H / 2 - y * R0 - 1, 2, 2); } }
-setInterval(function(){ if(!document.hidden && VUE.ciel && !GLB.ouvert && !CALME.on && !LEGER.on) miniGlobe(); }, 1000);
+setInterval(function(){ if(!document.hidden && VUE.ciel && !GLB.ouvert && !CALME.on && !LEGER.on && !feuilleDevant()) miniGlobe(); }, 1000);
 
 /* ════════ La démonstration (bandeau « Démonstration ») : des exemples, mêmes contrôles ════════ */
 var VILLES_DEMO = [['Dakar', 14.7, -17.4, 'SN'], ['Conakry', 9.5, -13.7, 'GN'], ['Abidjan', 5.3, -4, 'CI'], ['Lagos', 6.5, 3.4, 'NG'], ['Accra', 5.6, -.2, 'GH'], ['Kinshasa', -4.3, 15.3, 'CD'], ['Nairobi', -1.3, 36.8, 'KE'], ['Casablanca', 33.6, -7.6, 'MA'], ['Paris', 48.9, 2.35, 'FR'], ['Bruxelles', 50.85, 4.35, 'BE'], ['Montréal', 45.5, -73.6, 'CA'], ['New York', 40.7, -74, 'US'], ['São Paulo', -23.5, -46.6, 'BR'], ['Mexico', 19.4, -99.1, 'MX'], ['Tokyo', 35.7, 139.7, 'JP'], ['Mumbai', 19.1, 72.9, 'IN'], ['Le Caire', 30, 31.2, 'EG'], ['Johannesburg', -26.2, 28, 'ZA'], ['Bamako', 12.6, -8, 'ML'], ['Douala', 4.05, 9.7, 'CM']];
@@ -3696,11 +3696,11 @@ var VUE = {ciel:false, espace:false, terre:false};
 function enVue(k){ return !!VUE[k]; }
 function surveiller(){ var io = 'IntersectionObserver' in window ? new IntersectionObserver(function(l){ l.forEach(function(e){ VUE[e.target.id] = e.isIntersecting; }); jouerMondes(); }, {rootMargin:'0px'}) : null;
   ['ciel', 'espace', 'terre'].forEach(function(k){ if(io) io.observe($(k)); else VUE[k] = true; }); if(!io) jouerMondes(); }
-function jouerMondes(){ var cache = document.hidden, calme = CALME.on || LEGER.on;
+function jouerMondes(){ var cache = document.hidden || document.body.classList.contains('feuille-ouverte'), calme = CALME.on || LEGER.on;
   CIEL.jouer(VUE.ciel && !cache && !calme); if(calme && VUE.ciel) CIEL.figer();
   GX.jouer(VUE.espace && !cache && !calme); if(calme && VUE.espace) GX.figer(); if(VUE.terre && !TERRE.fait) construireTerre();
   /* les petites animations SVG (logo, bouton Iris, drapeau) s'arrêtent aussi en mouvement réduit */
-  [].forEach.call(document.querySelectorAll('svg'), function(s){ try{ if(calme && s.pauseAnimations) s.pauseAnimations(); else if(!calme && s.unpauseAnimations) s.unpauseAnimations(); }catch(e){ dbg(e); } });
+  [].forEach.call(document.querySelectorAll('svg'), function(s){ try{ if((calme || cache) && s.pauseAnimations) s.pauseAnimations(); else if(!calme && !cache && s.unpauseAnimations) s.unpauseAnimations(); }catch(e){ dbg(e); } });
   var t = $('terre'); if(t) t.classList.toggle('joue', VUE.terre && !cache && !calme); var ci = $('ciel'); if(ci) ci.classList.toggle('joue', VUE.ciel && !cache && !calme);
   if(TERRE.fait){ var a = VUE.terre && !cache && !calme; if(a && !TERRE.actif){ TERRE.actif = true; requestAnimationFrame(imageTerre); } else if(!a) TERRE.actif = false; } }
 document.addEventListener('visibilitychange', function(){ jouerMondes(); if(!document.hidden) appliquerMonde(); });
