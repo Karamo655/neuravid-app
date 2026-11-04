@@ -69,5 +69,21 @@ self.addEventListener('activate', function(e){ e.waitUntil(caches.keys().then(fu
 self.addEventListener('fetch', function(e){ var r = e.request, u = new URL(r.url);
   if(r.method !== 'GET' || u.origin !== self.location.origin || /\/v1\//.test(u.pathname)) return;
   var piece = NV_ACCUEIL.filter(function(p){ return u.pathname.slice(-p.length) === p; })[0]; if(!piece) return;
-  e.respondWith(fetch(r).then(function(rep){ if(rep && rep.ok){ var cp = rep.clone(); caches.open(NV_ACCUEIL_CACHE).then(function(c){ c.put(piece, cp); }); } return rep; })
-    .catch(function(){ return caches.open(NV_ACCUEIL_CACHE).then(function(c){ return c.match(piece); }).then(function(m){ return m || Response.error(); }); })); });
+  /* 4 nov. 2026 : sur un réseau très lent, la copie gardée s'ouvre après 4 secondes d'attente (le réseau reste demandé en premier) */
+  e.respondWith(reseauPuisCopie(r, NV_ACCUEIL_CACHE, piece)); });
+function reseauPuisCopie(req, nom, cle){ return new Promise(function(ok){ var fini = false, garde = null;
+  function servir(x){ if(!fini && x){ fini = true; ok(x); } }
+  caches.open(nom).then(function(c){ return c.match(cle); }).then(function(m){ garde = m || null; }).catch(function(){});
+  var minuteur = setTimeout(function(){ if(garde) servir(garde.clone()); }, 4000);
+  fetch(req).then(function(rep){ clearTimeout(minuteur); if(rep && rep.ok && rep.type === 'basic'){ var cp = rep.clone(); caches.open(nom).then(function(c){ return c.put(cle, cp); }).catch(function(){}); } servir(rep); })
+    .catch(function(){ clearTimeout(minuteur); caches.open(nom).then(function(c){ return c.match(cle); }).then(function(m){ servir(m || Response.error()); }, function(){ servir(Response.error()); }); }); }); }
+
+/* ── Les autres pages (4 novembre 2026, la vitesse) : chaque module ouvert (NV_MODULE_*.html, index.html, demo.html) est gardé
+   par le téléphone. Même règle : réseau d'abord (chaque mise à jour arrive directement), la copie seulement si le réseau
+   ne répond pas en 4 secondes ou s'il est coupé. Jamais l'API, ni les vidéos, ni nv-config.js. L'accueil garde sa règle ci-dessus. */
+var NV_PAGES_CACHE = 'nv-pages-1';
+self.addEventListener('fetch', function(e){ var r = e.request, u; try{ u = new URL(r.url); }catch(x){ return; }
+  if(r.method !== 'GET' || u.origin !== self.location.origin || /\/v1\//.test(u.pathname)) return;
+  if(NV_ACCUEIL.some(function(p){ return u.pathname.slice(-p.length) === p; })) return;      /* l'accueil : son propre écouteur */
+  if(!/(^|\/)(NV_MODULE_[A-Za-z_]+\.html|index\.html|demo\.html)$/.test(u.pathname)) return;
+  var cle = u.origin + u.pathname; e.respondWith(reseauPuisCopie(r, NV_PAGES_CACHE, cle)); });
