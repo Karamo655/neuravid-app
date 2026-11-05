@@ -932,7 +932,7 @@ html.globe-seul .iris-flottant{display:none}
 /* ════════ LES TUILES HEXAGONALES (ac15, 5 novembre 2026) : chaque carte devient un hexagone vivant ════════ */
 .tx{position:relative;flex:none;width:clamp(100px,29vw,122px);display:grid;justify-items:center;align-content:start;gap:3px;padding:0;margin:0;border:0;background:none;color:inherit;font:inherit;text-align:center;cursor:pointer;-webkit-tap-highlight-color:transparent;scroll-snap-align:start}
 .tx-hex{position:relative;display:block;width:100%;aspect-ratio:1/1.1547;transition:transform .25s cubic-bezier(.2,.8,.2,1)}
-.tx:active .tx-hex{transform:scale(.94)}
+@media (hover:hover){.tx:active .tx-hex{transform:scale(.94)}}   /* sur un téléphone, le doigt qui fait défiler ne fait plus rétrécir les tuiles */
 .tx:focus-visible{outline:none}.tx:focus-visible .tx-hex{filter:drop-shadow(0 0 5px #fff)}
 .tx-hex .tx-ecran.ht-media,.tx-verre{position:absolute;inset:2px;clip-path:polygon(50% 0,100% 25%,100% 75%,50% 100%,0 75%,0 25%)}
 .tx-hex .tx-ecran.ht-media{background:#0B0520}
@@ -4666,7 +4666,7 @@ function pasHex(ms){ HEX.raf = 0; var t = ms / 1000, feuille = document.body.cla
 /* un écran du prisme qui n'est pas devant reste en veille (image fixe, vidéo arrêtée) */
 function ecranEnAttente(x){ var a = x.closest && x.closest('.astre'); return !!a && !a.classList.contains('devant'); }
 function surveillerHex(){ if(!('IntersectionObserver' in window)) return;
-  HEX.io = new IntersectionObserver(function(l){ l.forEach(function(e){ HEX.vis.set(e.target, e.isIntersecting ? e.intersectionRatio : 0); if(e.isIntersecting && e.target.tagName === 'CANVAS') dessinerIllus(e.target, 2); if(e.target.tagName === 'VIDEO' && e.intersectionRatio < .55 && !e.target.paused) e.target.pause(); /* sortie de l'écran : arrêt immédiat */ }); if(!HEX.raf && HEX.medias.length) HEX.raf = requestAnimationFrame(pasHex); }, {threshold:[0, .3, .55, .8, 1]});
+  HEX.io = new IntersectionObserver(function(l){ l.forEach(function(e){ HEX.vis.set(e.target, e.isIntersecting ? e.intersectionRatio : 0); if(e.isIntersecting && e.target.tagName === 'CANVAS') dessinerIllus(e.target, CALME.on ? 2 : performance.now() / 1000);   /* 5 nov. 2026 : à l'instant réel (avant : t = 2, l'image sautait en arrière à chaque seuil franchi et semblait trembler en défilant) */ if(e.target.tagName === 'VIDEO' && e.intersectionRatio < .55 && !e.target.paused) e.target.pause(); /* sortie de l'écran : arrêt immédiat */ }); if(!HEX.raf && HEX.medias.length) HEX.raf = requestAnimationFrame(pasHex); }, {threshold:[0, .3, .55, .8, 1]});
   HEX.medias.forEach(function(x){ HEX.io.observe(x); });
   /* une ruche ne charge ses vidéos qu'en approchant de l'écran (400 px avant) */
   HEX.ioSec = new IntersectionObserver(function(l){ l.forEach(function(e){ var m = e.target.getAttribute('data-monde'); if(e.isIntersecting && !HEX.proche[m]){ HEX.proche[m] = true; chargerHex(m); } }); }, {rootMargin:'400px 0px'});
@@ -4753,7 +4753,7 @@ function rendreVitrine(){ var el = $('vitrine'); if(!el) return; arreterMediasDe
   /* sans vraie vidéo, l'illustration passe d'une catégorie à l'autre (toutes les 3,5 s) */
   if(v && nbVitrine() > 1) V4.vitrineT = setInterval(function(){ if(document.hidden || CALME.on || document.body.classList.contains('feuille-ouverte')) return; V4.vitrineV = (V4.vitrineV + 1) % nbVitrine(); emit('home_vitrine_suivante', {}); rendreVitrine(); }, 7000);
   if(!v) V4.vitrineT = setInterval(function(){ if(document.hidden || CALME.on || document.body.classList.contains('feuille-ouverte')) return; var cv = el.querySelector('canvas[data-illus]'), cat = el.querySelector('.vt-cat'), hx = el.querySelector('.vt-hx'); if(!cv) return; V4.vitrineI = (V4.vitrineI + 1) % cats.length; var c = cats[V4.vitrineI];
-    cv.setAttribute('data-illus', c.id); if(cat) cat.textContent = tr(c.t); if(hx) hx.style.setProperty('--c', REGP[c.id].c); dessinerIllus(cv, 2); }, 3500); }
+    cv.setAttribute('data-illus', c.id); if(cat) cat.textContent = tr(c.t); if(hx) hx.style.setProperty('--c', REGP[c.id].c); dessinerIllus(cv, CALME.on ? 2 : performance.now() / 1000); }, 3500); }
 A.vitrineRegarder = function(){ var b = meilleureVideo(); emit('home_vitrine', {action:'regarder', video:!!b}); entrer('Player', b && b.x.video.id ? {clip:b.x.video.id, depuis:MOI} : {depuis:MOI}); };
 A.vitrineDefi = function(){ emit('home_vitrine', {action:'defi'}); entrer('Create', {depuis:MOI, intention:'defi'}); };
 
@@ -5164,8 +5164,8 @@ A.gagnerTalents = function(){ emit('home_gagner', {}); entrer('Recolte', {depuis
 
 /* ════════ 7 · Des tuiles qui répondent : l'onde, la vibration, le portail ════════ */
 var CIBLES_ONDE = '.tx,.hxl,.astre.ecran,.ht-hx,.vt-hx,.ch-hx';
-function onde(ev){ var t = ev.target && ev.target.closest && ev.target.closest(CIBLES_ONDE); if(!t || ev.button > 0) return;
-  if(window.flutter_inappwebview) emit('haptic', {force:'leger'}); else if(!CALME.on && navigator.vibrate && ev.pointerType === 'touch') try{ navigator.vibrate(8); }catch(e){ dbg(e); }
+function onde(ev){ var t = ev.target && ev.target.closest && ev.target.closest(CIBLES_ONDE); if(!t || ev.button > 0 || (!ev.clientX && !ev.clientY)) return;
+  if(window.flutter_inappwebview) emit('haptic', {force:'leger'}); else if(!CALME.on && navigator.vibrate && matchMedia('(hover: none)').matches) try{ navigator.vibrate(8); }catch(e){ dbg(e); }
   if(CALME.on || LEGER.on) return; var o = document.createElement('span'); o.className = 'onde'; o.setAttribute('aria-hidden', 'true'); o.style.left = ev.clientX + 'px'; o.style.top = ev.clientY + 'px';
   o.style.setProperty('--c', getComputedStyle(t).getPropertyValue('--c').trim() || '#2EE6C5'); document.body.appendChild(o); setTimeout(function(){ o.remove(); }, 650); }
 function portailTuile(ev){ if(CALME.on || LEGER.on) return; var t = ev.target && ev.target.closest && ev.target.closest('.tx'); var h = t && t.querySelector('.tx-hex'); if(!h) return; h.classList.remove('portail-on'); void h.offsetWidth; h.classList.add('portail-on'); setTimeout(function(){ h.classList.remove('portail-on'); }, 450); }
@@ -5224,7 +5224,8 @@ function ILLUS17(id, x, t, W, H, u, hx, lueur, hexA){ var cx = W / 2, cy = H / 2
   return false; }
 
 /* ════════ Démarrage ════════ */
-function demarrerV5(){ document.addEventListener('pointerdown', onde, {capture:true, passive:true}); document.addEventListener('click', portailTuile, true); }
+/* 5 nov. 2026 (vidéo de Karamo) : l'onde et la vibration au vrai toucher seulement (« click »), jamais quand le doigt fait défiler */
+function demarrerV5(){ document.addEventListener('click', onde, true); document.addEventListener('click', portailTuile, true); }
 
 /* ════════════════════════════════════════════════════════════════════
    LE DÉMARRAGE, CE QUE DIT LE SERVEUR, L'INTERFACE PUBLIQUE
