@@ -979,8 +979,8 @@ html.globe-seul .iris-flottant{display:none}
 .pp-c{display:grid;gap:6px;min-width:0}
 .col-tete{display:flex;align-items:center;gap:12px}.col-tete .tx-mini{width:54px}
 /* les grandes cartes : un hexagone allongé, pointes à gauche et à droite, bord lumineux */
-#app :is(.hxl,.sel-puce,.monde-outils .go-b,.vt-carte,.bj-l,.pulsar,.prisme-nom,.ciel-plus-btn){--pt:18px;position:relative;isolation:isolate;clip-path:polygon(0 50%,var(--pt) 0,calc(100% - var(--pt)) 0,100% 50%,calc(100% - var(--pt)) 100%,var(--pt) 100%);border:0!important;border-radius:0!important;box-shadow:none!important;backdrop-filter:none!important;-webkit-backdrop-filter:none!important;background:linear-gradient(160deg,rgba(32,20,78,.84),rgba(12,8,34,.88))!important;padding-inline:calc(var(--pt) + 8px)!important;animation:none!important}
-#app :is(.hxl,.sel-puce,.monde-outils .go-b,.vt-carte,.bj-l,.pulsar,.prisme-nom,.ciel-plus-btn)::after{content:"";position:absolute;inset:0;z-index:-1;pointer-events:none;background:linear-gradient(115deg,var(--hxl-c,#2EE6C5),#9B6BFF 50%,#FF3D9A);
+:is(#app,#feuille) :is(.hxl,.sel-puce,.monde-outils .go-b,.vt-carte,.bj-l,.pulsar,.prisme-nom,.ciel-plus-btn){--pt:18px;position:relative;isolation:isolate;clip-path:polygon(0 50%,var(--pt) 0,calc(100% - var(--pt)) 0,100% 50%,calc(100% - var(--pt)) 100%,var(--pt) 100%);border:0!important;border-radius:0!important;box-shadow:none!important;backdrop-filter:none!important;-webkit-backdrop-filter:none!important;background:linear-gradient(160deg,rgba(32,20,78,.84),rgba(12,8,34,.88))!important;padding-inline:calc(var(--pt) + 8px)!important;animation:none!important}
+:is(#app,#feuille) :is(.hxl,.sel-puce,.monde-outils .go-b,.vt-carte,.bj-l,.pulsar,.prisme-nom,.ciel-plus-btn)::after{content:"";position:absolute;inset:0;z-index:-1;pointer-events:none;background:linear-gradient(115deg,var(--hxl-c,#2EE6C5),#9B6BFF 50%,#FF3D9A);
   clip-path:polygon(evenodd,0 50%,var(--pt) 0,calc(100% - var(--pt)) 0,100% 50%,calc(100% - var(--pt)) 100%,var(--pt) 100%,0 50%,2px 50%,calc(var(--pt) + 1px) calc(100% - 1.6px),calc(100% - var(--pt) - 1px) calc(100% - 1.6px),calc(100% - 2px) 50%,calc(100% - var(--pt) - 1px) 1.6px,calc(var(--pt) + 1px) 1.6px,2px 50%)}
 #app :is(.sel-puce,.monde-outils .go-b,.bj-l,.pulsar,.ciel-plus-btn){--pt:13px;padding-inline:calc(var(--pt) + 4px)!important;background:rgba(16,10,44,.8)!important}
 #app .v3-merveilles li.hxl{--pt:15px;--hxl-c:#2EE6C5;padding-block:8px}
@@ -1075,6 +1075,23 @@ html.globe-seul .iris-flottant{display:none}
 .ht-ruche-b svg{width:16px;height:16px;fill:none;stroke:#2EE6C5;stroke-width:2}
 .leger .fil-pt,.leger .tx-attente>span{animation:none}
 @media (prefers-reduced-motion:reduce){.ouverture{display:none}.fil-pt,.tx-attente>span,.fil-monde.vient .fil-t,.tx-hex.portail-on{animation:none!important}}
+
+/* ════════ LE MENU « TOUS LES UNIVERS » EN TUILES HEXAGONALES (5 novembre 2026) ════════ */
+.tx-grille{display:flex;flex-wrap:wrap;justify-content:center;gap:2px 8px;padding:4px 0 22px}
+.tx.tx-menu{width:calc((100% - 16px) / 3);max-width:122px}
+.tx-grille>.tx:nth-child(3n+2){transform:translateY(18px)}
+.tx.tx-menu>b{font-size:12.5px;font-weight:800}
+.tx.a-verifier .tx-ecran{filter:saturate(.7) brightness(.85)}
+.feuille .entree-tiroir.hxl{--pt:22px;background:linear-gradient(120deg,rgba(46,230,197,.28),rgba(123,59,255,.4) 55%,rgba(255,61,154,.32))!important;padding-block:12px}
+.feuille .entree-tiroir .tx-mini{width:56px}
+/* les langues, les niveaux d'animation, les lignes : la forme hexagonale */
+.feuille .puces button,.feuille .v2-niveaux button{border-radius:0!important;clip-path:polygon(11px 0,calc(100% - 11px) 0,100% 50%,calc(100% - 11px) 100%,11px 100%,0 50%);padding-inline:18px!important;box-shadow:none!important}
+.feuille .v2-niveaux button{padding-inline:12px!important;min-width:0}
+.feuille .v2-niveaux button[aria-pressed=true]{background:linear-gradient(135deg,#2EE6C5,#7B3BFF 60%,#FF3D9A)!important;color:#fff}
+.feuille .ligne-tiroir{clip-path:polygon(14px 0,calc(100% - 14px) 0,100% 50%,calc(100% - 14px) 100%,14px 100%,0 50%);background:rgba(255,255,255,.06);padding-inline:22px;margin-top:6px}
+/* les interrupteurs : une piste aux bouts pointus et un bouton hexagonal */
+.interrupteur i{border-radius:0!important;clip-path:polygon(9px 0,calc(100% - 9px) 0,100% 50%,calc(100% - 9px) 100%,9px 100%,0 50%)}
+.interrupteur i::after{border-radius:0!important;clip-path:polygon(50% 0,93.3% 25%,93.3% 75%,50% 100%,6.7% 75%,6.7% 25%)}
 
 </style>
 </head>
@@ -1458,7 +1475,9 @@ var FEUILLE = {k:null};
 function ouvrirFeuille(titre, html, k){ document.body.classList.add('feuille-ouverte'); logoFige(true); try{ jouerMondes(); }catch(e){ dbg(e); }
   var f = $('feuille'), v = $('voile'), dejaOuverte = !f.hidden; FEUILLE.k = k || titre; f.setAttribute('data-k', k || ''); document.body.classList.toggle('feuille-tiroir', k === 'tiroir');
   if(!dejaOuverte) FEUILLE.retour = document.activeElement;
+  if(typeof arreterMediasDe === 'function') arreterMediasDe(f);
   poser(f, '<div class="tete"><h2 id="fTitre" tabindex="-1">' + esc(titre) + '</h2><button class="rond" data-a="fermerFeuille" aria-label="Fermer">' + ico('fermer') + '</button></div>' + html);
+  if(typeof brancherMedias === 'function' && f.querySelector('.ht-media canvas')) brancherMedias(f);   /* 5 nov. 2026 : les tuiles animées du menu */
   f.hidden = false; v.hidden = false; try{ $('app').inert = true; }catch(e){ dbg(e); } requestAnimationFrame(function(){ f.classList.add('on'); v.classList.add('on'); var t = $('fTitre'); if(t && !dejaOuverte) try{ t.focus({preventScroll:true}); }catch(e){ dbg(e); } });
   if(!dejaOuverte) try{ history.pushState({pf:'feuille'}, ''); }catch(e){ dbg(e); }
 }
@@ -1681,11 +1700,12 @@ var FAMILLES = [['Regarder et participer', ['Player', 'Live', 'Baobab', 'StoryUn
   ['Créer', ['Create', 'Studio', 'Conteur', 'Griot']], ['Moi et les autres', ['Profile', 'Passeport', 'Dashboard', 'CallUniverse', 'Notifications', 'Search', 'Reglages', 'Conditions']], ['L\'argent et les marques', ['Recolte', 'Phare', 'Etendard']]];
 /* 4 nov. 2026 : une personne non connectée (hors aperçu) trouve L'Entrée en tête du menu */
 function blocEntree(){ var apercu = typeof DEMO !== 'undefined' && DEMO.on; if(!apercu && (window.NV_USER || window.NV_TOKEN)) return '';   /* dans l'aperçu : pour essayer L'Entrée (elle aussi en aperçu) */
-  return '<button class="entree-tiroir" data-a="ouvrirEntree"><span class="et-hx" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 3a6 6 0 0 0-6 6v2M18 11V9a6 6 0 0 0-9-5.2M9 13v1a3 3 0 0 0 6 0v-3M12 11v4M6 15c0 3 2.7 6 6 6s6-3 6-6"/></svg></span><span><b>' + esc(T_ENTREE[0]) + '</b><small>' + esc(T_ENTREE[1]) + '</small></span></button>'; }
+  return '<button class="entree-tiroir hxl" data-a="ouvrirEntree" style="--hxl-c:#2EE6C5"><span class="tx-mini" aria-hidden="true">' + hexTuile('empreinte') + '</span><span><b>' + esc(T_ENTREE[0]) + '</b><small>' + esc(T_ENTREE[1]) + '</small></span></button>'; }
 var T_ENTREE = ['Se connecter ou créer mon compte', 'Sans mot de passe : votre empreinte, votre numéro ou un réseau social.'];
 A.ouvrirEntree = function(){ fermerPuis(function(){ ouvrir('Entree', {vue:'connexion', retour:MOI}); }); };
 A.tiroir = function(){ ouvrirFeuille(tr('Tous les univers'), blocEntree() + FAMILLES.map(function(f){ var l = f[1].map(function(id){ return REGP[id]; }).filter(function(m){ return m && (permis(m) || ageAVerifier(m)); }); if(!l.length) return '';
-  return '<h3>' + esc(f[0]) + '</h3><div class="grille-mod">' + l.map(function(m, k){ return '<button data-a="ouvrirMod" data-v="' + m.id + '"' + (permis(m) ? '' : ' class="a-verifier" aria-label="' + esc(phraseTexte('{0} est réservé aux {1} ans et plus.', tr(m.n), m.age)) + '"') + ' style="--c:' + m.c + ';--k:' + k + '">' + gemme(m) + (permis(m) ? '' : '<i class="age-min" aria-hidden="true">' + m.age + '+</i>') + '<span>' + esc(m.n) + '</span></button>'; }).join('') + '</div>'; }).join('') +
+  /* 5 nov. 2026 : chaque univers du menu devient une tuile hexagonale animée (la scène de son rôle), posée en ruche (ac15) */
+  return '<h3>' + esc(f[0]) + '</h3><div class="tx-grille">' + l.map(function(m, k){ var ok = permis(m); return tuileHex({a:'ouvrirMod', v:m.id, illus:m.id, c:m.c, cls:'tx-menu' + (ok ? '' : ' a-verifier'), label:ok ? '' : phraseTexte('{0} est réservé aux {1} ans et plus.', tr(m.n), m.age), tag:ok ? '' : esc(m.age + '+'), or:!ok, titre:esc(m.n)}); }).join('') + '</div>'; }).join('') +
   '<h3>' + esc('Langue') + '</h3>' + blocLangue() + '<h3>' + esc('Le ciel') + '</h3>' + interrupteur('voix', 'Annoncer les victoires à voix haute', voixAutorisee()) + interrupteur('voixAccueil', 'Me souhaiter la bienvenue à voix haute (jamais entre 22 h et 7 h)', voixAccueil()) + blocV3() +
   '<h3>' + esc('Ce téléphone') + '</h3>' + '<p class="v2-note">' + esc('Animations des trois mondes') + (LEGER.auto ? ' · ' + esc(tr('ce téléphone est réglé en léger')) : '') + '</p><div class="v2-niveaux" role="group" aria-label="' + esc(tr('Animations des trois mondes')) + '">' + [['auto', 'Automatique'], ['legere', 'Légères'], ['complete', 'Complètes']].map(function(x){ return '<button data-a="animation" data-v="' + x[0] + '" aria-pressed="' + (niveauAnimation() === x[0]) + '">' + esc(x[1]) + '</button>'; }).join('') + '</div>' +
   interrupteur('portails', 'Transitions vers les univers (portails)', lire('nv_accueil_portails', 'oui') !== 'non') + interrupteur('filPays', 'Garder le pays choisi d\'un monde à l\'autre', filPays()) +
@@ -4634,10 +4654,10 @@ A.hexTous = function(){ entrer('ChallengeUniverse', {depuis:MOI}); };
 /* ════════ La lecture économe : au plus trois vidéos en même temps, à tour de rôle ════════ */
 function brancherMedias(el){ [].forEach.call(el.querySelectorAll('.ht-media video, .ht-media canvas'), function(x){ HEX.medias.push(x); if(HEX.io) HEX.io.observe(x); if(x.tagName === 'VIDEO') x.addEventListener('loadeddata', function(){ x.classList.add('pret'); }, {once:true}); }); if(!HEX.raf) HEX.raf = requestAnimationFrame(pasHex); }
 function arreterMediasDe(el){ HEX.medias = HEX.medias.filter(function(x){ if(el.contains(x)){ if(HEX.io) HEX.io.unobserve(x); HEX.vis.delete(x); if(x.tagName === 'VIDEO'){ try{ x.pause(); x.removeAttribute('src'); x.load(); }catch(e){ dbg(e); } } return false; } return true; }); }
-function pasHex(ms){ HEX.raf = 0; var t = ms / 1000, cache = document.hidden || document.body.classList.contains('feuille-ouverte'), econome = hexEconome();
+function pasHex(ms){ HEX.raf = 0; var t = ms / 1000, feuille = document.body.classList.contains('feuille-ouverte'), fe = feuille && $('feuille'), cache = document.hidden || (feuille && !(fe && fe.querySelector('.ht-media canvas'))), econome = hexEconome();
   /* tous les 9 s, le groupe de trois suivant joue */
   var g = Math.floor(t / 9) % 3; if(g !== HEX.groupe) HEX.groupe = g;
-  var vis = HEX.medias.filter(function(x){ return (HEX.vis.get(x) || 0) >= .55 && !ecranEnAttente(x); }), videos = vis.filter(function(x){ return x.tagName === 'VIDEO'; }), jouer = [];
+  var vis = HEX.medias.filter(function(x){ return (HEX.vis.get(x) || 0) >= .55 && !ecranEnAttente(x) && (!feuille || (fe && fe.contains(x))); }), videos = vis.filter(function(x){ return x.tagName === 'VIDEO'; }), jouer = [];
   if(!cache && !econome && videos.length){ var n = videos.length, debut = (HEX.groupe * 3) % n; for(var k = 0; k < Math.min(3, n); k++) jouer.push(videos[(debut + k) % n]); }
   HEX.medias.forEach(function(x){ if(x.tagName !== 'VIDEO') return; if(jouer.indexOf(x) >= 0){ if(!x.getAttribute('src')){ x.src = x.getAttribute('data-src'); } if(x.paused){ var pr = x.play(); if(pr && pr.catch) pr.catch(dbg); } } else if(!x.paused) x.pause(); });
   /* les illustrations visibles s'animent (30 images par seconde au plus), figées en mouvement réduit */
@@ -4949,10 +4969,10 @@ function demarrerEcrans(){ chargerEcrans(true); }
    Les images animées sont dessinées par le moteur commun (ac12 : au plus 30 images/s, seulement à l'écran,
    figées en mouvement réduit et en accueil léger). Ce sont des illustrations : aucune donnée inventée.
    ════════════════════════════════════════════════════════════════════ */
-var TUILE_C = {pieces:'#FFC93D', fete:'#FF3D9A', palabre:'#3FD0FF', phare:'#FFD24D', talent:'#B98CFF', camera:'#FF3D9A', radar:'#2EE6C5', parcours:'#FFA94D', globe:'#5AA9FF', guide:'#2EE6C5', expeditions:'#3BE38A', liste:'#B98CFF', collectif:'#3BE38A', passeport:'#5B8CFF', faune:'#2EE6C5', mil:'#FFC93D'};
+var TUILE_C = {pieces:'#FFC93D', empreinte:'#B98CFF', conteur:'#B98CFF', griot:'#E8A33C', balafon:'#C8963C', etendard:'#FF6A4D', tamtam:'#FF8A3D', tisserand:'#F2B81E', reglages:'#9A93B8', conditions:'#2EE6C5', fete:'#FF3D9A', palabre:'#3FD0FF', phare:'#FFD24D', talent:'#B98CFF', camera:'#FF3D9A', radar:'#2EE6C5', parcours:'#FFA94D', globe:'#5AA9FF', guide:'#2EE6C5', expeditions:'#3BE38A', liste:'#B98CFF', collectif:'#3BE38A', passeport:'#5B8CFF', faune:'#2EE6C5', mil:'#FFC93D'};
 var TUILE_N = 0;
 /* les univers qui n'ont pas encore leur propre scène prennent celle qui dit le mieux leur rôle */
-var TUILE_ALIAS = {Create:'camera', Conteur:'StoryUniverse', Griot:'StoryUniverse', Studio:'Artistes', Recolte:'mil', Events:'fete', CallUniverse:'palabre', Phare:'phare', Etendard:'Arena', Search:'radar', Notifications:'Live', Profile:'talent', Dashboard:'liste', Passeport:'passeport', Reglages:'liste'};
+var TUILE_ALIAS = {Create:'camera', Conteur:'conteur', Griot:'griot', Studio:'balafon', Recolte:'mil', Events:'fete', CallUniverse:'palabre', Phare:'phare', Etendard:'etendard', Search:'guide', Notifications:'tamtam', Profile:'empreinte', Dashboard:'tisserand', Passeport:'passeport', Reglages:'reglages', Conditions:'conditions'};
 function couleurTuile(id){ return REGP[id] ? REGP[id].c : (TUILE_C[id] || '#7B3BFF'); }
 /* l'hexagone seul (pointe en haut, comme les écrans du Ciel) : l'écran animé, le verre, le bord lumineux, l'étiquette */
 function hexTuile(illus, o){ o = o || {}; var n = TUILE_N++ % 7; illus = TUILE_ALIAS[illus] || illus;
@@ -5160,12 +5180,48 @@ A.rucheBasculer = function(m){ if(!MONDES_HEX[m]) return; V5.ruche[m] = !V5.ruch
 function boutonRuche(m){ return '<button class="ht-ruche-b" data-a="rucheBasculer" data-v="' + m + '" aria-expanded="' + !!V5.ruche[m] + '" aria-controls="' + MONDES_HEX[m].el + '"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l7.8 4.5v9L12 21l-7.8-4.5v-9z"/></svg><span>' + esc(tr(V5.ruche[m] ? 'Replier la ruche' : 'Voir la ruche')) + '</span></button>'; }
 
 /* ════════ La scène de la tuile « Gagnez » : des NVCoins hexagonaux qui tombent dans la récolte ════════ */
-var ILLUS16 = function(id, x, t, W, H, u, hx, lueur, hexA){ if(id !== 'pieces') return false; var cx = W / 2, cy = H / 2, S = Math.sin;
+var ILLUS16 = function(id, x, t, W, H, u, hx, lueur, hexA){ if(id !== 'pieces') return ILLUS17(id, x, t, W, H, u, hx, lueur, hexA); var cx = W / 2, cy = H / 2, S = Math.sin;
   x.globalCompositeOperation = 'lighter'; lueur(cx, cy + 14 * u, 30 * u, '#FFC93D', .45); x.globalCompositeOperation = 'source-over';
   for(var i = 0; i < 6; i++){ var q = (t * .45 + i / 6) % 1, px = cx + S(i * 2.1) * 22 * u, py = -10 * u + q * (H * .78), a = q < .85 ? 1 : (1 - q) / .15;
     x.globalAlpha = a; var g = x.createLinearGradient(px, py - 8 * u, px, py + 8 * u); g.addColorStop(0, '#FFE9A0'); g.addColorStop(1, '#D9A030'); x.fillStyle = g; hx(px, py, 8 * u, t * 1.5 + i); x.fill();
     x.fillStyle = '#7A5210'; x.font = '900 ' + Math.round(6 * u) + 'px "Inter NV", system-ui, sans-serif'; x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillText('NV', px, py + .4 * u); }
   x.globalAlpha = 1; x.fillStyle = '#2A1A08'; x.beginPath(); x.ellipse(cx, cy + 30 * u, 30 * u, 8 * u, 0, 0, 6.29); x.fill(); x.fillStyle = '#FFC93D'; x.beginPath(); x.ellipse(cx, cy + 28 * u, 26 * u, 5 * u, 0, 0, 6.29); x.fill(); return true; };
+
+/* ════════ Les scènes des univers du menu (5 nov. 2026) : chacun la sienne, selon son rôle ════════ */
+function ILLUS17(id, x, t, W, H, u, hx, lueur, hexA){ var cx = W / 2, cy = H / 2, S = Math.sin, Cs = Math.cos, i, q;
+  if(id === 'empreinte'){ /* L'Empreinte : une empreinte digitale qu'une lumière parcourt */
+    x.lineWidth = 1.6 * u; for(i = 0; i < 6; i++){ var r = (6 + i * 4.5) * u, on = Math.max(0, S(t * 2.2 - i * .7)); x.strokeStyle = hexA(i % 2 ? '#B98CFF' : '#2EE6C5', .35 + on * .6); x.beginPath(); x.ellipse(cx, cy + 3 * u, r * .8, r, 0, Math.PI * (1.08 + i * .03), Math.PI * (1.92 - i * .02) + Math.PI * (i % 3 ? .9 : .6)); x.stroke(); }
+    lueur(cx, cy, 30 * u, '#B98CFF', .35); return true; }
+  if(id === 'conteur'){ /* Le Conteur : deux masques qui se répondent sous la lumière */
+    x.globalCompositeOperation = 'source-over'; [[-11, '#FFD24D', 1], [11, '#B98CFF', -1]].forEach(function(m, k){ var bx = cx + m[0] * u, by = cy + S(t * 1.4 + k * 3) * 3 * u; x.fillStyle = m[1]; x.beginPath(); x.ellipse(bx, by, 11 * u, 14 * u, m[2] * .15, 0, 6.29); x.fill();
+      x.fillStyle = '#1A0E30'; x.beginPath(); x.ellipse(bx - 4 * u, by - 3 * u, 2.2 * u, 3 * u, 0, 0, 6.29); x.ellipse(bx + 4 * u, by - 3 * u, 2.2 * u, 3 * u, 0, 0, 6.29); x.fill(); x.strokeStyle = '#1A0E30'; x.lineWidth = 1.6 * u; x.beginPath(); x.arc(bx, by + (k ? 9 : 4) * u, 5 * u, k ? Math.PI * 1.15 : .15, k ? Math.PI * 1.85 : Math.PI - .15); x.stroke(); });
+    x.globalCompositeOperation = 'lighter'; lueur(cx, cy - 14 * u, 26 * u, '#FFD24D', .3); return true; }
+  if(id === 'griot'){ /* Le Griot : les cordes d'une kora qui vibrent, et les notes qui s'envolent */
+    x.globalCompositeOperation = 'source-over'; x.fillStyle = '#C88A20'; x.beginPath(); x.arc(cx, cy + 16 * u, 14 * u, 0, 6.29); x.fill(); x.fillStyle = '#7A5210'; x.fillRect(cx - 1.5 * u, cy - 32 * u, 3 * u, 48 * u);
+    for(i = 0; i < 7; i++){ var sx = cx - 9 * u + i * 3 * u, vib = S(t * 18 + i) * Math.max(0, S(t * 1.5 - i * .5)) * 1.6 * u; x.strokeStyle = hexA('#FFF0C8', .8); x.lineWidth = .7 * u; x.beginPath(); x.moveTo(sx, cy - 28 * u); x.quadraticCurveTo(sx + vib, cy - 6 * u, sx, cy + 14 * u); x.stroke(); }
+    x.globalCompositeOperation = 'lighter'; for(i = 0; i < 3; i++){ q = (t * .35 + i / 3) % 1; x.fillStyle = hexA('#FFD24D', 1 - q); x.beginPath(); x.ellipse(cx + 18 * u + S(q * 6 + i) * 6 * u, cy - q * 36 * u, 2.6 * u, 2 * u, -.4, 0, 6.29); x.fill(); } return true; }
+  if(id === 'balafon'){ /* Le Balafon : des lames qui s'allument l'une après l'autre */
+    for(i = 0; i < 7; i++){ var h2 = (30 - i * 2.4) * u, bx2 = cx - 27 * u + i * 9 * u, on2 = Math.max(0, S(t * 3 - i * .8)); x.globalCompositeOperation = 'source-over'; x.fillStyle = hexA(on2 > .5 ? '#FFD24D' : '#A0702A', .9); x.fillRect(bx2 - 3.4 * u, cy - h2 / 2, 6.8 * u, h2);
+      x.fillStyle = '#2A1A08'; x.beginPath(); x.arc(bx2, cy + h2 / 2 + 6 * u, 3 * u, 0, 6.29); x.fill(); if(on2 > .5){ x.globalCompositeOperation = 'lighter'; lueur(bx2, cy - h2 / 2, 8 * u, '#FFD24D', on2 * .7); } } return true; }
+  if(id === 'etendard'){ /* L'Étendard : un drapeau hexagonal qui flotte */
+    x.globalCompositeOperation = 'source-over'; x.strokeStyle = '#E8E2FA'; x.lineWidth = 1.6 * u; x.beginPath(); x.moveTo(cx - 20 * u, cy + 30 * u); x.lineTo(cx - 20 * u, cy - 30 * u); x.stroke();
+    x.fillStyle = '#FF6A4D'; x.beginPath(); x.moveTo(cx - 20 * u, cy - 28 * u); for(i = 0; i <= 10; i++) x.lineTo(cx - 20 * u + i * 4 * u, cy - 28 * u + S(t * 4 + i * .6) * 2.4 * u); for(i = 10; i >= 0; i--) x.lineTo(cx - 20 * u + i * 4 * u, cy - 6 * u + S(t * 4 + i * .6) * 2.4 * u); x.fill();
+    x.fillStyle = '#FFF'; hx(cx, cy - 17 * u + S(t * 4 + 5) * 2.4 * u, 5 * u, 0); x.fill(); x.globalCompositeOperation = 'lighter'; lueur(cx, cy - 17 * u, 30 * u, '#FF6A4D', .3); return true; }
+  if(id === 'tamtam'){ /* Le Tam-tam : le tambour bat, les ondes partent */
+    var bat = Math.max(0, S(t * 4)); for(i = 0; i < 3; i++){ q = (t * .7 + i / 3) % 1; x.strokeStyle = hexA('#FF8A3D', (1 - q) * .7); x.lineWidth = 1.6 * u; hx(cx, cy - 10 * u, (10 + q * 34) * u, 0); x.stroke(); }
+    x.globalCompositeOperation = 'source-over'; x.fillStyle = '#B5462A'; x.beginPath(); x.moveTo(cx - 14 * u, cy - 10 * u); x.lineTo(cx + 14 * u, cy - 10 * u); x.lineTo(cx + 8 * u, cy + 26 * u); x.lineTo(cx - 8 * u, cy + 26 * u); x.fill();
+    x.fillStyle = '#F4E9C8'; x.beginPath(); x.ellipse(cx, cy - 10 * u + bat * u, 14 * u, 4.5 * u, 0, 0, 6.29); x.fill(); return true; }
+  if(id === 'tisserand'){ /* Le Tisserand : des fils qui se croisent et tissent un motif */
+    for(i = 0; i < 6; i++){ var yy = cy - 22 * u + i * 9 * u; x.strokeStyle = hexA(['#FFD24D', '#2EE6C5', '#FF3D9A'][i % 3], .7); x.lineWidth = 2.4 * u; x.beginPath(); for(var k = 0; k <= 20; k++){ var px = cx - 34 * u + k * 3.4 * u; x[k ? 'lineTo' : 'moveTo'](px, yy + S(k * 1.4 + i + t * 2) * 2.5 * u); } x.stroke(); }
+    var nav = cx - 34 * u + ((t * .3) % 1) * 68 * u; x.globalCompositeOperation = 'lighter'; lueur(nav, cy, 9 * u, '#FFFFFF', .8); return true; }
+  if(id === 'reglages'){ /* Les réglages : deux engrenages hexagonaux qui tournent ensemble */
+    [[-10, -6, 14, 1], [13, 11, 10, -1.4]].forEach(function(g){ var gx = cx + g[0] * u, gy = cy + g[1] * u, a = t * g[3]; x.fillStyle = hexA('#B8B0E0', .85); for(var k = 0; k < 6; k++){ var aa = a + k / 6 * 6.283; x.save(); x.translate(gx + Cs(aa) * g[2] * u, gy + S(aa) * g[2] * u); x.rotate(aa); x.fillRect(-2.2 * u, -2.2 * u, 4.4 * u, 4.4 * u); x.restore(); }
+      hx(gx, gy, g[2] * u, a); x.fill(); x.fillStyle = '#160A3A'; x.beginPath(); x.arc(gx, gy, g[2] * .38 * u, 0, 6.29); x.fill(); }); lueur(cx, cy, 30 * u, '#9B6BFF', .3); return true; }
+  if(id === 'conditions'){ /* Nos conditions : une page, ses lignes qui s'écrivent, et le sceau de confiance */
+    x.globalCompositeOperation = 'source-over'; x.fillStyle = '#F4F1FF'; x.fillRect(cx - 18 * u, cy - 26 * u, 36 * u, 48 * u); q = (t * .3) % 1;
+    for(i = 0; i < 5; i++){ var w = Math.max(0, Math.min(1, q * 6 - i)) * 26 * u; x.fillStyle = '#9B92C0'; x.fillRect(cx - 13 * u, cy - 19 * u + i * 7 * u, w, 2.2 * u); }
+    x.fillStyle = '#2EE6C5'; hx(cx + 14 * u, cy + 18 * u, 9 * u, 0); x.fill(); x.strokeStyle = '#0A0520'; x.lineWidth = 1.8 * u; x.beginPath(); x.moveTo(cx + 10 * u, cy + 18 * u); x.lineTo(cx + 13 * u, cy + 21 * u); x.lineTo(cx + 18 * u, cy + 14 * u); x.stroke(); return true; }
+  return false; }
 
 /* ════════ Démarrage ════════ */
 function demarrerV5(){ document.addEventListener('pointerdown', onde, {capture:true, passive:true}); document.addEventListener('click', portailTuile, true); }
