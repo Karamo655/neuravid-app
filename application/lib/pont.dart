@@ -5,6 +5,7 @@
 //  - partager (share_request / share, navigator.share) ;
 //  - enregistrer un fichier (NVTelecharger, nvTelecharger, share_video_file, save_file, download_request, download) :
 //    une vidéo ou une image va dans la galerie ; un autre fichier passe par la feuille de partage (Fichiers, Drive…) ;
+//  - une petite vibration (haptic : force 'leger' ou 'moyen') quand on touche une tuile de l'accueil ;
 //  - ouvrir un lien (open_url, open_link, window.open) : NEURAVID dans l'application, le reste dans le navigateur ;
 //  - ce qui demande les serveurs (signalement, coffre de fidélité, votes de Battle) reçoit tout de suite une réponse
 //    honnête « pas encore disponible » au lieu d'une attente de 15 à 20 secondes. Rien n'est jamais déclaré réussi.
@@ -16,6 +17,12 @@ import 'dart:typed_data';
 import 'package:gal/gal.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
+
+/// La force de la vibration demandée par un module (`haptic`) : 'leger' (par défaut) ou 'moyen' ; null si refusée.
+String? forceHaptique(Map<String, dynamic> p) {
+  final f = (p['force'] ?? 'leger').toString();
+  return (f == 'leger' || f == 'moyen') ? f : null;
+}
 
 /// Les fichiers des modules dont le nom diffère de l'identifiant.
 const Map<String, String> kFichiers = {'Player': 'Iris'};

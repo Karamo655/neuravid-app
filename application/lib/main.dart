@@ -175,6 +175,7 @@ if(!window.NV_LANG) window.NV_LANG = ${jsonEncode(langue)};
     return {'ok': fait};
   }
 
+  int _dernierHaptique = 0;
   Future<dynamic> _evenement(List<dynamic> args) async {
     final c = _controleur;
     if (c == null || args.isEmpty || args[0] is! Map) return null;
@@ -246,6 +247,16 @@ if(!window.NV_LANG) window.NV_LANG = ${jsonEncode(langue)};
           } catch (_) {
             await _dire(1);
           }
+        }
+        return null;
+      }
+      case 'haptic': {
+        // 5 nov. 2026 : la petite vibration quand on touche une tuile hexagonale de l'accueil (jamais plus d'une par 80 ms)
+        final f = forceHaptique(p);
+        final now = DateTime.now().millisecondsSinceEpoch;
+        if (f != null && now - _dernierHaptique >= 80) {
+          _dernierHaptique = now;
+          if (f == 'moyen') { await HapticFeedback.mediumImpact(); } else { await HapticFeedback.selectionClick(); }
         }
         return null;
       }

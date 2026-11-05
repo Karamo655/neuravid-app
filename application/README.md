@@ -51,6 +51,7 @@ The modules hand some actions to the native app. The official app implements eve
 - `save_file` / `download_request`: save the file, then dispatch `nv:file_saved`.
 - `download`: an https video is downloaded and saved.
 - `open_url`: external browser. `open_link`: in the app for our host, external browser otherwise.
+- `haptic` (`{force:'leger'|'moyen'}`, 5 November 2026): a short vibration when a hexagonal tile of the home page is touched (`HapticFeedback.selectionClick` / `mediumImpact`, at most one every 80 ms). Unknown forces are ignored.
 - `report_submit`, `loyalty_chest_request`, `battle_*_request`: immediate honest answer through `NVReportConfirm` / `NVFideliteCoffre` / `NVBattleConfirm` `{idem, success:false, reason}` (« not available yet: servers not connected »), instead of a 15–20 s timeout. **When the servers exist, forward these to the server instead.**
 
 **Other handlers:** `nvTelecharger` (the modules' own chunk protocol), `nvEnregistrer`, `nvPartager` and `nvOuvrirLien`.

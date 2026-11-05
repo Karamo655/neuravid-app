@@ -19,6 +19,11 @@ void main() {
     expect(adresseModule({'module': 'Baobab'}, 'file:///android_asset/flutter_assets/assets/web/NV_MODULE_Orbite.html'),
         'file:///android_asset/flutter_assets/assets/web/NV_MODULE_Baobab.html');
   });
+  test('vibration : légère par défaut, moyenne sur demande, rien d\'autre', () {
+    expect(forceHaptique({}), 'leger');
+    expect(forceHaptique({'force': 'moyen'}), 'moyen');
+    expect(forceHaptique({'force': 'fort'}), isNull);
+  });
   test('identifiant du module', () {
     expect(idModule({'target': 'NVEtendard'}), 'Etendard');
     expect(idModule({'module': 'Live'}), 'Live');
