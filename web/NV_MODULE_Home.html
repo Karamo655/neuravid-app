@@ -960,13 +960,11 @@ html.globe-seul .iris-flottant{display:none}
       <p id="cielDesc" class="sr"></p>
       <canvas id="cvCiel" aria-hidden="true"></canvas>
       <div class="ciel-ui">
-        <div id="demoBandeau" class="demo-bandeau" hidden></div>
         <div id="bonjour" class="bonjour"></div>
         <div id="vitrine" class="vitrine"></div>
         <div id="assistant" class="assistant" hidden></div>
         <div id="globeEntree" class="globe-entree"></div>
         <button id="pulsar" class="pulsar" data-a="ciel"></button>
-        <div id="maintenant" class="maintenant" hidden></div>
         <div id="prisme" class="prisme" aria-roledescription="carrousel" aria-label="Les univers de NEURAVID">
           <svg id="orbe" class="orbe" aria-hidden="true"></svg>
           <div id="orbite" class="orbite"></div>
@@ -979,7 +977,6 @@ html.globe-seul .iris-flottant{display:none}
             <div id="prismePoints" class="points" aria-hidden="true"></div>
             <button class="hx-btn petit" data-a="prismeSuiv" aria-label="Univers suivant"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5l7 7-7 7"/></svg></button>
           </div>
-          <button id="ctaPrisme" class="cta" data-a="entrer"></button>
           <div id="reprendre" class="reprendre" hidden></div>
         </div>
         <button id="cielPlusBtn" class="ciel-plus-btn" data-a="cielPlusBasculer" aria-controls="cielPlusBloc" aria-expanded="false" hidden><span>Plus du ciel</span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></button>
@@ -2090,7 +2087,7 @@ function gestesPrisme(){ var p = $('prisme'), d = null;
   p.addEventListener('pointerdown', function(e){ d = {x:e.clientX, y:e.clientY, r:PRISME.rot, bouge:false, id:e.pointerId}; arretAuto(); });
   p.addEventListener('pointermove', function(e){ if(!d || e.pointerId !== d.id) return; var dx = e.clientX - d.x; if(!d.bouge && Math.abs(dx) > 8 && Math.abs(dx) > Math.abs(e.clientY - d.y)){ d.bouge = true; try{ p.setPointerCapture(e.pointerId); }catch(x){ dbg(x); } }
     if(d.bouge){ cancelAnimationFrame(PRISME.t); PRISME.t = 0; PRISME.rot = d.r - dx / Math.max(60, p.clientWidth * .28); placerPrisme(); } });
-  function fin(e){ if(!d) return; var bouge = d.bouge; d = null; if(bouge){ PRISME.cible = PRISME.rot; allerPrisme(Math.round(PRISME.rot), true); return; } var b = e.target.closest && e.target.closest('.astre'); if(!b) return; var i = +b.getAttribute('data-i'); if(i === PRISME.i) A.entrer(); else allerPrisme(i, true); }
+  function fin(e){ if(!d) return; var bouge = d.bouge; d = null; if(bouge){ PRISME.cible = PRISME.rot; allerPrisme(Math.round(PRISME.rot), true); return; } var b = e.target.closest && e.target.closest('.astre'); if(!b) return; var i = +b.getAttribute('data-i'); if(i === PRISME.i) A.entrer(); else if(b.classList.contains('devant')){ allerPrisme(i, false); A.entrer(); } /* 5 nov. 2026 : l'écran qu'on voit devant s'ouvre, même si le prisme commençait à tourner seul */ else allerPrisme(i, true); }
   p.addEventListener('pointerup', fin); p.addEventListener('pointercancel', function(){ d = null; });
   /* le clavier, un lecteur d'écran ou un contacteur : un « clic » sans pointeur sur un astre l'ouvre (devant) ou l'amène devant */
   p.addEventListener('click', function(e){ if(e.detail) return; var b = e.target.closest && e.target.closest('.astre'); if(!b) return; var i = +b.getAttribute('data-i'); if(i === PRISME.i) A.entrer(); else allerPrisme(i, true, true); });
@@ -3108,7 +3105,7 @@ function rendreMaintenant(){ var el = $('maintenant'); if(!el) return; var l = E
   emit('home_maintenant', {n:l.length, experience:EXP.maintenant || null}); }
 A.maintenant = function(i){ var e = MAINT.l[+i]; if(!e) return; emit('home_maintenant_clic', {type:e.type, module:e.module, experience:EXP.maintenant || null}); /* chaque module reçoit ce qu'il sait lire : Le Direct ouvre le direct (live), les autres l'identifiant de l'élément */
   entrer(e.module, Object.assign({}, e.type === 'direct' ? (e.id ? {live:e.id, depuis:'accueil'} : {}) : (e.id ? {id:e.id} : {}), e.handle ? {createur:e.handle} : {}, e.ctx || {})); };
-function relireMaintenant(){ clearTimeout(MAINT.t); if(!CAP.maintenant || !api()) return; MAINT.t = setTimeout(relireMaintenant, LEGER.on ? 120000 : 45000); if(document.hidden || !VUE.ciel) return; var g = GEN.n;
+function relireMaintenant(){ clearTimeout(MAINT.t); if(!$('maintenant') /* 5 nov. 2026 : la bande « Maintenant » est retirée de l'accueil, à la demande de Karamo : plus aucune demande */ || !CAP.maintenant || !api()) return; MAINT.t = setTimeout(relireMaintenant, LEGER.on ? 120000 : 45000); if(document.hidden || !VUE.ciel) return; var g = GEN.n;
   lireJSON('/v1/accueil/maintenant').then(function(o){ if(g === GEN.n && o) poserMaintenant(o.items); }).catch(dbg); }
 
 /* ════════ REPRENDRE : là où la personne s'était arrêtée (son téléphone, puis le serveur) ════════
