@@ -929,6 +929,64 @@ html.globe-seul .iris-flottant{display:none}
 .ec-voir[hidden]{display:none}
 .leger .astre .ec-balaye::before,.leger .astre .ec-energie,.leger .astre.devant .ec-ecran{animation:none!important}
 @media (prefers-reduced-motion:reduce){.astre .ec-balaye::before,.astre .ec-energie,.astre.devant .ec-ecran,.astre .ec-tag.direct i,.ec-defi.direct i{animation:none!important}}
+/* ════════ LES TUILES HEXAGONALES (ac15, 5 novembre 2026) : chaque carte devient un hexagone vivant ════════ */
+.tx{position:relative;flex:none;width:clamp(100px,29vw,122px);display:grid;justify-items:center;align-content:start;gap:3px;padding:0;margin:0;border:0;background:none;color:inherit;font:inherit;text-align:center;cursor:pointer;-webkit-tap-highlight-color:transparent;scroll-snap-align:start}
+.tx-hex{position:relative;display:block;width:100%;aspect-ratio:1/1.1547;transition:transform .25s cubic-bezier(.2,.8,.2,1)}
+.tx:active .tx-hex{transform:scale(.94)}
+.tx:focus-visible{outline:none}.tx:focus-visible .tx-hex{filter:drop-shadow(0 0 5px #fff)}
+.tx-hex .tx-ecran.ht-media,.tx-verre{position:absolute;inset:2px;clip-path:polygon(50% 0,100% 25%,100% 75%,50% 100%,0 75%,0 25%)}
+.tx-hex .tx-ecran.ht-media{background:#0B0520}
+.tx-verre{background:linear-gradient(150deg,rgba(255,255,255,.26),rgba(255,255,255,0) 40%),linear-gradient(0deg,rgba(8,4,26,.45),rgba(8,4,26,0) 32%),repeating-linear-gradient(0deg,rgba(255,255,255,.035) 0 1px,transparent 1px 3px);pointer-events:none}
+.tx-bord{position:absolute;inset:0;width:100%;height:100%;overflow:visible;pointer-events:none}
+.tx-energie{opacity:.9;animation:ecEnergie 4.2s linear infinite;animation-delay:calc(var(--i,0) * -.6s)}
+.tx-av{position:absolute;left:50%;top:54%;width:44%;aspect-ratio:1/1.1547;transform:translate(-50%,-50%);padding:2px;clip-path:polygon(50% 0,100% 25%,100% 75%,50% 100%,0 75%,0 25%);background:linear-gradient(135deg,#fff,var(--c))}
+.tx-av>img,.tx-av>b{display:grid;place-items:center;width:100%;height:100%;object-fit:cover;clip-path:polygon(50% 0,100% 25%,100% 75%,50% 100%,0 75%,0 25%);background:linear-gradient(160deg,var(--c),#2A1660);font-size:clamp(17px,5.4vw,23px);font-weight:900;color:#fff}
+.tx-tag{position:absolute;top:8%;left:50%;transform:translateX(-50%);max-width:84%;overflow:hidden;text-overflow:ellipsis;padding:2px 7px;border-radius:99px;background:rgba(8,4,26,.78);border:1px solid rgba(255,255,255,.25);font-size:9.5px;font-weight:850;letter-spacing:.03em;white-space:nowrap;color:#fff;display:inline-flex;align-items:center;gap:4px;pointer-events:none}
+.tx-tag.direct{background:#E0193F;border-color:#FF8098;text-transform:uppercase}
+.tx-tag.direct i{width:6px;height:6px;flex:none;border-radius:50%;background:#fff;animation:ecPuls 1.1s ease-in-out infinite}
+.tx-tag.or{background:linear-gradient(135deg,#FFE27A,#E8A33C);border-color:#FFF0B8;color:#2A1A08}
+.tx>b{max-width:100%;padding:0 2px;font-size:12.5px;font-weight:800;line-height:1.2;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.tx>small{max-width:100%;font-size:11px;line-height:1.25;color:#EDE8FF;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.tx>b,.tx>small{color:#fff;text-shadow:0 1px 3px rgba(6,3,24,.85),0 0 10px rgba(6,3,24,.35)}
+.tx>small{color:#F1ECFF}
+/* les rangées : des tuiles en ruche (une sur deux un peu plus bas) */
+.tx-rail{gap:6px!important;padding:4px 4px 14px!important;align-items:start;scroll-snap-type:x proximity}
+.tx-rail>.tx:nth-child(2n){margin-top:18px}
+/* les outils de la Terre : une petite ruche */
+.tv-outils.tx-ruche{display:flex;flex-wrap:wrap;justify-content:center;gap:2px 10px;margin-top:14px}
+.tx-ruche>.tx{width:clamp(84px,25vw,100px)}
+.tx-ruche>.tx:nth-child(2n){margin-top:22px}
+.tx[aria-pressed="true"] .tx-hex{filter:drop-shadow(0 0 6px #2EE6C5)}
+/* « Regarder » (l'œil d'Iris) et « Relever un défi » (la caméra) */
+.vt-actions{gap:10px!important;align-items:start}
+.tx.tx-action{width:clamp(62px,19vw,84px)}
+.tx.tx-action>b{font-size:12px}
+.tx.tx-petit{width:clamp(78px,23vw,92px)}
+.lieu-choix .lc-actions{display:flex;justify-content:center;gap:14px;margin-top:8px}
+/* une petite tuile à l'intérieur d'une grande carte */
+.tx-mini{flex:none;display:block;width:58px}
+.tx-mini .tx-hex{width:100%}
+.dj .tx-mini.dj-hx{width:60px;height:auto}
+.tx-ico{width:24px}.tx-ico .tx-energie{display:none}
+.pp.hxl{display:flex!important;align-items:center;gap:12px}
+.pp-c{display:grid;gap:6px;min-width:0}
+.col-tete{display:flex;align-items:center;gap:12px}.col-tete .tx-mini{width:54px}
+/* les grandes cartes : un hexagone allongé, pointes à gauche et à droite, bord lumineux */
+#app :is(.hxl,.sel-puce,.monde-outils .go-b,.vt-carte,.bj-l,.pulsar,.prisme-nom,.ciel-plus-btn){--pt:18px;position:relative;isolation:isolate;clip-path:polygon(0 50%,var(--pt) 0,calc(100% - var(--pt)) 0,100% 50%,calc(100% - var(--pt)) 100%,var(--pt) 100%);border:0!important;border-radius:0!important;box-shadow:none!important;backdrop-filter:none!important;-webkit-backdrop-filter:none!important;background:linear-gradient(160deg,rgba(32,20,78,.84),rgba(12,8,34,.88))!important;padding-inline:calc(var(--pt) + 8px)!important;animation:none!important}
+#app :is(.hxl,.sel-puce,.monde-outils .go-b,.vt-carte,.bj-l,.pulsar,.prisme-nom,.ciel-plus-btn)::after{content:"";position:absolute;inset:0;z-index:-1;pointer-events:none;background:linear-gradient(115deg,var(--hxl-c,#2EE6C5),#9B6BFF 50%,#FF3D9A);
+  clip-path:polygon(evenodd,0 50%,var(--pt) 0,calc(100% - var(--pt)) 0,100% 50%,calc(100% - var(--pt)) 100%,var(--pt) 100%,0 50%,2px 50%,calc(var(--pt) + 1px) calc(100% - 1.6px),calc(100% - var(--pt) - 1px) calc(100% - 1.6px),calc(100% - 2px) 50%,calc(100% - var(--pt) - 1px) 1.6px,calc(var(--pt) + 1px) 1.6px,2px 50%)}
+#app :is(.sel-puce,.monde-outils .go-b,.bj-l,.pulsar,.ciel-plus-btn){--pt:13px;padding-inline:calc(var(--pt) + 4px)!important;background:rgba(16,10,44,.8)!important}
+#app .v3-merveilles li.hxl{--pt:15px;--hxl-c:#2EE6C5;padding-block:8px}
+#app .v3-merveilles .m-baobab{--hxl-c:#FFF6E0}#app .v3-merveilles .m-mil{--hxl-c:#FFC93D}#app .v3-merveilles .m-ruche{--hxl-c:#F2B81E}
+#app .dj.hxl{--pt:22px;background:linear-gradient(110deg,color-mix(in srgb,var(--c) 34%,#140B33),#140B33 72%)!important}
+#app .constellations.hxl{--pt:26px;--hxl-c:#B98CFF;background:radial-gradient(120% 90% at 50% 0%,rgba(60,40,140,.8),rgba(10,6,30,.9))!important}
+#app .collectif.hxl{--pt:26px;--hxl-c:#3BE38A}
+#app .lieu-choix.hxl{--pt:22px;--hxl-c:#2EE6C5}
+#app .pp.hxl{--pt:20px}
+#app .vt-carte{--pt:24px;--hxl-c:#FF3D9A}#app :is(.bj-l,.pulsar){--hxl-c:#FFC93D}#app .prisme-nom{--pt:24px;--hxl-c:#B98CFF}
+.leger .tx-energie,.leger .tx-tag.direct i{animation:none!important}
+@media (prefers-reduced-motion:reduce){.tx-energie,.tx-tag.direct i{animation:none!important}}
+
 </style>
 </head>
 <body>
@@ -939,6 +997,7 @@ html.globe-seul .iris-flottant{display:none}
   <radialGradient id="nvSph" cx=".36" cy=".3" r=".78"><stop offset="0" stop-color="#fff" stop-opacity=".42"/><stop offset=".42" stop-color="#fff" stop-opacity="0"/><stop offset="1" stop-color="#000" stop-opacity=".5"/></radialGradient>
   <linearGradient id="nvHaut" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".26"/><stop offset=".45" stop-color="#fff" stop-opacity="0"/><stop offset="1" stop-color="#000" stop-opacity=".4"/></linearGradient>
   <linearGradient id="nvNuage" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".6"/><stop offset=".55" stop-color="#fff" stop-opacity="0"/><stop offset="1" stop-color="#000" stop-opacity=".32"/></linearGradient>
+  <linearGradient id="nvTxG" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#2EE6C5"/><stop offset=".5" stop-color="#9B6BFF"/><stop offset="1" stop-color="#FF3D9A"/></linearGradient>
   <radialGradient id="nvOmbre"><stop offset="0" stop-color="#000" stop-opacity=".55"/><stop offset="1" stop-color="#000" stop-opacity="0"/></radialGradient>
   <radialGradient id="nvHalo"><stop offset="0" stop-color="#fff" stop-opacity=".9"/><stop offset=".25" stop-color="#fff" stop-opacity=".35"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></radialGradient>
 </defs></svg>
@@ -982,9 +1041,9 @@ html.globe-seul .iris-flottant{display:none}
         <button id="cielPlusBtn" class="ciel-plus-btn" data-a="cielPlusBasculer" aria-controls="cielPlusBloc" aria-expanded="false" hidden><span>Plus du ciel</span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></button>
         <div id="cielPlusBloc" class="ciel-plus">
         <div id="decouverte" class="decouverte" hidden></div>
-        <div id="lieuChoix" class="sel-ligne lieu-choix"></div>
-        <div id="constellations" class="constellations" hidden></div>
-        <div id="collectif" class="collectif" hidden></div>
+        <div id="lieuChoix" class="sel-ligne lieu-choix hxl"></div>
+        <div id="constellations" class="constellations hxl" hidden></div>
+        <div id="collectif" class="collectif hxl" hidden></div>
         </div>
         <div id="etendard" class="etendard"></div>
         <div id="passeport" class="passeport" hidden></div>
@@ -3133,12 +3192,12 @@ A.reprendreCacher = function(k){ var c = compteActuel(); if(!c) return; var l = 
    Aucune étiquette technique à l'écran (règle de NEURAVID : le même fichier sert à tout le monde). */
 var PASS = {s:null};
 function noterPasseport(type, v){ var c = compteActuel(); if(!c || !v) return; var k = 'nv_passeport_' + c, o = lire(k, {pays:[], modules:[]}); if(!Array.isArray(o[type])) o[type] = []; if(o[type].indexOf(v) < 0){ o[type].push(v); o[type] = o[type].slice(-300); ecrire(k, o); } }
-function rendrePasseport(){ var el = $('passeport'); if(!el) return; var c = compteActuel(); if(!c){ el.hidden = true; el.innerHTML = ''; return; }
+function rendrePasseport(){ var el = $('passeport'); if(!el) return; var c = compteActuel(); if(!c){ arreterMediasDe(el); el.hidden = true; el.innerHTML = ''; return; }
   var s = PASS.s, loc = lire('nv_passeport_' + c, {pays:[], modules:[]}), pays = s && s.pays != null ? s.pays : (loc.pays || []).length, mods = s && s.modules != null ? s.modules : (loc.modules || []).length, hvs = s ? s.hvsMois : null;
-  if(!pays && !mods && hvs == null){ el.hidden = true; el.innerHTML = ''; return; } el.hidden = false;
-  poser(el, '<button class="pp" data-a="passeport"><span class="pp-t">' + esc('Votre passeport') + '</span><span class="pp-l">' +
+  if(!pays && !mods && hvs == null){ arreterMediasDe(el); el.hidden = true; el.innerHTML = ''; return; } el.hidden = false;
+  poserTuiles(el, '<button class="pp hxl" data-a="passeport" style="--hxl-c:#5B8CFF"><span class="tx-mini" aria-hidden="true">' + hexTuile('passeport') + '</span><span class="pp-c"><span class="pp-t">' + esc('Votre passeport') + '</span><span class="pp-l">' +
     '<span><b data-brut>' + fmt(pays) + '</b> ' + esc(tr('pays explorés')) + '</span><span><b data-brut>' + fmt(mods) + '</b> ' + esc(tr('univers ouverts')) + '</span>' +
-    '<span>' + esc(tr('HVS ce mois-ci')) + ' <b data-brut>' + (hvs == null ? '—' : (hvs > 0 ? '+' : '') + fmt(hvs)) + '</b></span></span></button>'); }
+    '<span>' + esc(tr('HVS ce mois-ci')) + ' <b data-brut>' + (hvs == null ? '—' : (hvs > 0 ? '+' : '') + fmt(hvs)) + '</b></span></span></span></button>'); }
 A.passeport = function(){ entrer('Passeport', {depuis:MOI}); };
 A.tisserandMois = function(){ entrer('Dashboard', {depuis:MOI, vue:'mois'}); };
 /* 4 nov. 2026 (recommandation 6) : jamais dans l'aperçu, jamais le premier jour, jamais pendant la première minute ; une autre feuille ouverte la fait attendre */
@@ -3326,14 +3385,15 @@ function poserDecouverte(o){ o = o || {}; var dj = o.defiJour && typeof o.defiJo
     directs:aAuMoins(REGLES.ageDirect) ? (Array.isArray(o.directs) ? o.directs : []).slice(0, 8).map(function(d){ if(!d || d.id == null) return null; return {id:idOk(d.id), titre:txt(d.titre, 70), hote:personne(d.hote), pays:PAYS_PAR[String(d.pays || '').toUpperCase()] ? String(d.pays).toUpperCase() : null, spectateurs:nbS(d.spectateurs)}; }).filter(Boolean) : [],
     defis:(Array.isArray(o.defis) ? o.defis : []).slice(0, 8).map(function(d){ if(!d || d.id == null || !d.titre) return null; var m = moduleOk(d.module) || 'ChallengeUniverse'; if(!permis(REGP[m])) return null; return {id:idOk(d.id), titre:txt(d.titre, 70), module:m, participants:nbS(d.participants)}; }).filter(Boolean)};
   rendreDecouverte(); }
-function rendreDecouverte(){ var el = $('decouverte'), D = V2.decouverte; if(!el) return; if(!D || (!D.defiJour && !D.talents.length && !D.directs.length && !D.defis.length)){ el.hidden = true; el.innerHTML = ''; return; } el.hidden = false;
+function rendreDecouverte(){ var el = $('decouverte'), D = V2.decouverte; if(!el) return; if(!D || (!D.defiJour && !D.talents.length && !D.directs.length && !D.defis.length)){ arreterMediasDe(el); el.hidden = true; el.innerHTML = ''; return; } el.hidden = false;
   var h = '';
-  if(D.defiJour){ var dj = D.defiJour, m = REGP[dj.module]; h += '<button class="dj" data-a="defiJour" style="--c:' + (m ? m.c : '#FFC93D') + '">' + (dj.image ? '<img src="' + esc(dj.image) + '" alt="">' : '<span class="dj-hx" aria-hidden="true">' + (m ? gemme(m) : '') + '</span>') + '<span class="dj-t"><small>' + esc('Défi du jour') + '</small><b dir="auto" data-brut>' + esc(dj.titre) + '</b>' + (dj.texte ? '<span dir="auto" data-brut>' + esc(dj.texte) + '</span>' : '') + '</span><i aria-hidden="true">›</i></button>'; }
-  function rail(titre, items){ return items ? '<h3 class="v2-h">' + esc(titre) + '</h3><div class="v2-rail">' + items + '</div>' : ''; }
-  h += rail('Talents à découvrir', D.talents.map(function(u, i){ return '<button class="v2-carte" data-a="decTalent" data-v="' + i + '">' + avatarHtml(u, '#B98CFF') + '<b data-brut>@' + esc(u.handle || u.nom) + '</b><small>' + esc(u.nouveau ? tr('Nouveau talent') : texteCode(u.raison) || (u.pays ? nomPays(u.pays) : '')) + '</small></button>'; }).join(''));
-  h += rail('En direct maintenant', D.directs.map(function(d, i){ return '<button class="v2-carte direct" data-a="decDirect" data-v="' + i + '"><span class="v2-live" aria-hidden="true"></span><b dir="auto" data-brut>' + esc(d.titre || (d.hote ? '@' + d.hote.handle : '')) + '</b><small>' + (d.pays ? drapeau(d.pays) + ' ' : '') + (d.spectateurs != null ? phrase('{0} spectateurs', fmt(d.spectateurs)) : '') + '</small></button>'; }).join(''));
-  h += rail('Défis populaires', D.defis.map(function(d, i){ var m = REGP[d.module]; return '<button class="v2-carte" data-a="decDefi" data-v="' + i + '" style="--c:' + m.c + '">' + gemme(m) + '<b dir="auto" data-brut>' + esc(d.titre) + '</b><small>' + (d.participants != null ? phrase('{0} participants', fmt(d.participants)) : esc(m.n)) + '</small></button>'; }).join(''));
-  poser(el, h); }
+  /* 5 nov. 2026 : le défi du jour devient un hexagone allongé avec sa tuile animée ; chaque carte des rangées devient une tuile hexagonale (ac15.js) */
+  if(D.defiJour){ var dj = D.defiJour, m = REGP[dj.module]; h += '<button class="dj hxl" data-a="defiJour" style="--c:' + (m ? m.c : '#FFC93D') + ';--hxl-c:#FFC93D">' + (dj.image ? '<img src="' + esc(dj.image) + '" alt="">' : '<span class="dj-hx tx-mini" aria-hidden="true">' + hexTuile(dj.module) + '</span>') + '<span class="dj-t"><small>' + esc('Défi du jour') + '</small><b dir="auto" data-brut>' + esc(dj.titre) + '</b>' + (dj.texte ? '<span dir="auto" data-brut>' + esc(dj.texte) + '</span>' : '') + '</span><i aria-hidden="true">›</i></button>'; }
+  function rail(titre, items){ return items ? '<h3 class="v2-h">' + esc(titre) + '</h3><div class="v2-rail tx-rail">' + items + '</div>' : ''; }
+  h += rail('Talents à découvrir', D.talents.map(function(u, i){ return tuileHex({a:'decTalent', v:i, illus:'talent', c:u.nouveau ? '#FFC93D' : '#B98CFF', avatar:avatarTuile(u), tag:u.nouveau ? '★' : '', or:u.nouveau, titre:'@' + esc(u.handle || u.nom), brut:true, meta:esc(u.nouveau ? tr('Nouveau talent') : texteCode(u.raison) || (u.pays ? nomPays(u.pays) : ''))}); }).join(''));
+  h += rail('En direct maintenant', D.directs.map(function(d, i){ return tuileHex({a:'decDirect', v:i, illus:'Live', direct:true, tag:esc(tr('En direct')), titre:esc(d.titre || (d.hote ? '@' + d.hote.handle : '')), brut:true, meta:(d.pays ? drapeau(d.pays) + ' ' : '') + (d.spectateurs != null ? phrase('{0} spectateurs', fmt(d.spectateurs)) : '')}); }).join(''));
+  h += rail('Défis populaires', D.defis.map(function(d, i){ var m = REGP[d.module]; return tuileHex({a:'decDefi', v:i, illus:d.module, titre:esc(d.titre), brut:true, meta:d.participants != null ? phrase('{0} participants', fmt(d.participants)) : esc(m.n)}); }).join(''));
+  poserTuiles(el, h); }
 A.defiJour = function(){ var d = V2.decouverte && V2.decouverte.defiJour; if(d) entrer(d.module, {defi:d.id}); };
 A.decTalent = function(i){ var u = V2.decouverte && V2.decouverte.talents[+i]; ouvrirCreateur(u); };
 A.decDirect = function(i){ var d = V2.decouverte && V2.decouverte.directs[+i]; if(d) ouvrirDansIris({id:'live:' + d.id, type:'direct', directId:d.id, module:'Live', author:d.hote ? '@' + d.hote.handle : '', title:d.titre}); };
@@ -3361,8 +3421,8 @@ A.cstEtoile = function(i){ var c = V2.constellations[V2.cst || 0], e = c && c.et
 /* ─── le ciel collaboratif : un même thème, des participations de plusieurs pays ─── */
 function poserCollectif(c){ V2.collectif = c && typeof c === 'object' && c.defi && c.defi.id != null ? {id:idOk(c.id), theme:txt(c.theme, 70), defi:{id:idOk(c.defi.id), titre:txt(c.defi.titre, 70), module:moduleOk(c.defi.module) || 'ChallengeUniverse'}, fin:c.fin || null, total:nbS(c.total),
     pays:(Array.isArray(c.pays) ? c.pays : []).map(function(p){ var iso = String(p && p.iso || '').toUpperCase(); return PAYS_PAR[iso] ? {iso:iso, n:nbS(p.participations)} : null; }).filter(Boolean).sort(function(a, b){ return (b.n || 0) - (a.n || 0); }).slice(0, 24)} : null; rendreCollectif(); }
-function rendreCollectif(){ var el = $('collectif'), c = V2.collectif; if(!el) return; if(!c || !permis(REGP[c.defi.module])){ el.hidden = true; el.innerHTML = ''; return; } el.hidden = false;
-  poser(el, '<div class="col-t"><small>' + esc('Ciel collaboratif mondial') + '</small><b dir="auto" data-brut>' + esc(c.theme || c.defi.titre) + '</b><span>' + phrase('{0} participations · {1} pays', '<b data-brut>' + fmt(c.total) + '</b>', '<b data-brut>' + c.pays.length + '</b>') + (c.fin ? ' · ' + phrase('jusqu\'au {0}', esc(quand(c.fin))) : '') + '</span></div>' +
+function rendreCollectif(){ var el = $('collectif'), c = V2.collectif; if(!el) return; if(!c || !permis(REGP[c.defi.module])){ arreterMediasDe(el); el.hidden = true; el.innerHTML = ''; return; } el.hidden = false;
+  poserTuiles(el, '<div class="col-tete"><span class="tx-mini" aria-hidden="true">' + hexTuile('collectif') + '</span><div class="col-t"><small>' + esc('Ciel collaboratif mondial') + '</small><b dir="auto" data-brut>' + esc(c.theme || c.defi.titre) + '</b><span>' + phrase('{0} participations · {1} pays', '<b data-brut>' + fmt(c.total) + '</b>', '<b data-brut>' + c.pays.length + '</b>') + (c.fin ? ' · ' + phrase('jusqu\'au {0}', esc(quand(c.fin))) : '') + '</span></div></div>' +
     '<div class="col-pays">' + c.pays.slice(0, 12).map(function(p){ return '<span title="' + esc(nomPays(p.iso)) + '"><i aria-hidden="true">' + drapeau(p.iso) + '</i><b data-brut>' + fmt(p.n) + '</b><span class="sr">' + esc(nomPays(p.iso)) + '</span></span>'; }).join('') + '</div>' +
     '<button class="btn" data-a="collectifParticiper">' + esc('Participer avec mon pays') + '</button>'); }
 A.collectifParticiper = function(){ var c = V2.collectif; if(c) entrer(c.defi.module, {defi:c.defi.id, collectif:c.id}); };
@@ -3487,13 +3547,14 @@ function rendreTerreV2(){ var t = $('terre'); if(!t) return; var s = V2.terre.sa
   [].forEach.call(document.querySelectorAll('#paysage .plaque'), function(b){ var e = evenementDe(b.getAttribute('data-v')); b.classList.toggle('evt', !!e); b.classList.toggle('evt-direct', !!e && e.etat === 'direct'); var x = b.querySelector('.evt-b'); if(x) x.remove(); if(!b.dataset.nom) b.dataset.nom = b.getAttribute('aria-label') || ''; b.setAttribute('aria-label', e ? b.dataset.nom + ', ' + tr(e.etat === 'direct' ? 'En direct' : 'Bientôt') : b.dataset.nom); if(e){ var sp = document.createElement('span'); sp.setAttribute('aria-hidden', 'true'); sp.className = 'evt-b'; sp.textContent = tr(e.etat === 'direct' ? 'En direct' : 'Bientôt'); b.appendChild(sp); } });
   var el = $('terreV2'); if(!el) return; var ev = V2.terre.evenements, P = V2.ctxPays && filPays() ? V2.ctxPays : null;
   var h = '';
-  if(P) h += '<div class="tv-ctx"><span>' + drapeau(P) + ' ' + phrase('Vous explorez {0}', nomB(nomPays(P))) + '</span><button class="rond petit" data-a="ctxRetirer" aria-label="' + esc(tr('Ne plus suivre ce pays')) + '">' + ico('fermer') + '</button></div>' + (GAL.donnees[P] && GAL.donnees[P].listeDefis && GAL.donnees[P].listeDefis.length ? '<div class="v2-rail">' + GAL.donnees[P].listeDefis.slice(0, 6).map(function(d, i){ var m = REGP[d.module]; return '<button class="v2-carte" data-a="ctxDefi" data-v="' + i + '" style="--c:' + m.c + '">' + gemme(m) + '<b dir="auto" data-brut>' + esc(d.titre) + '</b><small>' + esc(m.n) + '</small></button>'; }).join('') + '</div>' : '');
+  if(P) h += '<div class="tv-ctx"><span>' + drapeau(P) + ' ' + phrase('Vous explorez {0}', nomB(nomPays(P))) + '</span><button class="rond petit" data-a="ctxRetirer" aria-label="' + esc(tr('Ne plus suivre ce pays')) + '">' + ico('fermer') + '</button></div>' + (GAL.donnees[P] && GAL.donnees[P].listeDefis && GAL.donnees[P].listeDefis.length ? '<div class="v2-rail tx-rail">' + GAL.donnees[P].listeDefis.slice(0, 6).map(function(d, i){ var m = REGP[d.module]; return tuileHex({a:'ctxDefi', v:i, illus:d.module, titre:esc(d.titre), brut:true, meta:esc(m.n)}); }).join('') + '</div>' : '');
   if(s) h += '<p class="tv-saison"><i aria-hidden="true"></i>' + phrase('Saison du monde : {0}', '<b data-brut>' + esc(s.nom || '') + '</b>') + '</p>';
-  if(ev.length) h += '<h3 class="v2-h">' + esc('Ce qui se passe dans la Terre') + '</h3><div class="v2-rail">' + ev.map(function(e, i){ var m = REGP[e.univers]; return '<button class="v2-carte' + (e.etat === 'direct' ? ' direct' : '') + '" data-a="terreEvt" data-v="' + i + '" style="--c:' + m.c + '">' + (e.etat === 'direct' ? '<span class="v2-live" aria-hidden="true"></span>' : gemme(m)) + '<b dir="auto" data-brut>' + esc(e.titre || tr(TYPES_EVT[e.type])) + '</b><small>' + esc(TYPES_EVT[e.type]) + ' · ' + esc(m.n) + (e.etat === 'bientot' && e.debut ? ' · ' + esc(quand(e.debut)) : '') + '</small></button>'; }).join('') + '</div>';
-  h += '<div class="tv-outils"><button class="go-b" data-a="globe"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="M3.5 12h17M12 3.5c2.6 2.4 3.8 5.2 3.8 8.5s-1.2 6.1-3.8 8.5c-2.6-2.4-3.8-5.2-3.8-8.5s1.2-6.1 3.8-8.5z"/></svg><span>' + esc('Le Globe vivant') + '</span></button><button class="go-b" data-a="guideOuvrir"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="3.4"/><path d="M5 20c1-4 4-6 7-6s6 2 7 6"/></svg><span>' + esc('Visite guidée') + '</span></button>' +
-    '<button class="go-b" data-a="expeditions"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 19l5-12 4 7 3-4 4 9z"/></svg><span>' + esc('Expéditions') + '</span></button>' + (geoOk('parcours') ? '<button class="go-b" data-a="parcours"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 18c4-1 5-6 8-6s4 5 8 6M12 12V4M9 6l3-2 3 2"/></svg><span>' + esc('Découverte culturelle') + '</span></button>' : '') +
-    '<button class="go-b" data-a="listeTerre" aria-pressed="' + V2.liste + '"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 6h12M8 12h12M8 18h12M4 6h.01M4 12h.01M4 18h.01"/></svg><span>' + esc('Liste des univers') + '</span></button></div>';
-  poser(el, h); var li = $('terreListe'); if(li) li.classList.toggle('visible', V2.liste); }
+  if(ev.length) h += '<h3 class="v2-h">' + esc('Ce qui se passe dans la Terre') + '</h3><div class="v2-rail tx-rail">' + ev.map(function(e, i){ var m = REGP[e.univers], dir = e.etat === 'direct'; return tuileHex({a:'terreEvt', v:i, illus:e.univers, direct:dir, tag:esc(tr(dir ? 'En direct' : 'Bientôt')), titre:esc(e.titre || tr(TYPES_EVT[e.type])), brut:true, meta:esc(TYPES_EVT[e.type]) + ' · ' + esc(m.n) + (e.etat === 'bientot' && e.debut ? ' · ' + esc(quand(e.debut)) : '')}); }).join('') + '</div>';
+  /* 5 nov. 2026 : les outils de la Terre deviennent des tuiles hexagonales, chacune avec sa scène animée */
+  h += '<div class="tv-outils tx-ruche">' + tuileHex({a:'globe', illus:'globe', titre:esc('Le Globe vivant')}) + tuileHex({a:'guideOuvrir', illus:'guide', titre:esc('Visite guidée')}) +
+    tuileHex({a:'expeditions', illus:'expeditions', titre:esc('Expéditions')}) + (geoOk('parcours') ? tuileHex({a:'parcours', illus:'parcours', titre:esc('Découverte culturelle')}) : '') +
+    tuileHex({a:'listeTerre', illus:'liste', titre:esc('Liste des univers'), attrs:' aria-pressed="' + V2.liste + '"'}) + '</div>';
+  poserTuiles(el, h); var li = $('terreListe'); if(li) li.classList.toggle('visible', V2.liste); }
 A.terreEvt = function(i){ var e = V2.terre.evenements[+i]; if(!e) return; emit('home_terre_evt', {univers:e.univers, type:e.type});
   /* une finale ou un direct en cours : dans Iris, le lecteur principal (s'il y a un flux) ; sinon dans son univers */
   if(e.etat === 'direct' && (e.ctx.directId || e.ctx.whep || e.ctx.hls)) ouvrirDansIris({id:e.ctx.directId ? 'live:' + e.ctx.directId : 'terre:' + (e.id || e.univers), type:'direct', directId:e.ctx.directId || undefined, whep:e.ctx.whep, hls:e.ctx.hls, jeton:e.ctx.jeton || undefined, module:e.univers, title:e.titre});
@@ -4005,8 +4066,8 @@ function rechargerSelon(){ var g = GEN.n; if(DEMO.on && !api()){ rendreDecouvert
 /* la petite carte « Découvrir depuis » (Ciel) et le rappel de la sélection dans les autres mondes */
 function puceSel(){ var vide = !SEL.region && !SEL.pays && !SEL.discipline; return '<button class="sel-puce" data-a="selOuvrir"><i aria-hidden="true">' + (SEL.pays ? drapeau(SEL.pays) : '🌍') + '</i><span>' + esc(tr('Découvrir depuis')) + ' : <b>' + esc(nomSel()) + '</b>' + (SEL.discipline ? ' · <b>' + esc(tr(DISCIPLINES[SEL.discipline])) + '</b>' : '') + '</span></button>' + (vide ? '' : '<button class="rond petit" data-a="selEffacer" aria-label="' + esc(tr('Revenir au monde entier')) + '">' + ico('fermer') + '</button>'); }
 function rendreSel(){ var ok = geoOk('regions'); ['galSel', 'terreSel', 'globeSel'].forEach(function(id){ var el = $(id); if(el){ if(ok) poser(el, puceSel()); else el.innerHTML = ''; } });
-  var lc = $('lieuChoix'); if(!lc) return; var bt = (geoOk('radarDefis') ? '<button class="go-b" data-a="radarDefis"><span>' + esc('Les défis par région') + '</span></button>' : '') + (geoOk('parcours') ? '<button class="go-b" data-a="parcours"><span>' + esc('Découverte culturelle') + '</span></button>' : '');
-  if(!ok && !bt){ lc.hidden = true; lc.innerHTML = ''; return; } lc.hidden = false; poser(lc, (ok ? '<div class="lc-tete">' + puceSel() + '</div>' : '') + (bt ? '<div class="lc-actions">' + bt + '</div>' : '')); }
+  var lc = $('lieuChoix'); if(!lc) return; var bt = (geoOk('radarDefis') ? tuileHex({a:'radarDefis', illus:'radar', cls:'tx-petit', titre:esc('Les défis par région')}) : '') + (geoOk('parcours') ? tuileHex({a:'parcours', illus:'parcours', cls:'tx-petit', titre:esc('Découverte culturelle')}) : '');   /* 5 nov. 2026 : deux tuiles hexagonales animées */
+  if(!ok && !bt){ arreterMediasDe(lc); lc.hidden = true; lc.innerHTML = ''; return; } lc.hidden = false; poserTuiles(lc, (ok ? '<div class="lc-tete">' + puceSel() + '</div>' : '') + (bt ? '<div class="lc-actions">' + bt + '</div>' : '')); }
 A.selEffacer = function(){ choisirSel({region:null, pays:null, discipline:null}); };
 A.selOuvrir = function(){ if(!geoOk('regions')) return; var r = Object.keys(REGIONS);
   ouvrirFeuille(tr('Découvrir depuis'), '<p class="as-r">' + esc('Choisissez une région, un pays ou une discipline. NEURAVID ne demande pas votre position pour cela.') + '</p>' +
@@ -4360,7 +4421,9 @@ function rendreTerreV3(){ var el = $('terreV3'); if(!el) return; var pf = paysFa
   if(baobabFleurit()) l.push(['baobab', tr('Le baobab fleurit : une finale approche.')]);
   if(V3.merveilles.mil != null && V3.merveilles.mil > 0) l.push(['mil', V3.merveilles.mil === 3 ? tr('Le mil est mûr et doré : les versements de la semaine dépassent ceux des semaines passées.') : V3.merveilles.mil === 2 ? tr('Le mil mûrit : de vrais gains sont versés cette semaine.') : tr('Le mil pousse : les premiers gains de la semaine sont versés.')]);
   if(V3.merveilles.ruche >= 2) l.push(['ruche', tr('La ruche bourdonne : beaucoup de défis sont ouverts.')]);
-  var h = '<ul class="v3-merveilles">' + l.map(function(x){ return '<li class="m-' + x[0] + '"><i aria-hidden="true"></i><span>' + esc(x[1]) + '</span></li>'; }).join('') + '</ul>'; if(el._h !== h){ el._h = h; poser(el, h); }
+  /* 5 nov. 2026 : chaque merveille devient un hexagone allongé, avec sa petite tuile animée (et sans flou d'arrière-plan : sur certains téléphones, ce flou effaçait le texte) */
+  var ILM = {faune:'faune', baobab:'Baobab', mil:'mil', ruche:'ChallengeUniverse'};
+  var h = '<ul class="v3-merveilles">' + l.map(function(x){ return '<li class="m-' + x[0] + ' hxl"><span class="tx-mini tx-ico" aria-hidden="true">' + hexTuile(ILM[x[0]]) + '</span><span>' + esc(x[1]) + '</span></li>'; }).join('') + '</ul>'; if(el._h !== h.replace(/--i:\d/g, '')){ el._h = h.replace(/--i:\d/g, ''); poserTuiles(el, h); }
   TERRE.biome = bi; if(typeof HEX !== 'undefined') suivreHex(); }
 
 /* ════════ Le réglage du menu « Tous les univers » ════════ */
@@ -4496,8 +4559,8 @@ function chargerHexTous(){ HEX.cle = {}; Object.keys(MONDES_HEX).forEach(functio
 function oublierHex(){ HEX.cle = {}; Object.keys(HEX.donnees).forEach(function(m){ HEX.donnees[m] = null; rendreHex(m); }); }
 
 /* ════════ Les illustrations animées (sans vidéo réelle) : une petite scène par catégorie, aux couleurs de NEURAVID ════════ */
-function dessinerIllus(cv, t){ var r = cv.getBoundingClientRect(), rw = cv.offsetWidth || r.width, rh = cv.offsetHeight || r.height; if(!r.width || !rw) return; var dpr = Math.min(cv.hasAttribute('data-ecran') ? 1.5 : 2, window.devicePixelRatio || 1), W = Math.round(rw * dpr), H = Math.round(rh * dpr);
-  if(cv.width !== W || cv.height !== H){ cv.width = W; cv.height = H; } var x = cv.getContext('2d'), id = cv.getAttribute('data-illus'), m = REGP[id], c = m ? m.c : '#7B3BFF', cx = W / 2, cy = H / 2, u = Math.min(W, H) / 100, S = Math.sin, Cs = Math.cos;
+function dessinerIllus(cv, t){ var r = cv.getBoundingClientRect(), rw = cv.offsetWidth || r.width, rh = cv.offsetHeight || r.height; if(!r.width || !rw) return; var dpr = Math.min(cv.hasAttribute('data-ecran') || cv.hasAttribute('data-tuile') ? 1.5 : 2, window.devicePixelRatio || 1), W = Math.round(rw * dpr), H = Math.round(rh * dpr);
+  if(cv.width !== W || cv.height !== H){ cv.width = W; cv.height = H; } var x = cv.getContext('2d'), id = cv.getAttribute('data-illus'), m = REGP[id], c = m ? m.c : (typeof TUILE_C !== 'undefined' && TUILE_C[id]) || '#7B3BFF', cx = W / 2, cy = H / 2, u = Math.min(W, H) / 100, S = Math.sin, Cs = Math.cos;
   var g = x.createRadialGradient(cx, cy * .8, 0, cx, cy, Math.max(W, H) * .75); g.addColorStop(0, melange(c, '#2A1060', .45)); g.addColorStop(.6, '#160A3A'); g.addColorStop(1, '#0A0520'); x.fillStyle = g; x.fillRect(0, 0, W, H);
   function hx(px, py, rr, rot){ x.beginPath(); for(var k = 0; k < 6; k++){ var a = Math.PI / 3 * k + (rot || 0) - Math.PI / 2; x[k ? 'lineTo' : 'moveTo'](px + Cs(a) * rr, py + S(a) * rr); } x.closePath(); }
   function lueur(px, py, rr, col, a){ var gg = x.createRadialGradient(px, py, 0, px, py, rr); gg.addColorStop(0, hexA(col, a)); gg.addColorStop(1, hexA(col, 0)); x.fillStyle = gg; x.beginPath(); x.arc(px, py, rr, 0, 6.29); x.fill(); }
@@ -4563,7 +4626,8 @@ function rendreVitrine(){ var el = $('vitrine'); if(!el) return; arreterMediasDe
       '<span class="ht-voile" aria-hidden="true"></span><span class="ht-tag" aria-hidden="true">' + esc(v ? (v.ia ? tr('Créée par IA') : '') : tr('Illustration')) + '</span>' +
       '<span class="vt-cat" aria-hidden="true">' + esc(v ? tr(b.c.t) : tr(c0.t)) + (v && v.auteur.handle ? '<em data-brut>@' + esc(v.auteur.handle) + '</em>' : '') + '</span></button>' +
     '<div class="vt-txt"><b>' + esc('Montrez votre talent au monde') + '</b><small>' + esc('Des vidéos, des défis, le monde entier.') + '</small><p id="preuve" class="vt-preuve" aria-live="polite"></p>' +
-      '<div class="vt-actions"><button class="btn" data-a="vitrineRegarder">' + ico3('lire') + '<span>' + esc('Regarder') + '</span></button><button class="btn leger" data-a="vitrineDefi">' + esc('Relever un défi') + '</button></div></div></div>');
+      /* 5 nov. 2026 : « Regarder » devient l'œil d'Iris, « Relever un défi » la caméra de La Forge (deux tuiles hexagonales animées) */
+      '<div class="vt-actions">' + tuileHex({a:'vitrineRegarder', illus:'Player', cls:'tx-action', titre:esc('Regarder')}) + tuileHex({a:'vitrineDefi', illus:'camera', cls:'tx-action', titre:esc('Relever un défi')}) + '</div></div></div>');
   brancherMedias(el); rendrePreuve();
   /* sans vraie vidéo, l'illustration passe d'une catégorie à l'autre (toutes les 3,5 s) */
   if(!v) V4.vitrineT = setInterval(function(){ if(document.hidden || CALME.on || document.body.classList.contains('feuille-ouverte')) return; var cv = el.querySelector('canvas[data-illus]'), cat = el.querySelector('.vt-cat'), hx = el.querySelector('.vt-hx'); if(!cv) return; V4.vitrineI = (V4.vitrineI + 1) % cats.length; var c = cats[V4.vitrineI];
@@ -4764,10 +4828,141 @@ function illusPlus(id, x, t, W, H, u, hx, lueur, hexA){ var cx = W / 2, cy = H /
     var a2 = t * .9; lueur(cx, cy, 30 * u, '#FF3D9A', .45); x.globalCompositeOperation = 'source-over';
     coeur(cx + Cs(a2) * 16 * u, cy + S(a2) * 7 * u, 12 * u, '#FF3D9A'); coeur(cx - Cs(a2) * 16 * u, cy - S(a2) * 7 * u, 10 * u, '#FF8AC6');
     x.globalCompositeOperation = 'lighter'; for(i = 0; i < 8; i++){ var q4 = (t * .25 + i / 8) % 1; x.fillStyle = hexA('#FFC2E6', (1 - q4) * .8); x.beginPath(); x.arc(cx + S(i * 2.1) * 30 * u, cy + 30 * u - q4 * 60 * u, 1.4 * u, 0, 6.29); x.fill(); } }
-  else { lueur(cx, cy, 30 * u, '#7B3BFF', .5); } }
+  else if(!(typeof illusTuile === 'function' && illusTuile(id, x, t, W, H, u, hx, lueur, hexA))) { lueur(cx, cy, 30 * u, '#7B3BFF', .5); } }   /* 5 nov. 2026 : les scènes des tuiles (ac15.js) */
 
 /* ════════ démarrage : le prisme reçoit ses écrans ════════ */
 function demarrerEcrans(){ chargerEcrans(true); }
+
+/* ════════════════════════════════════════════════════════════════════
+   LES TUILES HEXAGONALES (5 novembre 2026, demande de Karamo)
+   Chaque carte de l'accueil devient un hexagone vivant, comme les écrans du Ciel :
+     – les cartes en rangée (talents, directs, défis populaires, ce qui se passe dans la Terre, les défis du pays suivi)
+       deviennent des tuiles hexagonales posées en ruche, avec une image animée qui dit leur rôle ;
+     – « Regarder » devient l'œil d'Iris, « Relever un défi » devient la caméra de La Forge ;
+     – les grandes cartes (défi du jour, Découvrir depuis, constellation, ciel collaboratif, passeport, merveilles)
+       prennent la forme d'un hexagone allongé, avec leur petite tuile animée ;
+     – les outils de la Terre (Globe vivant, Visite guidée, Expéditions, Découverte culturelle, Liste des univers)
+       deviennent des tuiles, chacune avec sa scène.
+   Rien n'est supprimé : chaque tuile garde exactement son action d'avant (data-a / data-v).
+   Les images animées sont dessinées par le moteur commun (ac12 : au plus 30 images/s, seulement à l'écran,
+   figées en mouvement réduit et en accueil léger). Ce sont des illustrations : aucune donnée inventée.
+   ════════════════════════════════════════════════════════════════════ */
+var TUILE_C = {fete:'#FF3D9A', palabre:'#3FD0FF', phare:'#FFD24D', talent:'#B98CFF', camera:'#FF3D9A', radar:'#2EE6C5', parcours:'#FFA94D', globe:'#5AA9FF', guide:'#2EE6C5', expeditions:'#3BE38A', liste:'#B98CFF', collectif:'#3BE38A', passeport:'#5B8CFF', faune:'#2EE6C5', mil:'#FFC93D'};
+var TUILE_N = 0;
+/* les univers qui n'ont pas encore leur propre scène prennent celle qui dit le mieux leur rôle */
+var TUILE_ALIAS = {Create:'camera', Conteur:'StoryUniverse', Griot:'StoryUniverse', Studio:'Artistes', Recolte:'mil', Events:'fete', CallUniverse:'palabre', Phare:'phare', Etendard:'Arena', Search:'radar', Notifications:'Live', Profile:'talent', Dashboard:'liste', Passeport:'passeport', Reglages:'liste'};
+function couleurTuile(id){ return REGP[id] ? REGP[id].c : (TUILE_C[id] || '#7B3BFF'); }
+/* l'hexagone seul (pointe en haut, comme les écrans du Ciel) : l'écran animé, le verre, le bord lumineux, l'étiquette */
+function hexTuile(illus, o){ o = o || {}; var n = TUILE_N++ % 7; illus = TUILE_ALIAS[illus] || illus;
+  return '<span class="tx-hex" aria-hidden="true" style="--i:' + n + '">' +
+    '<span class="tx-ecran ht-media"><canvas data-illus="' + esc(illus) + '" data-tuile></canvas></span>' +
+    (o.avatar ? '<span class="tx-av">' + o.avatar + '</span>' : '') +
+    '<span class="tx-verre"></span>' +
+    '<svg class="tx-bord" viewBox="0 0 100 100" preserveAspectRatio="none"><path d="M50 1.5L98.5 25.7v48.6L50 98.5 1.5 74.3V25.7z" fill="none" stroke="url(#nvTxG)" stroke-width="2" vector-effect="non-scaling-stroke"/>' +
+      '<path class="tx-energie" d="M50 1.5L98.5 25.7v48.6L50 98.5 1.5 74.3V25.7z" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" vector-effect="non-scaling-stroke" pathLength="100" stroke-dasharray="8 92"/></svg>' +
+    (o.tag ? '<span class="tx-tag' + (o.direct ? ' direct' : '') + (o.or ? ' or' : '') + '">' + (o.direct ? '<i></i>' : '') + o.tag + '</span>' : '') +
+  '</span>'; }
+/* une tuile complète : l'hexagone animé, puis son titre et sa ligne (déjà échappés par l'appelant) */
+function tuileHex(o){ var c = o.c || couleurTuile(o.illus);
+  return '<button class="tx' + (o.direct ? ' direct' : '') + (o.cls ? ' ' + o.cls : '') + '" data-a="' + o.a + '"' + (o.v != null ? ' data-v="' + esc(String(o.v)) + '"' : '') + ' style="--c:' + c + '"' + (o.label ? ' aria-label="' + esc(o.label) + '"' : '') + (o.attrs || '') + '>' +
+    hexTuile(o.illus, o) + (o.titre ? '<b' + (o.brut ? ' dir="auto" data-brut' : '') + '>' + o.titre + '</b>' : '') + (o.meta ? '<small>' + o.meta + '</small>' : '') + '</button>'; }
+/* l'avatar d'un créateur au centre de sa tuile (sa vraie photo, sinon son initiale) */
+function avatarTuile(u){ var img = u && urlSure(u.avatar); return img ? '<img src="' + esc(img) + '" alt="">' : '<b data-brut>' + esc(((u && (u.handle || u.nom)) || '•').charAt(0).toUpperCase()) + '</b>'; }
+/* poser un bloc de tuiles : les anciennes images s'arrêtent, les nouvelles rejoignent le moteur commun */
+function poserTuiles(el, h){ if(typeof arreterMediasDe === 'function') arreterMediasDe(el); poser(el, h); if(typeof brancherMedias === 'function') brancherMedias(el); }
+
+/* ════════ Les scènes des tuiles (dessinées par dessinerIllus, ac12) ════════ */
+function illusTuile(id, x, t, W, H, u, hx, lueur, hexA){ var cx = W / 2, cy = H / 2, S = Math.sin, Cs = Math.cos, i, q;
+  if(id === 'talent'){ /* un projecteur sur la scène, des étoiles qui montent : un talent qu'on découvre */
+    x.globalCompositeOperation = 'lighter'; var g = x.createLinearGradient(cx, 0, cx, H); g.addColorStop(0, hexA('#FFE9A0', .5)); g.addColorStop(1, hexA('#B98CFF', 0));
+    x.fillStyle = g; var sw = S(t * .7) * 8 * u; x.beginPath(); x.moveTo(cx - 6 * u + sw, 0); x.lineTo(cx + 6 * u + sw, 0); x.lineTo(cx + 34 * u, H); x.lineTo(cx - 34 * u, H); x.fill();
+    for(i = 0; i < 9; i++){ q = (t * .22 + i / 9) % 1; var sx = cx + S(i * 2.3 + t * .3) * 34 * u, sy = H - q * H; x.fillStyle = hexA(i % 3 ? '#FFFFFF' : '#FFD24D', (1 - q) * .9); x.beginPath(); x.moveTo(sx, sy - 2.6 * u); x.lineTo(sx + .8 * u, sy); x.lineTo(sx, sy + 2.6 * u); x.lineTo(sx - .8 * u, sy); x.fill(); }
+    for(i = 0; i < 2; i++){ q = (t * .4 + i / 2) % 1; x.strokeStyle = hexA('#FFD24D', (1 - q) * .7); x.lineWidth = 1.4 * u; hx(cx, cy, (20 + q * 26) * u, 0); x.stroke(); }
+    lueur(cx, cy, 28 * u, '#B98CFF', .55); return true; }
+  if(id === 'camera'){ /* la caméra de La Forge : l'objectif qui tourne, le voyant d'enregistrement, l'éclair */
+    var fl = Math.max(0, S(t * 1.6)) > .985 ? 1 : 0; lueur(cx, cy, 34 * u, '#FF3D9A', .35 + fl * .5);
+    x.globalCompositeOperation = 'source-over'; var bw = 52 * u, bh = 36 * u, bx = cx - bw / 2, by = cy - bh / 2 + 3 * u, rr = 7 * u;
+    var cg = x.createLinearGradient(0, by, 0, by + bh); cg.addColorStop(0, '#3A2C66'); cg.addColorStop(1, '#17102F'); x.fillStyle = cg;
+    x.beginPath(); x.moveTo(bx + rr, by); x.lineTo(bx + bw - rr, by); x.quadraticCurveTo(bx + bw, by, bx + bw, by + rr); x.lineTo(bx + bw, by + bh - rr); x.quadraticCurveTo(bx + bw, by + bh, bx + bw - rr, by + bh); x.lineTo(bx + rr, by + bh); x.quadraticCurveTo(bx, by + bh, bx, by + bh - rr); x.lineTo(bx, by + rr); x.quadraticCurveTo(bx, by, bx + rr, by); x.fill();
+    x.fillStyle = '#2A1F50'; x.fillRect(cx - 10 * u, by - 6 * u, 20 * u, 7 * u);
+    x.strokeStyle = 'rgba(255,255,255,.25)'; x.lineWidth = .8 * u; x.stroke();
+    var lx = cx, ly = by + bh / 2; x.fillStyle = '#0A0520'; x.beginPath(); x.arc(lx, ly, 13 * u, 0, 6.29); x.fill();
+    var lg = x.createLinearGradient(lx - 13 * u, ly - 13 * u, lx + 13 * u, ly + 13 * u); lg.addColorStop(0, '#2EE6C5'); lg.addColorStop(.5, '#7B3BFF'); lg.addColorStop(1, '#FF3D9A');
+    x.strokeStyle = lg; x.lineWidth = 2.4 * u; x.beginPath(); x.arc(lx, ly, 11.5 * u, 0, 6.29); x.stroke();
+    x.strokeStyle = 'rgba(255,255,255,.55)'; x.lineWidth = 1.2 * u; hx(lx, ly, 7 * u, t * .9); x.stroke(); hx(lx, ly, 4 * u, -t * 1.3); x.stroke();
+    x.fillStyle = 'rgba(255,255,255,.75)'; x.beginPath(); x.arc(lx - 4 * u, ly - 4 * u, 1.8 * u, 0, 6.29); x.fill();
+    var rec = S(t * 4) > 0; x.fillStyle = rec ? '#FF2D55' : '#5A1830'; x.beginPath(); x.arc(bx + bw - 7 * u, by + 7 * u, 2.6 * u, 0, 6.29); x.fill();
+    x.globalCompositeOperation = 'lighter'; if(rec) lueur(bx + bw - 7 * u, by + 7 * u, 7 * u, '#FF2D55', .8); if(fl) { x.fillStyle = 'rgba(255,255,255,.35)'; x.fillRect(0, 0, W, H); } return true; }
+  if(id === 'radar'){ /* les défis par région : un radar hexagonal qui balaie et révèle des défis */
+    x.strokeStyle = hexA('#2EE6C5', .35); x.lineWidth = 1 * u; for(i = 1; i <= 3; i++){ hx(cx, cy, i * 13 * u, 0); x.stroke(); }
+    var a = t * 1.3; x.globalCompositeOperation = 'lighter'; for(i = 0; i < 18; i++){ var aa = a - i * .05; x.strokeStyle = hexA('#2EE6C5', (1 - i / 18) * .6); x.lineWidth = 2 * u; x.beginPath(); x.moveTo(cx, cy); x.lineTo(cx + Cs(aa) * 40 * u, cy + S(aa) * 40 * u); x.stroke(); }
+    [[.6, 22], [2.2, 30], [3.9, 16], [5.1, 34]].forEach(function(p){ var d = ((a - p[0]) % 6.283 + 6.283) % 6.283, on = Math.max(0, 1 - d / 2.5); lueur(cx + Cs(p[0]) * p[1] * u, cy + S(p[0]) * p[1] * u, 6 * u, '#FFD24D', .2 + on * .8); });
+    return true; }
+  if(id === 'parcours'){ /* la découverte culturelle : un chemin qui serpente entre des lieux, un voyageur qui avance */
+    var pts = []; for(i = 0; i <= 40; i++){ var k = i / 40; pts.push([cx - 34 * u + k * 68 * u, cy + S(k * 7) * 16 * u]); }
+    x.strokeStyle = hexA('#FFA94D', .5); x.lineWidth = 1.6 * u; x.setLineDash([3 * u, 3 * u]); x.beginPath(); pts.forEach(function(p, j){ x[j ? 'lineTo' : 'moveTo'](p[0], p[1]); }); x.stroke(); x.setLineDash([]);
+    [6, 18, 30].forEach(function(j, n){ var p = pts[j]; x.fillStyle = hexA(['#2EE6C5', '#FF3D9A', '#FFD24D'][n], .8); hx(p[0], p[1] - 7 * u, 4.5 * u, 0); x.fill(); x.fillRect(p[0] - .5 * u, p[1] - 3 * u, u, 3 * u); });
+    q = (t * .12) % 1; var pp = pts[Math.min(40, Math.floor(q * 40))]; x.globalCompositeOperation = 'lighter'; lueur(pp[0], pp[1], 9 * u, '#FFFFFF', .9); return true; }
+  if(id === 'globe' || id === 'collectif'){ /* le globe vivant : une sphère qui tourne ; le ciel collaboratif : des pays reliés */
+    var R = 30 * u; var gg = x.createRadialGradient(cx - 10 * u, cy - 10 * u, 2 * u, cx, cy, R); gg.addColorStop(0, '#5AA9FF'); gg.addColorStop(1, '#13205A');
+    x.globalCompositeOperation = 'source-over'; x.fillStyle = gg; x.beginPath(); x.arc(cx, cy, R, 0, 6.29); x.fill();
+    x.strokeStyle = 'rgba(200,230,255,.35)'; x.lineWidth = .8 * u; for(i = 0; i < 6; i++){ var ph = ((t * .25 + i / 6) % 1) * Math.PI, w = Math.abs(Cs(ph)) * R; x.beginPath(); x.ellipse(cx, cy, Math.max(.5, w), R, 0, 0, 6.29); x.stroke(); }
+    for(i = -2; i <= 2; i++){ x.beginPath(); x.ellipse(cx, cy + i * 11 * u, Math.sqrt(Math.max(0, R * R - (i * 11 * u) * (i * 11 * u))), 2.5 * u, 0, 0, 6.29); x.stroke(); }
+    x.globalCompositeOperation = 'lighter';
+    if(id === 'collectif'){ var P = [[-.5, -.3], [.4, -.45], [.55, .3], [-.2, .5], [-.6, .25]]; P.forEach(function(p, j){ var a2 = P[(j + 1) % P.length]; q = (t * .5 + j / 5) % 1;
+        var x1 = cx + p[0] * R, y1 = cy + p[1] * R, x2 = cx + a2[0] * R, y2 = cy + a2[1] * R, mx = (x1 + x2) / 2 + (cy - (y1 + y2) / 2) * .3, my = (y1 + y2) / 2 - 12 * u;
+        x.strokeStyle = hexA('#3BE38A', .55); x.lineWidth = 1.2 * u; x.beginPath(); x.moveTo(x1, y1); x.quadraticCurveTo(mx, my, x2, y2); x.stroke();
+        var bx2 = (1 - q) * (1 - q) * x1 + 2 * (1 - q) * q * mx + q * q * x2, by2 = (1 - q) * (1 - q) * y1 + 2 * (1 - q) * q * my + q * q * y2; lueur(bx2, by2, 4 * u, '#FFFFFF', .9); lueur(x1, y1, 5 * u, '#FFD24D', .8); }); }
+    else lueur(cx - 10 * u, cy - 12 * u, 16 * u, '#FFFFFF', .25);
+    lueur(cx, cy, 40 * u, couleurTuile(id), .25); return true; }
+  if(id === 'guide'){ /* la visite guidée : une boussole dont l'aiguille cherche le nord */
+    x.strokeStyle = hexA('#2EE6C5', .7); x.lineWidth = 1.6 * u; hx(cx, cy, 30 * u, 0); x.stroke(); for(i = 0; i < 12; i++){ var a3 = i / 12 * 6.283; x.beginPath(); x.moveTo(cx + Cs(a3) * 22 * u, cy + S(a3) * 22 * u); x.lineTo(cx + Cs(a3) * (i % 3 ? 24 : 27) * u, cy + S(a3) * (i % 3 ? 24 : 27) * u); x.stroke(); }
+    var an = -Math.PI / 2 + S(t * 1.1) * .5 + S(t * 2.7) * .12; x.globalCompositeOperation = 'source-over';
+    x.fillStyle = '#FF3D9A'; x.beginPath(); x.moveTo(cx + Cs(an) * 20 * u, cy + S(an) * 20 * u); x.lineTo(cx + Cs(an + 1.57) * 4 * u, cy + S(an + 1.57) * 4 * u); x.lineTo(cx + Cs(an - 1.57) * 4 * u, cy + S(an - 1.57) * 4 * u); x.fill();
+    x.fillStyle = '#E8E2FA'; x.beginPath(); x.moveTo(cx - Cs(an) * 20 * u, cy - S(an) * 20 * u); x.lineTo(cx + Cs(an + 1.57) * 4 * u, cy + S(an + 1.57) * 4 * u); x.lineTo(cx + Cs(an - 1.57) * 4 * u, cy + S(an - 1.57) * 4 * u); x.fill();
+    x.globalCompositeOperation = 'lighter'; lueur(cx, cy, 6 * u, '#FFFFFF', .9); return true; }
+  if(id === 'expeditions'){ /* les expéditions : des montagnes, un drapeau qui flotte au sommet, le soleil qui passe */
+    var sx2 = cx + Cs(t * .3) * 30 * u, sy2 = cy - 16 * u - S(t * .3) * 8 * u; lueur(sx2, sy2, 14 * u, '#FFD24D', .7); x.globalCompositeOperation = 'source-over';
+    x.fillStyle = '#1F5A44'; x.beginPath(); x.moveTo(cx - 44 * u, cy + 26 * u); x.lineTo(cx - 16 * u, cy - 6 * u); x.lineTo(cx + 2 * u, cy + 12 * u); x.lineTo(cx + 18 * u, cy - 14 * u); x.lineTo(cx + 46 * u, cy + 26 * u); x.closePath(); x.fill();
+    x.fillStyle = '#E8F8F0'; x.beginPath(); x.moveTo(cx + 18 * u, cy - 14 * u); x.lineTo(cx + 12 * u, cy - 5 * u); x.lineTo(cx + 18 * u, cy - 7 * u); x.lineTo(cx + 23 * u, cy - 5 * u); x.closePath(); x.fill();
+    x.strokeStyle = '#E8E2FA'; x.lineWidth = 1 * u; x.beginPath(); x.moveTo(cx + 18 * u, cy - 14 * u); x.lineTo(cx + 18 * u, cy - 28 * u); x.stroke();
+    x.fillStyle = '#3BE38A'; x.beginPath(); x.moveTo(cx + 18 * u, cy - 28 * u); for(i = 0; i <= 6; i++) x.lineTo(cx + (18 + i * 2) * u, cy - (28 - 2.5 + S(t * 5 + i) * 1.4) * u - (i === 6 ? 0 : 0)); for(i = 6; i >= 0; i--) x.lineTo(cx + (18 + i * 2) * u, cy - (23 + S(t * 5 + i) * 1.4) * u); x.fill(); return true; }
+  if(id === 'liste'){ /* la liste des univers : des lignes dont les puces hexagonales s'allument tour à tour */
+    for(i = 0; i < 4; i++){ var yy = cy - 21 * u + i * 14 * u, on2 = Math.max(0, S(t * 2 - i * .9)); x.fillStyle = hexA(['#2EE6C5', '#B98CFF', '#FF3D9A', '#FFD24D'][i], .35 + on2 * .65); hx(cx - 22 * u, yy, 4.5 * u, 0); x.fill();
+      x.fillStyle = hexA('#E8E2FA', .35 + on2 * .4); x.fillRect(cx - 13 * u, yy - 1.5 * u, (26 + (i % 2) * 8) * u, 3 * u); if(on2 > .6){ x.globalCompositeOperation = 'lighter'; lueur(cx - 22 * u, yy, 8 * u, '#FFFFFF', on2 * .5); x.globalCompositeOperation = 'source-over'; } }
+    return true; }
+  if(id === 'passeport'){ /* le passeport : un carnet ouvert et un tampon hexagonal qui s'imprime */
+    x.globalCompositeOperation = 'source-over'; x.fillStyle = '#22306E'; x.fillRect(cx - 28 * u, cy - 20 * u, 56 * u, 40 * u); x.fillStyle = '#F4E9C8'; x.fillRect(cx - 26 * u, cy - 18 * u, 25 * u, 36 * u); x.fillRect(cx + 1 * u, cy - 18 * u, 25 * u, 36 * u);
+    x.strokeStyle = 'rgba(80,60,30,.35)'; x.lineWidth = .8 * u; for(i = 0; i < 4; i++){ x.beginPath(); x.moveTo(cx - 22 * u, cy - 10 * u + i * 7 * u); x.lineTo(cx - 5 * u, cy - 10 * u + i * 7 * u); x.stroke(); }
+    q = (t * .4) % 1; var down = q < .15 ? q / .15 : 1, ty = cy - 30 * u + down * 26 * u, ink = q > .15 ? Math.min(1, 1.2 - q) : 0;
+    if(ink > 0){ x.strokeStyle = hexA('#FF3D9A', ink); x.lineWidth = 1.6 * u; hx(cx + 13 * u, cy, 8 * u, 0); x.stroke(); x.fillStyle = hexA('#FF3D9A', ink * .8); x.font = '900 ' + Math.round(6 * u) + 'px "Inter NV", system-ui, sans-serif'; x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillText('NV', cx + 13 * u, cy + .5 * u); }
+    if(q < .35){ x.fillStyle = '#7B3BFF'; x.fillRect(cx + 9 * u, ty - 14 * u, 8 * u, 10 * u); x.fillStyle = '#5A2AC0'; hx(cx + 13 * u, ty - 2 * u, 7 * u, 0); x.fill(); }
+    x.globalCompositeOperation = 'lighter'; lueur(cx, cy, 34 * u, '#5B8CFF', .3); return true; }
+  if(id === 'faune'){ /* les animaux traversent le paysage : des empreintes qui apparaissent l'une après l'autre */
+    for(i = 0; i < 6; i++){ var ph2 = ((t * .6) - i * .35) % 4.2, al = ph2 > 0 && ph2 < 2.4 ? Math.min(1, ph2 * 2) * (1 - Math.max(0, ph2 - 1.6) / .8) : 0; if(al <= 0) continue;
+      var px = cx - 30 * u + i * 12 * u, py = cy + (i % 2 ? 8 : -8) * u; x.fillStyle = hexA('#2EE6C5', al); x.beginPath(); x.ellipse(px, py, 3.4 * u, 4.2 * u, 0, 0, 6.29); x.fill(); [[-3.5, -5.5], [0, -7], [3.5, -5.5]].forEach(function(o){ x.beginPath(); x.arc(px + o[0] * u, py + o[1] * u, 1.5 * u, 0, 6.29); x.fill(); }); }
+    return true; }
+  if(id === 'mil'){ /* le mil qui mûrit : des épis dorés qui se balancent */
+    for(i = 0; i < 5; i++){ var bx3 = cx - 24 * u + i * 12 * u, sw2 = S(t * 1.6 + i) * 4 * u; x.strokeStyle = '#8FBF5A'; x.lineWidth = 1.4 * u; x.beginPath(); x.moveTo(bx3, cy + 30 * u); x.quadraticCurveTo(bx3, cy, bx3 + sw2, cy - 14 * u); x.stroke();
+      x.fillStyle = '#FFC93D'; x.beginPath(); x.ellipse(bx3 + sw2, cy - 20 * u, 3 * u, 8 * u, sw2 / (20 * u), 0, 6.29); x.fill(); }
+    x.globalCompositeOperation = 'lighter'; lueur(cx, cy - 18 * u, 26 * u, '#FFC93D', .35); return true; }
+  if(id === 'fete'){ /* un événement : des feux d'artifice hexagonaux au-dessus de la place */
+    for(i = 0; i < 3; i++){ q = (t * .35 + i / 3) % 1; var fx = cx + (i - 1) * 24 * u, fy = cy - 10 * u - i % 2 * 8 * u, col = ['#FF3D9A', '#FFD24D', '#2EE6C5'][i];
+      if(q < .3){ x.fillStyle = hexA(col, .9); x.beginPath(); x.arc(fx, H - q / .3 * (H - fy), 1.4 * u, 0, 6.29); x.fill(); continue; }
+      var e = (q - .3) / .7; for(var k = 0; k < 12; k++){ var a6 = k / 12 * 6.283; x.fillStyle = hexA(col, (1 - e) * .95); x.beginPath(); x.arc(fx + Cs(a6) * e * 20 * u, fy + S(a6) * e * 20 * u + e * e * 6 * u, 1.3 * u, 0, 6.29); x.fill(); } lueur(fx, fy, 14 * u * (1 - e) + 2 * u, col, (1 - e) * .5); }
+    x.globalCompositeOperation = 'source-over'; x.fillStyle = '#1A0E30'; x.fillRect(0, cy + 28 * u, W, H); return true; }
+  if(id === 'palabre'){ /* Palabre : deux bulles qui se répondent */
+    var b1 = .5 + .5 * S(t * 2), b2 = .5 + .5 * S(t * 2 + 3.1);
+    function bulle(px, py, w, col, a){ x.fillStyle = hexA(col, a); x.beginPath(); x.ellipse(px, py, w, w * .66, 0, 0, 6.29); x.fill(); x.beginPath(); x.moveTo(px - w * .3, py + w * .5); x.lineTo(px - w * .55, py + w * .95); x.lineTo(px, py + w * .55); x.fill(); }
+    bulle(cx - 10 * u, cy - 10 * u, 18 * u, '#3FD0FF', .55 + b1 * .4); x.save(); x.translate(2 * cx, 0); x.scale(-1, 1); bulle(cx - 12 * u, cy + 12 * u, 15 * u, '#FF7AC6', .55 + b2 * .4); x.restore();
+    x.fillStyle = '#FFFFFF'; for(i = 0; i < 3; i++){ x.globalAlpha = .4 + .6 * Math.max(0, S(t * 5 - i)); x.beginPath(); x.arc(cx - 16 * u + i * 6 * u, cy - 10 * u, 1.8 * u, 0, 6.29); x.fill(); } x.globalAlpha = 1; return true; }
+  if(id === 'phare'){ /* Le Phare : un faisceau qui balaie la nuit */
+    var a7 = S(t * .8) * .9 - Math.PI / 2, tx = cx, ty = cy - 8 * u; var gb = x.createRadialGradient(tx, ty, 0, tx, ty, 60 * u); gb.addColorStop(0, hexA('#FFE9A0', .6)); gb.addColorStop(1, hexA('#FFE9A0', 0));
+    x.fillStyle = gb; x.beginPath(); x.moveTo(tx, ty); x.arc(tx, ty, 60 * u, a7 - .25, a7 + .25); x.fill();
+    x.globalCompositeOperation = 'source-over'; x.fillStyle = '#E8E2FA'; x.beginPath(); x.moveTo(cx - 6 * u, cy + 28 * u); x.lineTo(cx - 3.5 * u, cy - 6 * u); x.lineTo(cx + 3.5 * u, cy - 6 * u); x.lineTo(cx + 6 * u, cy + 28 * u); x.fill();
+    x.fillStyle = '#FF3D9A'; x.fillRect(cx - 4.5 * u, cy + 4 * u, 9 * u, 4 * u); x.fillRect(cx - 5.4 * u, cy + 16 * u, 10.8 * u, 4 * u);
+    x.globalCompositeOperation = 'lighter'; lueur(tx, ty, 8 * u, '#FFE9A0', .9); return true; }
+  return false; }
 
 /* ════════════════════════════════════════════════════════════════════
    LE DÉMARRAGE, CE QUE DIT LE SERVEUR, L'INTERFACE PUBLIQUE
