@@ -4834,7 +4834,7 @@ function poserGalaxie(o){ var D = {}; if(o && typeof o === 'object') Object.keys
 function poserEtendard(c){ ETENDARD.c = c && typeof c === 'object' && c.annonceur ? {id:txt(String(c.id || ''), 60), annonceur:txt(c.annonceur, 40), titre:txt(c.titre, 90), texte:txt(c.texte, 120), visuel:c.visuel, couleur:c.couleur, module:c.module, ctx:c.ctx} : null; rendreEtendard(); }
 
 /* tout redessiner (au changement de langue) */
-function rendre(){ rendreNav(); batirPrisme(); rendreEtendard(); rendrePulsar(); rendreContinents(); if(GAL.sel) rendreCartePays(); if(TERRE.fait) poserNomsTerre(); rendreBonjour(); rendreBoussole(); rendreMaintenant(); rendreReprendre(); rendrePasseport(); rendreInstall(); majDescriptions(); ['assistant', 'galOutils'].forEach(function(k){ var e = $(k); if(e) e.innerHTML = ''; }); rendreV2(); NOMS_PAYS = {}; $('espEtiquettes').innerHTML = ''; GAL.spot = []; jouerMondes(); }
+function rendre(){ rendreNav(); batirPrisme(); rendreEtendard(); rendrePulsar(); rendreContinents(); if(GAL.sel) rendreCartePays(); if(TERRE.fait) poserNomsTerre(); rendreBonjour(); rendreBoussole(); rendreMaintenant(); rendreReprendre(); rendrePasseport(); rendreInstall(); majDescriptions(); ['assistant', 'galOutils'].forEach(function(k){ var e = $(k); if(e) e.innerHTML = ''; }); rendreV2(); try{ rendrePreuve(); }catch(e){ dbg(e); } /* 5 nov. 2026 : la preuve des 24 heures suit la langue */ NOMS_PAYS = {}; $('espEtiquettes').innerHTML = ''; GAL.spot = []; jouerMondes(); }
 function rendreEcranCourant(){ rendre(); }
 
 function demarrer(){
