@@ -19,10 +19,6 @@
 }catch(e){ /* rien */ } })();
 </script><!--/NV_DEMO-->
 
-
-
-
-
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#2B1A47">
@@ -293,6 +289,30 @@ body.feuille-on{overflow:hidden}
 .pf-lien{word-break:break-all;padding:10px;border-radius:12px;background:rgba(0,0,0,.18)}
 @media (max-width:359px){.pf-actions i{width:48px;height:54px;font-size:1.3em}.pf-coffre>b{font-size:2.1em}}
 @media (prefers-reduced-motion:reduce){.pf-fait,.pf-coffre.charge>b{animation:none}.pf-actions i{transition:none}}
+/* v4 — les passerelles : moyens en alvéoles, état du paiement, aperçu */
+.pg-moyens{display:grid;grid-template-columns:repeat(auto-fill,minmax(132px,1fr));gap:8px;margin:0 0 14px}
+.pg-moyens button{position:relative;display:grid;grid-template-columns:auto 1fr;grid-template-rows:auto auto;column-gap:10px;align-items:center;min-height:64px;padding:8px 12px 8px 8px;border-radius:16px;border:1px solid var(--trait);background:rgba(255,255,255,.04);text-align:start;line-height:1.2;min-width:0}
+.pg-moyens i{grid-row:1/3;display:grid;place-items:center;width:42px;height:48px;font-style:normal;font-size:1.2em;background:linear-gradient(160deg,var(--pollen),var(--miel) 55%,var(--ambre));clip-path:polygon(50% 0,100% 25%,100% 75%,50% 100%,0 75%,0 25%)}
+.pg-moyens b{overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow-wrap:anywhere;font-size:.95em}
+.pg-moyens small{color:var(--doux);font-size:.76em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pg-moyens button.on{border-color:var(--miel);background:rgba(255,182,39,.14)}
+.pg-moyens button.on i{background:linear-gradient(160deg,#7ff2e3,var(--nectar))}
+.pg-moyens button:disabled{opacity:.5}
+.pg-moyens button:disabled i{background:rgba(255,255,255,.12)}
+.pg-but,.pg-paquets{margin:0 0 12px;flex-wrap:wrap}
+.pg-apercu{display:flex;gap:8px;align-items:center;margin:0 0 12px;padding:8px 12px;border-radius:12px;background:rgba(183,156,255,.14);font-size:.82em;color:var(--doux)}
+.pg-apercu b{flex:none;padding:2px 8px;border-radius:99px;background:var(--lilas);color:#1d1033;font-size:.9em}
+.pg-etat{display:flex;gap:10px;align-items:center;margin:12px 0;padding:12px 14px;border-radius:14px;background:rgba(255,224,122,.12);color:var(--pollen);font-weight:600}
+.pg-etat.ok{background:rgba(43,209,189,.16);color:var(--nectar)}
+.pg-etat.non{background:rgba(255,92,138,.14);color:var(--hibiscus)}
+.pg-charge{display:flex;gap:6px;justify-content:center;margin:18px 0 8px}
+.pg-charge.petit{margin:0;flex:none}
+.pg-charge i{width:16px;height:18px;background:var(--miel);clip-path:polygon(50% 0,100% 25%,100% 75%,50% 100%,0 75%,0 25%);animation:pgHex 1.1s ease-in-out infinite}
+.pg-charge.petit i{width:9px;height:10px}
+.pg-charge i:nth-child(2){animation-delay:.15s}.pg-charge i:nth-child(3){animation-delay:.3s}
+@keyframes pgHex{0%,100%{opacity:.25;transform:scale(.8)}50%{opacity:1;transform:scale(1)}}
+@media (prefers-reduced-motion:reduce){.pg-charge i{animation:none;opacity:.7}}
+.pg-payer{margin:12px 0}
 </style>
 </head>
 <body>
@@ -2014,7 +2034,7 @@ function rendreRetrait(){
   h += '<h3 class="titre">Comment le recevoir' + (dev ? ' · ' + esc(dev) : '') + '</h3>';
   if(!mo) h += st.retrait.etat === 'erreur' ? etatVide('Les moyens ne sont pas arrivés', 'Vos NVCoins ne bougent pas.') + '<button class="btn trait large" data-act="retrait-reessayer">Réessayer</button>' : etatVide('Les moyens de votre pays arrivent…', '');
   else if(!mo.length) h += etatVide('Pas encore de moyen ouvert dans votre pays', 'Vos NVCoins restent disponibles. Vous serez prévenu dès que NEURAVID ouvre un moyen de retrait chez vous.');
-  else h += '<div class="choix">' + mo.map(function(x){ return '<button data-act="rt-moyen" data-id="' + esc(x.id) + '"' + (st.retrait.choisi === x.id ? ' class="on" aria-pressed="true"' : ' aria-pressed="false"') + (x.ouvert ? '' : ' disabled') + '><b>' + (x.type === 'mobile' ? '📱 ' : x.type === 'banque' ? '🏦 ' : x.type === 'carte' ? '💳 ' : '') + '<span data-brut>' + esc(x.nom) + '</span>' + '</b><small>' + (x.delai ? '<span data-brut>' + esc(x.delai) + '</span>' : '') + (x.delai ? ' · ' : '') + (x.fraisConnus ? 'Frais : ' + (x.pourcent ? x.pourcent + ' %' : '') + (x.pourcent && x.fixe ? ' + ' : '') + (x.fixe ? nvc(x.fixe) + ' NVC' : '') + (!x.pourcent && !x.fixe ? '0' : '') : 'Frais : —') + '</small></button>'; }).join('') + '</div>';
+  else h += '<div class="choix">' + mo.map(function(x){ return '<button data-act="rt-moyen" data-id="' + esc(x.id) + '"' + (st.retrait.choisi === x.id ? ' class="on" aria-pressed="true"' : ' aria-pressed="false"') + (x.ouvert ? '' : ' disabled') + '><b>' + (x.type === 'mobile' ? '📱 ' : x.type === 'banque' ? '🏦 ' : x.type === 'carte' ? '💳 ' : '') + '<span data-brut>' + esc(x.nom) + '</span>' + '</b><small>' + (x.delai ? '<span data-brut>' + esc(x.delai) + '</span>' : '') + (x.delai ? ' · ' : '') + (x.fraisConnus ? 'Frais : ' + (x.pourcent ? x.pourcent.toLocaleString(LOC()) + ' %' : '') + (x.pourcent && x.fixe ? ' + ' : '') + (x.fixe ? nvc(x.fixe) + ' NVC' : '') + (!x.pourcent && !x.fixe ? '0' : '') : 'Frais : —') + '</small></button>'; }).join('') + '</div>';
   var mc = moyenChoisi();
   if(mc) h += '<label class="champ"><span>' + esc(mc.champ) + '</span><input id="rtC" autocomplete="off" inputmode="' + (mc.type === 'mobile' ? 'tel' : 'text') + '" value="' + esc(RT.compte) + '"></label><p class="petit" style="margin:-6px 0 12px">Ce numéro part chiffré vers NEURAVID et n\'est pas gardé sur ce téléphone.</p>';
   h += '<div class="recap" id="rtR"></div><button class="btn miel large" id="rtGo" data-act="rt-go">Retirer</button>';
@@ -3443,6 +3463,357 @@ var majPuce12 = majPuce; majPuce = function(){ majPuce12(); var b = $('puceCoins
   /* un autre module (un profil, un direct…) : NVRecolte.envoyer({handle:'@awa', nom:'Awa', nvc:500}) remplit l'envoi ; la personne confirme toujours */
   R.envoyer = function(o){ if(tropJeune() || mineur()) return false; o = o || {}; var d = normPers({handle:o.handle, nom:o.nom, pays:o.pays}); if(!d) return false; ouvrirLienEnvoi({dest:d, nvc:entier(o.nvc), mot:txt(o.mot, REGLES.transfert.motMax) || ''}); return true; };
   R.portefeuille = function(){ if(!estMajeur()) return {offrir:null, disponible:null, verification:null, total:null}; var p = poches(); return {offrir:p.offrir, disponible:p.disponible, verification:p.verification, total:totalPF()}; };
+})();
+
+/* ════════════════════════════════════════════════════════════════════════
+   v4 — LES PASSERELLES DE PAIEMENT : recharger, payer, retirer
+   Le serveur de NEURAVID branche les prestataires (mobile money, cartes, virements, portefeuilles) pays par pays.
+   Cet écran ne montre que ce que /v1/recolte/capacites annonce (« paiements ») :
+     · recharger : moyens du pays → montant → prix exact, frais et total AVANT de payer → paiement → suivi ;
+     · payer : une personne ou une entreprise, avec ses NVCoins rechargés ;
+     · retirer : la vue « Retirer » existante (moyens, frais et limites du serveur).
+   Dans l'application des magasins, les NVCoins s'achètent par le magasin (règle des magasins) : l'ancien chemin reste.
+   Le téléphone n'annonce jamais qu'un paiement a réussi : il demande l'état au serveur, qui l'apprend du prestataire.
+   L'aperçu (démonstration, sans serveur) simule un prestataire, toujours marqué « Aperçu ».
+   ════════════════════════════════════════════════════════════════════════ */
+var PG = {cap:null, capEtat:'attente', m:null, mEtat:null, but:'recharge', choisi:null, n:'', payeur:'', devis:null, cle:null, sig:'', suivi:null, tSuivi:null, liste:null, lEtat:null, envoi:false, py:{h:'', n:'', motif:'', cle:null, sig:'', envoi:false, ref:null}};
+var PG_PAQUETS = [500, 1000, 5000, 10000, 50000];
+var PG_TYPES = {mobile:['📱', 'Mobile Money'], carte:['💳', 'Carte bancaire'], virement:['🏦', 'Virement'], portefeuille:['👛', 'Portefeuille']};
+var PG_ETATS = {en_attente:'En attente', confirme:'Ajoutés', echec:'Non abouti', revue:'En vérification', expire:'Délai passé', close:'Clos'};
+
+function apercuPG(){ return !!window.NV_DEMO && !api(); }
+function dansMagasin(){ return appli() && !window.NV_APERCU; }
+function rechargeOuverte(){ return !!(PG.cap && PG.cap.recharge && PG.cap.recharge.actif === true); }
+function payerOuvert(){ return !!(PG.cap && PG.cap.payer === true); }
+
+/* ── l'aperçu : un prestataire simulé (aucun argent réel ne bouge) ── */
+var APERCU_PG = {recharges:[], seq:0};
+function apercuDevise(){ var iso = String((window.NV_USER || {}).iso || 'GN').toUpperCase();
+  var t = {GN:['GNF', 95], NG:['NGN', 16], KE:['KES', 2], CD:['CDF', 29], GH:['GHS', 1]}; return t[iso] || ['XOF', 6]; }
+function apercuRepondre(chemin, corps, methode){
+  var dv = apercuDevise(), u = window.NV_USER || {};
+  if(chemin === '/v1/recolte/capacites') return {paiements:{recharge:{actif:true, pays:[u.iso || 'GN'], types:['carte', 'mobile']}, retrait:{actif:false}, payer:true, magasin:false}};
+  if(chemin.indexOf('/v1/recolte/paiements/moyens') === 0) return {pays:u.iso || 'GN', devise:dv[0], taux:{unites:dv[1], pourNvc:1}, entreprise:true, fraisPayeur:true,
+    moyens:[{id:'mobile', nom:'Mobile Money', type:'mobile', devise:dv[0], min:100, max:100000, champ:'telephone', ouvert:true},
+            {id:'carte', nom:'Carte bancaire', type:'carte', devise:dv[0], min:500, max:100000, champ:null, ouvert:true}]};
+  if(chemin === '/v1/recolte/recharges/devis'){ var loc = corps.montant * dv[1], fr = Math.floor(loc * 0.015);
+    return {ok:true, devis:'apercu-' + (++APERCU_PG.seq), but:corps.but, montant:corps.montant, devise:dv[0], taux:{unites:dv[1], pourNvc:1}, montantLocal:loc, frais:fr, fraisPayeur:true, total:loc + fr, expire:Math.floor(Date.now() / 1000) + 600}; }
+  if(chemin === '/v1/recolte/recharges' && methode === 'GET') return {items:APERCU_PG.recharges.map(function(x){ return dictRecharge(x); })};
+  if(chemin === '/v1/recolte/recharges'){ var d = PG.devis || {}, r = {id:'apercu-r' + (++APERCU_PG.seq), at:Math.floor(Date.now() / 1000), but:d.but, etat:'en_attente', montant:d.montant, devise:d.devise, montantLocal:d.montantLocal, frais:d.frais, total:d.total,
+      moyen:PG.choisi, action:PG.choisi === 'carte' ? {type:'instructions', texte:'Aperçu : la page de paiement par carte du prestataire s\'ouvrirait ici.'} : {type:'telephone'}, nait:Date.now()};
+    APERCU_PG.recharges.unshift(r); return dictRecharge(r, true); }
+  var m = /^\/v1\/recolte\/recharges\/(.+)$/.exec(chemin);
+  if(m){ var x = null; APERCU_PG.recharges.forEach(function(y){ if(y.id === m[1]) x = y; }); if(x && x.etat === 'en_attente' && Date.now() - x.nait > 3500){ x.etat = 'confirme'; x.action = null; } return x ? dictRecharge(x) : null; }
+  if(chemin === '/v1/recolte/paiements') return {ok:true, paiement:'apercu-p' + (++APERCU_PG.seq), montant:corps.montant, recu:Math.round(corps.montant * 0.95), commission:corps.montant - Math.round(corps.montant * 0.95), etat:'attente'};
+  return null;
+}
+function dictRecharge(x, nouveau){ var o = {}; Object.keys(x).forEach(function(k){ if(k !== 'nait') o[k] = x[k]; }); if(nouveau){ o.ok = true; o.recharge = x.id; } return o; }
+function lirePG(chemin, cb, ttl){
+  if(apercuPG()){ setTimeout(function(){ cb(apercuRepondre(chemin.split('?')[0], {}, 'GET'), false); }, 260); return; }
+  lireS(chemin, cb, ttl);
+}
+function posterPG(chemin, corps, cb, cleIdem, ms){
+  if(apercuPG()){ setTimeout(function(){ cb(apercuRepondre(chemin, corps, 'POST'), 200); }, 380); return; }
+  poster(chemin, corps, cb, cleIdem, ms);
+}
+
+/* ── ce que le serveur sait faire ── */
+function chargerCapacitesPG(force){
+  if(!api() && !apercuPG()){ PG.capEtat = 'hors'; return; }
+  lirePG('/v1/recolte/capacites', function(d){
+    PG.cap = d && d.paiements && typeof d.paiements === 'object' ? d.paiements : null;
+    PG.capEtat = d ? 'ok' : 'erreur';
+    rendrePortefeuilleSi();
+  }, force ? 0 : 60000);
+}
+
+/* ── un refus du serveur, en mots simples (le code vient du serveur, jamais inventé ici) ── */
+function motRefus(r){
+  var c = r && r.raison && r.raison.code, p = (r && r.raison && r.raison.params) || {};
+  var M = {
+    age_argent:'L\'argent est réservé aux 18 ans et plus.',
+    kyc_insuffisant:'Vérifiez d\'abord votre identité.',
+    moyen_non_autorise:'Ce moyen n\'est pas ouvert dans votre pays.',
+    montant_hors_limites:'Ce montant est hors des limites de ce moyen.',
+    plafond_jour:'Vous avez atteint la limite du jour.',
+    plafond_mois:'Vous avez atteint la limite du mois.',
+    plafond_non_configure:'Ce n\'est pas encore ouvert pour votre compte.',
+    devis_expire:'Le prix a expiré. Demandez un nouveau prix.',
+    devis_utilise:'Ce prix a déjà servi.',
+    devis_inconnu:'Ce prix n\'est plus valable.',
+    solde_insuffisant:'Vous n\'avez pas assez de NVCoins rechargés.',
+    soi_meme:'C\'est votre propre compte.',
+    personne_inconnue:'Ce compte n\'existe pas.',
+    destinataire_mineur:'Ce compte ne peut pas recevoir d\'argent.',
+    source_fermee:'Payer n\'est pas encore ouvert.',
+    magasin_ferme:'Le magasin n\'est pas encore branché.'
+  };
+  if(c === 'montant_hors_limites' && (p.min != null || p.max != null)) return 'Ce montant est hors des limites de ce moyen : ' + (p.min != null ? nvc(p.min) : '—') + ' à ' + (p.max != null ? nvc(p.max) : '—') + ' NVCoins.';
+  return M[c] || txt(r && (r.reason || r.message), 200) || 'Ce n\'est pas possible pour le moment.';
+}
+function marqueApercu(){ return apercuPG() ? '<p class="pg-apercu"><b>Aperçu</b> Exemple de démonstration : aucun argent réel ne bouge.</p>' : ''; }
+
+/* ════════ RECHARGER ════════ */
+function feuilleRecharge(but){
+  PG.but = but === 'entreprise' ? 'entreprise' : 'recharge'; PG.devis = null; PG.suivi = null; arreterSuivi();
+  ouvrirFeuille('Recharger', '<div id="pgCorps"></div>', function(){ arreterSuivi(); }, 'pg');
+  PG.mEtat = 'attente'; rendreRecharge();
+  lirePG('/v1/recolte/paiements/moyens?sens=recharge', function(d, panne){
+    if(d && Array.isArray(d.moyens)){
+      PG.m = {pays:/^[A-Z]{2}$/.test(d.pays || '') ? d.pays : null, devise:/^[A-Z]{3}$/.test(d.devise || '') ? d.devise : null, entreprise:d.entreprise === true,
+        taux:d.taux && nbS(d.taux.unites) && nbS(d.taux.pourNvc) ? {u:nbS(d.taux.unites), n:nbS(d.taux.pourNvc)} : null,
+        moyens:d.moyens.slice(0, 12).map(function(m){ if(!m || !/^[\w.:-]{1,64}$/.test(String(m.id || ''))) return null;
+          return {id:String(m.id), nom:txt(m.nom, 50) || null, type:PG_TYPES[m.type] ? m.type : 'mobile', min:nbS(m.min), max:nbS(m.max), champ:m.champ === 'telephone' ? 'telephone' : null, ouvert:m.ouvert === true}; }).filter(Boolean)};
+      PG.mEtat = 'ok';
+      if(PG.choisi && !PG.m.moyens.some(function(x){ return x.id === PG.choisi && x.ouvert; })) PG.choisi = null;
+      if(!PG.choisi){ var o = PG.m.moyens.filter(function(x){ return x.ouvert; }); if(o.length === 1) PG.choisi = o[0].id; }
+    } else PG.mEtat = panne || !d ? 'erreur' : 'ok';
+    if(FEUILLE.nom === 'pg') rendreRecharge();
+  }, 0);
+}
+function moyenPG(){ var l = PG.m ? PG.m.moyens : []; for(var i = 0; i < l.length; i++) if(l[i].id === PG.choisi) return l[i]; return null; }
+function estimationPG(n){ return PG.m && PG.m.taux && n ? Math.ceil(n * PG.m.taux.u / PG.m.taux.n) : null; }
+function erreurMontantPG(){
+  var n = +PG.n || 0, mc = moyenPG();
+  if(!mc) return 'Choisissez comment payer.';
+  if(!mc.ouvert) return 'Ce moyen est momentanément indisponible.';
+  if(!n) return 'Écrivez un montant.';
+  if(mc.min != null && n < mc.min) return 'Le minimum pour ce moyen est de ' + nvc(mc.min) + ' NVCoins.';
+  if(mc.max != null && n > mc.max) return 'Le maximum pour ce moyen est de ' + nvc(mc.max) + ' NVCoins.';
+  if(mc.champ === 'telephone' && String(PG.payeur).replace(/[^\d]/g, '').length < 6) return 'Écrivez le numéro qui paie.';
+  return null;
+}
+function rendreRecharge(){
+  var z = $('pgCorps'); if(!z) return;
+  var h = marqueApercu();
+  if(PG.suivi){ z.innerHTML = h + vueSuivi(); return; }
+  if(PG.devis){ z.innerHTML = h + vueDevis(); return; }
+  if(PG.mEtat === 'attente'){ z.innerHTML = h + '<div class="pg-charge" aria-busy="true"><i></i><i></i><i></i></div><p class="petit" style="text-align:center">Les moyens de votre pays arrivent…</p>'; return; }
+  if(PG.mEtat === 'erreur'){ z.innerHTML = h + etatVide('Les moyens ne sont pas arrivés', 'Rien n\'a été débité.') + '<button class="btn trait large" data-act="pg-reessayer">Réessayer</button>'; return; }
+  var mo = PG.m ? PG.m.moyens : [];
+  if(!mo.length){ z.innerHTML = h + etatVide('Pas encore de moyen de recharge dans votre pays', 'Vous serez prévenu dès que NEURAVID en ouvre un.'); return; }
+  if(PG.m.entreprise) h += '<div class="puces pg-but" role="group" aria-label="Pour qui ?"><button data-act="pg-but" data-v="recharge" aria-pressed="' + (PG.but === 'recharge') + '"' + (PG.but === 'recharge' ? ' class="on"' : '') + '>Pour moi</button><button data-act="pg-but" data-v="entreprise" aria-pressed="' + (PG.but === 'entreprise') + '"' + (PG.but === 'entreprise' ? ' class="on"' : '') + '>Pour mon entreprise</button></div>' +
+    (PG.but === 'entreprise' ? '<p class="petit">Le compte de votre entreprise finance vos campagnes, vos défis et vos partenariats dans L\'Étendard.</p>' : '');
+  h += '<h3 class="titre">Comment payer' + (PG.m.devise ? ' · <bdi dir="ltr">' + esc(PG.m.devise) + '</bdi>' : '') + '</h3><div class="pg-moyens">' + mo.map(function(x){
+    var t = PG_TYPES[x.type];
+    return '<button data-act="pg-moyen" data-id="' + esc(x.id) + '" aria-pressed="' + (PG.choisi === x.id) + '"' + (PG.choisi === x.id ? ' class="on"' : '') + (x.ouvert ? '' : ' disabled') + '><i aria-hidden="true">' + t[0] + '</i><b>' + (x.nom ? '<span data-brut>' + esc(x.nom) + '</span>' : esc(t[1])) + '</b><small>' + (x.ouvert ? esc(t[1]) : 'Momentanément indisponible') + '</small></button>';
+  }).join('') + '</div>';
+  var mc = moyenPG();
+  h += '<h3 class="titre">Combien de NVCoins ?</h3><div class="puces pg-paquets">' + PG_PAQUETS.filter(function(n){ return !mc || ((mc.min == null || n >= mc.min) && (mc.max == null || n <= mc.max)); }).map(function(n){ return '<button data-act="pg-paquet" data-v="' + n + '"' + (String(n) === String(PG.n) ? ' class="on"' : '') + '>' + nvc(n) + '</button>'; }).join('') + '</div>' +
+    '<label class="champ"><span>Autre montant</span><input id="pgN" class="montant" inputmode="numeric" autocomplete="off" placeholder="0" value="' + esc(PG.n) + '"></label><p class="petit nb" id="pgEq" style="margin:-6px 0 12px"></p>';
+  if(mc && mc.champ === 'telephone') h += '<label class="champ"><span>Le numéro qui paie</span><input id="pgP" inputmode="tel" autocomplete="tel" value="' + esc(PG.payeur) + '"></label><p class="petit" style="margin:-6px 0 12px">Ce numéro part chiffré vers NEURAVID et n\'est pas gardé sur ce téléphone.</p>';
+  h += '<button class="btn miel large" id="pgGo" data-act="pg-devis">Voir le prix exact</button><p class="petit" style="margin-top:10px">Le prix, les frais et le total s\'affichent avant de payer. Rien n\'est débité sans votre accord.</p>';
+  z.innerHTML = h; majEstimationPG();
+}
+function majEstimationPG(){
+  var eq = $('pgEq'), go = $('pgGo'), n = +PG.n || 0, e = estimationPG(n), err = erreurMontantPG();
+  if(eq) eq.textContent = n ? (e != null && PG.m.devise ? '≈ ' + monnaie(e, PG.m.devise) + ' avant les frais' : '≈ ' + dollars(enDollars(n))) + (err && n ? ' · ' + err : '') : '100 NVCoins = 1 $';
+  if(go) go.disabled = !!err || PG.envoi;
+}
+function demanderDevisPG(){
+  var err = erreurMontantPG(); if(err){ toast(err); return; }
+  if(PG.envoi) return; PG.envoi = true; majEstimationPG();
+  posterPG('/v1/recolte/recharges/devis', {montant:+PG.n, moyen:PG.choisi, but:PG.but}, function(r, s){
+    PG.envoi = false;
+    if(reussi(s, r) && r && r.devis){
+      PG.devis = {id:txt(r.devis, 64), but:r.but === 'entreprise' ? 'entreprise' : 'recharge', montant:nbS(r.montant), devise:/^[A-Z]{3}$/.test(r.devise || '') ? r.devise : null,
+        montantLocal:nbS(r.montantLocal), frais:nbS(r.frais), fraisPayeur:r.fraisPayeur !== false, total:nbS(r.total), expire:nbS(r.expire)};
+      if(FEUILLE.nom === 'pg') rendreRecharge(); return;
+    }
+    if(!s || s >= 500){ toast('Pas de réponse. Rien n\'a été débité : réessayez.', 4600); majEstimationPG(); return; }
+    toast(motRefus(r), 4800); majEstimationPG();
+  }, idem('pgd'));
+}
+function vueDevis(){
+  var d = PG.devis, mc = moyenPG(), dv = d.devise, mins = d.expire ? Math.max(1, Math.round((d.expire * 1000 - Date.now()) / 60000)) : null;
+  return '<div class="recap"><span>Vous recevez</span><b>' + nvc(d.montant) + ' NVCoins</b>' + (d.but === 'entreprise' ? '<span>Pour</span><b>Le compte de votre entreprise</b>' : '') +
+    '<span>Prix</span><b>' + esc(monnaie(d.montantLocal, dv)) + '</b><span>Frais du moyen' + (mc && mc.nom ? ' (<span data-brut>' + esc(mc.nom) + '</span>)' : '') + '</span><b>' + (d.fraisPayeur ? esc(monnaie(d.frais, dv)) : 'Pris en charge par NEURAVID') + '</b>' +
+    '<span class="tot">Total à payer</span><b class="tot">' + esc(monnaie(d.total, dv)) + '</b></div>' +
+    (mins ? '<p class="petit">Ce prix est garanti ' + mins + ' minutes.</p>' : '') +
+    '<p class="petit">Vos NVCoins arrivent dès que le prestataire confirme le paiement à NEURAVID. Ils servent à offrir, payer et envoyer, et ne se retirent pas.</p>' +
+    '<button class="btn miel large" data-act="pg-payer">Payer ' + esc(monnaie(d.total, dv)) + '</button><button class="btn trait large" data-act="pg-modifier" style="margin-top:8px">Modifier</button>';
+}
+function payerRecharge(){
+  var d = PG.devis; if(!d || PG.envoi) return;
+  /* la clé ne change que si le devis change : un nouvel essai ne fait jamais payer deux fois */
+  if(!PG.cle || PG.sig !== d.id){ PG.cle = idem('pgr'); PG.sig = d.id; }
+  var corps = {devis:d.id}, mc = moyenPG();
+  if(mc && mc.champ === 'telephone') corps.payeur = String(PG.payeur).replace(/[^\d+]/g, '').slice(0, 20);
+  try{ if(/^https:/.test(location.protocol)) corps.retour = location.origin + location.pathname + '#recharge'; }catch(e){ dbg(e); }
+  PG.envoi = true;
+  var b = document.querySelector('[data-act="pg-payer"]'); if(b){ b.disabled = true; b.textContent = 'Envoi…'; }
+  posterPG('/v1/recolte/recharges', corps, function(r, s){
+    PG.envoi = false;
+    if(reussi(s, r) && r && r.recharge){ PG.cle = null; PG.sig = ''; PG.suivi = normRecharge(r); emit('topup_started', {recharge:PG.suivi.id, montant:d.montant}); if(FEUILLE.nom === 'pg') rendreRecharge(); suivreRecharge(); return; }
+    if(!s || s >= 500 || s === 429 || s === 408 || s === 409){ if(b){ b.disabled = false; b.textContent = 'Réessayer'; } toast('Pas de réponse. Votre paiement ne sera jamais fait deux fois : réessayez.', 5200); return; }
+    PG.cle = null; PG.sig = ''; PG.devis = null; toast(motRefus(r), 5000); if(FEUILLE.nom === 'pg') rendreRecharge();
+  }, PG.cle, 30000);
+}
+function normRecharge(r){
+  var a = r.action && typeof r.action === 'object' ? r.action : null, act = null;
+  if(a && a.type === 'redirection' && urlSure(a.url) && /^https:/.test(a.url)) act = {type:'redirection', url:urlSure(a.url)};
+  else if(a && a.type === 'instructions' && txt(a.texte, 300)) act = {type:'instructions', texte:txt(a.texte, 300)};
+  else if(a && a.type === 'telephone') act = {type:'telephone'};
+  return {id:txt(r.recharge || r.id, 64), etat:PG_ETATS[r.etat] ? r.etat : 'en_attente', montant:nbS(r.montant), devise:/^[A-Z]{3}$/.test(r.devise || '') ? r.devise : null,
+    total:nbS(r.total), but:r.but === 'entreprise' ? 'entreprise' : 'recharge', action:act, at:nbS(r.at), raison:r.raison && r.raison.code ? String(r.raison.code) : null};
+}
+function vueSuivi(){
+  var x = PG.suivi, h = '<div class="recap"><span>NVCoins</span><b>' + nvc(x.montant) + '</b><span>Total</span><b>' + esc(monnaie(x.total, x.devise)) + '</b></div>';
+  if(x.etat === 'en_attente'){
+    if(x.action && x.action.type === 'redirection') h += '<p>Terminez le paiement sur la page sécurisée du prestataire.</p><button class="btn miel large" data-act="pg-ouvrir">Ouvrir la page de paiement</button>';
+    else if(x.action && x.action.type === 'instructions') h += '<div class="carte"><p data-brut dir="auto" style="margin:0">' + esc(x.action.texte) + '</p></div>';
+    else h += '<p>Validez le paiement sur votre téléphone : votre opérateur vous envoie une demande.</p>';
+    h += '<div class="pg-etat" aria-live="polite"><span class="pg-charge petit"><i></i><i></i><i></i></span>En attente de la confirmation du prestataire…</div><p class="petit">Vous pouvez fermer : vos NVCoins arriveront quand même, et vous suivez la recharge dans « Mes recharges ».</p>';
+  } else if(x.etat === 'confirme') h += '<div class="pg-etat ok" aria-live="polite">✓ ' + nvc(x.montant) + (x.but === 'entreprise' ? ' NVCoins ajoutés au compte de votre entreprise.' : ' NVCoins ajoutés à vos NVCoins rechargés.') + '</div><button class="btn miel large" data-act="pg-fini">Terminé</button>';
+  else if(x.etat === 'echec') h += '<div class="pg-etat non" aria-live="polite">Le paiement n\'a pas abouti. NEURAVID n\'a rien reçu.</div><button class="btn trait large" data-act="pg-modifier">Essayer encore</button>';
+  else if(x.etat === 'revue') h += '<div class="pg-etat" aria-live="polite">Votre paiement est vérifié par l\'équipe NEURAVID. Rien n\'est perdu.</div><button class="btn trait large" data-act="pg-fini">Fermer</button>';
+  else h += '<div class="pg-etat non" aria-live="polite">Le délai est passé sans confirmation du prestataire. Si vous avez payé, rien n\'est perdu : écrivez-nous depuis « Mes recharges ».</div><button class="btn trait large" data-act="pg-fini">Fermer</button>';
+  return h;
+}
+function arreterSuivi(){ clearTimeout(PG.tSuivi); PG.tSuivi = null; }
+function suivreRecharge(){
+  arreterSuivi();
+  var x = PG.suivi; if(!x || x.etat !== 'en_attente') return;
+  var compte = compteActuel(), essais = 0;
+  (function tour(){
+    PG.tSuivi = setTimeout(function(){
+      if(!PG.suivi || PG.suivi.id !== x.id || compte !== compteActuel()) return;
+      lirePG('/v1/recolte/recharges/' + encodeURIComponent(x.id), function(r){
+        if(!PG.suivi || PG.suivi.id !== x.id) return;
+        if(r && r.id){ var n = normRecharge(r); n.action = n.action || PG.suivi.action; PG.suivi = n; }
+        if(FEUILLE.nom === 'pg') rendreRecharge();
+        if(PG.suivi.etat === 'en_attente'){ if(++essais < 150) tour(); return; }
+        rechargeTerminee(PG.suivi);
+      }, 0);
+    }, essais < 10 ? 3000 : 8000);
+  })();
+}
+function rechargeTerminee(x){
+  PG.liste = null; oublierCache('/v1/recolte/'); chargerRecharges(true);
+  if(x.etat === 'confirme'){ emit('topup_confirmed', {recharge:x.id, montant:x.montant}); if(x.but !== 'entreprise' && apercuPG() && st.solde != null){ st.solde += x.montant || 0; majPuce(); }
+    if(!apercuPG()) chargerPortefeuillePrincipal(true);
+    if(FEUILLE.nom !== 'pg') toast('✓ ' + nvc(x.montant) + ' NVCoins ajoutés.', 4200); }
+}
+
+/* ── Mes recharges (dans le portefeuille) ── */
+function chargerRecharges(force){
+  if(!rechargeOuverte() || !estMajeur()) return;
+  PG.lEtat = PG.liste ? 'ok' : 'attente';
+  lirePG('/v1/recolte/recharges', function(d, panne){
+    if(d && Array.isArray(d.items)){ PG.liste = d.items.slice(0, 30).map(function(x){ return x && x.id ? normRecharge(x) : null; }).filter(Boolean); PG.lEtat = 'ok'; }
+    else if(panne) PG.lEtat = 'erreur';
+    var z = $('pgListe'); if(z) z.innerHTML = listeRecharges();
+  }, force ? 0 : 20000);
+}
+function listeRecharges(){
+  if(PG.lEtat === 'erreur') return etatVide('Vos recharges ne sont pas arrivées', 'Elles sont gardées par NEURAVID.');
+  if(!PG.liste) return '';
+  if(!PG.liste.length) return '<p class="petit">Aucune recharge pour l\'instant.</p>';
+  return '<div class="carte">' + PG.liste.slice(0, 10).map(function(x){
+    var cl = x.etat === 'confirme' ? 'disponible' : x.etat === 'echec' || x.etat === 'expire' || x.etat === 'close' ? 'repris' : 'verification';
+    return '<button class="ligne" data-act="pg-voir" data-id="' + esc(x.id) + '"><span class="alv">＋</span><span class="x"><b>' + (x.but === 'entreprise' ? 'Compte entreprise' : 'Recharge') + '</b><span>' + (x.at ? esc(jourDe(x.at * 1000)) + ' · ' + esc(heureDe(x.at * 1000)) : '—') + '</span></span>' +
+      '<span class="m">+ ' + nvc(x.montant) + '<small><span class="etat ' + cl + '">' + esc(PG_ETATS[x.etat]) + '</span></small></span></button>';
+  }).join('') + '</div>';
+}
+
+/* ════════ PAYER une personne ou une entreprise ════════ */
+function feuillePayer(o){
+  o = o || {};
+  if(o.handle) PG.py.h = '@' + cle(o.handle); if(entier(o.nvc)) PG.py.n = String(entier(o.nvc)); if(o.motif != null) PG.py.motif = txt(o.motif, 80);
+  PG.py.ref = /^[\w.:-]{1,64}$/.test(o.reference || '') ? o.reference : null; PG.py.id = /^[\w.:-]{1,64}$/.test(o.id || '') ? o.id : null; PG.py.fixe = !!o.handle;
+  var p = poches();
+  ouvrirFeuille('Payer', marqueApercu() + '<p class="petit">Payez un billet, une commande, un service ou une entreprise avec vos NVCoins rechargés. La personne reçoit le paiement après le délai de vérification de NEURAVID.</p>' +
+    '<div class="recap"><span>Vos NVCoins rechargés</span><b>' + nvc(p.offrir) + '</b></div>' +
+    (PG.py.fixe ? '<div class="recap"><span>Pour</span><b data-brut dir="ltr">' + esc(PG.py.h) + '</b></div>' : '<label class="champ"><span>Le pseudo de la personne ou de l\'entreprise</span><input id="pyH" autocomplete="off" placeholder="@pseudo" value="' + esc(PG.py.h) + '"></label>') +
+    '<label class="champ"><span>Combien de NVCoins ?</span><input id="pyN" class="montant" inputmode="numeric" autocomplete="off" placeholder="0" value="' + esc(PG.py.n) + '"></label>' +
+    '<label class="champ"><span>Pour quoi ? (facultatif)</span><input id="pyM" maxlength="80" autocomplete="off" value="' + esc(PG.py.motif) + '"></label>' +
+    '<button class="btn miel large" data-act="py-ok">Payer</button><p class="petit" style="margin-top:10px">La commission de NEURAVID est écrite sur le reçu. Un paiement ne se fait jamais deux fois.</p>', null, 'py');
+}
+function envoyerPaiement(){
+  if(PG.py.envoi) return;
+  var h = cle(PG.py.h), n = entier(PG.py.n), m = txt(PG.py.motif, 80);
+  if(!/^[a-z0-9._-]{2,40}$/.test(h)){ toast('Écrivez le pseudo de la personne.'); return; }
+  if(window.NV_USER && cle(window.NV_USER.handle) === h){ toast('C\'est votre propre compte.'); return; }
+  if(!n){ toast('Écrivez un montant.'); return; }
+  var p = poches(); if(p.offrir != null && n > p.offrir){ toast('Vous n\'avez pas assez de NVCoins rechargés.'); return; }
+  var sig = h + '|' + n + '|' + m + '|' + (PG.py.ref || ''); if(!PG.py.cle || PG.py.sig !== sig){ PG.py.cle = idem('pay'); PG.py.sig = sig; }
+  PG.py.envoi = true; var b = document.querySelector('[data-act="py-ok"]'); if(b){ b.disabled = true; b.textContent = 'Envoi…'; }
+  var j = jeton(), corps = {vers:PG.py.id || h, handle:'@' + h, montant:n}; if(m) corps.motif = m; if(PG.py.ref) corps.reference = PG.py.ref;
+  posterPG('/v1/recolte/paiements', corps, function(r, s){
+    PG.py.envoi = false;
+    if(reussi(s, r) && r && r.paiement){
+      PG.py = {h:'', n:'', motif:'', cle:null, sig:'', envoi:false, ref:null};
+      emit('payment_sent', {paiement:txt(r.paiement, 64), montant:n, vers:'@' + h});
+      fermerSi(j, function(){ ouvrirFeuille('Paiement envoyé', marqueApercu() + '<div class="recap"><span>Payé</span><b>' + nvc(nbS(r.montant)) + ' NVCoins</b><span>Reçu par la personne</span><b>' + nvc(nbS(r.recu)) + '</b><span>Commission NEURAVID</span><b>' + nvc(nbS(r.commission)) + '</b></div>' +
+        '<p class="petit">' + (r.etat === 'gele' ? 'Ce paiement est vérifié par l\'équipe NEURAVID avant d\'arriver.' : 'La personne le reçoit après le délai de vérification.') + '</p><button class="btn miel large" data-act="pf-fini">Terminé</button>'); });
+      if(!apercuPG()){ oublierCache('/v1/recolte/'); chargerPortefeuillePrincipal(true); } else if(st.solde != null){ st.solde = Math.max(0, st.solde - n); majPuce(); }
+      return;
+    }
+    if(b){ b.disabled = false; b.textContent = !s || s >= 500 ? 'Réessayer' : 'Payer'; }
+    if(!s || s >= 500 || s === 429 || s === 408 || s === 409){ toast('Pas de réponse. Votre paiement ne sera jamais fait deux fois : réessayez.', 5200); return; }
+    PG.py.cle = null; PG.py.sig = ''; toast(motRefus(r), 5000);
+  }, PG.py.cle, 20000);
+}
+
+/* ── le branchement dans le portefeuille ── */
+var rendrePortefeuille13 = rendrePortefeuille;
+rendrePortefeuille = function(){
+  rendrePortefeuille13();
+  var z = $('corpsPortefeuille'); if(!z || mineur() || !estMajeur()) return;
+  var h = '';
+  if(payerOuvert()) h += '<div class="carte pg-payer"><div class="rangee" style="flex-wrap:nowrap"><span class="alv nectar">⬡</span><div style="flex:1;min-width:0"><b>Payer une personne ou une entreprise</b><p class="petit" style="margin:2px 0 0">Un billet, une commande, un service : avec vos NVCoins rechargés.</p></div></div><button class="btn trait large" data-act="py-ouvrir" style="margin-top:10px">Payer</button></div>';
+  if(rechargeOuverte()) h += '<h3 class="titre">Mes recharges</h3><div id="pgListe">' + listeRecharges() + '</div>';
+  if(!h) return;
+  var d = document.createElement('div'); d.id = 'pgZone'; d.innerHTML = h;
+  var ap = z.querySelector('.pf-actions');
+  if(ap && ap.parentNode === z) z.insertBefore(d, ap.nextSibling); else z.appendChild(d);
+  if(rechargeOuverte() && !PG.liste && PG.lEtat !== 'attente') chargerRecharges();
+};
+rechargerPF = (function(avant){ return function(){
+  if(dansMagasin() || !rechargeOuverte()){ avant(); return; }
+  avecMajorite(function(){ feuilleRecharge(); });
+}; })(rechargerPF);
+
+/* ── les gestes ── */
+document.addEventListener('click', function(e){
+  var b = e.target.closest && e.target.closest('[data-act^="pg-"],[data-act^="py-"]'); if(!b) return;
+  switch(b.dataset.act){
+    case 'pg-reessayer': feuilleRecharge(PG.but); break;
+    case 'pg-but': PG.but = b.dataset.v === 'entreprise' ? 'entreprise' : 'recharge'; rendreRecharge(); break;
+    case 'pg-moyen': if(b.disabled) break; PG.choisi = b.dataset.id; rendreRecharge(); break;
+    case 'pg-paquet': PG.n = b.dataset.v; rendreRecharge(); break;
+    case 'pg-devis': demanderDevisPG(); break;
+    case 'pg-modifier': PG.devis = null; PG.suivi = null; arreterSuivi(); rendreRecharge(); break;
+    case 'pg-payer': payerRecharge(); break;
+    case 'pg-ouvrir': var u = PG.suivi && PG.suivi.action && PG.suivi.action.url; if(!u) break; emit('payment_page_open', {url:u}); try{ window.open(u, '_blank', 'noopener'); }catch(x){ location.href = u; } break;
+    case 'pg-fini': arreterSuivi(); PG.suivi = null; PG.devis = null; fermerFeuille(function(){ if(st.vue !== 'portefeuille') montrer('portefeuille'); }); break;
+    case 'pg-voir': var x = null; (PG.liste || []).forEach(function(y){ if(y.id === b.dataset.id) x = y; }); if(!x) break;
+      ouvrirFeuille('Recharger', '<div id="pgCorps"></div>', function(){ arreterSuivi(); }, 'pg'); PG.suivi = x; rendreRecharge(); suivreRecharge(); break;
+    case 'py-ouvrir': avecMajorite(function(){ feuillePayer({}); }); break;
+    case 'py-ok': envoyerPaiement(); break;
+  }
+});
+document.addEventListener('input', function(e){
+  var t = e.target; if(!t || !t.id) return;
+  if(t.id === 'pgN'){ var v = t.value.replace(/[^\d]/g, '').slice(0, 9); if(v !== t.value) t.value = v; PG.n = v; [].forEach.call(document.querySelectorAll('[data-act="pg-paquet"]'), function(x){ x.classList.toggle('on', x.dataset.v === v); }); majEstimationPG(); }
+  if(t.id === 'pgP'){ PG.payeur = t.value.slice(0, 24); majEstimationPG(); }
+  if(t.id === 'pyH') PG.py.h = t.value.slice(0, 42);
+  if(t.id === 'pyN'){ var w = t.value.replace(/[^\d]/g, '').slice(0, 9); if(w !== t.value) t.value = w; PG.py.n = w; }
+  if(t.id === 'pyM') PG.py.motif = t.value.slice(0, 80);
+});
+/* retour d'une page de paiement (…#recharge) : on reprend le suivi de la dernière recharge */
+function retourPaiement(){ if(!/(^#|&)recharge(&|$)/.test(location.hash || '') || !estMajeur()) return; montrer('portefeuille'); chargerRecharges(true); }
+var demarrer13 = demarrer; demarrer = function(){ demarrer13(); if(tropJeune()) return; chargerCapacitesPG(); setTimeout(retourPaiement, 900); };
+addEventListener('nv:majorite', function(){ chargerCapacitesPG(true); });
+var oublierV2_13 = oublierV2; oublierV2 = function(){ oublierV2_13(); PG.liste = null; PG.lEtat = null; PG.suivi = null; PG.devis = null; PG.cle = null; arreterSuivi(); PG.py = {h:'', n:'', motif:'', cle:null, sig:'', envoi:false, ref:null}; };
+
+/* ── le pont : les autres modules et l'application ── */
+(function(){
+  var R = window.NVRecolte; if(!R) return;
+  /* NVRecolte.payer({handle:'@boutique', id?, nvc:2500, motif:'Billet', reference:'billet-77'}) : la personne confirme toujours */
+  R.payer = function(o){ if(tropJeune() || mineur() || !o || !normPers({handle:o.handle})) return false; if(!payerOuvert()){ toast('Payer n\'est pas encore ouvert.'); return false; } avecMajorite(function(){ feuillePayer(o); }); return true; };
+  R.recharger = function(but){ if(tropJeune() || mineur()) return false; if(but === 'entreprise' && rechargeOuverte() && !dansMagasin()){ avecMajorite(function(){ feuilleRecharge('entreprise'); }); return true; } rechargerPF(); return true; };
+  R.paiements = function(){ return {recharge:rechargeOuverte(), payer:payerOuvert(), magasin:dansMagasin()}; };
 })();
 
 /* ════════════════════════════════════════════════════════════════════
