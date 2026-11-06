@@ -1055,8 +1055,8 @@ html.globe-seul .iris-flottant{display:none}
 .ch-pres{justify-self:center;display:inline-flex;align-items:center;gap:8px;min-height:42px;padding:0 18px;font-weight:850}
 .ch-pres svg{width:16px;height:16px;fill:currentColor}
 /* 7 · l'onde hexagonale sous le doigt et le portail */
-.onde{position:fixed;z-index:8000;width:16px;height:18px;margin:-9px 0 0 -8px;pointer-events:none;clip-path:polygon(50% 0,100% 25%,100% 75%,50% 100%,0 75%,0 25%);background:radial-gradient(circle,transparent 30%,var(--c) 34%,transparent 72%);animation:onde .6s ease-out forwards}
-@keyframes onde{from{transform:scale(1);opacity:.95}to{transform:scale(7);opacity:0}}
+.onde-toucher{position:fixed;z-index:8000;width:16px;height:18px;margin:-9px 0 0 -8px;pointer-events:none;clip-path:polygon(50% 0,100% 25%,100% 75%,50% 100%,0 75%,0 25%);background:radial-gradient(circle,transparent 30%,var(--c) 34%,transparent 72%);animation:ondeTouche .6s ease-out forwards}
+@keyframes ondeTouche{from{transform:scale(1);opacity:.95}to{transform:scale(7);opacity:0}}   /* 6 nov. 2026 : renommée (« onde » est l'animation des ondes du Direct) */
 .tx-hex.portail-on{animation:txPortail .42s cubic-bezier(.2,.8,.2,1)}
 @keyframes txPortail{0%{transform:scale(.94)}55%{transform:scale(1.12);filter:brightness(1.5) drop-shadow(0 0 10px var(--c))}100%{transform:none;filter:none}}
 /* 8 · les chargements en hexagones */
@@ -1133,6 +1133,19 @@ body.feuille-ouverte .raccourcis{visibility:hidden}
 .li-hx{position:relative;flex:0 0 44px;height:50px;display:grid;place-items:center;clip-path:polygon(50% 0,100% 25%,100% 75%,50% 100%,0 75%,0 25%);background:linear-gradient(135deg,#2EE6C5,#7B3BFF 55%,#FF3D9A)}
 .li-hx svg{width:24px;height:24px;fill:#fff}
 @media (prefers-reduced-motion:reduce){.rc-choix button{animation:none}}
+
+/* ════════ L'ÉCRAN DE LA BARRE DU BAS (ac17, 6 novembre 2026) ════════ */
+.bas.avec-ecran{background:none!important;backdrop-filter:none!important;-webkit-backdrop-filter:none!important}
+.bas.avec-ecran::before{display:none}
+.bas-ecran{position:absolute;left:0;top:0;width:100%;height:100%;z-index:0;pointer-events:none;display:block}
+.bas.avec-ecran .nb{z-index:1}
+.bas.avec-ecran .nb{color:#C9C2E6}
+.bas.avec-ecran .nb.on{color:#fff}
+.bas.avec-ecran .nb.on::after{width:18px;height:5px;border-radius:0;clip-path:polygon(20% 0,80% 0,100% 50%,80% 100%,20% 100%,0 50%);background:linear-gradient(90deg,#2EE6C5,#9B6BFF,#FF3D9A)}
+.bas.avec-ecran .nb>span:last-child{text-shadow:0 1px 3px rgba(0,0,0,.6)}
+
+/* 6 nov. 2026 : les raccourcis Palabre et La Forge couvrent le bord droit ; la dernière tuile d'une rangée peut défiler hors de dessous */
+.tx-rail,.tv-outils.tx-ruche,.hexa-talents:not(.ruche-ouverte) .ht-ruche{padding-inline-end:78px!important}
 
 </style>
 </head>
@@ -1731,7 +1744,7 @@ function svgNav(k){
   return '';
 }
 var NAV = [{k:'accueil', n:'Accueil', id:null}, {k:'direct', n:'Le Direct', id:'Live'}, {k:'iris', n:'Iris', id:'Player', centre:true}, {k:'baobab', n:'Baobab', id:'Baobab'}, {k:'empreinte', n:'Profil', id:'Profile'}];
-function rendreNav(){ poser($('bas'), NAV.filter(function(b){ return !b.id || !REGP[b.id] || (b.k === 'direct' && !window.NV_USER) || permis(REGP[b.id]); }).map(function(b){ return '<button class="nb' + (b.centre ? ' centre' : '') + (b.k === 'accueil' ? ' on' : '') + '" data-a="nav" data-v="' + b.k + '"' + (b.k === 'accueil' ? ' aria-current="page"' : '') + ' aria-label="' + esc(tr(b.k === 'iris' ? 'Iris, le lecteur principal' : b.k === 'empreinte' ? 'Mon profil : L\'Empreinte' : b.k === 'baobab' ? 'La Salle Baobab' : b.n)) + '"><span class="ic">' + svgNav(b.k) + '</span><span>' + esc(b.n) + '</span></button>'; }).join('')); }
+function rendreNav(){ poser($('bas'), NAV.filter(function(b){ return !b.id || !REGP[b.id] || (b.k === 'direct' && !window.NV_USER) || permis(REGP[b.id]); }).map(function(b){ return '<button class="nb' + (b.centre ? ' centre' : '') + (b.k === 'accueil' ? ' on' : '') + '" data-a="nav" data-v="' + b.k + '"' + (b.k === 'accueil' ? ' aria-current="page"' : '') + ' aria-label="' + esc(tr(b.k === 'iris' ? 'Iris, le lecteur principal' : b.k === 'empreinte' ? 'Mon profil : L\'Empreinte' : b.k === 'baobab' ? 'La Salle Baobab' : b.n)) + '"><span class="ic">' + svgNav(b.k) + '</span><span>' + esc(b.n) + '</span></button>'; }).join('')); if(typeof basApresNav === 'function') basApresNav(); }
 A.nav = function(k){ var b = NAV.filter(function(x){ return x.k === k; })[0]; if(!b) return; emit('nav_tap', {bouton:k}); if(!b.id){ A.haut(); return; } entrer(b.id); };
 A.haut = function(){ try{ window.scrollTo({top:0, behavior:CALME.on ? 'auto' : 'smooth'}); }catch(e){ window.scrollTo(0, 0); } };
 A.chercher = function(){ entrer('Search'); };
@@ -5179,7 +5192,7 @@ function ouverture(){ if(!ouvertureVoulue()) return; ecrire('nv_accueil_ouvertur
 
 /* ════════ 4 · Le fil du monde ════════ */
 function filAjouter(o){ var iso = String(o && o.pays || '').toUpperCase(); if(!PAYS_PAR[iso]) return; var m = moduleOk(o.module);
-  if(m && !permis(REGP[m])) return; V5.fil.unshift({iso:iso, m:m, at:Date.now()}); V5.fil = V5.fil.slice(0, 6); if(!V5.filT){ V5.filI = 0; rendreFil(); demarrerFil(); } }
+  if(m && !permis(REGP[m])) return; if(typeof barreEtincelle === 'function') barreEtincelle(); V5.fil.unshift({iso:iso, m:m, at:Date.now()}); V5.fil = V5.fil.slice(0, 6); if(!V5.filT){ V5.filI = 0; rendreFil(); demarrerFil(); } }
 function ilYA(at){ var s = Math.max(0, Math.round((Date.now() - at) / 1000)); return s < 45 ? tr('à l\'instant') : phraseTexte('il y a {0} min', Math.max(1, Math.round(s / 60))); }
 function rendreFil(){ var el = $('filMonde'); if(!el) return; var e = V5.fil[V5.filI % Math.max(1, V5.fil.length)]; if(!e){ el.hidden = true; el.innerHTML = ''; return; } el.hidden = false;
   poser(el, '<i class="fil-pt" aria-hidden="true"></i><span class="fil-t"><b>' + esc('Nouvelle vidéo') + '</b><span data-brut> · ' + drapeau(e.iso) + ' ' + esc(nomPays(e.iso)) + (e.m ? ' · ' + esc(tr(REGP[e.m].n)) : '') + ' · ' + esc(ilYA(e.at)) + '</span></span>' +
@@ -5211,7 +5224,7 @@ A.gagnerTalents = function(){ emit('home_gagner', {}); entrer('Recolte', {depuis
 var CIBLES_ONDE = '.tx,.hxl,.astre.ecran,.ht-hx,.vt-hx,.ch-hx';
 function onde(ev){ var t = ev.target && ev.target.closest && ev.target.closest(CIBLES_ONDE); if(!t || ev.button > 0 || (!ev.clientX && !ev.clientY)) return;
   if(window.flutter_inappwebview) emit('haptic', {force:'leger'}); else if(!CALME.on && navigator.vibrate && matchMedia('(hover: none)').matches) try{ navigator.vibrate(8); }catch(e){ dbg(e); }
-  if(CALME.on || LEGER.on) return; var o = document.createElement('span'); o.className = 'onde'; o.setAttribute('aria-hidden', 'true'); o.style.left = ev.clientX + 'px'; o.style.top = ev.clientY + 'px';
+  if(CALME.on || LEGER.on) return; var o = document.createElement('span'); o.className = 'onde-toucher'; o.setAttribute('aria-hidden', 'true'); o.style.left = ev.clientX + 'px'; o.style.top = ev.clientY + 'px';
   o.style.setProperty('--c', getComputedStyle(t).getPropertyValue('--c').trim() || '#2EE6C5'); document.body.appendChild(o); setTimeout(function(){ o.remove(); }, 650); }
 function portailTuile(ev){ if(CALME.on || LEGER.on) return; var t = ev.target && ev.target.closest && ev.target.closest('.tx'); var h = t && t.querySelector('.tx-hex'); if(!h) return; h.classList.remove('portail-on'); void h.offsetWidth; h.classList.add('portail-on'); setTimeout(function(){ h.classList.remove('portail-on'); }, 450); }
 
@@ -5295,6 +5308,80 @@ document.addEventListener('keydown', function(e){ if(e.key === 'Escape') fermerC
 function demarrerV5(){ rendreRaccourcis();  document.addEventListener('click', onde, true); document.addEventListener('click', portailTuile, true); }
 
 /* ════════════════════════════════════════════════════════════════════
+   L'ÉCRAN DE LA BARRE DU BAS (6 novembre 2026, demande de Karamo)
+   La barre du bas devient un véritable écran, à sa taille exacte, dessiné dans un seul canevas :
+     – un cadre opaque (les libellés restent lisibles quel que soit le contenu qui passe derrière), dont le bord supérieur
+       se soulève en hexagone autour d'Iris ; un bord lumineux où court une étincelle d'énergie ;
+     – une ruche d'hexagones très fine en fond, et une aurore aux couleurs de NEURAVID qui coule lentement ;
+     – « tout converge vers Iris » : de petites lumières hexagonales glissent de chaque onglet vers l'œil du centre ;
+     – sous l'onglet actif, un projecteur hexagonal ; au toucher d'un onglet, une vague part de lui ;
+     – « la barre respire avec le monde » : chaque vraie publication (événement temps réel « creation ») envoie une
+       étincelle dorée le long de la barre (dans l'aperçu, celles de l'aperçu).
+   Économe : 20 images/s au plus, 10 en accueil léger, le fond dessiné une seule fois, une image fixe en mouvement réduit ; rien ne se dessine quand
+   la page est cachée ou qu'une feuille (le menu) est ouverte. Aucune donnée inventée : ce ne sont que des lumières.
+   ════════════════════════════════════════════════════════════════════ */
+var BAS = {fond:null, hexs:[], cv:null, x:null, W:0, H:0, dpr:1, raf:0, tPrec:0, onglets:[], centre:null, gouttes:[], vagues:[], etincelles:[], tPluie:0, ro:null, actif:0};
+var BAS_C = ['#2EE6C5', '#FF2D55', '#9B6BFF', '#3BE38A', '#B98CFF'];
+function basHexA(c, a){ var v = Math.round(Math.max(0, Math.min(1, a)) * 255).toString(16); return c + (v.length < 2 ? '0' + v : v); }
+/* la forme : bord supérieur à y0, qui se soulève en hexagone (largeur lc) autour du centre */
+function basForme(x, W, H, y0, cx, lc, haut){ var d = lc / 2, e = lc * .22; x.beginPath(); x.moveTo(0, y0); x.lineTo(cx - d - e, y0); x.lineTo(cx - d, haut); x.lineTo(cx + d, haut); x.lineTo(cx + d + e, y0); x.lineTo(W, y0); x.lineTo(W, H); x.lineTo(0, H); x.closePath(); }
+function basBord(x, W, y0, cx, lc, haut){ var d = lc / 2, e = lc * .22; x.beginPath(); x.moveTo(0, y0); x.lineTo(cx - d - e, y0); x.lineTo(cx - d, haut); x.lineTo(cx + d, haut); x.lineTo(cx + d + e, y0); x.lineTo(W, y0); }
+function basMesurer(){ var el = $('bas'), cv = BAS.cv; if(!el || !cv) return; var r = el.getBoundingClientRect(); BAS.dpr = Math.min(1.25, window.devicePixelRatio || 1);
+  BAS.W = Math.round(r.width * BAS.dpr); BAS.H = Math.round(r.height * BAS.dpr); if(cv.width !== BAS.W || cv.height !== BAS.H){ cv.width = BAS.W; cv.height = BAS.H; }
+  BAS.onglets = [].map.call(el.querySelectorAll('.nb'), function(b, i){ var ic = b.querySelector('.ic') || b, q = ic.getBoundingClientRect(); return {x:(q.left + q.width / 2 - r.left) * BAS.dpr, y:(q.top + q.height / 2 - r.top) * BAS.dpr, c:BAS_C[i % BAS_C.length], centre:b.classList.contains('centre'), on:b.classList.contains('on'), k:b.getAttribute('data-v')}; });
+  BAS.centre = BAS.onglets.filter(function(o){ return o.centre; })[0] || {x:BAS.W / 2, y:BAS.H / 2}; basFond(); }
+/* le fond fixe (dégradé, ruche très fine) dessiné une seule fois : chaque image le recopie, sans le recalculer */
+function basFond(){ var W = BAS.W, H = BAS.H, u = BAS.dpr; if(!W || !H) return; var f = BAS.fond; if(!f) return; f.width = W; f.height = H; var x = f.getContext('2d'); basForme(x, W, H, 22 * u, BAS.centre.x, 104 * u, 4 * u); x.clip();
+  var g = x.createLinearGradient(0, 0, 0, H); g.addColorStop(0, '#1A0F44'); g.addColorStop(.5, '#100A30'); g.addColorStop(1, '#08051C'); x.fillStyle = g; x.fillRect(0, 0, W, H);
+  var R = 9 * u, dx = R * 1.732, dy = R * 1.5, y0 = 22 * u; x.lineWidth = .7 * u; x.strokeStyle = 'rgba(185,140,255,.06)'; x.beginPath(); BAS.hexs = [];
+  for(var row = 0, yy = y0 + R * .2; yy < H + R; row++, yy += dy) for(var xx = (row % 2 ? dx / 2 : 0) - dx; xx < W + dx; xx += dx){ BAS.hexs.push([xx, yy]); for(var k = 0; k <= 6; k++){ var an = Math.PI / 3 * k - Math.PI / 6; x[k ? 'lineTo' : 'moveTo'](xx + Math.cos(an) * R, yy + Math.sin(an) * R); } }
+  x.stroke(); }
+function basDessiner(t, dt){ var x = BAS.x, W = BAS.W, H = BAS.H, u = BAS.dpr; if(!x || !W) return; var y0 = 22 * u, cx = BAS.centre.x, lc = 104 * u, haut = 4 * u, i;
+  x.clearRect(0, 0, W, H); x.save(); basForme(x, W, H, y0, cx, lc, haut); x.clip();
+  /* le fond opaque est un canevas à part, dessous (dessiné une seule fois) : ici, seulement les lumières */
+  /* l'aurore qui coule lentement (trois voiles colorés) */
+  x.globalCompositeOperation = 'lighter';
+  [['#2EE6C5', 0], ['#9B6BFF', 2.1], ['#FF3D9A', 4.2]].forEach(function(a){ var px = (Math.sin(t * .23 + a[1]) * .5 + .5) * W, ra = x.createRadialGradient(px, y0, 0, px, y0, W * .45); ra.addColorStop(0, basHexA(a[0], .2)); ra.addColorStop(1, basHexA(a[0], 0)); x.fillStyle = ra; x.fillRect(px - W * .45, 0, W * .9, H); });
+  /* la ruche s'éclaire en vague depuis le centre (seulement les hexagones allumés, en un seul tracé) */
+  var R = 9 * u; x.lineWidth = .8 * u; x.strokeStyle = 'rgba(185,140,255,.14)'; x.beginPath();
+  BAS.hexs.forEach(function(h){ var dist = Math.hypot(h[0] - cx, h[1] - y0) / W; if(Math.sin(t * 1.4 - dist * 9) < .55) return; for(var k = 0; k <= 6; k++){ var an = Math.PI / 3 * k - Math.PI / 6; x[k ? 'lineTo' : 'moveTo'](h[0] + Math.cos(an) * R, h[1] + Math.sin(an) * R); } }); x.stroke();
+  /* le projecteur hexagonal sous l'onglet actif */
+  BAS.onglets.forEach(function(o){ if(!o.on || o.centre) return; var sp = x.createRadialGradient(o.x, o.y, 0, o.x, o.y, 34 * u); sp.addColorStop(0, basHexA(o.c, .28 + .1 * Math.sin(t * 2))); sp.addColorStop(1, basHexA(o.c, 0)); x.fillStyle = sp; x.beginPath(); for(var k = 0; k < 6; k++){ var an = Math.PI / 3 * k - Math.PI / 2; x[k ? 'lineTo' : 'moveTo'](o.x + Math.cos(an) * 30 * u, o.y + Math.sin(an) * 30 * u); } x.closePath(); x.fill(); });
+  /* « tout converge vers Iris » : des lumières glissent de chaque onglet vers le centre */
+  BAS.tPluie -= dt; if(BAS.tPluie <= 0 && BAS.onglets.length){ BAS.tPluie = .55; var src = BAS.onglets.filter(function(o){ return !o.centre; }); var o0 = src[Math.floor(Math.random() * src.length)]; if(o0) BAS.gouttes.push({x0:o0.x, y0:o0.y + 6 * u, c:o0.c, v:0, s:.35 + Math.random() * .25}); }
+  for(i = BAS.gouttes.length - 1; i >= 0; i--){ var gt = BAS.gouttes[i]; gt.v += dt * gt.s; if(gt.v >= 1){ BAS.gouttes.splice(i, 1); continue; } var e2 = gt.v * gt.v * (3 - 2 * gt.v), gx = gt.x0 + (cx - gt.x0) * e2, gy = gt.y0 + (BAS.centre.y - gt.y0) * e2 - Math.sin(gt.v * Math.PI) * 10 * u, al = Math.sin(gt.v * Math.PI);
+    var lg = x.createRadialGradient(gx, gy, 0, gx, gy, 7 * u); lg.addColorStop(0, basHexA(gt.c, .9 * al)); lg.addColorStop(1, basHexA(gt.c, 0)); x.fillStyle = lg; x.beginPath(); x.arc(gx, gy, 7 * u, 0, 6.29); x.fill(); }
+  /* les vagues d'un toucher */
+  for(i = BAS.vagues.length - 1; i >= 0; i--){ var vg = BAS.vagues[i]; vg.v += dt * 1.6; if(vg.v >= 1){ BAS.vagues.splice(i, 1); continue; } x.strokeStyle = basHexA(vg.c, (1 - vg.v) * .8); x.lineWidth = 2 * u; x.beginPath(); for(var k2 = 0; k2 < 6; k2++){ var a2 = Math.PI / 3 * k2 - Math.PI / 2, rr = (10 + vg.v * 60) * u; x[k2 ? 'lineTo' : 'moveTo'](vg.x + Math.cos(a2) * rr, vg.y + Math.sin(a2) * rr); } x.closePath(); x.stroke(); }
+  /* « la barre respire avec le monde » : une étincelle dorée par vraie publication */
+  for(i = BAS.etincelles.length - 1; i >= 0; i--){ var et = BAS.etincelles[i]; et.v += dt * .5; if(et.v >= 1){ BAS.etincelles.splice(i, 1); continue; } var ex = et.dep + (cx - et.dep) * et.v, ey = y0 + 2 * u, ra2 = x.createRadialGradient(ex, ey, 0, ex, ey, 16 * u);
+    ra2.addColorStop(0, basHexA('#FFE29A', .95 * Math.sin(et.v * Math.PI))); ra2.addColorStop(1, basHexA('#FFC93D', 0)); x.fillStyle = ra2; x.beginPath(); x.arc(ex, ey, 16 * u, 0, 6.29); x.fill(); }
+  /* le halo de l'œil d'Iris */
+  var hi = x.createRadialGradient(cx, BAS.centre.y, 0, cx, BAS.centre.y, 70 * u); hi.addColorStop(0, basHexA('#9B6BFF', .35 + .12 * Math.sin(t * 1.7))); hi.addColorStop(1, basHexA('#9B6BFF', 0)); x.fillStyle = hi; x.fillRect(cx - 80 * u, 0, 160 * u, H);
+  x.restore();
+  /* le bord lumineux : un dégradé teal → violet → rose, et une étincelle qui le parcourt */
+  x.save(); x.globalCompositeOperation = 'lighter'; var bg = x.createLinearGradient(0, 0, W, 0); bg.addColorStop(0, '#2EE6C5'); bg.addColorStop(.5, '#9B6BFF'); bg.addColorStop(1, '#FF3D9A');
+  x.strokeStyle = bg; x.globalAlpha = .25; x.lineWidth = 6 * u; basBord(x, W, y0, cx, lc, haut); x.stroke(); x.globalAlpha = 1; x.lineWidth = 1.6 * u; x.stroke();
+  var lon = W + lc * .5, pos = ((t * .18) % 1) * lon; x.setLineDash([46 * u, lon]); x.lineDashOffset = -pos; x.strokeStyle = 'rgba(255,255,255,.95)'; x.lineWidth = 2.2 * u; basBord(x, W, y0, cx, lc, haut); x.stroke();
+  x.lineDashOffset = -(pos + lon / 2); x.stroke(); x.setLineDash([]); x.restore(); }
+function basPas(ms){ BAS.raf = 0; var t = ms / 1000, figee = document.hidden || document.body.classList.contains('feuille-ouverte');
+  var pas = LEGER.on ? 1 / 10 : 1 / 20; if(!figee && !CALME.on && t - BAS.tPrec >= pas){ var dt = Math.min(.1, BAS.tPrec ? t - BAS.tPrec : pas); BAS.tPrec = t; basDessiner(t, dt); }
+  if(!CALME.on) BAS.raf = requestAnimationFrame(basPas); }
+function basRelancer(){ if(!BAS.cv) return; basMesurer(); if(CALME.on){ basDessiner(4, 0); return; } if(!BAS.raf) BAS.raf = requestAnimationFrame(basPas); }
+/* au toucher d'un onglet : une vague part de lui */
+function basVague(b){ if(!BAS.cv || CALME.on) return; var i = [].indexOf.call($('bas').querySelectorAll('.nb'), b), o = BAS.onglets[i]; if(o) BAS.vagues.push({x:o.x, y:o.y, c:o.c, v:0}); }
+/* une vraie publication : une étincelle dorée part d'un bord de la barre vers Iris */
+function barreEtincelle(){ if(!BAS.cv || CALME.on || BAS.etincelles.length > 4) return; BAS.etincelles.push({dep:Math.random() < .5 ? 0 : BAS.W, v:0}); }
+/* la barre a été redessinée (langue, âge) : l'écran reprend sa place */
+function basApresNav(){ var el = $('bas'); if(!el || !BAS.cv) return; if(!el.contains(BAS.cv)){ el.insertBefore(BAS.cv, el.firstChild); if(BAS.fond) el.insertBefore(BAS.fond, BAS.cv); } el.classList.add('avec-ecran'); basRelancer(); }
+function demarrerBas(){ var el = $('bas'); if(!el || el.querySelector('#cvBas')) return; var cv = document.createElement('canvas'); cv.id = 'cvBas'; cv.className = 'bas-ecran'; cv.setAttribute('aria-hidden', 'true'); var fd = document.createElement('canvas'); fd.id = 'cvBasFond'; fd.className = 'bas-ecran'; fd.setAttribute('aria-hidden', 'true'); el.insertBefore(cv, el.firstChild); el.insertBefore(fd, cv); BAS.fond = fd; BAS.cv = cv; BAS.x = cv.getContext('2d');
+  el.classList.add('avec-ecran'); document.addEventListener('pointerdown', function(e){ var b = e.target.closest && e.target.closest('#bas .nb'); if(b) basVague(b); }, {capture:true, passive:true});
+  if('ResizeObserver' in window){ BAS.ro = new ResizeObserver(function(){ basRelancer(); }); BAS.ro.observe(el); } else window.addEventListener('resize', basRelancer);
+  document.addEventListener('visibilitychange', function(){ if(!document.hidden) basRelancer(); });
+  try{ var mq = matchMedia('(prefers-reduced-motion: reduce)'); if(mq.addEventListener) mq.addEventListener('change', function(){ setTimeout(basRelancer, 0); }); }catch(e){ dbg(e); }
+  basRelancer(); }
+
+/* ════════════════════════════════════════════════════════════════════
    LE DÉMARRAGE, CE QUE DIT LE SERVEUR, L'INTERFACE PUBLIQUE
    ════════════════════════════════════════════════════════════════════ */
 /* un monde ne s'anime que s'il est à l'écran (la batterie d'abord) */
@@ -5367,7 +5454,7 @@ function demarrer(){
   if(tropJeune()){ document.body.innerHTML = '<p style="padding:40px 20px;text-align:center">' + esc(tr('NEURAVID est ouvert à partir de 13 ans.')) + '</p>'; emit('module_ready', {module:MOI, ferme:'age'}); return; }
   ouverture(); demarrerV5();   /* 5 nov. 2026 : l'œil qui s'ouvre, les tuiles qui répondent (ac16) */
   $('logoMarque').innerHTML = logoMarque(); $('logoMot').innerHTML = logoMot(); vieDuLogo();
-  rendreNav(); batirPrisme(); gestesPrisme(); autoPrisme(); rendreEtendard(); rendreContinents();
+  rendreNav(); demarrerBas(); batirPrisme(); gestesPrisme(); autoPrisme(); rendreEtendard(); rendreContinents();
   CIEL.brancher($('cvCiel')); GX.brancher($('cvGalaxie')); GAL.moi = MONDE.pays || monIso() || null;
   calculerLeger(); appliquerMonde(); surveiller(); demarrerV3(); window.addEventListener('scroll', suivreDefilement, {passive:true}); suivreDefilement(); accueilParle(); if(GLB.seul) ouvrirGlobe();
   window.addEventListener('resize', function(){ placerPrisme(); });
