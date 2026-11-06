@@ -4814,8 +4814,9 @@ function rendreVitrine(){ var el = $('vitrine'); if(!el) return; arreterMediasDe
       '<span class="vt-cat" aria-hidden="true">' + esc(v ? tr(b.c.t) : tr(c0.t)) + (v && v.auteur.handle ? '<em data-brut>' + (v.pays ? drapeau(v.pays) + ' ' : '') + '@' + esc(v.auteur.handle) + '</em>' : '') + '</span>' +
       (nbVitrine() > 1 ? '<span class="vt-points" aria-hidden="true">' + [0, 1, 2].slice(0, nbVitrine()).map(function(k){ return '<i class="' + (k === V4.vitrineV % nbVitrine() ? 'on' : '') + '"></i>'; }).join('') + '</span>' : '') + '</button>' +
     '<div class="vt-txt"><b>' + esc('Montrez votre talent au monde') + '</b><small>' + esc('Des vidéos, des défis, le monde entier.') + '</small><p id="preuve" class="vt-preuve" aria-live="polite"></p>' +
-      /* 5 nov. 2026 : « Regarder » devient l'œil d'Iris, « Relever un défi » la caméra de La Forge (deux tuiles hexagonales animées) */
-      '<div class="vt-actions">' + tuileHex({a:'vitrineRegarder', illus:'Player', cls:'tx-action', titre:esc('Regarder')}) + tuileHex({a:'vitrineDefi', illus:'camera', cls:'tx-action', titre:esc('Relever un défi')}) + '</div></div></div>');
+      /* 6 nov. 2026 (demande de Karamo) : les tuiles « Regarder » et « Relever un défi » sont retirées de la vitrine ;
+         toucher le grand hexagone ouvre Iris, et le raccourci La Forge (à droite) ouvre la caméra ou la photo */
+      '</div></div>');
   brancherMedias(el); rendrePreuve();
   /* sans vraie vidéo, l'illustration passe d'une catégorie à l'autre (toutes les 3,5 s) */
   if(v && nbVitrine() > 1) V4.vitrineT = setInterval(function(){ if(document.hidden || CALME.on || document.body.classList.contains('feuille-ouverte')) return; V4.vitrineV = (V4.vitrineV + 1) % nbVitrine(); emit('home_vitrine_suivante', {}); rendreVitrine(); }, 7000);
