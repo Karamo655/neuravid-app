@@ -1189,6 +1189,31 @@ body.feuille-ouverte .raccourcis{visibility:hidden}
 .outils-b .ob-chev{stroke:#fff;transition:transform .25s}
 .outils-b[aria-expanded=true] .ob-chev{transform:rotate(180deg)}
 
+/* ════════ LA VITRINE EN PANNEAU-ÉCRAN (ac19, 6 novembre 2026) ════════ */
+.ve-cv{position:absolute;inset:0;width:100%;height:100%;z-index:-1;display:block;pointer-events:none}
+#app .vt-carte{background:#0B0626!important}
+.vt-scene{position:relative;flex:none;display:block;width:clamp(100px,29vw,128px);aspect-ratio:1.1547;margin:10px 8px}
+@media (max-width:360px){.vt-scene{width:96px}}
+.vt-scene .vt-hx{width:100%!important;position:relative;z-index:2}
+.vt-anneau{position:absolute;inset:-13%;z-index:1;pointer-events:none;clip-path:polygon(evenodd,25% 0,75% 0,100% 50%,75% 100%,25% 100%,0 50%,25% 0,27% 3.5%,3.8% 50%,27% 96.5%,73% 96.5%,96.2% 50%,73% 3.5%,27% 3.5%);
+  background:conic-gradient(from 0deg,#2EE6C5,rgba(46,230,197,0) 28%,var(--c,#9B6BFF) 50%,rgba(255,61,154,0) 72%,#FF3D9A 90%,#2EE6C5);animation:veTourne 16s linear infinite}
+.vt-anneau.a2{inset:-24%;opacity:.55;animation-duration:26s;animation-direction:reverse}
+@keyframes veTourne{to{transform:rotate(360deg)}}
+.vt-orbite{position:absolute;inset:-30%;z-index:3;pointer-events:none;animation:veTourne 14s linear infinite}
+.vt-orbite i{position:absolute;left:50%;top:50%;width:9px;height:10px;margin:-5px 0 0 -4.5px;clip-path:polygon(50% 0,100% 25%,100% 75%,50% 100%,0 75%,0 25%);background:var(--c,#9B6BFF);
+  transform:rotate(calc(var(--k) * 60deg)) translateY(calc(-1 * min(19vw, 84px)));box-shadow:0 0 8px currentColor;opacity:.9}
+.vt-orbite i:nth-child(2n){background:#2EE6C5}.vt-orbite i:nth-child(3n){background:#FF3D9A}
+.vt-bord{position:absolute;inset:0;width:100%;height:100%;z-index:4;pointer-events:none;overflow:visible;filter:drop-shadow(0 0 6px var(--c,#9B6BFF))}
+.vt-energie{animation:ecEnergie 3.6s linear infinite}
+.vt-balaye{position:absolute;inset:0;z-index:2;pointer-events:none;overflow:hidden}
+.vt-balaye::before{content:"";position:absolute;top:-20%;bottom:-20%;left:-60%;width:40%;background:linear-gradient(100deg,transparent,rgba(255,255,255,.3),transparent);transform:skewX(-18deg);animation:ecBalaye 5.5s ease-in-out infinite}
+.vt-scene .vt-hx{box-shadow:none;filter:drop-shadow(0 0 14px color-mix(in srgb,var(--c,#9B6BFF) 70%,transparent))}
+.leger .vt-anneau,.leger .vt-orbite,.leger .vt-energie,.leger .vt-balaye::before{animation:none!important}
+@media (prefers-reduced-motion:reduce){.vt-anneau,.vt-orbite,.vt-energie,.vt-balaye::before{animation:none!important}}
+
+/* 6 nov. 2026 : le texte de la vitrine reste au-dessus des hexagones en orbite */
+.vt-carte .vt-txt{position:relative;z-index:3}
+
 </style>
 </head>
 <body>
@@ -4843,16 +4868,17 @@ function meilleureVideo(){ var D = HEX.donnees.ciel; if(!D) return null; var l =
 /* 5 nov. 2026 : les trois meilleures vraies vidéos du jour (les vidéos créées par IA passent après) */
 function nbVitrine(){ var D = HEX.donnees.ciel; if(!D) return 0; return Math.min(3, catsHex().filter(function(c){ return D[c.id] && D[c.id].video; }).length); }
 function rendreVitrine(){ var el = $('vitrine'); if(!el) return; arreterMediasDe(el); clearInterval(V4.vitrineT); var b = meilleureVideo(), v = b && b.x.video, cats = catsHex(), c0 = cats[V4.vitrineI % cats.length] || CATS_HEX[0], m0 = REGP[c0.id];
-  poser(el, '<div class="vt-carte"><button class="vt-hx" data-a="vitrineRegarder" aria-label="' + esc(v ? phraseTexte('Regarder la vidéo dans {0}', 'Iris') : tr('Regarder les vidéos dans Iris')) + '" style="--c:' + (b ? REGP[b.c.id].c : m0.c) + '">' +
+  /* 6 nov. 2026 : la vitrine devient un panneau-écran (ac19) ; le grand hexagone reçoit ses anneaux, son orbite et son bord d'énergie */
+  poser(el, '<div class="vt-carte"><span class="vt-scene">' + sceneVitrine() + '<button class="vt-hx" data-a="vitrineRegarder" aria-label="' + esc(v ? phraseTexte('Regarder la vidéo dans {0}', 'Iris') : tr('Regarder les vidéos dans Iris')) + '" style="--c:' + (b ? REGP[b.c.id].c : m0.c) + '">' +
       '<span class="ht-media" aria-hidden="true">' + (v ? (v.affiche ? '' : '<canvas data-illus="' + b.c.id + '"></canvas>') + '<video muted loop playsinline preload="none" disablepictureinpicture data-src="' + esc(v.src) + '"' + (v.affiche ? ' poster="' + esc(v.affiche) + '" class="pret"' : '') + '></video>' : '<canvas data-illus="' + c0.id + '"></canvas>') + '</span>' +
       '<span class="ht-voile" aria-hidden="true"></span><span class="ht-tag" aria-hidden="true">' + esc(v ? (v.ia ? tr('Créée par IA') : '') : tr('Illustration')) + '</span>' +
       '<span class="vt-cat" aria-hidden="true">' + esc(v ? tr(b.c.t) : tr(c0.t)) + (v && v.auteur.handle ? '<em data-brut>' + (v.pays ? drapeau(v.pays) + ' ' : '') + '@' + esc(v.auteur.handle) + '</em>' : '') + '</span>' +
-      (nbVitrine() > 1 ? '<span class="vt-points" aria-hidden="true">' + [0, 1, 2].slice(0, nbVitrine()).map(function(k){ return '<i class="' + (k === V4.vitrineV % nbVitrine() ? 'on' : '') + '"></i>'; }).join('') + '</span>' : '') + '</button>' +
+      '<span class="vt-balaye" aria-hidden="true"></span>' + (nbVitrine() > 1 ? '<span class="vt-points" aria-hidden="true">' + [0, 1, 2].slice(0, nbVitrine()).map(function(k){ return '<i class="' + (k === V4.vitrineV % nbVitrine() ? 'on' : '') + '"></i>'; }).join('') + '</span>' : '') + '</button>' + bordVitrine() + '</span>' +
     '<div class="vt-txt"><b>' + esc('Montrez votre talent au monde') + '</b><small>' + esc('Des vidéos, des défis, le monde entier.') + '</small><p id="preuve" class="vt-preuve" aria-live="polite"></p>' +
       /* 6 nov. 2026 (demande de Karamo) : les tuiles « Regarder » et « Relever un défi » sont retirées de la vitrine ;
          toucher le grand hexagone ouvre Iris, et le raccourci La Forge (à droite) ouvre la caméra ou la photo */
       '</div></div>');
-  brancherMedias(el); rendrePreuve();
+  brancherMedias(el); rendrePreuve(); if(typeof monterEcranVitrine === 'function') monterEcranVitrine(el);
   /* sans vraie vidéo, l'illustration passe d'une catégorie à l'autre (toutes les 3,5 s) */
   if(v && nbVitrine() > 1) V4.vitrineT = setInterval(function(){ if(document.hidden || CALME.on || document.body.classList.contains('feuille-ouverte')) return; V4.vitrineV = (V4.vitrineV + 1) % nbVitrine(); emit('home_vitrine_suivante', {}); rendreVitrine(); }, 7000);
   if(!v) V4.vitrineT = setInterval(function(){ if(document.hidden || CALME.on || document.body.classList.contains('feuille-ouverte')) return; var cv = el.querySelector('canvas[data-illus]'), cat = el.querySelector('.vt-cat'), hx = el.querySelector('.vt-hx'); if(!cv) return; V4.vitrineI = (V4.vitrineI + 1) % cats.length; var c = cats[V4.vitrineI];
@@ -5564,6 +5590,50 @@ function appliquerOutils(m){ var sec = $(m === 'espace' ? 'espace' : 'terre'), b
 A.outilsBasculer = function(m){ if(m !== 'espace' && m !== 'terre') return; var on = !outilsOuverts(m); try{ sessionStorage.setItem('nv_accueil_outils_' + m, on ? '1' : '0'); }catch(e){ dbg(e); }
   appliquerOutils(m); emit('home_outils', {monde:m, ouverts:on}); if(on){ var p = $(m === 'espace' ? 'continents' : 'terrePlus'); if(p) try{ var f = p.querySelector('button,input'); if(f) f.focus({preventScroll:true}); }catch(e){ dbg(e); } } };
 function demarrerOutils(){ appliquerOutils('espace'); appliquerOutils('terre'); }
+
+/* ════════════════════════════════════════════════════════════════════
+   LA VITRINE EN PANNEAU-ÉCRAN (6 novembre 2026, demande de Karamo)
+   Comme les panneaux des trois mondes : derrière la vitrine, un écran de lumière (pixels hexagonaux qui scintillent,
+   aurore à la couleur de la vidéo, étincelles hexagonales qui montent, balayage de lumière) ; le grand hexagone vidéo
+   reçoit deux anneaux hexagonaux qui tournent en sens contraire, six petits hexagones en orbite et un bord d'énergie.
+   Rien n'est retiré : l'hexagone (qui ouvre Iris), le titre, la phrase et la preuve des 24 h restent.
+   Économe : 24 images/s au plus, seulement à l'écran, une image fixe en mouvement réduit, rien quand une feuille est ouverte.
+   ════════════════════════════════════════════════════════════════════ */
+var VE = {cv:null, raf:0, tPrec:0, vis:false, io:null, flash:0};
+function sceneVitrine(){ var o = ''; for(var i = 0; i < 6; i++) o += '<i style="--k:' + i + '"></i>';
+  return '<span class="vt-anneau a1" aria-hidden="true"></span><span class="vt-anneau a2" aria-hidden="true"></span><span class="vt-orbite" aria-hidden="true">' + o + '</span>'; }
+function bordVitrine(){ return '<svg class="vt-bord" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true"><path d="M25 1.5H75L98.5 50 75 98.5H25L1.5 50z" fill="none" stroke="url(#nvTxG)" stroke-width="2.4" vector-effect="non-scaling-stroke"/>' +
+  '<path class="vt-energie" d="M25 1.5H75L98.5 50 75 98.5H25L1.5 50z" fill="none" stroke="#fff" stroke-width="2.8" stroke-linecap="round" vector-effect="non-scaling-stroke" pathLength="100" stroke-dasharray="9 91"/></svg>'; }
+function monterEcranVitrine(el){ var c = el && el.querySelector('.vt-carte'); if(!c) return; var cv = document.createElement('canvas'); cv.className = 've-cv'; cv.setAttribute('aria-hidden', 'true'); c.insertBefore(cv, c.firstChild); VE.cv = cv;
+  if(VE.io) VE.io.disconnect(); if('IntersectionObserver' in window){ VE.io = new IntersectionObserver(function(l){ VE.vis = l.some(function(e){ return e.isIntersecting; }); if(VE.vis) relancerVitrine(); }, {threshold:0}); VE.io.observe(c); } else VE.vis = true;
+  VE.flash = performance.now() / 1000; dessinerEcranVitrine(CALME.on ? 3 : performance.now() / 1000); relancerVitrine(); }
+function couleurVitrine(){ var h = document.querySelector('#vitrine .vt-hx'); var c = h && getComputedStyle(h).getPropertyValue('--c').trim(); return /^#[0-9a-f]{6}$/i.test(c || '') ? c : '#9B6BFF'; }
+function dessinerEcranVitrine(t){ var cv = VE.cv; if(!cv || !cv.isConnected) return; var r = cv._t; if(!r || performance.now() - r.at > 1000){ r = cv._t = {at:performance.now(), w:cv.offsetWidth, h:cv.offsetHeight, c:couleurVitrine()}; }
+  if(!r.w) return; var dpr = Math.min(1.25, window.devicePixelRatio || 1), W = Math.round(r.w * dpr), H = Math.round(r.h * dpr); if(cv.width !== W || cv.height !== H){ cv.width = W; cv.height = H; }
+  var x = cv.getContext('2d'), u = Math.min(W, H) / 100, S = Math.sin, C = Math.cos, col = r.c, i;
+  function hexA(c, al){ var v = Math.round(Math.max(0, Math.min(1, al)) * 255).toString(16); return c + (v.length < 2 ? '0' + v : v); }
+  function hx(px, py, rr, rot){ x.beginPath(); for(var k = 0; k < 6; k++){ var an = Math.PI / 3 * k + (rot || 0) - Math.PI / 2; x[k ? 'lineTo' : 'moveTo'](px + C(an) * rr, py + S(an) * rr); } x.closePath(); }
+  function lueur(px, py, rr, c, al){ var g = x.createRadialGradient(px, py, 0, px, py, rr); g.addColorStop(0, hexA(c, al)); g.addColorStop(1, hexA(c, 0)); x.fillStyle = g; x.beginPath(); x.arc(px, py, rr, 0, 6.29); x.fill(); }
+  var g = x.createLinearGradient(0, 0, W, H); g.addColorStop(0, '#0C0628'); g.addColorStop(.45, melange(col, '#120A34', .25)); g.addColorStop(1, '#070418'); x.fillStyle = g; x.fillRect(0, 0, W, H);
+  /* les pixels hexagonaux qui scintillent en vague */
+  var R = 6 * u, dx = R * 1.732, dy = R * 1.5; x.lineWidth = .6 * u;
+  for(var row = 0, yy = 0; yy < H + R; row++, yy += dy) for(var xx = (row % 2 ? dx / 2 : 0); xx < W + dx; xx += dx){ var on = Math.max(0, S(t * 1.3 - xx * .012 + yy * .018)); x.strokeStyle = hexA(col, .05 + on * .09); hx(xx, yy, R * .9, 0); x.stroke(); }
+  x.globalCompositeOperation = 'lighter';
+  /* l'aurore qui coule derrière l'hexagone */
+  for(i = 0; i < 3; i++){ var ay = H * (.25 + i * .25) + S(t * .5 + i * 2) * 8 * u, ag = x.createLinearGradient(0, ay - 14 * u, 0, ay + 14 * u), ac = ['#2EE6C5', col, '#FF3D9A'][i]; ag.addColorStop(0, hexA(ac, 0)); ag.addColorStop(.5, hexA(ac, .10)); ag.addColorStop(1, hexA(ac, 0)); x.fillStyle = ag;
+    x.beginPath(); x.moveTo(0, ay); for(var k = 0; k <= 12; k++){ var px = k / 12 * W; x.lineTo(px, ay + S(t * .8 + k * .7 + i) * 6 * u - 14 * u); } for(k = 12; k >= 0; k--){ px = k / 12 * W; x.lineTo(px, ay + S(t * .8 + k * .7 + i) * 6 * u + 14 * u); } x.fill(); }
+  /* le cœur lumineux sous l'hexagone, et les étincelles qui montent */
+  var hx0 = W * .27, hy0 = H * .5; lueur(hx0, hy0, 46 * u, col, .38 + .12 * S(t * 2));
+  for(i = 0; i < 16; i++){ var q = (t * .16 + i / 16) % 1, sx = (i * 61 % 100) / 100 * W, sy = H - q * H * 1.1; x.fillStyle = hexA(i % 4 ? '#FFFFFF' : '#FFD24D', (1 - q) * .75); hx(sx, sy, (.9 + (i % 3) * .6) * u, t + i); x.fill(); }
+  /* le balayage de lumière, toutes les 6 s */
+  var fl = (t - VE.flash) % 6; if(fl < .9){ var bx = (fl / .9) * W * 1.4 - W * .2, bg = x.createLinearGradient(bx - 30 * u, 0, bx + 30 * u, 0); bg.addColorStop(0, hexA('#FFFFFF', 0)); bg.addColorStop(.5, hexA('#FFFFFF', .14)); bg.addColorStop(1, hexA('#FFFFFF', 0)); x.fillStyle = bg; x.fillRect(0, 0, W, H); }
+  x.globalCompositeOperation = 'source-over';
+  /* le côté du texte reste sombre : le titre, la phrase et les chiffres se lisent toujours */
+  var rtl = document.documentElement.dir === 'rtl', vg = x.createLinearGradient(rtl ? W : 0, 0, rtl ? 0 : W, 0); vg.addColorStop(0, 'rgba(8,4,26,0)'); vg.addColorStop(.36, 'rgba(8,4,26,.05)'); vg.addColorStop(.52, 'rgba(8,4,26,.72)'); vg.addColorStop(1, 'rgba(8,4,26,.86)'); x.fillStyle = vg; x.fillRect(0, 0, W, H); }
+function pasVitrine(ms){ VE.raf = 0; var t = ms / 1000, cache = document.hidden || document.body.classList.contains('feuille-ouverte');
+  if(!cache && VE.vis && t - VE.tPrec > 1 / 24){ VE.tPrec = t; dessinerEcranVitrine(t); }
+  if(!CALME.on && VE.vis && VE.cv && VE.cv.isConnected) VE.raf = requestAnimationFrame(pasVitrine); }
+function relancerVitrine(){ if(CALME.on){ dessinerEcranVitrine(3); return; } if(!VE.raf) VE.raf = requestAnimationFrame(pasVitrine); }
 
 /* ════════════════════════════════════════════════════════════════════
    LE DÉMARRAGE, CE QUE DIT LE SERVEUR, L'INTERFACE PUBLIQUE
