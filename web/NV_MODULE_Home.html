@@ -1120,12 +1120,6 @@ html.globe-seul .iris-flottant{display:none}
 .rc-hx .tx-hex{width:100%}
 .rc>b{font-size:10.5px;font-weight:850;line-height:1.1;padding:1px 6px;border-radius:8px;background:rgba(10,6,28,.72);white-space:nowrap}
 @media (hover:hover){.rc:active .rc-hx{transform:scale(.93)}}
-.rc[aria-expanded=true] .rc-hx{filter:drop-shadow(0 0 10px var(--c))}
-.rc-choix{pointer-events:auto;position:absolute;right:68px;bottom:6px;display:flex;gap:6px}
-.rc-choix[hidden]{display:none}
-.rc-choix button{display:inline-flex;align-items:center;gap:6px;min-height:44px;padding:0 16px;border:0;color:#fff;font:inherit;font-size:13.5px;font-weight:850;cursor:pointer;clip-path:polygon(12px 0,calc(100% - 12px) 0,100% 50%,calc(100% - 12px) 100%,12px 100%,0 50%);background:linear-gradient(135deg,#FF8A3D,#FF3D9A 60%,#7B3BFF);animation:rcVient .25s ease-out both}
-.rc-choix button+button{background:linear-gradient(135deg,#2EE6C5,#5AA9FF 60%,#7B3BFF);animation-delay:.05s}
-.rc-choix svg{width:18px;height:18px;fill:none;stroke:#fff;stroke-width:2;stroke-linejoin:round}
 @keyframes rcVient{from{opacity:0;transform:translateX(12px)}to{opacity:1;transform:none}}
 body.feuille-ouverte .raccourcis{visibility:hidden}
 /* IRIS Guide, en tête du menu ☰ */
@@ -1133,7 +1127,6 @@ body.feuille-ouverte .raccourcis{visibility:hidden}
 .feuille .ligne-iris b{display:block;font-size:15px}.feuille .ligne-iris small{display:block;font-size:12px;opacity:.85;margin-top:2px;line-height:1.3}
 .li-hx{position:relative;flex:0 0 44px;height:50px;display:grid;place-items:center;clip-path:polygon(50% 0,100% 25%,100% 75%,50% 100%,0 75%,0 25%);background:linear-gradient(135deg,#2EE6C5,#7B3BFF 55%,#FF3D9A)}
 .li-hx svg{width:24px;height:24px;fill:#fff}
-@media (prefers-reduced-motion:reduce){.rc-choix button{animation:none}}
 
 /* ════════ L'ÉCRAN DE LA BARRE DU BAS (ac17, 6 novembre 2026) ════════ */
 .bas.avec-ecran{background:none!important;backdrop-filter:none!important;-webkit-backdrop-filter:none!important}
@@ -5355,32 +5348,25 @@ function ILLUS17(id, x, t, W, H, u, hx, lueur, hexA){ var cx = W / 2, cy = H / 2
 /* ════════ Les deux raccourcis flottants (6 novembre 2026, demande de Karamo) ════════
    À droite de l'écran, à la place du bouton IRIS flottant : Palabre (les conversations) et La Forge (créer vite une vidéo
    ou une photo). Les fonctions d'IRIS (Guide, Écouter, Son, Je représente mon pays, Présenter) sont dans le menu ☰, en tête. */
-var RC = {ouvert:false};
 function rendreRaccourcis(){ var el = $('raccourcis'); if(!el) return;
   var pa = REGP.CallUniverse && permis(REGP.CallUniverse), fo = REGP.Create && permis(REGP.Create);
   var cle = [pa, fo, !!GLB.seul, LANGUE_UI].join('|'); if(el._cle === cle) return; el._cle = cle;   /* rien ne bouge si rien n'a changé (pas de clignotement) */ arreterMediasDe(el);
   if(GLB.seul || (!pa && !fo)){ el.hidden = true; el.innerHTML = ''; return; } el.hidden = false;
   poser(el, (pa ? '<button class="rc rc-palabre" data-a="raccourciPalabre" style="--c:' + REGP.CallUniverse.c + '"><span class="rc-hx">' + hexTuile('palabre', {lent:true}) + '</span><b>' + esc(tr('Palabre')) + '</b></button>' : '') +
-    (fo ? '<button class="rc rc-forge" data-a="raccourciForge" aria-expanded="' + RC.ouvert + '" aria-controls="rcChoix" style="--c:' + REGP.Create.c + '"><span class="rc-hx">' + hexTuile('camera', {lent:true}) + '</span><b>' + esc(tr('La Forge')) + '</b></button>' +
-      '<div id="rcChoix" class="rc-choix"' + (RC.ouvert ? '' : ' hidden') + '><button data-a="forgeVideo"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="6" width="13" height="12" rx="2.5"/><path d="M16 10.5l5-3v9l-5-3z"/></svg><span>' + esc(tr('Vidéo')) + '</span></button>' +
-      '<button data-a="forgePhoto"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8h3l2-2.5h6L17 8h3v11H4z"/><circle cx="12" cy="13" r="3.6"/></svg><span>' + esc(tr('Photo')) + '</span></button></div>' : ''));
+    (fo ? '<button class="rc rc-forge" data-a="raccourciForge" style="--c:' + REGP.Create.c + '"><span class="rc-hx">' + hexTuile('camera', {lent:true}) + '</span><b>' + esc(tr('La Forge')) + '</b></button>' : ''));
   brancherMedias(el); }
 A.raccourciPalabre = function(){ emit('home_raccourci', {vers:'CallUniverse'}); entrer('CallUniverse', {depuis:MOI}); };
-A.raccourciForge = function(){ RC.ouvert = !RC.ouvert; var c = $('rcChoix'), b = document.querySelector('#raccourcis [data-a="raccourciForge"]'); if(c) c.hidden = !RC.ouvert; if(b) b.setAttribute('aria-expanded', RC.ouvert);
-  if(RC.ouvert){ emit('home_raccourci', {vers:'Create', choix:true}); var v = c && c.querySelector('button'); if(v) try{ v.focus({preventScroll:true}); }catch(e){ dbg(e); } } };
-function fermerChoixForge(){ if(!RC.ouvert) return; RC.ouvert = false; var c = $('rcChoix'), b = document.querySelector('#raccourcis [data-a="raccourciForge"]'); if(c) c.hidden = true; if(b) b.setAttribute('aria-expanded', 'false'); }
-A.forgeVideo = function(){ fermerChoixForge(); emit('home_raccourci', {vers:'Create', ecran:'camera'}); entrer('Create', {depuis:MOI, intention:'rapide'}); };
-A.forgePhoto = function(){ fermerChoixForge(); emit('home_raccourci', {vers:'Create', ecran:'photo'}); entrer('Create', {depuis:MOI, ecran:'photo', intention:'rapide'}); };
-document.addEventListener('click', function(e){ if(RC.ouvert && !(e.target.closest && e.target.closest('#raccourcis'))) fermerChoixForge(); }, true);
-document.addEventListener('keydown', function(e){ if(e.key === 'Escape') fermerChoixForge(); });
+/* 6 nov. 2026 (capture de Karamo) : La Forge s'ouvre directement sur la caméra, en un seul toucher (plus de choix Vidéo / Photo à l'écran ;
+   la caméra garde son propre sélecteur Photo / Vidéo en bas) */
+A.raccourciForge = function(){ emit('home_raccourci', {vers:'Create', ecran:'camera'}); entrer('Create', {depuis:MOI, intention:'rapide'}); };
 
 /* ════════ Démarrage ════════ */
 /* 5 nov. 2026 (vidéo de Karamo) : l'onde et la vibration au vrai toucher seulement (« click »), jamais quand le doigt fait défiler */
-/* 6 nov. 2026 : pendant le défilement, les raccourcis laissent voir les tuiles qu'ils couvrent ; ils reviennent 0,9 s après l'arrêt (jamais quand le choix Vidéo / Photo est ouvert) */
+/* 6 nov. 2026 : pendant le défilement, les raccourcis laissent voir les tuiles qu'ils couvrent ; ils reviennent 0,9 s après l'arrêt */
 var RC_DEF = {t:0, geste:0};
 /* seulement quand c'est la personne qui fait défiler (doigt, molette, clavier dans la seconde) : le paysage de la Terre défile seul, lui */
 ['pointerdown', 'touchmove', 'wheel', 'keydown'].forEach(function(n){ document.addEventListener(n, function(){ RC_DEF.geste = Date.now(); }, {passive:true, capture:true}); });
-function raccourcisDefilement(){ var el = $('raccourcis'); if(!el || RC.ouvert || Date.now() - (RC_DEF.geste || 0) > 1000) return; el.classList.add('rc-defile'); clearTimeout(RC_DEF.t); RC_DEF.t = setTimeout(function(){ el.classList.remove('rc-defile'); }, 900); }
+function raccourcisDefilement(){ var el = $('raccourcis'); if(!el || Date.now() - (RC_DEF.geste || 0) > 1000) return; el.classList.add('rc-defile'); clearTimeout(RC_DEF.t); RC_DEF.t = setTimeout(function(){ el.classList.remove('rc-defile'); }, 900); }
 function demarrerV5(){ document.addEventListener('scroll', raccourcisDefilement, {passive:true, capture:true});   /* aussi les rangées qui défilent de côté */ rendreRaccourcis();  document.addEventListener('click', onde, true); document.addEventListener('click', portailTuile, true); }
 
 /* ════════════════════════════════════════════════════════════════════
