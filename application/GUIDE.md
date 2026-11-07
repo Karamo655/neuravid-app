@@ -16,6 +16,28 @@ GitHub la construit, la signe avec **vos** clés et l'envoie aux magasins. Vous 
   - la version ;
   - l'adresse du site.
 
+## Où en est l'application (7 novembre 2026)
+
+- **Dernière version : `application-9`** (Releases). Elle ouvre www.neuravid.com et ne renvoie plus vers le navigateur du téléphone.
+- C'est une version **« ESSAI »**, signée avec une clé d'essai : elle sert à essayer sur les téléphones, **jamais à Google Play**.
+- Afaq est invité dans la Play Console, avec des droits sur NEURAVID seulement (pistes de test). La mise en production, l'administration du compte et les données financières restent à vous.
+
+## Demain : commencer la publication sur Google Play
+
+1. **Vous** : ajoutez les quatre secrets `ANDROID_*` dans GitHub (voir plus bas, « Une seule fois : préparer Google Play », point 1).
+2. **Vous** : **Actions → Application officielle → Run workflow** (plateformes : android). Vérifiez que la nouvelle version `application-N` n'est **pas** marquée « ESSAI » et qu'elle contient `NEURAVID_pour_Google_Play_seulement.aab`.
+3. **Afaq ou vous** : premier envoi à la main dans **Test interne**, avec ce fichier `.aab` seulement, et acceptez la signature d'application par Google Play. **Le premier envoi fixe la clé pour toujours** : jamais un fichier signé avec une autre clé.
+4. **Ensemble** : remplir « Contenu de l'application » :
+   - politique de confidentialité : `https://www.neuravid.com/NV_MODULE_Conditions.html?doc=confidentialite` ;
+   - accès à l'application : un compte de test pour les examinateurs ;
+   - publicités : non ;
+   - classification du contenu (questionnaire) ;
+   - public : 13 ans et plus, pas destinée aux enfants ;
+   - sécurité des données ;
+   - suppression du compte : dans Réglages (« Supprimer mon compte ») et une adresse web pour la demander.
+5. **Test fermé** : si votre compte développeur est un compte **personnel** créé après novembre 2023, Google exige 12 testeurs pendant 14 jours de suite avant la production. Un compte d'**organisation** (TENAGON GROUP, LLC) n'a pas cette règle.
+6. **La production** : vous la publiez quand les vrais serveurs, la connexion et le compte de test fonctionnent.
+
 ## Ce qui demande une nouvelle version sur les magasins
 
 Il faut une nouvelle version seulement si l'on change l'application elle-même :
@@ -95,8 +117,8 @@ L'application elle-même est prête. Mais Apple et Google examinent ce qu'elle *
   - Classification du contenu.
   - Public : à partir de 13 ans, pas destinée aux enfants.
 - **Le domaine.**
-  - Quand `app.neuravid.com` sera relié au site, mettez `SITE=https://app.neuravid.com/` dans `config.env` et publiez une nouvelle version.
-  - L'ancienne adresse GitHub redirige alors vers le nouveau domaine : les téléphones qui ont encore l'ancienne version continuent de fonctionner.
+  - Fait le 7 novembre 2026 : l'application ouvre `https://www.neuravid.com/` (réglage `SITE` de `config.env`).
+  - Les adresses `www.neuravid.com`, `neuravid.com` et l'ancienne adresse GitHub restent dans l'application ; les autres sites s'ouvrent dans le navigateur.
 
 ## Les deux applications
 

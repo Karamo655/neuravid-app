@@ -11,15 +11,44 @@ A Flutter shell around the NEURAVID website, the same principle as `flutter/neur
 - Every screen update published to `web/` reaches the app with **no store release**. The API address lives in `web/nv-config.js`.
 - `web/` is embedded as an offline fallback (`loadFile`, `NV_MODULES_BASE = './'`).
 - **It never sets `NV_APERCU`.** Modules see `window.flutter_inappwebview`, so they stay in production mode: never demo data.
-- External links (mailto, other domains) open outside the app (`url_launcher`).
+- Our hosts stay inside the app: `www.neuravid.com`, `neuravid.com` and `karamo655.github.io` (the old GitHub address now redirects to `www.neuravid.com`). Any other domain, and `mailto:` / `tel:` links, open outside the app (`url_launcher`).
 - Camera and microphone:
   - Android requests them with `permission_handler`, then grants the page ;
   - on iOS, WKWebView shows the system prompt (usage strings are set in Info.plist).
 - Identifier `com.neuravid.app` (Android applicationId and iOS bundle id) ; versionName from `config.env` ; build number = workflow run number.
 
+## Current state (7 November 2026)
+
+- **Latest build: `application-9`** (Releases). It opens `https://www.neuravid.com/index.html` and keeps the redirect from the old GitHub address inside the app (fixed: `application-8` opened the phone browser after the custom domain went live).
+- `application-9` is a **trial build (« ESSAI »)**, signed with a throwaway key: test it on phones, **never upload it to Google Play**.
+- The website is served by GitHub Pages at **www.neuravid.com**. Your servers are at **api.neuravid.com**.
+- `web/nv-config.js` still has `api: ''`. We will set `api: 'https://api.neuravid.com'` together, once sign-up works end to end on your side (identity in the accounts service, home feeds, CORS: `NV_COMPTES_ORIGINES`, `NV_ACCUEIL_ORIGINES`, `NV_WEBAUTHN_ORIGINES` = `https://www.neuravid.com`, and `NV_RP_ID=www.neuravid.com`).
+- Passkeys inside the app need `https://www.neuravid.com/.well-known/assetlinks.json` with the SHA-256 fingerprint of the **Play App Signing key** (shown in Play Console → Test and release → App integrity after the first upload). Send Karamo the fingerprint; the file is published with `web/`.
+
+## Google Play — first release (starting 8 November 2026)
+
+You were invited to the Play Console with app-level rights on NEURAVID only (testing tracks). Production release, account administration and financial data stay with Karamo.
+
+1. **Signed build.** Karamo adds the four `ANDROID_*` secrets, then runs *Actions → Application officielle → Run workflow* (platforms: android). The release `application-N` must **not** be marked « ESSAI » and must contain `NEURAVID_pour_Google_Play_seulement.aab`.
+2. **First upload, by hand** (Google requires it for a new app): Play Console → *Test and release → Testing → Internal testing → Create new release* → upload that `.aab` → accept **Play App Signing**.
+   - **Important: the first upload fixes the upload key forever.** Only upload the `.aab` built by GitHub with Karamo's key. Never build or sign a Play bundle with your own key.
+3. **Testers.** Add the internal testers' Gmail addresses, share the opt-in link, check install and update on real phones.
+4. **App content** (Policy → App content), with Karamo:
+   - Privacy policy: `https://www.neuravid.com/NV_MODULE_Conditions.html?doc=confidentialite`
+   - App access: a reviewer test account (needs the real sign-in).
+   - Ads: no ads.
+   - Content rating: IARC questionnaire (user-generated content, user interaction, live video, digital purchases).
+   - Target audience: 13 and over, not designed for children.
+   - Data safety: account data, user content (videos, photos, messages), camera/microphone use, approximate location (home country), encrypted in transit, deletion on request.
+   - Account deletion: the in-app path (Réglages → « Supprimer mon compte ») and a web URL where deletion can be requested.
+5. **Closed testing.** If the Play account is a *personal* account created after November 2023, Google requires a closed test with at least 12 testers for 14 days in a row before production access can be requested. An *organisation* account (TENAGON GROUP, LLC) does not have this rule.
+6. **Production** is published by Karamo once the real servers, sign-in and the reviewer account work.
+
+After the first upload, every new version can be sent automatically as a draft: secret `PLAY_SERVICE_ACCOUNT_JSON` (a Google Cloud service account invited in the Play Console), then *Run workflow* with « envoyer » checked (track `internal` by default).
+
 ## Build pipeline
 
-- **Flutter** stable channel (the version is printed in the log).
+- **Flutter** `3.35.x` stable for Android (newer Flutter releases and their Android tooling reject `flutter_inappwebview`) ; the exact version is printed in the log.
 - **Plugins:** `flutter_inappwebview ^6.1.5`, `permission_handler ^11.3.1`, `url_launcher ^6.3.0`.
 - **Android:**
   - `compileSdk` / `targetSdk` 36 (Google Play requirement since 31 Aug 2026), `minSdk` 24 ;
