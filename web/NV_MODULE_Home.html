@@ -1211,6 +1211,17 @@ body.feuille-ouverte .raccourcis{visibility:hidden}
 :is(#app,#feuille) .film.ht-media{position:absolute;inset:0;z-index:-1;clip-path:none;background:transparent;pointer-events:none;overflow:hidden;opacity:.96}
 :is(#app,#feuille) .film.ht-media canvas{position:absolute;inset:0;width:100%;height:100%;display:block}
 .leger .film{display:none!important}
+/* ════════ LE PREMIER ÉCRAN EN TROIS PROMESSES (ac21, 7 novembre 2026, étape 1) ════════ */
+.trio{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;width:min(100%,560px);margin:6px auto 2px;padding:0 74px 0 4px;box-sizing:border-box}   /* à droite : la place des raccourcis Palabre et La Forge */
+.trio .tx.trio-t{width:100%;max-width:150px;justify-self:center}
+.trio .tx.trio-t>b{font-size:clamp(11.5px,3.3vw,14px);-webkit-line-clamp:3}
+.trio .tx-tag{font-size:clamp(9px,2.5vw,11px)!important;padding-inline:6px!important;max-width:96%;white-space:nowrap}
+.trio .trio-defi .tx-hex{filter:drop-shadow(0 0 8px rgba(255,201,61,.55))}
+.directs-bande{width:min(100%,560px);margin:2px auto 0}
+.directs-bande .v2-h{display:flex;align-items:center;gap:6px}
+.db-point{width:8px;height:8px;border-radius:50%;background:#FF2D55;box-shadow:0 0 8px #FF2D55;animation:dbPoint 1.4s ease-in-out infinite}
+@keyframes dbPoint{50%{opacity:.35}}
+@media (prefers-reduced-motion:reduce){.db-point{animation:none}}
 </style>
 </head>
 <body>
@@ -1245,6 +1256,8 @@ body.feuille-ouverte .raccourcis{visibility:hidden}
       <div class="ciel-ui">
         <div id="bonjour" class="bonjour"></div>
         <div id="vitrine" class="vitrine"></div>
+        <div id="trio" class="trio"></div>
+        <div id="directsBande" class="directs-bande" hidden></div>
         <div id="filMonde" class="fil-monde hxl" aria-label="Le fil du monde" hidden></div>
         <div id="assistant" class="assistant" hidden></div>
         <div id="globeEntree" class="globe-entree"></div>
@@ -1263,10 +1276,10 @@ body.feuille-ouverte .raccourcis{visibility:hidden}
           </div>
           <div id="reprendre" class="reprendre" hidden></div>
         </div>
+        <div id="decouverte" class="decouverte" hidden></div>
         <div id="chiffres" class="chiffres" hidden></div>
         <button id="cielPlusBtn" class="ciel-plus-btn" data-a="cielPlusBasculer" aria-controls="cielPlusBloc" aria-expanded="false" hidden><span>Plus du ciel</span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></button>
         <div id="cielPlusBloc" class="ciel-plus">
-        <div id="decouverte" class="decouverte" hidden></div>
         <div id="lieuChoix" class="sel-ligne lieu-choix hxl"></div>
         <div id="constellations" class="constellations hxl" hidden></div>
         <div id="collectif" class="collectif hxl" hidden></div>
@@ -3624,14 +3637,18 @@ function poserDecouverte(o){ o = o || {}; var dj = o.defiJour && typeof o.defiJo
     defis:(Array.isArray(o.defis) ? o.defis : []).slice(0, 8).map(function(d){ if(!d || d.id == null || !d.titre) return null; var m = moduleOk(d.module) || 'ChallengeUniverse'; if(!permis(REGP[m])) return null; return {id:idOk(d.id), titre:txt(d.titre, 70), module:m, participants:nbS(d.participants)}; }).filter(Boolean)};
   rendreDecouverte(); }
 function rendreDecouverte(){ var el = $('decouverte'), D = V2.decouverte; if(!el) return; if(!D && el.classList.contains('en-attente')) return;   /* les tuiles qui scintillent restent jusqu'à la réponse */
-  el.classList.remove('en-attente'); if(!D || (!D.defiJour && !D.talents.length && !D.directs.length && !D.defis.length)){ arreterMediasDe(el); el.hidden = true; el.innerHTML = ''; return; } el.hidden = false;
+  el.classList.remove('en-attente'); if(!D || (!D.defiJour && !D.talents.length && !D.directs.length && !D.defis.length)){ arreterMediasDe(el); el.hidden = true; el.innerHTML = ''; if(typeof rendreDirectsBande === 'function') rendreDirectsBande(''); if(typeof rendreTrio === 'function') rendreTrio(); return; } el.hidden = false;
   var h = '';
   /* 5 nov. 2026 : le défi du jour devient un hexagone allongé avec sa tuile animée ; chaque carte des rangées devient une tuile hexagonale (ac15.js) */
   if(D.defiJour){ var dj = D.defiJour, m = REGP[dj.module]; h += '<button class="dj hxl" data-a="defiJour" style="--c:' + (m ? m.c : '#FFC93D') + ';--hxl-c:#FFC93D">' + (dj.image ? '<img src="' + esc(dj.image) + '" alt="">' : '<span class="dj-hx tx-mini" aria-hidden="true">' + hexTuile(dj.module) + '</span>') + '<span class="dj-t"><small>' + esc('Défi du jour') + '</small><b dir="auto" data-brut>' + esc(dj.titre) + '</b>' + (dj.texte ? '<span dir="auto" data-brut>' + esc(dj.texte) + '</span>' : '') + '</span><i aria-hidden="true">›</i></button>'; }
   function rail(titre, items){ return items ? '<h3 class="v2-h">' + esc(titre) + '</h3><div class="v2-rail tx-rail">' + items + '</div>' : ''; }
   h += rail('Talents à découvrir', D.talents.map(function(u, i){ return tuileHex({a:'decTalent', v:i, illus:'talent', c:u.nouveau ? '#FFC93D' : '#B98CFF', avatar:avatarTuile(u), tag:u.nouveau ? '★' : '', or:u.nouveau, titre:'@' + esc(u.handle || u.nom), brut:true, meta:esc(u.nouveau ? tr('Nouveau talent') : texteCode(u.raison) || (u.pays ? nomPays(u.pays) : ''))}); }).join('') + (D.talents.length ? tuileTout('toutTalents', 'talent', 'Plus de talents', 'Search') : ''));
-  h += rail('En direct maintenant', D.directs.map(function(d, i){ return tuileHex({a:'decDirect', v:i, illus:'Live', direct:true, tag:esc(tr('En direct')), titre:esc(d.titre || (d.hote ? '@' + d.hote.handle : '')), brut:true, meta:(d.pays ? drapeau(d.pays) + ' ' : '') + (d.spectateurs != null ? phrase('{0} spectateurs', fmt(d.spectateurs)) : '')}); }).join('') + (D.directs.length ? tuileTout('toutDirects', 'Live', 'Tous les directs', 'Live') : ''));
+  /* 7 nov. 2026 (étape 1) : les directs montent au premier écran, dans leur bande (ac21) */
+  var hd = D.directs.map(function(d, i){ return tuileHex({a:'decDirect', v:i, illus:'Live', direct:true, tag:esc(tr('En direct')), titre:esc(d.titre || (d.hote ? '@' + d.hote.handle : '')), brut:true, meta:(d.pays ? drapeau(d.pays) + ' ' : '') + (d.spectateurs != null ? phrase('{0} spectateurs', fmt(d.spectateurs)) : '')}); }).join('') + (D.directs.length ? tuileTout('toutDirects', 'Live', 'Tous les directs', 'Live') : '');
   h += rail('Défis populaires', D.defis.map(function(d, i){ var m = REGP[d.module]; return tuileHex({a:'decDefi', v:i, illus:d.module, titre:esc(d.titre), brut:true, meta:d.participants != null ? phrase('{0} participants', fmt(d.participants)) : esc(m.n)}); }).join('') + (D.defis.length ? tuileTout('toutDefis', 'ChallengeUniverse', 'Tous les défis', 'ChallengeUniverse') : ''));
+  if(typeof rendreDirectsBande === 'function') rendreDirectsBande(D.directs.length ? hd : ''); else h += rail('En direct maintenant', hd);
+  if(typeof rendreTrio === 'function') rendreTrio();
+  if(!h){ arreterMediasDe(el); el.hidden = true; el.innerHTML = ''; return; }
   poserTuiles(el, h); }
 A.defiJour = function(){ var d = V2.decouverte && V2.decouverte.defiJour; if(d) entrer(d.module, {defi:d.id}); };
 A.decTalent = function(i){ var u = V2.decouverte && V2.decouverte.talents[+i]; ouvrirCreateur(u); };
@@ -4918,7 +4935,7 @@ A.irisMenu = function(){ var k = mondeVisible(); emit('home_iris_menu', {monde:k
     '</div>', 'iris'); };
 A.v4Son = function(el){ A.v3Son(); var b = document.querySelector('#feuille [data-a="v4Son"]'); if(b){ b.setAttribute('aria-checked', SON.on); var s = b.querySelector('small'); if(s) s.textContent = tr(SON.on ? 'Allumé' : 'Éteint'); } rendreIrisFlottant(); };
 /* « Plus du ciel » : la découverte, les constellations, le ciel collaboratif et le choix du lieu, repliés sous un bouton */
-var CIEL_PLUS = ['lieuChoix', 'decouverte', 'constellations', 'collectif'];
+var CIEL_PLUS = ['lieuChoix', 'constellations', 'collectif'];   /* 7 nov. 2026 (étape 1) : le défi du jour (#decouverte) n'est plus replié */
 function majCielPlus(){ var bloc = $('cielPlusBloc'), btn = $('cielPlusBtn'); if(!bloc || !btn) return; var n = CIEL_PLUS.filter(function(id){ var e = $(id); return e && !e.hidden && e.innerHTML.trim(); }).length;
   btn.hidden = !n; bloc.classList.toggle('ouvert', V4.cielPlus); btn.setAttribute('aria-expanded', V4.cielPlus); var t = btn.querySelector('span'); if(t) t.textContent = tr(V4.cielPlus ? 'Replier' : 'Plus du ciel'); }
 A.cielPlusBasculer = function(){ V4.cielPlus = !V4.cielPlus; try{ sessionStorage.setItem('nv_accueil_ciel_plus', V4.cielPlus ? '1' : ''); }catch(e){ dbg(e); } majCielPlus(); };
@@ -5870,6 +5887,30 @@ var FILM_SC = {
 };
 
 /* ════════════════════════════════════════════════════════════════════
+   LE PREMIER ÉCRAN EN TROIS PROMESSES — étape 1 (7 novembre 2026, demande de Karamo)
+   « Une meilleure présentation pour ne plus cacher les meilleures fonctionnalités à la première visite. »
+   Mesure avant : 8,6 écrans ; le défi du jour était replié sous « Plus du ciel » ; les directs aussi.
+   Ce que fait l'étape 1 :
+     – sous la vitrine, trois grands hexagones d'action : Regarder (Iris), le Défi du jour (ou « Relever un défi »),
+       Gagnez avec vos talents (La Récolte ; « Créer » avec La Forge quand l'argent n'est pas permis : moins de 18 ans) ;
+     – la bande « En direct maintenant » monte au premier écran, seulement quand il y a de vrais directs ;
+     – le bloc du défi du jour (avec les talents et les défis populaires) sort de « Plus du ciel » : il reste toujours visible.
+   La vitrine elle-même n'est pas touchée (ses tuiles retirées le 6 nov. 2026 ne reviennent pas dedans).
+   Rien n'est supprimé : chaque action reste la même ; aucune nouvelle phrase (toutes déjà traduites).
+   ════════════════════════════════════════════════════════════════════ */
+function rendreTrio(){ var el = $('trio'); if(!el) return; var D = V2.decouverte, dj = D && D.defiJour, mdj = dj && REGP[dj.module], h = '';
+  h += tuileHex({a:'vitrineRegarder', illus:'Player', c:'#9B6BFF', cls:'trio-t', titre:esc('Regarder'), meta:esc('Iris')});
+  if(dj && mdj) h += tuileHex({a:'defiJour', illus:dj.module, c:mdj.c, cls:'trio-t trio-defi', tag:esc('Défi du jour'), or:true, titre:esc(dj.titre || mdj.n), brut:!!dj.titre, meta:esc(mdj.n)});
+  else h += tuileHex({a:'vitrineDefi', illus:'camera', cls:'trio-t trio-defi', titre:esc('Relever un défi'), meta:esc('La Forge')});
+  if(REGP.Recolte && permis(REGP.Recolte)) h += tuileHex({a:'gagnerTalents', illus:'pieces', c:'#FFC93D', cls:'trio-t', titre:esc('Gagnez avec vos talents'), meta:esc(REGP.Recolte.n)});
+  else h += tuileHex({a:'raccourciForge', illus:'camera', cls:'trio-t', titre:esc('Créer'), meta:esc('La Forge')});
+  if(el._h === h) return; el._h = h; poserTuiles(el, h); }
+/* la bande des directs : seulement les vrais directs annoncés (jamais inventés) */
+function rendreDirectsBande(items){ var el = $('directsBande'); if(!el) return; if(!items){ arreterMediasDe(el); el.hidden = true; el.innerHTML = ''; el._h = ''; return; }
+  var h = '<h3 class="v2-h"><i class="db-point" aria-hidden="true"></i>' + esc('En direct maintenant') + '</h3><div class="v2-rail tx-rail">' + items + '</div>';
+  el.hidden = false; if(el._h === h) return; el._h = h; poserTuiles(el, h); }
+
+/* ════════════════════════════════════════════════════════════════════
    LE DÉMARRAGE, CE QUE DIT LE SERVEUR, L'INTERFACE PUBLIQUE
    ════════════════════════════════════════════════════════════════════ */
 /* un monde ne s'anime que s'il est à l'écran (la batterie d'abord) */
@@ -5944,7 +5985,7 @@ function demarrer(){
   $('logoMarque').innerHTML = logoMarque(); $('logoMot').innerHTML = logoMot(); vieDuLogo();
   rendreNav(); demarrerBas(); batirPrisme(); gestesPrisme(); autoPrisme(); rendreEtendard(); rendreContinents();
   CIEL.brancher($('cvCiel')); GX.brancher($('cvGalaxie')); GAL.moi = MONDE.pays || monIso() || null;
-  calculerLeger(); appliquerMonde(); surveiller(); demarrerV3(); demarrerFilms();   /* 7 nov. 2026 : les films des carreaux (ac20) */
+  calculerLeger(); appliquerMonde(); surveiller(); demarrerV3(); demarrerFilms(); rendreTrio();   /* 7 nov. 2026 : le premier écran en trois promesses (ac21) */   /* 7 nov. 2026 : les films des carreaux (ac20) */
   window.addEventListener('scroll', suivreDefilement, {passive:true}); suivreDefilement(); accueilParle(); if(GLB.seul) ouvrirGlobe();
   window.addEventListener('resize', function(){ placerPrisme(); });
   try{ var mq = matchMedia('(prefers-reduced-motion: reduce)'); if(mq.addEventListener) mq.addEventListener('change', function(){ setTimeout(jouerMondes, 0); autoPrisme(); }); }catch(e){ dbg(e); }
