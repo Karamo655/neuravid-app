@@ -1241,6 +1241,18 @@ body.feuille-ouverte .raccourcis{visibility:hidden}
 .nb-int{width:min(100%,560px);margin:0 auto;display:grid;gap:12px}
 .nb-int>[hidden]{display:none!important}
 .ciel-plus-btn[hidden]{display:none!important}   /* sans rien à déplier, « Plus du ciel » disparaît vraiment */
+/* ════════ ÉTAPE 5 (7 novembre 2026) : resserrer sans cacher, le sommaire nommé, l'ordre selon la personne ════════ */
+.panorama{height:clamp(340px,92vw,520px)}
+@media (min-width:600px){.panorama{height:500px}}
+.hexa-talents{padding:22px 0 20px}
+.hexa-talents:not(.ruche-ouverte) .ht-cel{width:clamp(132px,39vw,196px)}
+.boussole button.dit span{opacity:1}
+.boussole span{box-shadow:0 2px 10px rgba(0,0,0,.45);border:1px solid color-mix(in srgb,var(--c) 60%,transparent)}
+.ciel-ui>*{order:50}
+#app:is(.pr-revient,.pr-createur,.pr-marque) :is(#bonjour,#vitrine,#trio){order:10}
+#app.pr-revient #passeport{order:20}
+#app.pr-createur #decouverte{order:20}#app.pr-createur #pourquoi{order:21}
+#app.pr-marque #etendard{order:20}
 </style>
 </head>
 <body>
@@ -2491,7 +2503,7 @@ var GX = (function(){
     ['.esp-tete', '#continents', '#galOutils', '#galPlus', '#galSel', '#lieuChoix', '#coupe'].forEach(function(q){ var el = sec.querySelector(q); if(!el || el.hidden || !el.offsetHeight) return; var r = el.getBoundingClientRect(); if(r.bottom - top > bas) bas = r.bottom - top; });
     LIBRE = bas * dpr; var h = H / dpr;
     /* la galaxie garde au moins 420 px sous les boutons : la section s'allonge si besoin (jamais de débordement) */
-    var voulu = Math.ceil(bas + 420 + 96); if(voulu > h + 2 && sec.style.minHeight !== voulu + 'px'){ sec.style.minHeight = voulu + 'px'; W = 0; return; }
+    var voulu = Math.ceil(bas + 340 + 96);   /* 7 nov. 2026 (étape 5) : 340 px de galaxie sous les boutons (avant : 420) */ if(voulu > h + 2 && sec.style.minHeight !== voulu + 'px'){ sec.style.minHeight = voulu + 'px'; W = 0; return; }
     var milieu = (bas + (h - 96)) / 2; CY = borne(milieu / h, .52, .7);
     /* le centre du voyage : entre les boutons du haut et la carte du pays */
     /* pendant le voyage, les boutons s'effacent : l'étoile se place entre le titre (ou le haut de l'écran) et la carte du pays */
@@ -3416,9 +3428,11 @@ document.addEventListener('keydown', function(e){ if(e.key === 'Escape'){ var el
 
 /* ════════ LA BOUSSOLE DES TROIS MONDES : toujours là, sur le côté ; un toucher et l'on y est ════════ */
 var MONDES3 = [['ciel', 'Le ciel', '#FFC93D'], ['espace', 'La Galaxie des Nations', '#2EE6C5'], ['terre', 'La Terre vivante', '#FF3D9A']];
-function rendreBoussole(){ var el = $('boussole'); if(!el) return; poser(el, MONDES3.map(function(m){ return '<button data-a="allerMonde" data-v="' + m[0] + '" style="--c:' + m[2] + '" aria-label="' + esc(tr(m[1])) + '"><i aria-hidden="true"></i><span aria-hidden="true">' + esc(m[1]) + '</span></button>'; }).join('')); majBoussole(); }
+function rendreBoussole(){ var el = $('boussole'); if(!el) return; var L = typeof CHAPITRES !== 'undefined' ? CHAPITRES : MONDES3;   /* 7 nov. 2026 (étape 5) : cinq chapitres nommés */
+  poser(el, L.map(function(m){ return '<button data-a="allerMonde" data-v="' + m[0] + '" style="--c:' + m[2] + '" aria-label="' + esc(tr(m[1])) + '"><i aria-hidden="true"></i><span aria-hidden="true">' + esc(m[1]) + '</span></button>'; }).join('')); el._a = ''; majBoussole(); }
 function mondeActif(){ var best = 'ciel', vis = -1, h = window.innerHeight; MONDES3.forEach(function(m){ var s = $(m[0]); if(!s) return; var r = s.getBoundingClientRect(), v = Math.min(h, r.bottom) - Math.max(0, r.top); if(v > vis){ vis = v; best = m[0]; } }); return best; }
-function majBoussole(){ var el = $('boussole'); if(!el) return; var a = mondeActif(); [].forEach.call(el.children, function(b){ var on = b.getAttribute('data-v') === a; b.classList.toggle('on', on); if(on) b.setAttribute('aria-current', 'true'); else b.removeAttribute('aria-current'); }); }
+function majBoussole(){ var el = $('boussole'); if(!el) return; var a = typeof chapitreActif === 'function' ? chapitreActif() : mondeActif(), change = el._a && el._a !== a; el._a = a; [].forEach.call(el.children, function(b){ var on = b.getAttribute('data-v') === a; b.classList.toggle('on', on); if(on) b.setAttribute('aria-current', 'true'); else b.removeAttribute('aria-current');
+    /* 7 nov. 2026 (étape 5) : le nom du chapitre s'affiche un instant quand on y arrive */ if(change && !on) b.classList.remove('dit'); if(on && change){ b.classList.add('dit'); clearTimeout(b._dit); b._dit = setTimeout(function(){ b.classList.remove('dit'); }, 1600); } }); }
 A.allerMonde = function(k){ var s = $(k); if(!s) return; emit('home_boussole', {monde:k}); try{ s.scrollIntoView({behavior:CALME.on ? 'auto' : 'smooth'}); }catch(e){ s.scrollIntoView(); } };
 
 /* ════════ « MAINTENANT » : ce qui se passe, juste au-dessus des univers (seulement ce que le serveur envoie) ════════
@@ -5951,6 +5965,25 @@ function rendreBandePreuve(){ var el = $('preuvePlus'); if(!el) return; var h = 
   if(el._h === h + LANGUE_UI) return; el._h = h + LANGUE_UI; poserTuiles(el, h); }
 
 /* ════════════════════════════════════════════════════════════════════
+   ÉTAPE 5 DE LA NOUVELLE PRÉSENTATION (7 novembre 2026, demande de Karamo) — sans rien cacher ni supprimer
+   1. Le sommaire nommé : les hexagones à droite (#boussole) deviennent cinq chapitres — Regarder, Les talents du monde,
+      Pourquoi NEURAVID ?, La Galaxie des Nations, La Terre vivante. Un toucher y mène ; le nom du chapitre s'affiche
+      un instant quand on y arrive (sur un téléphone, le survol n'existe pas). Noms déjà traduits.
+   2. L'ordre selon la personne (ordre CSS, le document ne bouge pas) :
+        – première visite : la présentation en trois promesses ;
+        – un compte qui revient (après le premier jour) : le passeport juste après les trois actions ;
+        – un créateur (NV_USER.createur === true ou role 'createur') : le défi du jour puis « Pourquoi NEURAVID ? » ;
+        – une marque (NV_USER.marque === true ou role 'marque') : la place de L'Étendard.
+   ════════════════════════════════════════════════════════════════════ */
+var CHAPITRES = [['ciel', 'Regarder', '#FFC93D'], ['hexCiel', 'Les talents du monde', '#B98CFF'], ['pourquoi', 'Pourquoi NEURAVID ?', '#9B6BFF'], ['espace', 'La Galaxie des Nations', '#2EE6C5'], ['terre', 'La Terre vivante', '#FF3D9A']];
+function chapitreActif(){ var a = 'ciel', lim = window.innerHeight * .45; CHAPITRES.forEach(function(c){ var e = $(c[0]); if(e && e.offsetHeight && e.getBoundingClientRect().top <= lim) a = c[0]; }); return a; }
+function compteCreateur(){ var u = window.NV_USER; return !!(u && (u.createur === true || u.role === 'createur')); }
+function profilAccueil(){ if(typeof compteMarque === 'function' && compteMarque()) return 'marque'; if(compteCreateur()) return 'createur';
+  var prem = lire('nv_accueil_premiere', 0), jour = typeof window.NV_MOIS_PREMIER_JOUR === 'number' ? window.NV_MOIS_PREMIER_JOUR : 864e5;
+  return connecte() && prem && Date.now() - prem >= jour ? 'revient' : 'premiere'; }
+function poserProfil(){ var app = $('app'); if(!app) return; var p = profilAccueil(); ['premiere', 'revient', 'createur', 'marque'].forEach(function(k){ app.classList.toggle('pr-' + k, k === p); }); return p; }
+
+/* ════════════════════════════════════════════════════════════════════
    LE DÉMARRAGE, CE QUE DIT LE SERVEUR, L'INTERFACE PUBLIQUE
    ════════════════════════════════════════════════════════════════════ */
 /* un monde ne s'anime que s'il est à l'écran (la batterie d'abord) */
@@ -6025,7 +6058,7 @@ function demarrer(){
   $('logoMarque').innerHTML = logoMarque(); $('logoMot').innerHTML = logoMot(); vieDuLogo();
   rendreNav(); demarrerBas(); batirPrisme(); gestesPrisme(); autoPrisme(); rendreEtendard(); rendreContinents();
   CIEL.brancher($('cvCiel')); GX.brancher($('cvGalaxie')); GAL.moi = MONDE.pays || monIso() || null;
-  calculerLeger(); appliquerMonde(); surveiller(); demarrerV3(); demarrerFilms(); rendreTrio(); rendreBandePreuve();   /* 7 nov. 2026 : le premier écran en trois promesses (ac21), la bande de preuve (ac22) */   /* 7 nov. 2026 : les films des carreaux (ac20) */
+  calculerLeger(); appliquerMonde(); surveiller(); demarrerV3(); demarrerFilms(); rendreTrio(); rendreBandePreuve(); poserProfil();   /* étape 5 : l'ordre selon la personne (ac23) */   /* 7 nov. 2026 : le premier écran en trois promesses (ac21), la bande de preuve (ac22) */   /* 7 nov. 2026 : les films des carreaux (ac20) */
   window.addEventListener('scroll', suivreDefilement, {passive:true}); suivreDefilement(); accueilParle(); if(GLB.seul) ouvrirGlobe();
   window.addEventListener('resize', function(){ placerPrisme(); });
   try{ var mq = matchMedia('(prefers-reduced-motion: reduce)'); if(mq.addEventListener) mq.addEventListener('change', function(){ setTimeout(jouerMondes, 0); autoPrisme(); }); }catch(e){ dbg(e); }
