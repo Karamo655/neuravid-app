@@ -1234,6 +1234,13 @@ body.feuille-ouverte .raccourcis{visibility:hidden}
 .preuve-plus .tx-mini{width:58px;flex:none}
 .pv-t{display:grid;gap:3px;min-width:0;flex:1}.pv-t b{font-size:16px;font-weight:850}.pv-t small{font-size:13px;line-height:1.35;color:#E3DCF7}
 .pv-fl{font-size:24px;opacity:.8}
+/* ════════ ÉTAPE 4 (7 novembre 2026) : un rôle clair pour chaque monde ════════ */
+#espace #lieuChoix{transition:opacity .45s;width:min(calc(100% - 32px),560px);margin:8px auto 0}
+#espace.voyage #lieuChoix{opacity:0;pointer-events:none}
+.nations-bande{background:linear-gradient(180deg,#06031A,#0B0624);padding:6px 16px 22px}
+.nb-int{width:min(100%,560px);margin:0 auto;display:grid;gap:12px}
+.nb-int>[hidden]{display:none!important}
+.ciel-plus-btn[hidden]{display:none!important}   /* sans rien à déplier, « Plus du ciel » disparaît vraiment */
 </style>
 </head>
 <body>
@@ -1298,9 +1305,7 @@ body.feuille-ouverte .raccourcis{visibility:hidden}
         <div id="decouverte" class="decouverte" hidden></div>
         <button id="cielPlusBtn" class="ciel-plus-btn" data-a="cielPlusBasculer" aria-controls="cielPlusBloc" aria-expanded="false" hidden><span>Plus du ciel</span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></button>
         <div id="cielPlusBloc" class="ciel-plus">
-        <div id="lieuChoix" class="sel-ligne lieu-choix hxl"></div>
-        <div id="constellations" class="constellations hxl" hidden></div>
-        <div id="collectif" class="collectif hxl" hidden></div>
+        <!-- 7 nov. 2026 (étape 4) : « Découvrir depuis » est en tête de la Galaxie ; la constellation et le ciel collaboratif sont dans la bande des Nations -->
         </div>
         <div id="etendard" class="etendard"></div>
         <div id="passeport" class="passeport" hidden></div>
@@ -1325,12 +1330,18 @@ body.feuille-ouverte .raccourcis{visibility:hidden}
       <div id="galOutils" class="gal-outils"></div>
       <div id="galPlus" class="monde-outils"></div>
       <div id="galSel" class="sel-ligne"></div>
+      <div id="lieuChoix" class="sel-ligne lieu-choix hxl"></div>
       <div id="coupe" class="coupe" hidden></div>
       <div id="carteMonde" class="carte-monde" hidden></div>
       <div id="espEtiquettes" class="esp-etiquettes" aria-hidden="true"></div>
       <div id="carteP" class="carte-pays" hidden></div>
       <ul id="espListe" class="sr-liste" aria-label="Tous les pays"></ul>
     </section>
+    <!-- 7 nov. 2026 (étape 4) : la Galaxie = les nations — la Coupe (plus haut), la constellation de talents et le ciel collaboratif mondial -->
+    <div id="nationsBande" class="nations-bande"><div class="nb-int">
+      <div id="constellations" class="constellations hxl" hidden></div>
+      <div id="collectif" class="collectif hxl" hidden></div>
+    </div></div>
 
         <!-- L'Hexagone des talents : sous ce monde -->
     <section id="hexGalaxie" class="hexa-talents" data-monde="espace" aria-labelledby="hexGalaxieT"></section>
@@ -2477,7 +2488,7 @@ var GX = (function(){
   function image(ms){ if(!GAL.actif) return; requestAnimationFrame(image); var t = ms / 1000, dt = tPrec ? Math.min(.05, t - tPrec) : 0; tPrec = t; dessiner(t, dt); }
   /* la zone libre : la galaxie se centre sous les boutons du haut (titre, continents, outils, Coupe), pas derrière eux */
   function mesurer(){ var sec = c.parentNode, top = sec.getBoundingClientRect().top, bas = 0;
-    ['.esp-tete', '#continents', '#galOutils', '#galPlus', '#galSel', '#coupe'].forEach(function(q){ var el = sec.querySelector(q); if(!el || el.hidden || !el.offsetHeight) return; var r = el.getBoundingClientRect(); if(r.bottom - top > bas) bas = r.bottom - top; });
+    ['.esp-tete', '#continents', '#galOutils', '#galPlus', '#galSel', '#lieuChoix', '#coupe'].forEach(function(q){ var el = sec.querySelector(q); if(!el || el.hidden || !el.offsetHeight) return; var r = el.getBoundingClientRect(); if(r.bottom - top > bas) bas = r.bottom - top; });
     LIBRE = bas * dpr; var h = H / dpr;
     /* la galaxie garde au moins 420 px sous les boutons : la section s'allonge si besoin (jamais de débordement) */
     var voulu = Math.ceil(bas + 420 + 96); if(voulu > h + 2 && sec.style.minHeight !== voulu + 'px'){ sec.style.minHeight = voulu + 'px'; W = 0; return; }
@@ -4337,7 +4348,7 @@ function rechargerSelon(){ var g = GEN.n; if(DEMO.on && !api()){ rendreDecouvert
   if(CAP.collectif) lireJSON('/v1/accueil/collectif' + paramSel()).then(function(o){ if(g === GEN.n && o) poserCollectif(o.collectif); }).catch(dbg); }
 /* la petite carte « Découvrir depuis » (Ciel) et le rappel de la sélection dans les autres mondes */
 function puceSel(){ var vide = !SEL.region && !SEL.pays && !SEL.discipline; return '<button class="sel-puce" data-a="selOuvrir"><i aria-hidden="true">' + (SEL.pays ? drapeau(SEL.pays) : '🌍') + '</i><span>' + esc(tr('Découvrir depuis')) + ' : <b>' + esc(nomSel()) + '</b>' + (SEL.discipline ? ' · <b>' + esc(tr(DISCIPLINES[SEL.discipline])) + '</b>' : '') + '</span></button>' + (vide ? '' : '<button class="rond petit" data-a="selEffacer" aria-label="' + esc(tr('Revenir au monde entier')) + '">' + ico('fermer') + '</button>'); }
-function rendreSel(){ var ok = geoOk('regions'); ['galSel', 'terreSel', 'globeSel'].forEach(function(id){ var el = $(id); if(el){ if(ok) poser(el, puceSel()); else el.innerHTML = ''; } });
+function rendreSel(){ var ok = geoOk('regions'); ['globeSel'].forEach(   /* 7 nov. 2026 (étape 4) : un seul « Découvrir depuis » sur la page (#lieuChoix, en tête de la Galaxie) ; le Globe garde le sien */function(id){ var el = $(id); if(el){ if(ok) poser(el, puceSel()); else el.innerHTML = ''; } });
   var lc = $('lieuChoix'); if(!lc) return; var bt = (geoOk('radarDefis') ? tuileHex({a:'radarDefis', illus:'radar', cls:'tx-petit', titre:esc('Les défis par région')}) : '') + (geoOk('parcours') ? tuileHex({a:'parcours', illus:'parcours', cls:'tx-petit', titre:esc('Découverte culturelle')}) : '');   /* 5 nov. 2026 : deux tuiles hexagonales animées */
   if(!ok && !bt){ arreterMediasDe(lc); lc.hidden = true; lc.innerHTML = ''; return; } lc.hidden = false; poserTuiles(lc, (ok ? '<div class="lc-tete">' + puceSel() + '</div>' : '') + (bt ? '<div class="lc-actions">' + bt + '</div>' : '')); }
 A.selEffacer = function(){ choisirSel({region:null, pays:null, discipline:null}); };
@@ -4487,7 +4498,7 @@ function etincelle(o){ var iso = String(o && o.pays || '').toUpperCase(); if(!PA
 function creationsMinute(){ var now = Date.now(); return V3.recentes.filter(function(t){ return now - t <= 60000; }).length; }
 
 /* 2 · pendant le voyage, les boutons effacés ne se touchent pas et ne prennent pas le focus */
-function voyageInert(on){ ['continents', 'galOutils', 'galPlus', 'galSel', 'coupe'].forEach(function(id){ var e = $(id); if(e) try{ e.inert = !!on; }catch(x){ dbg(x); } }); }
+function voyageInert(on){ ['continents', 'galOutils', 'galPlus', 'galSel', 'lieuChoix', 'coupe'].forEach(function(id){ var e = $(id); if(e) try{ e.inert = !!on; }catch(x){ dbg(x); } }); }
 
 /* ════════ 3 · Une finale en direct ════════ */
 function finaleEnDirect(){ var l = (V2 && V2.terre && V2.terre.evenements) || []; for(var i = 0; i < l.length; i++) if(l[i].type === 'finale' && l[i].etat === 'direct') return {e:l[i], i:i}; return null; }
@@ -4683,7 +4694,7 @@ var ICO_V3 = {guide:'<circle cx="12" cy="12" r="3.2"/><path d="M2.5 12S6 5.5 12 
 function icoV3(k){ return '<svg viewBox="0 0 24 24" aria-hidden="true">' + ICO_V3[k] + '</svg>'; }
 function rendreOutilsV3(){ var f = finaleEnDirect(), s = V3.scene;
   [['ciel', 'cielPlus'], ['espace', 'galPlus'], ['terre', 'terrePlus']].forEach(function(z){ var el = $(z[1]); if(!el) return;
-    var h = (f ? '<button class="go-b v3-direct" data-a="v3Finale"><span class="v2-live" aria-hidden="true"></span><span>' + esc('Finale en direct') + '</span></button>' : '') +
+    var h = z[0] !== 'ciel' ? '' :   /* 7 nov. 2026 (étape 4) : « Finale en direct » et le thème du jour (« Soir de finale »…) une seule fois, dans le Ciel */ (f ? '<button class="go-b v3-direct" data-a="v3Finale"><span class="v2-live" aria-hidden="true"></span><span>' + esc('Finale en direct') + '</span></button>' : '') +
       (s ? '<button class="go-b v3-scene" data-a="v3Scene"><i aria-hidden="true"></i><span>' + esc(THEMES_SCENE[s.theme]) + '</span></button>' : '') +
       /* IRIS Guide, Écouter et Son sont rangés dans le bouton IRIS flottant (ac13, recommandation 4) */
       '';   /* 7 nov. 2026 (étape 3) : le Pouls du monde a quitté les outils de la Galaxie pour la bande de preuve (ac22), un seul exemplaire */
@@ -4951,7 +4962,7 @@ A.irisMenu = function(){ var k = mondeVisible(); emit('home_iris_menu', {monde:k
     '</div>', 'iris'); };
 A.v4Son = function(el){ A.v3Son(); var b = document.querySelector('#feuille [data-a="v4Son"]'); if(b){ b.setAttribute('aria-checked', SON.on); var s = b.querySelector('small'); if(s) s.textContent = tr(SON.on ? 'Allumé' : 'Éteint'); } rendreIrisFlottant(); };
 /* « Plus du ciel » : la découverte, les constellations, le ciel collaboratif et le choix du lieu, repliés sous un bouton */
-var CIEL_PLUS = ['lieuChoix', 'constellations', 'collectif'];   /* 7 nov. 2026 (étape 1) : le défi du jour (#decouverte) n'est plus replié */
+var CIEL_PLUS = [];   /* 7 nov. 2026 (étape 4) : plus rien d'important n'est replié ; « Découvrir depuis » est en tête de la Galaxie, la constellation et le ciel collaboratif dans la bande des Nations */   /* 7 nov. 2026 (étape 1) : le défi du jour (#decouverte) n'est plus replié */
 function majCielPlus(){ var bloc = $('cielPlusBloc'), btn = $('cielPlusBtn'); if(!bloc || !btn) return; var n = CIEL_PLUS.filter(function(id){ var e = $(id); return e && !e.hidden && e.innerHTML.trim(); }).length;
   btn.hidden = !n; bloc.classList.toggle('ouvert', V4.cielPlus); btn.setAttribute('aria-expanded', V4.cielPlus); var t = btn.querySelector('span'); if(t) t.textContent = tr(V4.cielPlus ? 'Replier' : 'Plus du ciel'); }
 A.cielPlusBasculer = function(){ V4.cielPlus = !V4.cielPlus; try{ sessionStorage.setItem('nv_accueil_ciel_plus', V4.cielPlus ? '1' : ''); }catch(e){ dbg(e); } majCielPlus(); };
