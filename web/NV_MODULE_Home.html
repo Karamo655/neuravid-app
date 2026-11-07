@@ -1222,6 +1222,8 @@ body.feuille-ouverte .raccourcis{visibility:hidden}
 .db-point{width:8px;height:8px;border-radius:50%;background:#FF2D55;box-shadow:0 0 8px #FF2D55;animation:dbPoint 1.4s ease-in-out infinite}
 @keyframes dbPoint{50%{opacity:.35}}
 @media (prefers-reduced-motion:reduce){.db-point{animation:none}}
+/* ════════ ÉTAPE 2 (7 novembre 2026) : « Le monde, en vrai » — les vraies vidéos juste après le premier écran ════════ */
+.ciel-ui>#hexCiel{align-self:stretch;width:auto;margin:10px -16px 6px;padding-top:22px;padding-bottom:22px}
 </style>
 </head>
 <body>
@@ -1258,6 +1260,8 @@ body.feuille-ouverte .raccourcis{visibility:hidden}
         <div id="vitrine" class="vitrine"></div>
         <div id="trio" class="trio"></div>
         <div id="directsBande" class="directs-bande" hidden></div>
+        <!-- 7 nov. 2026 (étape 2) : l'Hexagone des talents du monde monte juste après le premier écran, le prisme juste dessous -->
+        <section id="hexCiel" class="hexa-talents" data-monde="ciel" aria-labelledby="hexCielT"></section>
         <div id="filMonde" class="fil-monde hxl" aria-label="Le fil du monde" hidden></div>
         <div id="assistant" class="assistant" hidden></div>
         <div id="globeEntree" class="globe-entree"></div>
@@ -1293,8 +1297,6 @@ body.feuille-ouverte .raccourcis{visibility:hidden}
       <button class="descendre" data-a="versEspace" aria-label="Descendre vers la Galaxie des Nations"><span>La Galaxie des Nations</span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></button>
     </section>
 
-        <!-- L'Hexagone des talents : sous ce monde -->
-    <section id="hexCiel" class="hexa-talents" data-monde="ciel" aria-labelledby="hexCielT"></section>
 
 <!-- ═══ 2 · LA GALAXIE DES NATIONS ═══ -->
     <section id="espace" class="monde" aria-labelledby="tEspace" aria-describedby="galDesc">
