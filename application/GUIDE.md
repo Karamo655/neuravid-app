@@ -90,7 +90,7 @@ L'application elle-même est prête. Mais Apple et Google examinent ce qu'elle *
   - Le retrait des gains des créateurs, lui, peut passer par vos moyens de paiement.
 - **Les fiches des magasins.**
   - Icône 512 × 512 : `web/icones/nv-512.png` ; captures d'écran.
-  - Politique de confidentialité : `https://karamo655.github.io/neuravid-app/NV_MODULE_Conditions.html?doc=confidentialite`.
+  - Politique de confidentialité : `https://www.neuravid.com/NV_MODULE_Conditions.html?doc=confidentialite`.
   - Questionnaires « Sécurité des données » (Google) et « Confidentialité de l'app » (Apple).
   - Classification du contenu.
   - Public : à partir de 13 ans, pas destinée aux enfants.

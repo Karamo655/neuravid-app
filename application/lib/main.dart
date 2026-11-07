@@ -28,7 +28,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import 'pont.dart';
 
-const String kSite = String.fromEnvironment('NV_SITE', defaultValue: 'https://karamo655.github.io/neuravid-app/');
+const String kSite = String.fromEnvironment('NV_SITE', defaultValue: 'https://www.neuravid.com/');
 const String kDepart = String.fromEnvironment('NV_DEPART', defaultValue: 'index.html');
 const String kSecoursAsset = 'assets/web/';
 
@@ -112,7 +112,10 @@ if(!window.NV_LANG) window.NV_LANG = ${jsonEncode(langue)};
   bool _chezNous(Uri u) {
     if (u.scheme == 'file' || u.scheme == 'about' || u.scheme == 'data' || u.scheme == 'blob') return true;
     final site = Uri.parse(kSite);
-    return (u.scheme == 'https' || u.scheme == 'http') && u.host == site.host;
+    // Le site NEURAVID a plusieurs adresses (www.neuravid.com, neuravid.com, et l'ancienne adresse de GitHub qui y
+    // redirige) : toutes restent dans l'application. Sinon une redirection ouvrirait le navigateur du téléphone.
+    const nos = {'www.neuravid.com', 'neuravid.com', 'karamo655.github.io'};
+    return (u.scheme == 'https' || u.scheme == 'http') && (u.host == site.host || nos.contains(u.host));
   }
 
   Future<void> _ouvrirLien(String? url) async {

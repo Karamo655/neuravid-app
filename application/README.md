@@ -7,7 +7,7 @@ Karamo's step-by-step guide (French): `GUIDE.md`.
 
 A Flutter shell around the NEURAVID website, the same principle as `flutter/neuravid_distant.dart`. The source is `lib/main.dart`.
 
-- It loads `SITE` + `DEPART` from `config.env` (passed with `--dart-define`) ; by default `https://karamo655.github.io/neuravid-app/index.html`.
+- It loads `SITE` + `DEPART` from `config.env` (passed with `--dart-define`) ; by default `https://www.neuravid.com/index.html`.
 - Every screen update published to `web/` reaches the app with **no store release**. The API address lives in `web/nv-config.js`.
 - `web/` is embedded as an offline fallback (`loadFile`, `NV_MODULES_BASE = './'`).
 - **It never sets `NV_APERCU`.** Modules see `window.flutter_inappwebview`, so they stay in production mode: never demo data.
