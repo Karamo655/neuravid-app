@@ -1,7 +1,8 @@
 # NEURAVID — publication automatique de la référence.
 # À chaque envoi sur la branche main : on vérifie que web/ est complet et intact (empreintes de version.json),
 # puis on publie web/ sur le site (GitHub Pages). L'application, qui ouvre ce site, voit la mise à jour sans nouvel APK.
-# Domaine : réglez « app.neuravid.com » dans Settings → Pages → Custom domain (à la racine du domaine).
+# Domaine : le site est servi sur « www.neuravid.com » (Settings → Pages → Custom domain : www.neuravid.com ; DNS : www en CNAME vers karamo655.github.io,
+# neuravid.com en A vers 185.199.108.153, .109.153, .110.153, .111.153 — GitHub renvoie alors neuravid.com vers www). Les serveurs : api.neuravid.com.
 name: Publier NEURAVID
 on:
   push:
