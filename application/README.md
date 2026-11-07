@@ -41,7 +41,7 @@ You were invited to the Play Console with app-level rights on NEURAVID only (tes
    - Target audience: 13 and over, not designed for children.
    - Data safety: account data, user content (videos, photos, messages), camera/microphone use, approximate location (home country), encrypted in transit, deletion on request.
    - Account deletion: the in-app path (Réglages → « Supprimer mon compte ») and a web URL where deletion can be requested.
-5. **Closed testing.** If the Play account is a *personal* account created after November 2023, Google requires a closed test with at least 12 testers for 14 days in a row before production access can be requested. An *organisation* account (TENAGON GROUP, LLC) does not have this rule.
+5. **Closed testing.** The Play account is a **personal** account (Karamo Fanta Sacko). If the Play account is a *personal* account created after November 2023, Google requires a closed test with at least 12 testers for 14 days in a row before production access can be requested. An *organisation* account (TENAGON GROUP, LLC) does not have this rule. Testers must stay opted in for 14 consecutive days; then Dashboard → *Apply for production* (review in about 7 days). Real, active testers only.
 6. **Production** is published by Karamo once the real servers, sign-in and the reviewer account work.
 
 After the first upload, every new version can be sent automatically as a draft: secret `PLAY_SERVICE_ACCOUNT_JSON` (a Google Cloud service account invited in the Play Console), then *Run workflow* with « envoyer » checked (track `internal` by default).

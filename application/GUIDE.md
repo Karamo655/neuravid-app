@@ -35,7 +35,9 @@ GitHub la construit, la signe avec **vos** clés et l'envoie aux magasins. Vous 
    - public : 13 ans et plus, pas destinée aux enfants ;
    - sécurité des données ;
    - suppression du compte : dans Réglages (« Supprimer mon compte ») et une adresse web pour la demander.
-5. **Test fermé** : si votre compte développeur est un compte **personnel** créé après novembre 2023, Google exige 12 testeurs pendant 14 jours de suite avant la production. Un compte d'**organisation** (TENAGON GROUP, LLC) n'a pas cette règle.
+5. **Test fermé** (votre compte est **personnel**, au nom de Karamo Fanta Sacko, le 7 novembre 2026) : si votre compte développeur est un compte **personnel** créé après novembre 2023, Google exige 12 testeurs pendant 14 jours de suite avant la production. Un compte d'**organisation** (TENAGON GROUP, LLC) n'a pas cette règle.
+   - Les 12 testeurs doivent rester inscrits 14 jours **de suite** ; un testeur qui se désinscrit ne compte plus. Ensuite : Tableau de bord → « Demander l'accès à la production » (réponse de Google en 7 jours environ).
+   - De vrais testeurs seulement (équipe, famille, créateurs), qui utilisent vraiment l'application : jamais de testeurs achetés.
 6. **La production** : vous la publiez quand les vrais serveurs, la connexion et le compte de test fonctionnent.
 
 ## Ce qui demande une nouvelle version sur les magasins
