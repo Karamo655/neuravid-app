@@ -13,7 +13,9 @@ import 'package:flutter/services.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:permission_handler/permission_handler.dart';
 
-const String kSite = 'https://karamo655.github.io/neuravid-app/';
+// 7 nov. 2026 : le site est sur www.neuravid.com ; l'ancienne adresse github.io renvoyait vers http://, refusé par Android,
+// et l'application retombait sur sa vieille copie embarquée. On ouvre directement l'adresse sûre (https).
+const String kSite = 'https://www.neuravid.com/';
 const String kDepart = 'demo.html';
 const String kSecoursAsset = 'assets/web/';
 const String kSecoursBase = 'file:///android_asset/flutter_assets/assets/web/';
