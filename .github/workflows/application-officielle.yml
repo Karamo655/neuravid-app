@@ -206,8 +206,10 @@ jobs:
         run: |
           cd projet
           D="--dart-define=NV_SITE=${{ needs.reglages.outputs.site }} --dart-define=NV_DEPART=${{ needs.reglages.outputs.depart }}"
-          flutter build appbundle --release --build-name "$VERSION" --build-number "$NUMERO" $D
-          flutter build apk --release --build-name "$VERSION" --build-number "$NUMERO" $D
+          # trois essais : un serveur de téléchargement (Gradle, GitHub) peut répondre « 504 » quelques minutes
+          essayer(){ for i in 1 2 3; do "$@" && return 0; echo "::warning::essai $i échoué, nouvel essai dans 60 s"; sleep 60; done; return 1; }
+          essayer flutter build appbundle --release --build-name "$VERSION" --build-number "$NUMERO" $D
+          essayer flutter build apk --release --build-name "$VERSION" --build-number "$NUMERO" $D
           cp build/app/outputs/bundle/release/app-release.aab ../NEURAVID.aab
           cp build/app/outputs/flutter-apk/app-release.apk ../NEURAVID.apk
           ls -la ../NEURAVID.aab ../NEURAVID.apk
