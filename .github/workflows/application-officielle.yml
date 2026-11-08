@@ -213,7 +213,7 @@ jobs:
           mkdir -p "$HOME/gradle-local"
           ok=""
           for base in https://downloads.gradle.org/distributions https://services.gradle.org/distributions "$(dirname "$URL")"; do
-            for i in 1 2 3; do
+            for i in 1; do
               if curl -fsSL --retry 2 -o "$HOME/gradle-local/$F" "$base/$F" && curl -fsSL -o "$HOME/gradle-local/$F.sha256" "$base/$F.sha256"; then
                 if [ "$(sha256sum "$HOME/gradle-local/$F" | cut -d' ' -f1)" = "$(tr -d ' \n' < "$HOME/gradle-local/$F.sha256")" ]; then ok="$base"; break 2; fi
                 echo "::warning::empreinte différente depuis $base"
@@ -221,6 +221,23 @@ jobs:
               sleep 20
             done
           done
+          if [ -z "$ok" ]; then
+            # Dernier recours, hors de github.com : l'image Docker OFFICIELLE de Gradle (Docker Hub), même version.
+            V=$(echo "$F" | sed -E 's/^gradle-([0-9.]+)-(all|bin)\.zip$/\1/')
+            for tag in "$V.0-jdk17" "$V-jdk17" "$V"; do
+              if docker pull -q "gradle:$tag" >/dev/null 2>&1; then
+                c=$(docker create "gradle:$tag")
+                rm -rf "$HOME/gradle-docker" && mkdir -p "$HOME/gradle-docker"
+                docker cp -L "$c:/opt/gradle" "$HOME/gradle-docker/gradle-$V" && docker rm "$c" >/dev/null
+                if "$HOME/gradle-docker/gradle-$V/bin/gradle" --version | grep -q "^Gradle $V"; then
+                  rm -f "$HOME/gradle-local/$F"
+                  (cd "$HOME/gradle-docker" && zip -qr "$HOME/gradle-local/$F" "gradle-$V")
+                  sha256sum "$HOME/gradle-local/$F" | cut -d' ' -f1 > "$HOME/gradle-local/$F.sha256"
+                  ok="docker:gradle:$tag"; break
+                fi
+              fi
+            done
+          fi
           if [ -n "$ok" ]; then
             echo "Gradle vérifié, téléchargé depuis $ok"
             S=$(cat "$HOME/gradle-local/$F.sha256" | tr -d ' \n')
