@@ -182,7 +182,13 @@ jobs:
         run: |
           cd projet/android
           if [ -n "$KS_B64" ] && [ -n "$KS_PASS" ] && [ -n "$KS_ALIAS" ]; then
-            echo "$KS_B64" | base64 -d > app/upload-keystore.jks
+            # 8 nov. 2026 : la clé de Karamo est au format PKCS12 (créée par un keytool récent) ; l'outil de signature des .aab
+            # n'arrive pas à la lire (« Failed to read key … null »). On la recopie au format JKS : même clé, même empreinte SHA-256.
+            echo "$KS_B64" | base64 -d > app/cle-source.keystore
+            keytool -importkeystore -noprompt -srckeystore app/cle-source.keystore -srcstorepass "$KS_PASS" -srcalias "$KS_ALIAS" \
+              -destkeystore app/upload-keystore.jks -deststoretype JKS -deststorepass "$KS_PASS" -destkeypass "${KS_KEYPASS:-$KS_PASS}" -destalias "$KS_ALIAS"
+            rm -f app/cle-source.keystore
+            keytool -list -keystore app/upload-keystore.jks -storepass "$KS_PASS" | grep -i "SHA-256" || true
             printf 'storePassword=%s\nkeyPassword=%s\nkeyAlias=%s\nstoreFile=upload-keystore.jks\n' "$KS_PASS" "${KS_KEYPASS:-$KS_PASS}" "$KS_ALIAS" > key.properties
             echo "officielle=oui" >> "$GITHUB_OUTPUT"; echo "Signature : la clé de Karamo (secrets du dépôt)."
           else
