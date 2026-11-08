@@ -3859,7 +3859,7 @@ var oublierV2_13 = oublierV2; oublierV2 = function(){ oublierV2_13(); PG.liste =
    (comme les autres sommes de La Récolte) : ils voient les règles et la répartition en pourcentages.
    ════════════════════════════════════════════════════════════════════════ */
 var CG = {d:null, etat:'attente', apercu:false, ouvert:{}};
-var CG_SOURCES = {partenaires:'Partenaires et sponsors', marques:'Marques de L\'Étendard', cadeaux:'Cadeaux du public', billetterie:'Billetterie', diffusion:'Droits de diffusion'};
+var CG_SOURCES = {partenaires:'Partenaires et sponsors', marques:'Marques de L\'Étendard', cadeaux:'Cadeaux du public', billetterie:'Billetterie', diffusion:'Droits de diffusion', report:'Reporté de la Saison précédente'};
 var CG_ENV = {prix_nuit:'Prix de la Nuit des Nations', fonds_nation:'Fonds de la Nation', prix_phases:'Prix des phases nationales et continentales', bourses:'Bourses des Espoirs des Nations'};
 var CG_ETATS = {ouverte:'Collecte ouverte', close:'Collecte close', auditee:'Comptes audités', terminee:'Saison terminée'};
 var CG_DISC = {chant:'Chant', danse:'Danse', humour:'Humour', court_metrage:'Court-métrage', arts_visuels:'Arts visuels', musique:'Musique et création sonore', conte:'Conte et parole', gastronomie:'Gastronomie', elegance:'Élégance et culture'};
@@ -3875,7 +3875,7 @@ function cgNorm(o){
     sources:liste(o.sources, 8).filter(function(s){ return s && CG_SOURCES[s.source]; }).map(function(s){ return {source:s.source, recu:cgN(s.recu), signe:cgN(s.signe), part:cgN(s.partPb), note:txt(s.note, 200) || null}; }),
     env:env, prix:liste(o.prixNuit, 9).filter(function(p){ return p && CG_DISC[p.discipline]; }).map(function(p){ var x = {discipline:p.discipline};
       Object.keys(CG_MED).forEach(function(m){ var v = p[m] || {}; x[m] = {montant:cgN(v.montant), verse:v.verse === true, pays:cgIso(v.pays)}; }); return x; }),
-    reliquat:cgN(o.reliquat),
+    reliquat:cgN(o.reliquat), reporte:o.reporte && typeof o.reporte === 'object' && cgN(o.reporte.montant) ? {montant:cgN(o.reporte.montant)} : null,
     fonds:liste(o.fondsNation, 260).filter(function(f){ return f && cgIso(f.pays); }).map(function(f){ return {pays:cgIso(f.pays), or:cgN(f.or), montant:cgN(f.montant), dispo:cgN(f.disponible),
       projets:liste(f.projets, 30).filter(function(p){ return p && CG_PROJ[p.etat]; }).map(function(p){ return {titre:txt(p.titre, 120), organisme:txt(p.organisme, 120), montant:cgN(p.montant), etat:p.etat,
         rapport:urlSure(p.compteRendu) && /^https:/.test(p.compteRendu) ? urlSure(p.compteRendu) : null, retard:p.compteRenduEnRetard === true}; })}; }),
@@ -3922,6 +3922,9 @@ function rendreCagnotte(){
   if(d.etat === 'ouverte') h += '<p class="note">La répartition se fait à la clôture de la collecte.</p>';
   if(d.reliquat) h += '<p class="note"><span>Restes d\'arrondi gardés à part :</span> ' + cgM(d.reliquat, dev) + '</p>';
   if(d.nonAttribue) h += '<p class="note"><span>Prix des phases pas encore attribués :</span> ' + cgM(d.nonAttribue, dev) + '</p>';
+  /* 8 nov. 2026 : l'argent non attribué passe en entier à la Saison suivante, jamais à NEURAVID */
+  if(d.reporte) h += '<p class="note"><span>Passé en entier à la cagnotte de la Saison suivante :</span> ' + cgM(d.reporte.montant, dev) + '</p>';
+  else if(d.reliquat || d.nonAttribue) h += '<p class="note">L\'argent non attribué passera en entier à la cagnotte de la Saison suivante, jamais à NEURAVID.</p>';
   /* les prix de la Nuit */
   if(d.prix.length && d.etat !== 'ouverte'){
     var op = !!CG.ouvert.prix;
