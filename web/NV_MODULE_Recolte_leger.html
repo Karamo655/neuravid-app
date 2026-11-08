@@ -313,6 +313,41 @@ body.feuille-on{overflow:hidden}
 @keyframes pgHex{0%,100%{opacity:.25;transform:scale(.8)}50%{opacity:1;transform:scale(1)}}
 @media (prefers-reduced-motion:reduce){.pg-charge i{animation:none;opacity:.7}}
 .pg-payer{margin:12px 0}
+
+/* ════ La cagnotte de la Saison des Nations (r14.js, 8 novembre 2026) ════ */
+.cg{background:linear-gradient(160deg,rgba(255,182,39,.2),rgba(59,37,99,.92) 55%);border-color:rgba(255,182,39,.42)}
+.cg h4{margin:16px 0 6px;font-size:1em;color:var(--pollen)}
+.cg .note{margin:6px 0;color:var(--doux);font-size:.88em;line-height:1.45}
+.cg .lien{background:none;border:0;padding:6px 0;color:var(--nectar);font:inherit;font-weight:700;font-size:.9em;text-decoration:underline;text-underline-offset:3px;cursor:pointer;min-height:32px}
+.cg-tete{display:flex;align-items:center;gap:12px}
+.cg-tete b{display:block;font-family:var(--serif);font-size:1.15em}
+.cg-tete .sous{display:block;margin:2px 0 0}
+.cg-hx{flex:none;width:56px;height:56px;display:grid;place-items:center;font-size:26px;background:linear-gradient(160deg,var(--pollen),var(--miel));clip-path:polygon(50% 0,100% 25%,100% 75%,50% 100%,0 75%,0 25%)}
+.cg-ap{display:inline-block;margin:3px 0;padding:1px 9px;border-radius:999px;background:rgba(255,224,122,.2);color:var(--pollen);font-size:.75em;font-weight:700}
+.cg-compteur{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:12px 0 4px}
+.cg-compteur div{padding:10px 12px;border-radius:14px;background:rgba(0,0,0,.2);display:grid;gap:2px;min-width:0}
+.cg-compteur span{font-size:.78em;color:var(--doux)}
+.cg-compteur b{font-size:1.25em;color:var(--pollen);font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
+.cg-regles{margin:8px 0;padding-inline-start:18px;font-size:.86em;color:var(--cire);display:grid;gap:3px}
+.cg-alerte{margin:8px 0;padding:8px 12px;border-radius:12px;background:rgba(255,92,138,.18);font-size:.88em}
+.cg-lignes,.cg-env,.cg-fonds,.cg-prix{display:grid;gap:6px}
+.cg-l{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:2px 8px;padding:8px 10px;border-radius:12px;background:rgba(255,255,255,.06);font-size:.9em}
+.cg-l > span{min-width:0;display:grid}
+.cg-l small{color:var(--pale);font-size:.82em}
+.cg-l b{font-variant-numeric:tabular-nums}
+.cg-l em{grid-column:2;font-style:normal;color:var(--pale);font-size:.82em;text-align:end}
+.cg-e{display:grid;grid-template-columns:54px minmax(0,1fr) auto;align-items:center;gap:2px 8px;padding:8px 10px;border-radius:12px;background:rgba(255,255,255,.06);font-size:.9em}
+.cg-e i{font-style:normal;display:grid;place-items:center;width:50px;height:44px;font-weight:800;font-size:.85em;color:#2B1A47;background:linear-gradient(160deg,var(--pollen),var(--miel));clip-path:polygon(50% 0,100% 25%,100% 75%,50% 100%,0 75%,0 25%)}
+.cg-e small{grid-column:2/4;color:var(--pale);font-size:.82em}
+.cg-e b{font-variant-numeric:tabular-nums}
+.cg-p{padding:8px 10px;border-radius:12px;background:rgba(255,255,255,.06);display:grid;gap:3px;font-size:.88em}
+.cg-med{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.cg-f{padding:8px 10px;border-radius:12px;background:rgba(255,255,255,.06);display:grid;gap:6px}
+.cg-ft{display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:8px;align-items:center}
+.cg-pj{display:grid;gap:1px;padding:6px 10px;border-inline-start:3px solid var(--nectar);font-size:.86em}
+.cg-pj small{color:var(--pale)}
+.cg-retard{color:var(--hibiscus)!important}
+@media (max-width:360px){.cg-compteur{grid-template-columns:1fr}.cg-e{grid-template-columns:48px minmax(0,1fr)}.cg-e b{grid-column:2}}
 </style>
 </head>
 <body>
@@ -3815,6 +3850,127 @@ var oublierV2_13 = oublierV2; oublierV2 = function(){ oublierV2_13(); PG.liste =
   R.recharger = function(but){ if(tropJeune() || mineur()) return false; if(but === 'entreprise' && rechargeOuverte() && !dansMagasin()){ avecMajorite(function(){ feuilleRecharge('entreprise'); }); return true; } rechargerPF(); return true; };
   R.paiements = function(){ return {recharge:rechargeOuverte(), payer:payerOuvert(), magasin:dansMagasin()}; };
 })();
+/* ════════════════════════════════════════════════════════════════════════
+   v5 — LA CAGNOTTE TRANSPARENTE DE LA SAISON DES NATIONS ET LE FONDS DE LA NATION (8 novembre 2026, étape 4)
+   Règlement officiel, section 7. Seulement si GET /v1/recolte/capacites annonce « cagnotte.actif: true » ; puis
+   GET /v1/recolte/saison/cagnotte (public). Le compteur n'affiche que l'argent réellement reçu ou signé, lu dans le
+   registre du serveur ; une valeur inconnue s'affiche « — ». Aucun nom de personne : la nation, la discipline, la médaille.
+   Sans serveur : rien, sauf dans l'aperçu (NV_DEMO), marqué « Aperçu ». Les montants restent cachés aux moins de 18 ans
+   (comme les autres sommes de La Récolte) : ils voient les règles et la répartition en pourcentages.
+   ════════════════════════════════════════════════════════════════════════ */
+var CG = {d:null, etat:'attente', apercu:false, ouvert:{}};
+var CG_SOURCES = {partenaires:'Partenaires et sponsors', marques:'Marques de L\'Étendard', cadeaux:'Cadeaux du public', billetterie:'Billetterie', diffusion:'Droits de diffusion'};
+var CG_ENV = {prix_nuit:'Prix de la Nuit des Nations', fonds_nation:'Fonds de la Nation', prix_phases:'Prix des phases nationales et continentales', bourses:'Bourses des Espoirs des Nations'};
+var CG_ETATS = {ouverte:'Collecte ouverte', close:'Collecte close', auditee:'Comptes audités', terminee:'Saison terminée'};
+var CG_DISC = {chant:'Chant', danse:'Danse', humour:'Humour', court_metrage:'Court-métrage', arts_visuels:'Arts visuels', musique:'Musique et création sonore', conte:'Conte et parole', gastronomie:'Gastronomie', elegance:'Élégance et culture'};
+var CG_MED = {or:['🥇', 'Or'], argent:['🥈', 'Argent'], bronze:['🥉', 'Bronze']};
+var CG_PROJ = {propose:'Proposé', valide:'Validé par le Conseil des Nations', verse:'Versé à l\'organisme'};
+function cgN(v){ return typeof v === 'number' && isFinite(v) && v >= 0 ? v : null; }
+function cgIso(v){ v = String(v || '').toUpperCase(); return /^[A-Z]{2}$/.test(v) ? v : null; }
+function cgNorm(o){
+  if(!o || typeof o !== 'object' || !o.saison || typeof o.saison !== 'object' || !CG_ETATS[o.saison.etat]) return null;
+  var dev = /^[A-Z]{3}$/.test(String(o.saison.devise || '')) ? o.saison.devise : null;
+  var env = {}; Object.keys(CG_ENV).forEach(function(k){ var e = o.enveloppes && o.enveloppes[k]; env[k] = e ? {part:cgN(e.part), montant:cgN(e.montant), verse:cgN(e.verse)} : {part:null, montant:null, verse:null}; });
+  return {nom:txt(o.saison.nom, 80), etat:o.saison.etat, devise:dev, recu:cgN(o.recu), signe:cgN(o.signe), coherent:o.coherent !== false,
+    sources:liste(o.sources, 8).filter(function(s){ return s && CG_SOURCES[s.source]; }).map(function(s){ return {source:s.source, recu:cgN(s.recu), signe:cgN(s.signe), part:cgN(s.partPb), note:txt(s.note, 200) || null}; }),
+    env:env, prix:liste(o.prixNuit, 9).filter(function(p){ return p && CG_DISC[p.discipline]; }).map(function(p){ var x = {discipline:p.discipline};
+      Object.keys(CG_MED).forEach(function(m){ var v = p[m] || {}; x[m] = {montant:cgN(v.montant), verse:v.verse === true, pays:cgIso(v.pays)}; }); return x; }),
+    reliquat:cgN(o.reliquat),
+    fonds:liste(o.fondsNation, 260).filter(function(f){ return f && cgIso(f.pays); }).map(function(f){ return {pays:cgIso(f.pays), or:cgN(f.or), montant:cgN(f.montant), dispo:cgN(f.disponible),
+      projets:liste(f.projets, 30).filter(function(p){ return p && CG_PROJ[p.etat]; }).map(function(p){ return {titre:txt(p.titre, 120), organisme:txt(p.organisme, 120), montant:cgN(p.montant), etat:p.etat,
+        rapport:urlSure(p.compteRendu) && /^https:/.test(p.compteRendu) ? urlSure(p.compteRendu) : null, retard:p.compteRenduEnRetard === true}; })}; }),
+    versements:liste(o.versements, 200).filter(function(v){ return v && v.genre === 'organisme'; }).map(function(v){ return {organisme:txt(v.organisme, 120), enveloppe:v.enveloppe, pays:cgIso(v.pays), montant:cgN(v.montant), at:cgN(v.at)}; }),
+    audit:o.audit && /^https:/.test(String(o.audit.rapport || '')) ? {le:cgN(o.audit.le), rapport:urlSure(o.audit.rapport)} : null,
+    prixAvant:cgN(o.prixAvant), retard:o.prixEnRetard === true, medailles:o.medaillesFigees === true,
+    taux:Array.isArray(o.saison.tauxNvc) && cgN(o.saison.tauxNvc[0]) && cgN(o.saison.tauxNvc[1]) ? o.saison.tauxNvc[0] / o.saison.tauxNvc[1] : null,
+    nonAttribue:cgN(o.nonAttribue), attenteMajorite:cgN(o.prixEnAttenteDeMajorite),
+    phases:liste(o.prixPhases, 100).filter(function(p){ return p && cgIso(p.pays); }).map(function(p){ return {discipline:CG_DISC[p.discipline] ? p.discipline : null, pays:cgIso(p.pays), montant:cgN(p.montant), verse:p.verse === true}; }),
+    bourses:liste(o.bourses, 100).filter(function(p){ return p && CG_PROJ[p.etat]; }).map(function(p){ return {titre:txt(p.titre, 120), organisme:txt(p.organisme, 120), montant:cgN(p.montant), etat:p.etat, pays:cgIso(p.pays)}; })};
+}
+window.NVRecolteCagnotte = function(o, apercu){ CG.d = cgNorm(o); CG.apercu = !!apercu && !!CG.d; CG.etat = CG.d ? 'ok' : 'vide'; rendreCagnotte(); };
+function chargerCagnotte(){
+  if(CG.etat === 'charge') return;
+  if(!api()){ if(window.NV_DEMO && !CG.d) demoCagnotte(); return; }
+  CG.etat = 'charge';
+  lireS('/v1/recolte/capacites', function(c){
+    if(!c || !c.cagnotte || c.cagnotte.actif !== true){ CG.etat = 'vide'; CG.d = null; rendreCagnotte(); return; }
+    lireS('/v1/recolte/saison/cagnotte', function(o){ if(o) window.NVRecolteCagnotte(o); else { CG.etat = 'vide'; rendreCagnotte(); } }, 60000);
+  }, 300000);
+}
+function cgDec(dev){ try{ return new Intl.NumberFormat('en', {style:'currency', currency:dev}).resolvedOptions().maximumFractionDigits; }catch(e){ return 2; } }
+/* le serveur compte en plus petite unité de la devise (les centimes du dollar) : on affiche la vraie somme */
+function cgM(n, dev){ if(mineur()) return '—'; if(typeof n !== 'number' || !isFinite(n) || !dev) return '—'; return monnaie(n / Math.pow(10, cgDec(dev)), dev); }
+function rendreCagnotte(){
+  var z = $('cagnotteSaison'); if(!z) return;
+  var d = CG.d; if(!d){ z.innerHTML = ''; return; }
+  var dev = d.devise, h = '<div class="carte cg"><div class="cg-tete"><span class="cg-hx" aria-hidden="true">🏆</span><div><b>La cagnotte de la Saison des Nations</b>' +
+    (CG.apercu ? '<span class="cg-ap">Aperçu</span>' : '') + '<span class="sous"><span dir="auto">' + esc(d.nom) + '</span> · <span>' + CG_ETATS[d.etat] + '</span></span></div></div>';
+  h += '<div class="cg-compteur"><div><span>Reçu</span><b>' + cgM(d.recu, dev) + '</b></div><div><span>Signé, pas encore reçu</span><b>' + cgM(d.signe, dev) + '</b></div></div>';
+  if(mineur()) h += '<p class="note">Les montants sont visibles à partir de 18 ans.</p>';
+  h += '<p class="note">Le compteur n\'affiche que l\'argent réellement reçu ou signé.</p>';
+  if(!d.coherent) h += '<p class="cg-alerte">Le contrôle du registre ne correspond pas : les chiffres sont en vérification.</p>';
+  h += '<ul class="cg-regles"><li>Jamais de frais d\'inscription. Participer et voter restent gratuits.</li><li>Les frais d\'organisation, d\'audit et de paiement sont payés par NEURAVID, jamais pris sur la cagnotte.</li></ul>';
+  /* d'où vient l'argent */
+  h += '<h4>D\'où vient l\'argent</h4><div class="cg-lignes">' + d.sources.map(function(s){
+    return '<div class="cg-l"><span>' + CG_SOURCES[s.source] + (s.note ? '<small dir="auto">' + esc(s.note) + (s.part != null ? ' · <span>' + (s.part / 100).toLocaleString(LOC()) + ' %</span>' : '') + '</small>' : '') + '</span><b>' + cgM(s.recu, dev) + '</b>' +
+      (s.signe ? '<em>+ ' + cgM(s.signe, dev) + ' <span>signé</span></em>' : '') + '</div>'; }).join('') + '</div>';
+  /* où va l'argent */
+  h += '<h4>Où va l\'argent</h4><div class="cg-env">' + Object.keys(CG_ENV).map(function(k){ var e = d.env[k];
+    return '<div class="cg-e"><i>' + (e.part != null ? (e.part / 100).toLocaleString(LOC()) + ' %' : '—') + '</i><span>' + CG_ENV[k] + '</span><b>' + (e.montant != null ? cgM(e.montant, dev) : '—') + '</b>' +
+      (e.verse ? '<small><span>Versé :</span> ' + cgM(e.verse, dev) + '</small>' : '') + '</div>'; }).join('') + '</div>';
+  if(d.etat === 'ouverte') h += '<p class="note">La répartition se fait à la clôture de la collecte.</p>';
+  if(d.reliquat) h += '<p class="note"><span>Restes d\'arrondi gardés à part :</span> ' + cgM(d.reliquat, dev) + '</p>';
+  if(d.nonAttribue) h += '<p class="note"><span>Prix des phases pas encore attribués :</span> ' + cgM(d.nonAttribue, dev) + '</p>';
+  /* les prix de la Nuit */
+  if(d.prix.length && d.etat !== 'ouverte'){
+    var op = !!CG.ouvert.prix;
+    h += '<button class="lien" data-act="cg-prix">' + (op ? 'Masquer les prix de chaque discipline' : 'Voir les prix de chaque discipline') + '</button>';
+    if(op) h += '<div class="cg-prix">' + d.prix.map(function(p){ return '<div class="cg-p"><b>' + CG_DISC[p.discipline] + '</b>' + Object.keys(CG_MED).map(function(m){ var v = p[m];
+      return '<span class="cg-med"><i aria-hidden="true">' + CG_MED[m][0] + '</i><span class="cg-mn">' + CG_MED[m][1] + '</span> ' + (v.montant != null ? cgM(v.montant, dev) : '—') + (v.verse ? ' · <span>versé</span>' + (v.pays ? ' ' + drapeau(v.pays) : '') : '') + '</span>'; }).join('') + '</div>'; }).join('') + '</div>';
+  }
+  if(d.taux && dev) h += '<p class="note"><span>Les prix arrivent dans La Récolte au taux fixé pour toute la Saison :</span> 1 ' + esc(dev) + ' = ' + nvc(d.taux * Math.pow(10, cgDec(dev))) + ' NVCoins</p>';
+  if(d.phases.length) h += '<h4>Les prix des phases</h4><div class="cg-lignes">' + d.phases.map(function(p){ return '<div class="cg-l"><span>' + drapeau(p.pays) + ' ' + esc(nomPays(p.pays)) + (p.discipline ? '<small>' + CG_DISC[p.discipline] + '</small>' : '') + '</span><b>' + cgM(p.montant, dev) + '</b>' + (p.verse ? '<em>versé</em>' : '') + '</div>'; }).join('') + '</div>';
+  /* le Fonds de la Nation */
+  h += '<h4>Le Fonds de la Nation</h4><p class="note">Il finance un projet dans chaque nation médaillée, au prorata de ses médailles d\'or. L\'équipe nationale propose, le Conseil des Nations vérifie, et l\'argent va directement à l\'organisme. Un compte rendu avec photos et factures est publié dans l\'année.</p>';
+  if(!d.medailles) h += '<p class="note">La part de chaque nation est calculée avec le tableau des médailles validé.</p>';
+  else h += '<div class="cg-fonds">' + d.fonds.map(function(f){
+    return '<div class="cg-f"><div class="cg-ft"><b>' + drapeau(f.pays) + ' ' + esc(nomPays(f.pays)) + '</b><span>🥇 ' + (f.or != null ? f.or : '—') + '</span><b>' + cgM(f.montant, dev) + '</b></div>' +
+      (f.projets.length ? f.projets.map(function(p){ return '<div class="cg-pj"><b dir="auto">' + esc(p.titre) + '</b><span dir="auto">' + esc(p.organisme) + ' · ' + cgM(p.montant, dev) + '</span><small>' + CG_PROJ[p.etat] + '</small>' +
+        (p.rapport ? '<a class="lien" href="' + p.rapport + '" target="_blank" rel="noopener">Voir le compte rendu</a>' : p.retard ? '<small class="cg-retard">Compte rendu en retard</small>' : '') + '</div>'; }).join('')
+        : '<p class="note">Aucun projet proposé pour l\'instant.</p>') + '</div>'; }).join('') + '</div>';
+  if(d.bourses.length) h += '<h4>Les bourses des Espoirs des Nations</h4><div class="cg-fonds">' + d.bourses.map(function(p){ return '<div class="cg-pj"><b dir="auto">' + esc(p.titre) + '</b><span dir="auto">' + esc(p.organisme) + ' · ' + cgM(p.montant, dev) + (p.pays ? ' · ' + drapeau(p.pays) : '') + '</span><small>' + CG_PROJ[p.etat] + '</small></div>'; }).join('') + '</div>';
+  /* les versements aux organismes */
+  if(d.versements.length) h += '<h4>Versements aux organismes</h4><div class="cg-lignes">' + d.versements.map(function(v){
+    return '<div class="cg-l"><span><span dir="auto">' + esc(v.organisme) + '</span><small>' + (CG_ENV[v.enveloppe] || '—') + (v.pays ? ' · ' + drapeau(v.pays) : '') + (v.at ? ' · ' + jourDe(v.at * 1000) : '') + '</small></span><b>' + cgM(v.montant, dev) + '</b></div>'; }).join('') + '</div>';
+  /* l'audit */
+  h += '<h4>L\'audit</h4>';
+  if(d.audit) h += '<p class="note"><span>Comptes vérifiés par l\'auditeur indépendant</span> · ' + jourDe(d.audit.le * 1000) + ' · <a class="lien" href="' + d.audit.rapport + '" target="_blank" rel="noopener">Lire le rapport</a></p>' +
+    (d.prixAvant ? '<p class="note"><span>Les prix sont versés au plus tard le</span> ' + dateLongue(d.prixAvant * 1000) + '.</p>' : '');
+  else h += '<p class="note">Les prix sont versés dans les 60 jours qui suivent l\'audit, après la vérification d\'identité, seulement aux personnes de 18 ans et plus.</p>';
+  if(d.retard) h += '<p class="cg-alerte">Des prix ne sont pas encore versés après le délai de 60 jours.</p>';
+  if(d.attenteMajorite) h += '<p class="note"><span>Prix gardés jusqu\'aux 18 ans de leur gagnant :</span> <b>' + d.attenteMajorite + '</b></p>';
+  z.innerHTML = h + '</div>';
+}
+var rendreNations14 = rendreNations;
+rendreNations = function(){ rendreNations14(); var z = $('corpsNations'); if(z && !$('cagnotteSaison')) z.insertAdjacentHTML('beforebegin', '<div id="cagnotteSaison"></div>'); rendreCagnotte(); };
+var montrer14 = montrer;
+montrer = function(v, parRetour){ montrer14(v, parRetour); if(v === 'nations') chargerCagnotte(); };
+document.addEventListener('click', function(e){ if(e.target.closest('[data-act="cg-prix"]')){ CG.ouvert.prix = !CG.ouvert.prix; rendreCagnotte(); } });
+/* l'aperçu : une Saison d'illustration, calculée comme le serveur (55/20/15/10 ; or 60, argent 25, bronze 15 ; plus fort reste) */
+function demoCagnotte(){
+  var recu = 485000000, signe = 120000000, rep = {prix_nuit:5500, fonds_nation:2000, prix_phases:1500, bourses:1000}, env = {}, total = 0;
+  Object.keys(rep).forEach(function(k){ var m = Math.floor(recu * rep[k] / 10000); env[k] = {part:rep[k], montant:m, verse:0}; total += m; });
+  var disc = ['chant', 'danse', 'humour', 'court_metrage', 'arts_visuels', 'musique', 'conte', 'gastronomie', 'elegance'], par = Math.floor(env.prix_nuit.montant / disc.length), distribue = 0;
+  var prix = disc.map(function(d){ var x = {discipline:d}; [['or', 6000], ['argent', 2500], ['bronze', 1500]].forEach(function(m){ var v = Math.floor(par * m[1] / 10000); distribue += v; x[m[0]] = {montant:v, verse:false, pays:null}; }); return x; });
+  var ors = {SN:3, NG:2, GN:2, BR:1, GH:1}, so = 9, fonds = env.fonds_nation.montant, parts = {}, deja = 0;
+  Object.keys(ors).forEach(function(k){ parts[k] = Math.floor(fonds * ors[k] / so); deja += parts[k]; });
+  Object.keys(ors).sort(function(a, b){ return (fonds * ors[b] % so) - (fonds * ors[a] % so) || ors[b] - ors[a] || (a < b ? -1 : 1); }).slice(0, fonds - deja).forEach(function(k){ parts[k]++; });
+  window.NVRecolteCagnotte({saison:{nom:'Saison des Nations 2027', etat:'close', devise:'USD', tauxNvc:[1, 1]}, recu:recu, signe:signe, coherent:true,
+    sources:[{source:'partenaires', recu:310000000, signe:120000000}, {source:'marques', recu:90000000, signe:0}, {source:'cadeaux', recu:45000000, signe:0, partPb:2000, note:'Une partie de la commission de NEURAVID sur les cadeaux'}, {source:'billetterie', recu:40000000, signe:0}],
+    enveloppes:env, prixNuit:prix, reliquat:(recu - total) + (env.prix_nuit.montant - distribue),
+    fondsNation:Object.keys(ors).map(function(k){ return {pays:k, or:ors[k], montant:parts[k], disponible:parts[k], projets:k === 'GN' ? [{titre:'École de musique de Kankan', organisme:'Association des jeunes djélis', montant:Math.floor(parts.GN / 2), etat:'valide'}] : k === 'SN' ? [{titre:'Studio de cinéma de quartier', organisme:'Maison de la culture de Pikine', montant:Math.floor(parts.SN / 3), etat:'propose'}] : []}; }),
+    medaillesFigees:true, versements:[], audit:null, prixAvant:null, prixEnRetard:false}, true);
+}
 
 /* ════════════════════════════════════════════════════════════════════
  LA RÉCOLTE EN CINQ LANGUES : FR · EN · ES · PT · AR (de droite à gauche)
