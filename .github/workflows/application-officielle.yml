@@ -184,7 +184,11 @@ jobs:
           if [ -n "$KS_B64" ] && [ -n "$KS_PASS" ] && [ -n "$KS_ALIAS" ]; then
             # 8 nov. 2026 : la clé de Karamo est au format PKCS12 (créée par un keytool récent) ; l'outil de signature des .aab
             # n'arrive pas à la lire (« Failed to read key … null »). On la recopie au format JKS : même clé, même empreinte SHA-256.
-            echo "$KS_B64" | base64 -d > app/cle-source.keystore
+            # le texte collé depuis un téléphone peut porter des espaces ou des retours à la ligne : on les retire avant de décoder
+            B64=$(printf '%s' "$KS_B64" | tr -d ' \r\n\t')
+            echo "Clé : ${#B64} caractères (attendu : 5840)."
+            printf '%s' "$B64" | base64 -d > app/cle-source.keystore || { echo "::error::Le secret ANDROID_KEYSTORE_BASE64 n'est pas un texte base64 complet : recopiez-le."; exit 1; }
+            echo "Empreinte du fichier de clé : $(sha256sum app/cle-source.keystore | cut -c1-16) (attendu : 31ed4a4ae28a4138)."
             keytool -importkeystore -noprompt -srckeystore app/cle-source.keystore -srcstorepass "$KS_PASS" -srcalias "$KS_ALIAS" \
               -destkeystore app/upload-keystore.jks -deststoretype JKS -deststorepass "$KS_PASS" -destkeypass "${KS_KEYPASS:-$KS_PASS}" -destalias "$KS_ALIAS"
             rm -f app/cle-source.keystore
