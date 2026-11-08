@@ -251,9 +251,13 @@ jobs:
           // le miroir officiel de Maven Central chez Google garde les fichiers eux-mêmes (Maven Central renvoie certains
           // gros fichiers Kotlin vers github.com/…/releases) ; puis les dépôts habituels
           def miroir = 'https://maven-central.storage-download.googleapis.com/maven2/'
+          def mode = null
           beforeSettings { settings ->
             settings.pluginManagement.repositories { maven { url miroir }; google(); mavenCentral(); gradlePluginPortal() }
+            settings.dependencyResolutionManagement.repositories { maven { url miroir } }
           }
+          settingsEvaluated { settings -> mode = settings.dependencyResolutionManagement.repositoriesMode.get().toString() }
+          beforeProject { p -> if (mode == 'PREFER_PROJECT') { p.buildscript.repositories { maven { url miroir } }; p.repositories { maven { url miroir } } } }
           GRADLE
           cat "$W"
       - name: Construire (Google Play et installation directe)
