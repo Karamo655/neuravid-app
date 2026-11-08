@@ -248,8 +248,15 @@ jobs:
           fi
           mkdir -p "$HOME/.gradle/init.d"
           cat > "$HOME/.gradle/init.d/maven-central-d-abord.gradle" <<'GRADLE'
+          // le miroir officiel de Maven Central chez Google garde les fichiers eux-mêmes (Maven Central renvoie certains
+          // gros fichiers Kotlin vers github.com/…/releases) ; puis les dépôts habituels
+          def miroir = 'https://maven-central.storage-download.googleapis.com/maven2/'
           beforeSettings { settings ->
-            settings.pluginManagement.repositories { mavenCentral(); google(); gradlePluginPortal() }
+            settings.pluginManagement.repositories { maven { url miroir }; google(); mavenCentral(); gradlePluginPortal() }
+          }
+          allprojects {
+            buildscript.repositories { maven { url miroir } }
+            repositories { maven { url miroir } }
           }
           GRADLE
           cat "$W"
