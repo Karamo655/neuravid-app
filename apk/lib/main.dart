@@ -12,6 +12,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'rideau.dart';
 
 // 7 nov. 2026 : le site est sur www.neuravid.com ; l'ancienne adresse github.io renvoyait vers http://, refusé par Android,
 // et l'application retombait sur sa vieille copie embarquée. On ouvre directement l'adresse sûre (https).
@@ -55,6 +56,27 @@ class EcranNeuravid extends StatefulWidget {
 class _EcranNeuravidState extends State<EcranNeuravid> {
   InAppWebViewController? _controleur;
   bool _enSecours = false;
+  /// Le rideau de démarrage (lib/rideau.dart) : le logo tout de suite, jusqu'à ce que la page soit peinte.
+  bool _rideau = true;
+  bool _erreurDepart = false;
+
+  @override
+  void initState() {
+    super.initState();
+    Future.delayed(const Duration(seconds: 12), _leverRideau); // jamais bloqué : au plus 12 s
+  }
+
+  void _leverRideau() {
+    if (!mounted || !_rideau) return;
+    setState(() => _rideau = false);
+  }
+
+  /// La page est peinte : le logo de l'accueil prend le relais. Après une erreur de chargement, on attend la copie embarquée
+  /// (jamais l'écran d'erreur du téléphone).
+  void _pagePeinte(WebUri? u) {
+    if (_erreurDepart && u != null && u.scheme.startsWith('http')) return;
+    Future.delayed(const Duration(milliseconds: 120), _leverRideau);
+  }
 
   /// Posé avant tout script de chaque page : les modules s'ouvrent entre eux, la langue du téléphone.
   /// NV_APERCU (3 nov. 2026) : chaque module éteint l'aperçu quand il voit « window.flutter_inappwebview » (l'application
@@ -95,7 +117,8 @@ if(!window.NV_LANG) window.NV_LANG = ${jsonEncode(langue)};
       },
       child: Scaffold(
         backgroundColor: const Color(0xFF0B0720),
-        body: SafeArea(
+        body: Stack(fit: StackFit.expand, children: [
+          SafeArea(
           child: InAppWebView(
             initialUrlRequest: URLRequest(url: WebUri(kSite + kDepart)),
             initialUserScripts: UnmodifiableListView<UserScript>([_depart(kSite)]),
@@ -137,10 +160,24 @@ if(!window.NV_LANG) window.NV_LANG = ${jsonEncode(langue)};
               return GeolocationPermissionShowPromptResponse(origin: origine, allow: e.isGranted, retain: false);
             },
             onReceivedError: (c, requete, erreur) async {
-              if (requete.isForMainFrame ?? false) await _passerEnSecours(c);
+              if (requete.isForMainFrame ?? false) {
+                if (_rideau) _erreurDepart = true;
+                await _passerEnSecours(c);
+              }
             },
+            onPageCommitVisible: (c, u) => _pagePeinte(u),
+            onLoadStop: (c, u) async => _pagePeinte(u),
           ),
-        ),
+          ),
+          IgnorePointer(
+            ignoring: !_rideau,
+            child: AnimatedOpacity(
+              opacity: _rideau ? 1 : 0,
+              duration: const Duration(milliseconds: 320),
+              child: const Rideau(),
+            ),
+          ),
+        ]),
       ),
     );
   }

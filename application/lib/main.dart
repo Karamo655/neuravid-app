@@ -27,6 +27,7 @@ import 'package:share_plus/share_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import 'pont.dart';
+import 'rideau.dart';
 
 const String kSite = String.fromEnvironment('NV_SITE', defaultValue: 'https://www.neuravid.com/');
 const String kDepart = String.fromEnvironment('NV_DEPART', defaultValue: 'index.html');
@@ -80,6 +81,27 @@ class EcranNeuravid extends StatefulWidget {
 class _EcranNeuravidState extends State<EcranNeuravid> {
   InAppWebViewController? _controleur;
   bool _enSecours = false;
+  /// Le rideau de démarrage (lib/rideau.dart) : le logo tout de suite, jusqu'à ce que la page soit peinte.
+  bool _rideau = true;
+  bool _erreurDepart = false;
+
+  @override
+  void initState() {
+    super.initState();
+    Future.delayed(const Duration(seconds: 12), _leverRideau); // jamais bloqué : au plus 12 s
+  }
+
+  void _leverRideau() {
+    if (!mounted || !_rideau) return;
+    setState(() => _rideau = false);
+  }
+
+  /// La page est peinte : le logo de l'accueil prend le relais. Après une erreur de chargement, on attend la copie embarquée
+  /// (jamais l'écran d'erreur du téléphone).
+  void _pagePeinte(WebUri? u) {
+    if (_erreurDepart && u != null && u.scheme.startsWith('http')) return;
+    Future.delayed(const Duration(milliseconds: 120), _leverRideau);
+  }
   final Assembleur _assembleur = Assembleur();
   final Map<String, DateTime> _recents = {};
 
@@ -309,7 +331,8 @@ if(!window.NV_LANG) window.NV_LANG = ${jsonEncode(langue)};
       },
       child: Scaffold(
         backgroundColor: const Color(0xFF0B0720),
-        body: SafeArea(
+        body: Stack(fit: StackFit.expand, children: [
+          SafeArea(
           child: InAppWebView(
             initialUrlRequest: URLRequest(url: WebUri(kSite + kDepart)),
             initialUserScripts: UnmodifiableListView<UserScript>(_scripts(kSite)),
@@ -378,10 +401,24 @@ if(!window.NV_LANG) window.NV_LANG = ${jsonEncode(langue)};
               return GeolocationPermissionShowPromptResponse(origin: origine, allow: e.isGranted, retain: false);
             },
             onReceivedError: (c, requete, erreur) async {
-              if (requete.isForMainFrame ?? false) await _passerEnSecours(c);
+              if (requete.isForMainFrame ?? false) {
+                if (_rideau) _erreurDepart = true;
+                await _passerEnSecours(c);
+              }
             },
+            onPageCommitVisible: (c, u) => _pagePeinte(u),
+            onLoadStop: (c, u) async => _pagePeinte(u),
           ),
-        ),
+          ),
+          IgnorePointer(
+            ignoring: !_rideau,
+            child: AnimatedOpacity(
+              opacity: _rideau ? 1 : 0,
+              duration: const Duration(milliseconds: 320),
+              child: const Rideau(),
+            ),
+          ),
+        ]),
       ),
     );
   }

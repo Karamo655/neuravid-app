@@ -32,7 +32,7 @@ jobs:
       - name: Créer le projet Flutter
         run: |
           flutter create --org com.neuravid --project-name apercu --platforms android app
-          cp apk/lib/main.dart app/lib/main.dart
+          cp apk/lib/*.dart app/lib/
           rm -rf app/test
           cd app
           flutter pub add flutter_inappwebview:6.1.5 permission_handler:11.3.1
