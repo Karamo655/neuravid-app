@@ -254,10 +254,6 @@ jobs:
           beforeSettings { settings ->
             settings.pluginManagement.repositories { maven { url miroir }; google(); mavenCentral(); gradlePluginPortal() }
           }
-          allprojects {
-            buildscript.repositories { maven { url miroir } }
-            repositories { maven { url miroir } }
-          }
           GRADLE
           cat "$W"
       - name: Construire (Google Play et installation directe)
