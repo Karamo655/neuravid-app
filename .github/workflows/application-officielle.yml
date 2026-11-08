@@ -202,6 +202,40 @@ jobs:
             echo "officielle=non" >> "$GITHUB_OUTPUT"
             echo "::warning::Pas de clé de signature dans les secrets : version d'ESSAI (à installer et essayer), pas pour Google Play."
           fi
+      - name: Outils de construction (sources officielles de secours)
+        # 8 nov. 2026 : les téléchargements de github.com/…/releases répondaient « 504 » pendant plus d'une heure.
+        # Gradle vient d'abord de son site officiel (downloads.gradle.org), vérifié avec son empreinte officielle ;
+        # les dépendances (Kotlin…) sont cherchées d'abord sur Maven Central, avant le portail des modules Gradle.
+        run: |
+          W=projet/android/gradle/wrapper/gradle-wrapper.properties
+          URL=$(grep '^distributionUrl=' "$W" | cut -d= -f2- | sed 's#\\:#:#g')
+          F=$(basename "$URL"); echo "Gradle demandé : $F"
+          mkdir -p "$HOME/gradle-local"
+          ok=""
+          for base in https://downloads.gradle.org/distributions https://services.gradle.org/distributions "$(dirname "$URL")"; do
+            for i in 1 2 3; do
+              if curl -fsSL --retry 2 -o "$HOME/gradle-local/$F" "$base/$F" && curl -fsSL -o "$HOME/gradle-local/$F.sha256" "$base/$F.sha256"; then
+                if [ "$(sha256sum "$HOME/gradle-local/$F" | cut -d' ' -f1)" = "$(tr -d ' \n' < "$HOME/gradle-local/$F.sha256")" ]; then ok="$base"; break 2; fi
+                echo "::warning::empreinte différente depuis $base"
+              fi
+              sleep 20
+            done
+          done
+          if [ -n "$ok" ]; then
+            echo "Gradle vérifié, téléchargé depuis $ok"
+            S=$(cat "$HOME/gradle-local/$F.sha256" | tr -d ' \n')
+            sed -i "s#^distributionUrl=.*#distributionUrl=file\\://$HOME/gradle-local/$F#" "$W"
+            grep -q '^distributionSha256Sum=' "$W" && sed -i "s#^distributionSha256Sum=.*#distributionSha256Sum=$S#" "$W" || echo "distributionSha256Sum=$S" >> "$W"
+          else
+            echo "::warning::Gradle introuvable sur les sources de secours : l'adresse d'origine sera essayée par la construction"
+          fi
+          mkdir -p "$HOME/.gradle/init.d"
+          cat > "$HOME/.gradle/init.d/maven-central-d-abord.gradle" <<'GRADLE'
+          beforeSettings { settings ->
+            settings.pluginManagement.repositories { mavenCentral(); google(); gradlePluginPortal() }
+          }
+          GRADLE
+          cat "$W"
       - name: Construire (Google Play et installation directe)
         run: |
           cd projet
