@@ -1,6 +1,6 @@
 {
- "version": "2026.11.08-d3fe4223da9a",
- "date": "2026-11-08T21:52:45Z",
+ "version": "2026.11.08-fc11beba986d",
+ "date": "2026-11-08T22:37:34Z",
  "entree": "index.html",
  "modules": [
   "NV_MODULE_Arena.html",
@@ -46,8 +46,8 @@
  "config": "nv-config.js (exclu de l'empreinte : il change selon le déploiement)",
  "fichiers": {
   "NV_MODULE_Arena.html": {
-   "sha256": "77954afa38e94b436514fb8edb5e2adb8700e669191378d58fa24f04708b9140",
-   "taille": 1322387
+   "sha256": "c0d6b5f92f50b93d668b4bd089ee791f9012739770d2f4b3f89a98621733d937",
+   "taille": 1373276
   },
   "NV_MODULE_ArenaArts.html": {
    "sha256": "db3b46825333d879a66dd59640b799c8f334ec9c0ed758dd5a7908f664c41bc9",
