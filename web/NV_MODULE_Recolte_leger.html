@@ -3912,7 +3912,8 @@ function rendreCagnotte(){
   h += '<ul class="cg-regles"><li>Jamais de frais d\'inscription. Participer et voter restent gratuits.</li><li>Les frais d\'organisation, d\'audit et de paiement sont payés par NEURAVID, jamais pris sur la cagnotte.</li></ul>';
   /* d'où vient l'argent */
   h += '<h4>D\'où vient l\'argent</h4><div class="cg-lignes">' + d.sources.map(function(s){
-    return '<div class="cg-l"><span>' + CG_SOURCES[s.source] + (s.note ? '<small dir="auto">' + esc(s.note) + (s.part != null ? ' · <span>' + (s.part / 100).toLocaleString(LOC()) + ' %</span>' : '') + '</small>' : '') + '</span><b>' + cgM(s.recu, dev) + '</b>' +
+    /* 8 nov. 2026 (décision de Karamo) : la part de chaque source qui va à la cagnotte est publiée sur chaque ligne */
+    return '<div class="cg-l"><span>' + CG_SOURCES[s.source] + (s.note || s.part != null ? '<small dir="auto">' + (s.note ? esc(s.note) : '') + (s.part != null ? (s.note ? ' · ' : '') + '<span>' + (s.part / 100).toLocaleString(LOC()) + ' %</span> <span>pour la cagnotte</span>' : '') + '</small>' : '') + '</span><b>' + cgM(s.recu, dev) + '</b>' +
       (s.signe ? '<em>+ ' + cgM(s.signe, dev) + ' <span>signé</span></em>' : '') + '</div>'; }).join('') + '</div>';
   /* où va l'argent */
   h += '<h4>Où va l\'argent</h4><div class="cg-env">' + Object.keys(CG_ENV).map(function(k){ var e = d.env[k];
@@ -3966,7 +3967,7 @@ function demoCagnotte(){
   Object.keys(ors).forEach(function(k){ parts[k] = Math.floor(fonds * ors[k] / so); deja += parts[k]; });
   Object.keys(ors).sort(function(a, b){ return (fonds * ors[b] % so) - (fonds * ors[a] % so) || ors[b] - ors[a] || (a < b ? -1 : 1); }).slice(0, fonds - deja).forEach(function(k){ parts[k]++; });
   window.NVRecolteCagnotte({saison:{nom:'Saison des Nations 2027', etat:'close', devise:'USD', tauxNvc:[1, 1]}, recu:recu, signe:signe, coherent:true,
-    sources:[{source:'partenaires', recu:310000000, signe:120000000}, {source:'marques', recu:90000000, signe:0}, {source:'cadeaux', recu:45000000, signe:0, partPb:2000, note:'Une partie de la commission de NEURAVID sur les cadeaux'}, {source:'billetterie', recu:40000000, signe:0}],
+    sources:[{source:'partenaires', recu:310000000, signe:120000000, partPb:3000}, {source:'marques', recu:90000000, signe:0, partPb:3000}, {source:'cadeaux', recu:45000000, signe:0, partPb:2000, note:'Une partie de la commission de NEURAVID sur les cadeaux'}, {source:'billetterie', recu:40000000, signe:0, partPb:3000}],
     enveloppes:env, prixNuit:prix, reliquat:(recu - total) + (env.prix_nuit.montant - distribue),
     fondsNation:Object.keys(ors).map(function(k){ return {pays:k, or:ors[k], montant:parts[k], disponible:parts[k], projets:k === 'GN' ? [{titre:'École de musique de Kankan', organisme:'Association des jeunes djélis', montant:Math.floor(parts.GN / 2), etat:'valide'}] : k === 'SN' ? [{titre:'Studio de cinéma de quartier', organisme:'Maison de la culture de Pikine', montant:Math.floor(parts.SN / 3), etat:'propose'}] : []}; }),
     medaillesFigees:true, versements:[], audit:null, prixAvant:null, prixEnRetard:false}, true);
