@@ -1,6 +1,6 @@
 {
- "version": "2026.11.09-13a4dcd40c86",
- "date": "2026-11-09T22:12:50Z",
+ "version": "2026.11.09-0e9d671f37f9",
+ "date": "2026-11-09T23:49:10Z",
  "entree": "index.html",
  "modules": [
   "NV_MODULE_Arena.html",
@@ -33,6 +33,7 @@
   "NV_MODULE_Phare.html",
   "NV_MODULE_Phare_leger.html",
   "NV_MODULE_Player.html",
+  "NV_MODULE_Presse.html",
   "NV_MODULE_Profile.html",
   "NV_MODULE_Recolte.html",
   "NV_MODULE_Recolte_leger.html",
@@ -119,8 +120,8 @@
    "taille": 257281
   },
   "NV_MODULE_Home.html": {
-   "sha256": "c3afa585345fe98396a4fb9754c6d241c59638780355fa67ed424f9b7f7f250a",
-   "taille": 1903187
+   "sha256": "667ca12d36f4c7a634add75179412f173dee3f5983d1f734a077c1bb77218b0d",
+   "taille": 1904286
   },
   "NV_MODULE_Iris.html": {
    "sha256": "67b8265c2cc32d61d9af25eba3842b4b69f4617d458163d4bfa1fae78d2aefb5",
@@ -166,6 +167,10 @@
    "sha256": "73a3968ebc3cef3be37aef2ce1354737a5c29586903f2394a684ed875603553f",
    "taille": 2793
   },
+  "NV_MODULE_Presse.html": {
+   "sha256": "3d550b74c4d47387afed809f5dd2774545038fe467925d168aba9ee61205d477",
+   "taille": 218568
+  },
   "NV_MODULE_Profile.html": {
    "sha256": "dc135de3b65b9c2cee03d9a8e5bd9234282c09f5a1cb53ccf8bda65d5fcbccff",
    "taille": 836204
@@ -187,8 +192,8 @@
    "taille": 111941
   },
   "NV_MODULE_Saison.html": {
-   "sha256": "afa3d2e95911e57c5dc14c0b921889215ec0cc6dabede558e9ccaf49b8688a77",
-   "taille": 94266
+   "sha256": "07cd4033adff80b404452b1b2e1eb5b66a0de2cb7a746fc5a381f63f70a5cacb",
+   "taille": 95342
   },
   "NV_MODULE_Search.html": {
    "sha256": "44abf639840d74b3f12957f263572578ba35b919f602d85f26b5287d47b50ae4",
