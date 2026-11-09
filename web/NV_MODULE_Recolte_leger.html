@@ -2425,7 +2425,7 @@ function demarrer(){
   /* un module ouvert avec une vue demandée (par l'application ou un lien) */
   try{ var v = /[?&#]vue=(\w+)/.exec(location.href); if(v) window.NVRecolte.ouvrir(v[1]); }catch(e){ dbg(e); }
   /* ou par le contexte déposé par un autre module (Le Direct, Le Phare : {depuis, vue}) ; lu une seule fois */
-  try{ var cx = JSON.parse(sessionStorage.getItem('nv_ctx_' + MOI) || 'null'); sessionStorage.removeItem('nv_ctx_' + MOI); if(!v && cx && typeof cx.vue === 'string') window.NVRecolte.ouvrir(cx.vue); }catch(e){ dbg(e); }
+  try{ var cx = JSON.parse(sessionStorage.getItem('nv_ctx_' + MOI) || 'null'); sessionStorage.removeItem('nv_ctx_' + MOI); st.ctx = cx && typeof cx === 'object' ? cx : null; if(!v && cx && typeof cx.vue === 'string') window.NVRecolte.ouvrir(cx.vue); }catch(e){ dbg(e); }
   emit('module_ready', {module:MOI});
 }
 
@@ -3966,13 +3966,16 @@ function demoCagnotte(){
   Object.keys(rep).forEach(function(k){ var m = Math.floor(recu * rep[k] / 10000); env[k] = {part:rep[k], montant:m, verse:0}; total += m; });
   var disc = ['chant', 'danse', 'humour', 'court_metrage', 'arts_visuels', 'musique', 'conte', 'gastronomie', 'elegance'], par = Math.floor(env.prix_nuit.montant / disc.length), distribue = 0;
   var prix = disc.map(function(d){ var x = {discipline:d}; [['or', 6000], ['argent', 2500], ['bronze', 1500]].forEach(function(m){ var v = Math.floor(par * m[1] / 10000); distribue += v; x[m[0]] = {montant:v, verse:false, pays:null}; }); return x; });
-  var ors = {SN:3, NG:2, GN:2, BR:1, GH:1}, so = 9, fonds = env.fonds_nation.montant, parts = {}, deja = 0;
+  /* 9 nov. 2026 : depuis le parcours de la Saison (The Nations' Arena, démonstration), les médailles d'or de SA Nuit */
+  var ors = {SN:3, NG:2, GN:2, BR:1, GH:1}, cx = st.ctx, po = cx && cx.depuis === 'parcours_saison' && cx.ors && typeof cx.ors === 'object' ? cx.ors : null;
+  if(po){ var ok = {}, n = 0; Object.keys(po).slice(0, 9).forEach(function(k){ var v = po[k]; if(/^[A-Z]{2}$/.test(k) && v === Math.floor(v) && v >= 1 && v <= 9){ ok[k] = v; n += v; } }); if(n >= 1 && n <= 9) ors = ok; }
+  var so = 0; Object.keys(ors).forEach(function(k){ so += ors[k]; }); var fonds = env.fonds_nation.montant, parts = {}, deja = 0;
   Object.keys(ors).forEach(function(k){ parts[k] = Math.floor(fonds * ors[k] / so); deja += parts[k]; });
   Object.keys(ors).sort(function(a, b){ return (fonds * ors[b] % so) - (fonds * ors[a] % so) || ors[b] - ors[a] || (a < b ? -1 : 1); }).slice(0, fonds - deja).forEach(function(k){ parts[k]++; });
   window.NVRecolteCagnotte({saison:{nom:'Saison des Nations 2027', etat:'close', devise:'USD', tauxNvc:[1, 1]}, recu:recu, signe:signe, coherent:true,
     sources:[{source:'partenaires', recu:310000000, signe:120000000, partPb:3000}, {source:'marques', recu:90000000, signe:0, partPb:3000}, {source:'cadeaux', recu:45000000, signe:0, partPb:2000, note:'Une partie de la commission de NEURAVID sur les cadeaux'}, {source:'billetterie', recu:40000000, signe:0, partPb:3000}],
     enveloppes:env, prixNuit:prix, reliquat:(recu - total) + (env.prix_nuit.montant - distribue),
-    fondsNation:Object.keys(ors).map(function(k){ return {pays:k, or:ors[k], montant:parts[k], disponible:parts[k], projets:k === 'GN' ? [{titre:'École de musique de Kankan', organisme:'Association des jeunes djélis', montant:Math.floor(parts.GN / 2), etat:'valide'}] : k === 'SN' ? [{titre:'Studio de cinéma de quartier', organisme:'Maison de la culture de Pikine', montant:Math.floor(parts.SN / 3), etat:'propose'}] : []}; }),
+    fondsNation:Object.keys(ors).map(function(k){ return {pays:k, or:ors[k], montant:parts[k], disponible:parts[k], projets:po ? [] : k === 'GN' ? [{titre:'École de musique de Kankan', organisme:'Association des jeunes djélis', montant:Math.floor(parts.GN / 2), etat:'valide'}] : k === 'SN' ? [{titre:'Studio de cinéma de quartier', organisme:'Maison de la culture de Pikine', montant:Math.floor(parts.SN / 3), etat:'propose'}] : []}; }),
     medaillesFigees:true, versements:[], audit:null, prixAvant:null, prixEnRetard:false}, true);
 }
 
