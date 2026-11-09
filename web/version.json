@@ -1,6 +1,6 @@
 {
- "version": "2026.11.09-de4f1d4ffb27",
- "date": "2026-11-09T11:32:19Z",
+ "version": "2026.11.09-d984271d9ca9",
+ "date": "2026-11-09T13:08:06Z",
  "entree": "index.html",
  "modules": [
   "NV_MODULE_Arena.html",
@@ -46,8 +46,8 @@
  "config": "nv-config.js (exclu de l'empreinte : il change selon le déploiement)",
  "fichiers": {
   "NV_MODULE_Arena.html": {
-   "sha256": "92a4e066fd1ddb1e9d5076d09bd02846b89ede784b8d1e9b6b280b7531be0c5a",
-   "taille": 1741653
+   "sha256": "4e774701766c56bf2f82e2b7a34e206288155765117c1379bf027dbb69b9f82d",
+   "taille": 1772160
   },
   "NV_MODULE_ArenaArts.html": {
    "sha256": "db3b46825333d879a66dd59640b799c8f334ec9c0ed758dd5a7908f664c41bc9",
@@ -118,8 +118,8 @@
    "taille": 257281
   },
   "NV_MODULE_Home.html": {
-   "sha256": "ae59d2a9b49c8e657b296959dd17c222e3bad366b76264d3424709abc932567e",
-   "taille": 1883652
+   "sha256": "65847e9d33d8097b9ccba33b29ebe1ef0aed96d29b87866ec3a3f99a177ac9ef",
+   "taille": 1884622
   },
   "NV_MODULE_Iris.html": {
    "sha256": "67b8265c2cc32d61d9af25eba3842b4b69f4617d458163d4bfa1fae78d2aefb5",
@@ -142,8 +142,8 @@
    "taille": 930101
   },
   "NV_MODULE_Notifications.html": {
-   "sha256": "75e41011065a618114ae65e9f19c8b8b8f1263b70fc1326094ce411eeb4d84aa",
-   "taille": 489694
+   "sha256": "ec24e2b055ea3a20d428d1ad2c45a66dc4fe45dd207cf4b0f513427935079dff",
+   "taille": 490119
   },
   "NV_MODULE_Orbite.html": {
    "sha256": "aa7ab41d52746cc16208f60af4c4d7c655103c4cca83de46f1c535ea53478c47",
