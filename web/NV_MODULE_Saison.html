@@ -1,0 +1,504 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<!--NV_CONFIG--><script src="nv-config.js"></script><!--/NV_CONFIG-->
+<!--NV_DEMO--><script id="nv-demo">
+/* NEURAVID — LA DÉMONSTRATION dans chaque module (injectée en tête de page, avant le module).
+   Jamais dans l'application ni avec un serveur (NV_API_BASE). Allumée si l'accueil l'a allumée pour la session
+   (sessionStorage « nv_demo » = 1), ou « #demo » dans l'adresse, ou une page ouverte comme fichier (file:, content:).
+   Elle permet seulement d'ouvrir les autres modules à côté (NV_MODULES_BASE) avec le même visiteur de démonstration ;
+   chaque module garde ses propres règles (rien d'inventé hors de la démonstration).
+   Seule exception à « jamais dans l'application » : l'APK « NEURAVID Aperçu » pose window.NV_APERCU = true (3 nov. 2026) ;
+   l'application de production ne le pose jamais. */
+(function(){ try{ var dansApp = !window.NV_APERCU && !!(window.flutter_inappwebview || window.NVLien || window.ReactNativeWebView), h = location.hash || '', s = null; try{ s = sessionStorage.getItem('nv_demo'); }catch(e){ s = null; }
+  if(dansApp || (typeof window.NV_API_BASE === 'string' && window.NV_API_BASE) || s === '0' || /(^#|&)demo=0(&|$)/.test(h)) return;
+  if(!(s === '1' || /(^#|&)demo(=1)?(&|$)/.test(h) || /^(file|content):$/.test(location.protocol))) return;
+  window.NV_DEMO = true; try{ sessionStorage.setItem('nv_demo', '1'); }catch(e){ /* rien */ }
+  if(!window.NV_MODULES_BASE) window.NV_MODULES_BASE = './';
+  if(!window.NV_USER) window.NV_USER = {id:'demo', handle:'visiteur', prenom:'Aya', age:25, majeur:true, iso:'GN'};
+}catch(e){ /* rien */ } })();
+</script><!--/NV_DEMO-->
+
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#140b33">
+<title>La Saison en bref · NEURAVID</title>
+<style>
+/* La Saison en bref : la page légère de la Saison des Nations. Aucune image, aucune police téléchargée, aucune animation
+   obligatoire : quelques kilo-octets, lisibles sur un petit téléphone et sans connexion. */
+:root{
+  --nuit:#140b33; --nuit2:#1c1147; --alv:#241657; --craie:#f6f1ff; --brume:rgba(236,228,255,.74); --trait:rgba(255,255,255,.16);
+  --or:#ffc531; --argent:#d7dbe6; --bronze:#e0995a; --cyan:#16e0d4; --rose:#ff4f9e; --rouge:#ff7a7a;
+  --hex:polygon(25% 0,75% 0,100% 50%,75% 100%,25% 100%,0 50%);
+  --sans:system-ui,-apple-system,"Segoe UI",Roboto,"Noto Sans",sans-serif;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%;text-size-adjust:100%}
+body{margin:0;background:var(--nuit);color:var(--craie);font:16px/1.45 var(--sans);min-height:100vh}
+main{max-width:768px;margin:0 auto;padding:12px 16px calc(32px + env(safe-area-inset-bottom,0px))}
+header{display:flex;align-items:center;gap:10px;padding:6px 0 10px}
+.hex{width:34px;height:30px;flex:0 0 auto;clip-path:var(--hex);background:linear-gradient(135deg,var(--cyan),#6c2bd9);display:grid;place-items:center}
+.hex i{width:14px;height:14px;border-radius:50%;background:var(--nuit);box-shadow:inset 0 0 0 4px var(--craie)}
+h1{font-size:1.2rem;margin:0;line-height:1.2}
+h2{font-size:1rem;margin:0 0 8px;display:flex;align-items:center;gap:8px}
+h2::before{content:"";width:12px;height:11px;clip-path:var(--hex);background:var(--cyan);flex:0 0 auto}
+.sous{margin:0;color:var(--brume);font-size:.88rem}
+.apercu{display:inline-block;margin-inline-start:6px;padding:1px 8px;border-radius:999px;background:var(--or);color:#2a1a00;font-size:.75rem;font-weight:800;vertical-align:middle}
+#etat{margin:0 0 12px;padding:8px 12px;border-radius:10px;background:var(--nuit2);border:1px solid var(--trait);font-size:.9rem}
+#etat.hl{border-color:var(--or)}
+#etat.ok{border-color:rgba(22,224,212,.5)}
+section{background:var(--nuit2);border:1px solid var(--trait);border-radius:14px;padding:12px 14px;margin:0 0 12px}
+ul{list-style:none;margin:0;padding:0}
+li{padding:7px 0;border-top:1px solid var(--trait)}
+li:first-child{border-top:0}
+.l1{display:flex;justify-content:space-between;gap:10px;align-items:baseline;flex-wrap:wrap}
+.d{color:var(--brume);font-size:.86rem}
+.puce{display:inline-block;padding:0 7px;border-radius:999px;font-size:.75rem;font-weight:700;border:1px solid var(--trait);white-space:nowrap}
+.puce.an{color:var(--rouge);border-color:var(--rouge)}
+.puce.re{color:var(--or);border-color:var(--or)}
+.puce.co{color:var(--cyan);border-color:var(--cyan)}
+.chiffres{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;text-align:center}
+.chiffres b{display:block;font-size:1.25rem}
+.chiffres span{font-size:.75rem;color:var(--brume)}
+.med{display:inline-flex;align-items:center;gap:3px;margin-inline-end:8px;white-space:nowrap}
+.med i{width:12px;height:11px;clip-path:var(--hex);display:inline-block}
+.or i{background:var(--or)} .ar i{background:var(--argent)} .br i{background:var(--bronze)}
+table{width:100%;border-collapse:collapse;font-size:.92rem}
+td,th{padding:5px 4px;text-align:center;border-top:1px solid var(--trait)}
+td:first-child,th:first-child{text-align:start}
+th{font-size:.75rem;color:var(--brume);font-weight:600;border-top:0}
+button,select,.lien{font:inherit;color:inherit}
+button{min-height:44px;padding:8px 14px;border-radius:12px;border:1px solid var(--trait);background:var(--alv);cursor:pointer}
+button:focus-visible,select:focus-visible,.lien:focus-visible{outline:2px solid var(--or);outline-offset:2px}
+button[disabled]{opacity:.55;cursor:default}
+.actions{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 12px}
+.actions button{flex:1 1 140px}
+.lien{background:none;border:0;padding:6px 0;min-height:36px;color:var(--cyan);text-decoration:underline;cursor:pointer;font-size:.88rem}
+.jours button{min-height:40px;margin-block:4px 0;margin-inline:0 6px;padding:6px 10px;font-size:.88rem}
+.jours button[aria-current="true"]{border-color:var(--or)}
+footer{color:var(--brume);font-size:.8rem;display:grid;gap:8px;margin-top:4px}
+footer label{display:flex;gap:8px;align-items:center}
+select{min-height:40px;border-radius:10px;background:var(--alv);border:1px solid var(--trait);padding:4px 8px}
+#toast{position:fixed;left:50%;bottom:calc(16px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--craie);color:var(--nuit);padding:8px 14px;border-radius:10px;font-weight:700;opacity:0;pointer-events:none;max-width:calc(100% - 32px)}
+#toast.on{opacity:1}
+.vide{color:var(--brume);margin:0}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+[dir="rtl"] .l1{direction:rtl}
+@media (prefers-reduced-motion:no-preference){#toast{transition:opacity .2s}}
+@media (min-width:560px){h1{font-size:1.35rem}}
+</style>
+</head>
+<body>
+<main id="app">
+<header><div class="hex" aria-hidden="true"><i></i></div><div><h1 id="titre">La Saison en bref</h1><p class="sous" id="soustitre"></p></div></header>
+<p id="etat" role="status" aria-live="polite"></p>
+<div class="actions" id="actions"></div>
+<div id="contenu"></div>
+<footer id="pied"></footer>
+</main>
+<div id="toast" role="status" aria-live="polite"></div>
+<script type="application/json" id="nvI18n-en">{"La Saison en bref":"The Season in brief","L’essentiel du jour de la Saison des Nations, en version légère.":"Today’s essentials of the Season of Nations, in a light version.","Aperçu":"Preview","Aperçu : un exemple de résumé, pour découvrir la page.":"Preview: an example summary, to discover the page.","Mise à jour…":"Updating…","Le résumé de la Saison n’est pas encore disponible.":"The Season summary is not available yet.","Le résumé n’est plus annoncé par NEURAVID. Voici le dernier résumé gardé, du {0}.":"NEURAVID no longer offers the summary. Here is the last summary kept, from {0}.","Résumé gardé sur ce téléphone, du {0}.":"Summary kept on this phone, from {0}.","Hors connexion : voici le résumé gardé du {0}.":"Offline: here is the summary kept from {0}.","Aucun résumé gardé sur ce téléphone pour l’instant. Connectez-vous une fois pour le recevoir.":"No summary kept on this phone yet. Connect once to receive it.","À jour : résumé du {0}, calculé à {1}.":"Up to date: summary of {0}, calculated at {1}.","Résumé du {0}, calculé à {1}.":"Summary of {0}, calculated at {1}.","Actualiser":"Refresh","Partager le résumé":"Share the summary","Annulé":"Cancelled","Reporté":"Postponed","En cours":"Ongoing","Voir dans l’Arène (version complète)":"See in the Arena (full version)","Bientôt : les inscriptions ouvrent le {0}.":"Coming soon: registration opens on {0}.","Inscriptions ouvertes jusqu’au {0}.":"Registration open until {0}.","La compétition est en cours.":"The competition is under way.","La Nuit des Nations est en direct.":"The Night of Nations is live.","La Saison est terminée.":"The Season is over.","Aucune Saison n’est annoncée pour l’instant.":"No Season has been announced yet.","Inscrits":"Registered","Nations":"Nations","En éveil":"Awakening","Prêtes":"Ready","Les nombres ne sont publiés qu’à partir de {0} inscrits par nation.":"Numbers are only published from {0} registrations per nation.","{0} est prête.":"{0} is ready.","{0} s’éveille.":"{0} is awakening.","Prochains rendez-vous":"Upcoming dates","Aucun rendez-vous annoncé pour l’instant.":"No date announced yet.","Ouverture des inscriptions":"Registration opens","Clôture des inscriptions":"Registration closes","Échauffement : {0}":"Warm-up: {0}","Fin du vote : {0}":"Voting ends: {0}","La cérémonie d'ouverture":"The opening ceremony","Derniers résultats":"Latest results","Aucun résultat validé pour l’instant.":"No validated result yet.","Espoirs":"Hopefuls","Ponts entre nations":"Bridges between nations","Premier Pont :":"First Bridge:","Résultat corrigé":"Corrected result","Définitif":"Final","Peut encore être contesté":"May still be challenged","Validé le {0}":"Validated on {0}","Or":"Gold","Argent":"Silver","Bronze":"Bronze","Programmée":"Scheduled","Ordre du défilé tiré au sort":"Parade order drawn by lot","En direct":"Live","Terminée":"Over","Annulée":"Cancelled","Résultats en cours":"Results under way","Proclamée":"Proclaimed","Gratuit pour tout le monde, en direct dans la Salle Baobab.":"Free for everyone, live in the Baobab Hall.","Sous réserve d’une réclamation":"Subject to a pending claim","À {0}":"In {0}","Nation de l’année":"Nation of the year","Pont de l’année":"Bridge of the year","Tableau provisoire":"Provisional table","Tableau des médailles":"Medal table","Nation":"Nation","Liste raccourcie pour que le résumé reste léger.":"List shortened so the summary stays light.","Jours précédents":"Previous days","Gardés sur ce téléphone, lisibles sans connexion :":"Kept on this phone, readable offline:","Sur NEURAVID :":"On NEURAVID:","Aucun autre jour gardé par NEURAVID.":"No other day kept by NEURAVID.","Chercher d’autres jours":"Look for other days","Impossible de joindre NEURAVID pour le moment.":"NEURAVID cannot be reached right now.","Langue":"Language","Traduction en cours de relecture.":"Translation being reviewed.","Page légère : elle garde les {0} derniers résumés pour les lire sans connexion, et ne montre aucun nom de personne.":"Light page: it keeps the last {0} summaries to read them offline, and shows no person’s name.","Résumé copié.":"Summary copied.","Impossible de copier sur ce téléphone.":"Copying is not possible on this phone.","Les résultats de la Nuit des Nations arrivent.":"The results of the Night of Nations are coming in.","La Nuit des Nations est proclamée.":"The Night of Nations has been proclaimed.","Une autre nation":"Another nation","Une partie du résumé n’a pas pu être lue : « — » veut dire inconnu.":"Part of the summary could not be read: “—” means unknown.","Passé":"Past","Avancé":"Brought forward","La Saison des Nations":"The Season of Nations","La Nuit des Nations":"The Night of Nations","Chant":"Singing","Danse":"Dance","Humour":"Humour","Court-métrage":"Short film","Arts visuels":"Visual arts","Musique et création sonore":"Music and sound creation","Conte et parole":"Storytelling and spoken word","Gastronomie":"Food","Élégance et culture":"Elegance and culture"}</script>
+<script type="application/json" id="nvI18n-es">{"La Saison en bref":"La Temporada en breve","L’essentiel du jour de la Saison des Nations, en version légère.":"Lo esencial del día de la Temporada de las Naciones, en versión ligera.","Aperçu":"Vista previa","Aperçu : un exemple de résumé, pour découvrir la page.":"Vista previa: un resumen de ejemplo, para descubrir la página.","Mise à jour…":"Actualizando…","Le résumé de la Saison n’est pas encore disponible.":"El resumen de la Temporada aún no está disponible.","Le résumé n’est plus annoncé par NEURAVID. Voici le dernier résumé gardé, du {0}.":"NEURAVID ya no ofrece el resumen. Aquí está el último resumen guardado, del {0}.","Résumé gardé sur ce téléphone, du {0}.":"Resumen guardado en este teléfono, del {0}.","Hors connexion : voici le résumé gardé du {0}.":"Sin conexión: aquí está el resumen guardado del {0}.","Aucun résumé gardé sur ce téléphone pour l’instant. Connectez-vous une fois pour le recevoir.":"Todavía no hay ningún resumen guardado en este teléfono. Conéctese una vez para recibirlo.","À jour : résumé du {0}, calculé à {1}.":"Al día: resumen del {0}, calculado a las {1}.","Résumé du {0}, calculé à {1}.":"Resumen del {0}, calculado a las {1}.","Actualiser":"Actualizar","Partager le résumé":"Compartir el resumen","Annulé":"Cancelado","Reporté":"Aplazado","En cours":"En curso","Voir dans l’Arène (version complète)":"Ver en la Arena (versión completa)","Bientôt : les inscriptions ouvrent le {0}.":"Próximamente: las inscripciones abren el {0}.","Inscriptions ouvertes jusqu’au {0}.":"Inscripciones abiertas hasta el {0}.","La compétition est en cours.":"La competición está en curso.","La Nuit des Nations est en direct.":"La Noche de las Naciones está en directo.","La Saison est terminée.":"La Temporada ha terminado.","Aucune Saison n’est annoncée pour l’instant.":"Todavía no se ha anunciado ninguna Temporada.","Inscrits":"Inscritos","Nations":"Naciones","En éveil":"Despertando","Prêtes":"Listas","Les nombres ne sont publiés qu’à partir de {0} inscrits par nation.":"Las cifras solo se publican a partir de {0} inscritos por nación.","{0} est prête.":"{0} está lista.","{0} s’éveille.":"{0} despierta.","Prochains rendez-vous":"Próximas citas","Aucun rendez-vous annoncé pour l’instant.":"Todavía no se ha anunciado ninguna cita.","Ouverture des inscriptions":"Apertura de las inscripciones","Clôture des inscriptions":"Cierre de las inscripciones","Échauffement : {0}":"Calentamiento: {0}","Fin du vote : {0}":"Fin de la votación: {0}","La cérémonie d'ouverture":"La ceremonia de apertura","Derniers résultats":"Últimos resultados","Aucun résultat validé pour l’instant.":"Todavía no hay ningún resultado validado.","Espoirs":"Promesas","Ponts entre nations":"Puentes entre naciones","Premier Pont :":"Primer Puente:","Résultat corrigé":"Resultado corregido","Définitif":"Definitivo","Peut encore être contesté":"Todavía puede impugnarse","Validé le {0}":"Validado el {0}","Or":"Oro","Argent":"Plata","Bronze":"Bronce","Programmée":"Programada","Ordre du défilé tiré au sort":"Orden del desfile sorteado","En direct":"En directo","Terminée":"Terminada","Annulée":"Cancelada","Résultats en cours":"Resultados en curso","Proclamée":"Proclamada","Gratuit pour tout le monde, en direct dans la Salle Baobab.":"Gratis para todos, en directo en la Sala Baobab.","Sous réserve d’une réclamation":"A reserva de una reclamación","À {0}":"En {0}","Nation de l’année":"Nación del año","Pont de l’année":"Puente del año","Tableau provisoire":"Tabla provisional","Tableau des médailles":"Medallero","Nation":"Nación","Liste raccourcie pour que le résumé reste léger.":"Lista acortada para que el resumen siga siendo ligero.","Jours précédents":"Días anteriores","Gardés sur ce téléphone, lisibles sans connexion :":"Guardados en este teléfono, legibles sin conexión:","Sur NEURAVID :":"En NEURAVID:","Aucun autre jour gardé par NEURAVID.":"Ningún otro día guardado por NEURAVID.","Chercher d’autres jours":"Buscar otros días","Impossible de joindre NEURAVID pour le moment.":"No es posible contactar con NEURAVID por ahora.","Langue":"Idioma","Traduction en cours de relecture.":"Traducción en revisión.","Page légère : elle garde les {0} derniers résumés pour les lire sans connexion, et ne montre aucun nom de personne.":"Página ligera: guarda los {0} últimos resúmenes para leerlos sin conexión, y no muestra ningún nombre de persona.","Résumé copié.":"Resumen copiado.","Impossible de copier sur ce téléphone.":"No es posible copiar en este teléfono.","Les résultats de la Nuit des Nations arrivent.":"Llegan los resultados de la Noche de las Naciones.","La Nuit des Nations est proclamée.":"La Noche de las Naciones ha sido proclamada.","Une autre nation":"Otra nación","Une partie du résumé n’a pas pu être lue : « — » veut dire inconnu.":"Una parte del resumen no se pudo leer: «—» significa desconocido.","Passé":"Pasado","Avancé":"Adelantado","La Saison des Nations":"La Temporada de las Naciones","La Nuit des Nations":"La Noche de las Naciones","Chant":"Canto","Danse":"Danza","Humour":"Humor","Court-métrage":"Cortometraje","Arts visuels":"Artes visuales","Musique et création sonore":"Música y creación sonora","Conte et parole":"Cuento y palabra","Gastronomie":"Gastronomía","Élégance et culture":"Elegancia y cultura"}</script>
+<script type="application/json" id="nvI18n-pt">{"La Saison en bref":"A Temporada em resumo","L’essentiel du jour de la Saison des Nations, en version légère.":"O essencial do dia da Temporada das Nações, em versão leve.","Aperçu":"Pré-visualização","Aperçu : un exemple de résumé, pour découvrir la page.":"Pré-visualização: um resumo de exemplo, para conhecer a página.","Mise à jour…":"A atualizar…","Le résumé de la Saison n’est pas encore disponible.":"O resumo da Temporada ainda não está disponível.","Le résumé n’est plus annoncé par NEURAVID. Voici le dernier résumé gardé, du {0}.":"O NEURAVID já não oferece o resumo. Eis o último resumo guardado, de {0}.","Résumé gardé sur ce téléphone, du {0}.":"Resumo guardado neste telemóvel, de {0}.","Hors connexion : voici le résumé gardé du {0}.":"Sem ligação: eis o resumo guardado de {0}.","Aucun résumé gardé sur ce téléphone pour l’instant. Connectez-vous une fois pour le recevoir.":"Ainda não há nenhum resumo guardado neste telemóvel. Ligue-se uma vez para o receber.","À jour : résumé du {0}, calculé à {1}.":"Atualizado: resumo de {0}, calculado às {1}.","Résumé du {0}, calculé à {1}.":"Resumo de {0}, calculado às {1}.","Actualiser":"Atualizar","Partager le résumé":"Partilhar o resumo","Annulé":"Cancelado","Reporté":"Adiado","En cours":"A decorrer","Voir dans l’Arène (version complète)":"Ver na Arena (versão completa)","Bientôt : les inscriptions ouvrent le {0}.":"Em breve: as inscrições abrem a {0}.","Inscriptions ouvertes jusqu’au {0}.":"Inscrições abertas até {0}.","La compétition est en cours.":"A competição está a decorrer.","La Nuit des Nations est en direct.":"A Noite das Nações está em direto.","La Saison est terminée.":"A Temporada terminou.","Aucune Saison n’est annoncée pour l’instant.":"Ainda não foi anunciada nenhuma Temporada.","Inscrits":"Inscritos","Nations":"Nações","En éveil":"A despertar","Prêtes":"Prontas","Les nombres ne sont publiés qu’à partir de {0} inscrits par nation.":"Os números só são publicados a partir de {0} inscritos por nação.","{0} est prête.":"{0} está pronta.","{0} s’éveille.":"{0} está a despertar.","Prochains rendez-vous":"Próximos encontros","Aucun rendez-vous annoncé pour l’instant.":"Ainda não foi anunciado nenhum encontro.","Ouverture des inscriptions":"Abertura das inscrições","Clôture des inscriptions":"Encerramento das inscrições","Échauffement : {0}":"Aquecimento: {0}","Fin du vote : {0}":"Fim da votação: {0}","La cérémonie d'ouverture":"A cerimónia de abertura","Derniers résultats":"Últimos resultados","Aucun résultat validé pour l’instant.":"Ainda não há nenhum resultado validado.","Espoirs":"Esperanças","Ponts entre nations":"Pontes entre nações","Premier Pont :":"Primeira Ponte:","Résultat corrigé":"Resultado corrigido","Définitif":"Definitivo","Peut encore être contesté":"Ainda pode ser contestado","Validé le {0}":"Validado a {0}","Or":"Ouro","Argent":"Prata","Bronze":"Bronze","Programmée":"Agendada","Ordre du défilé tiré au sort":"Ordem do desfile sorteada","En direct":"Em direto","Terminée":"Terminada","Annulée":"Cancelada","Résultats en cours":"Resultados em curso","Proclamée":"Proclamada","Gratuit pour tout le monde, en direct dans la Salle Baobab.":"Gratuito para todos, em direto na Sala Baobá.","Sous réserve d’une réclamation":"Sujeito a uma reclamação","À {0}":"Em {0}","Nation de l’année":"Nação do ano","Pont de l’année":"Ponte do ano","Tableau provisoire":"Quadro provisório","Tableau des médailles":"Quadro de medalhas","Nation":"Nação","Liste raccourcie pour que le résumé reste léger.":"Lista encurtada para que o resumo continue leve.","Jours précédents":"Dias anteriores","Gardés sur ce téléphone, lisibles sans connexion :":"Guardados neste telemóvel, legíveis sem ligação:","Sur NEURAVID :":"No NEURAVID:","Aucun autre jour gardé par NEURAVID.":"Nenhum outro dia guardado pelo NEURAVID.","Chercher d’autres jours":"Procurar outros dias","Impossible de joindre NEURAVID pour le moment.":"Não é possível contactar o NEURAVID de momento.","Langue":"Idioma","Traduction en cours de relecture.":"Tradução em revisão.","Page légère : elle garde les {0} derniers résumés pour les lire sans connexion, et ne montre aucun nom de personne.":"Página leve: guarda os {0} últimos resumos para os ler sem ligação, e não mostra nenhum nome de pessoa.","Résumé copié.":"Resumo copiado.","Impossible de copier sur ce téléphone.":"Não é possível copiar neste telemóvel.","Les résultats de la Nuit des Nations arrivent.":"Os resultados da Noite das Nações estão a chegar.","La Nuit des Nations est proclamée.":"A Noite das Nações foi proclamada.","Une autre nation":"Outra nação","Une partie du résumé n’a pas pu être lue : « — » veut dire inconnu.":"Uma parte do resumo não pôde ser lida: «—» quer dizer desconhecido.","Passé":"Passado","Avancé":"Antecipado","La Saison des Nations":"A Temporada das Nações","La Nuit des Nations":"A Noite das Nações","Chant":"Canto","Danse":"Dança","Humour":"Humor","Court-métrage":"Curta-metragem","Arts visuels":"Artes visuais","Musique et création sonore":"Música e criação sonora","Conte et parole":"Conto e palavra","Gastronomie":"Gastronomia","Élégance et culture":"Elegância e cultura"}</script>
+<script type="application/json" id="nvI18n-ar">{"La Saison en bref":"الموسم باختصار","L’essentiel du jour de la Saison des Nations, en version légère.":"أهم ما في يوم موسم الأمم، في نسخة خفيفة.","Aperçu":"معاينة","Aperçu : un exemple de résumé, pour découvrir la page.":"معاينة: ملخّص على سبيل المثال، لاكتشاف الصفحة.","Mise à jour…":"جارٍ التحديث…","Le résumé de la Saison n’est pas encore disponible.":"ملخّص الموسم غير متاح بعد.","Le résumé n’est plus annoncé par NEURAVID. Voici le dernier résumé gardé, du {0}.":"لم يعد NEURAVID يقدّم الملخّص. إليك آخر ملخّص محفوظ، بتاريخ {0}.","Résumé gardé sur ce téléphone, du {0}.":"ملخّص محفوظ على هذا الهاتف، بتاريخ {0}.","Hors connexion : voici le résumé gardé du {0}.":"دون اتصال: إليك الملخّص المحفوظ بتاريخ {0}.","Aucun résumé gardé sur ce téléphone pour l’instant. Connectez-vous une fois pour le recevoir.":"لا يوجد ملخّص محفوظ على هذا الهاتف بعد. اتصل مرة واحدة لتستلمه.","À jour : résumé du {0}, calculé à {1}.":"محدَّث: ملخّص {0}، محسوب عند {1}.","Résumé du {0}, calculé à {1}.":"ملخّص {0}، محسوب عند {1}.","Actualiser":"تحديث","Partager le résumé":"مشاركة الملخّص","Annulé":"أُلغي","Reporté":"مؤجَّل","En cours":"جارٍ","Voir dans l’Arène (version complète)":"عرض في الساحة (النسخة الكاملة)","Bientôt : les inscriptions ouvrent le {0}.":"قريبًا: تُفتح التسجيلات يوم {0}.","Inscriptions ouvertes jusqu’au {0}.":"التسجيل مفتوح حتى {0}.","La compétition est en cours.":"المنافسة جارية.","La Nuit des Nations est en direct.":"ليلة الأمم مباشرة الآن.","La Saison est terminée.":"انتهى الموسم.","Aucune Saison n’est annoncée pour l’instant.":"لم يُعلَن عن أي موسم بعد.","Inscrits":"المسجَّلون","Nations":"الأمم","En éveil":"في يقظة","Prêtes":"جاهزة","Les nombres ne sont publiés qu’à partir de {0} inscrits par nation.":"لا تُنشر الأرقام إلا ابتداءً من {0} مسجَّلين لكل أمة.","{0} est prête.":"{0} جاهزة.","{0} s’éveille.":"{0} تستيقظ.","Prochains rendez-vous":"المواعيد القادمة","Aucun rendez-vous annoncé pour l’instant.":"لا توجد مواعيد معلنة بعد.","Ouverture des inscriptions":"افتتاح التسجيل","Clôture des inscriptions":"إغلاق التسجيل","Échauffement : {0}":"إحماء: {0}","Fin du vote : {0}":"نهاية التصويت: {0}","La cérémonie d'ouverture":"حفل الافتتاح","Derniers résultats":"آخر النتائج","Aucun résultat validé pour l’instant.":"لا توجد نتائج معتمدة بعد.","Espoirs":"الواعدون","Ponts entre nations":"جسور بين الأمم","Premier Pont :":"الجسر الأول:","Résultat corrigé":"نتيجة مصحَّحة","Définitif":"نهائي","Peut encore être contesté":"لا يزال قابلًا للطعن","Validé le {0}":"اعتُمد يوم {0}","Or":"ذهب","Argent":"فضة","Bronze":"برونز","Programmée":"مبرمجة","Ordre du défilé tiré au sort":"تمّت قرعة ترتيب الاستعراض","En direct":"مباشر","Terminée":"انتهت","Annulée":"أُلغيت","Résultats en cours":"النتائج جارية","Proclamée":"أُعلنت","Gratuit pour tout le monde, en direct dans la Salle Baobab.":"مجاني للجميع، مباشرة في قاعة الباوباب.","Sous réserve d’une réclamation":"رهن مطالبة قائمة","À {0}":"في {0}","Nation de l’année":"أمة العام","Pont de l’année":"جسر العام","Tableau provisoire":"جدول مؤقت","Tableau des médailles":"جدول الميداليات","Nation":"الأمة","Liste raccourcie pour que le résumé reste léger.":"قائمة مختصرة ليبقى الملخّص خفيفًا.","Jours précédents":"الأيام السابقة","Gardés sur ce téléphone, lisibles sans connexion :":"محفوظة على هذا الهاتف، تُقرأ دون اتصال:","Sur NEURAVID :":"على NEURAVID:","Aucun autre jour gardé par NEURAVID.":"لا توجد أيام أخرى يحفظها NEURAVID.","Chercher d’autres jours":"البحث عن أيام أخرى","Impossible de joindre NEURAVID pour le moment.":"تعذّر الوصول إلى NEURAVID حاليًا.","Langue":"اللغة","Traduction en cours de relecture.":"الترجمة قيد المراجعة.","Page légère : elle garde les {0} derniers résumés pour les lire sans connexion, et ne montre aucun nom de personne.":"صفحة خفيفة: تحفظ آخر {0} ملخّصًا لقراءتها دون اتصال، ولا تعرض اسم أي شخص.","Résumé copié.":"تم نسخ الملخّص.","Impossible de copier sur ce téléphone.":"لا يمكن النسخ على هذا الهاتف.","Les résultats de la Nuit des Nations arrivent.":"نتائج ليلة الأمم في الطريق.","La Nuit des Nations est proclamée.":"أُعلنت نتائج ليلة الأمم.","Une autre nation":"أمة أخرى","Une partie du résumé n’a pas pu être lue : « — » veut dire inconnu.":"تعذّرت قراءة جزء من الملخّص: «—» تعني غير معروف.","Passé":"مضى","Avancé":"مُقدَّم","La Saison des Nations":"موسم الأمم","La Nuit des Nations":"ليلة الأمم","Chant":"الغناء","Danse":"رقص","Humour":"فكاهة","Court-métrage":"فيلم قصير","Arts visuels":"الفنون البصرية","Musique et création sonore":"الموسيقى والإبداع الصوتي","Conte et parole":"الحكاية والكلمة","Gastronomie":"فنّ الطبخ","Élégance et culture":"الأناقة والثقافة"}</script>
+<script type="application/json" id="nvI18n-sw">{"La Saison en bref":"Msimu kwa ufupi","L’essentiel du jour de la Saison des Nations, en version légère.":"Mambo muhimu ya leo ya Msimu wa Mataifa, kwa toleo jepesi.","Aperçu":"Onyesho","Aperçu : un exemple de résumé, pour découvrir la page.":"Onyesho: muhtasari wa mfano, kugundua ukurasa huu.","Mise à jour…":"Inasasishwa…","Le résumé de la Saison n’est pas encore disponible.":"Muhtasari wa Msimu bado haupatikani.","Le résumé n’est plus annoncé par NEURAVID. Voici le dernier résumé gardé, du {0}.":"NEURAVID haitoi tena muhtasari. Huu ndio muhtasari wa mwisho uliohifadhiwa, wa {0}.","Résumé gardé sur ce téléphone, du {0}.":"Muhtasari uliohifadhiwa kwenye simu hii, wa {0}.","Hors connexion : voici le résumé gardé du {0}.":"Nje ya mtandao: huu ndio muhtasari uliohifadhiwa wa {0}.","Aucun résumé gardé sur ce téléphone pour l’instant. Connectez-vous une fois pour le recevoir.":"Bado hakuna muhtasari uliohifadhiwa kwenye simu hii. Unganisha mara moja ili kuupokea.","À jour : résumé du {0}, calculé à {1}.":"Imesasishwa: muhtasari wa {0}, umehesabiwa saa {1}.","Résumé du {0}, calculé à {1}.":"Muhtasari wa {0}, umehesabiwa saa {1}.","Actualiser":"Onyesha upya","Partager le résumé":"Shiriki muhtasari","Annulé":"Imefutwa","Reporté":"Imeahirishwa","En cours":"Inaendelea","Voir dans l’Arène (version complète)":"Tazama kwenye Uwanja (toleo kamili)","Bientôt : les inscriptions ouvrent le {0}.":"Hivi karibuni: usajili unafunguliwa tarehe {0}.","Inscriptions ouvertes jusqu’au {0}.":"Usajili uko wazi hadi {0}.","La compétition est en cours.":"Mashindano yanaendelea.","La Nuit des Nations est en direct.":"Usiku wa Mataifa uko mubashara.","La Saison est terminée.":"Msimu umekwisha.","Aucune Saison n’est annoncée pour l’instant.":"Bado hakuna Msimu uliotangazwa.","Inscrits":"Waliosajiliwa","Nations":"Mataifa","En éveil":"Zinaamka","Prêtes":"Ziko tayari","Les nombres ne sont publiés qu’à partir de {0} inscrits par nation.":"Idadi huchapishwa tu kuanzia waliosajiliwa {0} kwa kila taifa.","{0} est prête.":"{0} iko tayari.","{0} s’éveille.":"{0} inaamka.","Prochains rendez-vous":"Miadi ijayo","Aucun rendez-vous annoncé pour l’instant.":"Bado hakuna miadi iliyotangazwa.","Ouverture des inscriptions":"Usajili unafunguliwa","Clôture des inscriptions":"Usajili unafungwa","Échauffement : {0}":"Zoezi: {0}","Fin du vote : {0}":"Mwisho wa kupiga kura: {0}","La cérémonie d'ouverture":"Sherehe ya ufunguzi","Derniers résultats":"Matokeo ya karibuni","Aucun résultat validé pour l’instant.":"Bado hakuna matokeo yaliyothibitishwa.","Espoirs":"Chipukizi","Ponts entre nations":"Madaraja kati ya mataifa","Premier Pont :":"Daraja la kwanza:","Résultat corrigé":"Matokeo yaliyosahihishwa","Définitif":"Ya mwisho","Peut encore être contesté":"Bado linaweza kupingwa","Validé le {0}":"Imethibitishwa tarehe {0}","Or":"Dhahabu","Argent":"Fedha","Bronze":"Shaba","Programmée":"Imepangwa","Ordre du défilé tiré au sort":"Mpangilio wa gwaride umepigiwa kura","En direct":"Mubashara","Terminée":"Imekwisha","Annulée":"Imefutwa","Résultats en cours":"Matokeo yanaendelea","Proclamée":"Imetangazwa","Gratuit pour tout le monde, en direct dans la Salle Baobab.":"Bure kwa kila mtu, mubashara katika Ukumbi wa Mbuyu.","Sous réserve d’une réclamation":"Ikisubiri malalamiko","À {0}":"Huko {0}","Nation de l’année":"Taifa la mwaka","Pont de l’année":"Daraja la mwaka","Tableau provisoire":"Jedwali la muda","Tableau des médailles":"Jedwali la medali","Nation":"Taifa","Liste raccourcie pour que le résumé reste léger.":"Orodha imefupishwa ili muhtasari ubaki mwepesi.","Jours précédents":"Siku zilizopita","Gardés sur ce téléphone, lisibles sans connexion :":"Yamehifadhiwa kwenye simu hii, yanasomeka bila mtandao:","Sur NEURAVID :":"Kwenye NEURAVID:","Aucun autre jour gardé par NEURAVID.":"Hakuna siku nyingine iliyohifadhiwa na NEURAVID.","Chercher d’autres jours":"Tafuta siku nyingine","Impossible de joindre NEURAVID pour le moment.":"Haiwezekani kufikia NEURAVID kwa sasa.","Langue":"Lugha","Traduction en cours de relecture.":"Tafsiri inakaguliwa.","Page légère : elle garde les {0} derniers résumés pour les lire sans connexion, et ne montre aucun nom de personne.":"Ukurasa mwepesi: unahifadhi muhtasari {0} ya mwisho ili kuisoma bila mtandao, na hauonyeshi jina la mtu yeyote.","Résumé copié.":"Muhtasari umenakiliwa.","Impossible de copier sur ce téléphone.":"Haiwezekani kunakili kwenye simu hii.","Les résultats de la Nuit des Nations arrivent.":"Matokeo ya Usiku wa Mataifa yanakuja.","La Nuit des Nations est proclamée.":"Usiku wa Mataifa umetangazwa.","Une autre nation":"Taifa jingine","Une partie du résumé n’a pas pu être lue : « — » veut dire inconnu.":"Sehemu ya muhtasari haikuweza kusomwa: «—» inamaanisha haijulikani.","Passé":"Imepita","Avancé":"Imesogezwa mbele","La Saison des Nations":"Msimu wa Mataifa","La Nuit des Nations":"Usiku wa Mataifa","Chant":"Uimbaji","Danse":"Densi","Humour":"Vichekesho","Court-métrage":"Filamu fupi","Arts visuels":"Sanaa za kuona","Musique et création sonore":"Muziki na ubunifu wa sauti","Conte et parole":"Hadithi na usemi","Gastronomie":"Vyakula","Élégance et culture":"Umaridadi na utamaduni"}</script>
+<script type="application/json" id="nvI18n-ha">{"La Saison en bref":"Kakar a taƙaice","L’essentiel du jour de la Saison des Nations, en version légère.":"Muhimman abubuwan yau na Kakar Ƙasashe, a sigar mai sauƙi.","Aperçu":"Samfoti","Aperçu : un exemple de résumé, pour découvrir la page.":"Samfoti: taƙaitaccen misali, don sanin shafin.","Mise à jour…":"Ana sabuntawa…","Le résumé de la Saison n’est pas encore disponible.":"Taƙaitaccen Kakar bai samu ba tukuna.","Le résumé n’est plus annoncé par NEURAVID. Voici le dernier résumé gardé, du {0}.":"NEURAVID ba ya bayar da taƙaitaccen kuma. Ga na ƙarshe da aka ajiye, na {0}.","Résumé gardé sur ce téléphone, du {0}.":"Taƙaitaccen da aka ajiye a wannan waya, na {0}.","Hors connexion : voici le résumé gardé du {0}.":"Babu intanet: ga taƙaitaccen da aka ajiye na {0}.","Aucun résumé gardé sur ce téléphone pour l’instant. Connectez-vous une fois pour le recevoir.":"Babu taƙaitaccen da aka ajiye a wannan waya tukuna. Ku haɗa sau ɗaya don karɓa.","À jour : résumé du {0}, calculé à {1}.":"Sabo: taƙaitaccen na {0}, an lissafa a {1}.","Résumé du {0}, calculé à {1}.":"Taƙaitaccen na {0}, an lissafa a {1}.","Actualiser":"Sabunta","Partager le résumé":"Raba taƙaitaccen","Annulé":"An soke","Reporté":"An ɗage","En cours":"Yana gudana","Voir dans l’Arène (version complète)":"Duba a Filin (cikakken sigar)","Bientôt : les inscriptions ouvrent le {0}.":"Nan ba da daɗewa ba: rajista za ta buɗe a {0}.","Inscriptions ouvertes jusqu’au {0}.":"Rajista a buɗe take har zuwa {0}.","La compétition est en cours.":"Gasar tana gudana.","La Nuit des Nations est en direct.":"Daren Ƙasashe yana kai tsaye.","La Saison est terminée.":"Kakar ta ƙare.","Aucune Saison n’est annoncée pour l’instant.":"Ba a sanar da wata Kaka ba tukuna.","Inscrits":"Masu rajista","Nations":"Ƙasashe","En éveil":"Suna farkawa","Prêtes":"A shirye","Les nombres ne sont publiés qu’à partir de {0} inscrits par nation.":"Ana wallafa adadi ne kawai daga masu rajista {0} a kowace ƙasa.","{0} est prête.":"{0} ta shirya.","{0} s’éveille.":"{0} tana farkawa.","Prochains rendez-vous":"Alƙawuran gaba","Aucun rendez-vous annoncé pour l’instant.":"Ba a sanar da wani alƙawari ba tukuna.","Ouverture des inscriptions":"Buɗe rajista","Clôture des inscriptions":"Rufe rajista","Échauffement : {0}":"Gwajin shiri: {0}","Fin du vote : {0}":"Ƙarshen jefa ƙuri'a: {0}","La cérémonie d'ouverture":"Bikin buɗewa","Derniers résultats":"Sakamakon baya-bayan nan","Aucun résultat validé pour l’instant.":"Babu sakamakon da aka tabbatar tukuna.","Espoirs":"Masu tasowa","Ponts entre nations":"Gadoji tsakanin ƙasashe","Premier Pont :":"Gada ta farko:","Résultat corrigé":"Sakamakon da aka gyara","Définitif":"Na ƙarshe","Peut encore être contesté":"Ana iya ƙalubalantar shi har yanzu","Validé le {0}":"An tabbatar a {0}","Or":"Zinariya","Argent":"Azurfa","Bronze":"Tagulla","Programmée":"An tsara","Ordre du défilé tiré au sort":"An jefa ƙuri’ar tsarin faretin","En direct":"Kai tsaye","Terminée":"Ta ƙare","Annulée":"An soke","Résultats en cours":"Sakamako na gudana","Proclamée":"An bayyana","Gratuit pour tout le monde, en direct dans la Salle Baobab.":"Kyauta ga kowa, kai tsaye a Zauren Kuka.","Sous réserve d’une réclamation":"Ana jiran ƙorafi","À {0}":"A {0}","Nation de l’année":"Ƙasar shekara","Pont de l’année":"Gadar shekara","Tableau provisoire":"Tebur na wucin gadi","Tableau des médailles":"Teburin lambobin yabo","Nation":"Ƙasa","Liste raccourcie pour que le résumé reste léger.":"An gajarta jerin don taƙaitaccen ya kasance mai sauƙi.","Jours précédents":"Kwanakin baya","Gardés sur ce téléphone, lisibles sans connexion :":"An ajiye a wannan waya, ana iya karantawa ba tare da intanet ba:","Sur NEURAVID :":"A NEURAVID:","Aucun autre jour gardé par NEURAVID.":"Babu wata rana da NEURAVID ya ajiye.","Chercher d’autres jours":"Nemi wasu kwanaki","Impossible de joindre NEURAVID pour le moment.":"Ba za a iya kaiwa ga NEURAVID yanzu ba.","Langue":"Harshe","Traduction en cours de relecture.":"Ana duba fassarar.","Page légère : elle garde les {0} derniers résumés pour les lire sans connexion, et ne montre aucun nom de personne.":"Shafi mai sauƙi: yana ajiye taƙaitattun {0} na ƙarshe don karantawa ba tare da intanet ba, kuma baya nuna sunan kowa.","Résumé copié.":"An kwafi taƙaitaccen.","Impossible de copier sur ce téléphone.":"Ba za a iya kwafa a wannan waya ba.","Les résultats de la Nuit des Nations arrivent.":"Sakamakon Daren Ƙasashe suna zuwa.","La Nuit des Nations est proclamée.":"An bayyana Daren Ƙasashe.","Une autre nation":"Wata ƙasa","Une partie du résumé n’a pas pu être lue : « — » veut dire inconnu.":"Ba a iya karanta wani ɓangare na taƙaitaccen ba: «—» na nufin ba a sani ba.","Passé":"Ya wuce","Avancé":"An gabatar","La Saison des Nations":"Kakar Ƙasashe","La Nuit des Nations":"Daren Ƙasashe","Chant":"Rera waƙa","Danse":"Rawa","Humour":"Barkwanci","Court-métrage":"Gajeren fim","Arts visuels":"Fasahar gani","Musique et création sonore":"Kiɗa da ƙirƙirar sauti","Conte et parole":"Tatsuniya da magana","Gastronomie":"Abinci","Élégance et culture":"Kwalliya da al'ada"}</script>
+<script type="application/json" id="nvI18n-yo">{"La Saison en bref":"Sáà ní ṣókí","L’essentiel du jour de la Saison des Nations, en version légère.":"Ohun pàtàkì òní nínú Sáà Àwọn Orílẹ̀-èdè, ní ẹ̀dà fífúyẹ́.","Aperçu":"Àyẹ̀wò","Aperçu : un exemple de résumé, pour découvrir la page.":"Àyẹ̀wò: àpẹẹrẹ àkópọ̀, láti mọ ojú-ìwé yìí.","Mise à jour…":"Ń ṣe àtúnṣe…","Le résumé de la Saison n’est pas encore disponible.":"Àkópọ̀ Sáà kò tíì sí.","Le résumé n’est plus annoncé par NEURAVID. Voici le dernier résumé gardé, du {0}.":"NEURAVID kò pèsè àkópọ̀ mọ́. Èyí ni àkópọ̀ tó kẹ́yìn tí a tọ́jú, ti {0}.","Résumé gardé sur ce téléphone, du {0}.":"Àkópọ̀ tí a tọ́jú sórí fóònù yìí, ti {0}.","Hors connexion : voici le résumé gardé du {0}.":"Kò sí ìsopọ̀: èyí ni àkópọ̀ tí a tọ́jú ti {0}.","Aucun résumé gardé sur ce téléphone pour l’instant. Connectez-vous une fois pour le recevoir.":"Kò tíì sí àkópọ̀ kankan lórí fóònù yìí. Sopọ̀ lẹ́ẹ̀kan láti gbà á.","À jour : résumé du {0}, calculé à {1}.":"Ó ti di tuntun: àkópọ̀ ti {0}, tí a ṣírò ní {1}.","Résumé du {0}, calculé à {1}.":"Àkópọ̀ ti {0}, tí a ṣírò ní {1}.","Actualiser":"Ṣe àtúnṣe","Partager le résumé":"Pín àkópọ̀","Annulé":"A ti fagilé","Reporté":"A ti sún un síwájú","En cours":"Ń lọ lọ́wọ́","Voir dans l’Arène (version complète)":"Wò ó nínú Gbàgede (ẹ̀dà kíkún)","Bientôt : les inscriptions ouvrent le {0}.":"Láìpẹ́: ìforúkọsílẹ̀ yóò ṣí ní {0}.","Inscriptions ouvertes jusqu’au {0}.":"Ìforúkọsílẹ̀ ṣí sílẹ̀ títí di {0}.","La compétition est en cours.":"Ìdíje ń lọ lọ́wọ́.","La Nuit des Nations est en direct.":"Alẹ́ Àwọn Orílẹ̀-èdè ń lọ láàyè.","La Saison est terminée.":"Sáà ti parí.","Aucune Saison n’est annoncée pour l’instant.":"Kò tíì sí Sáà kankan tí a kéde.","Inscrits":"Àwọn tó forúkọsílẹ̀","Nations":"Orílẹ̀-èdè","En éveil":"Ń jí","Prêtes":"Ti ṣetán","Les nombres ne sont publiés qu’à partir de {0} inscrits par nation.":"A máa ń tẹ̀ àwọn nọ́mbà jáde nígbà tí ó bá tó ẹni {0} tó forúkọsílẹ̀ fún orílẹ̀-èdè kan.","{0} est prête.":"{0} ti ṣetán.","{0} s’éveille.":"{0} ń jí.","Prochains rendez-vous":"Àwọn ìpàdé tó ń bọ̀","Aucun rendez-vous annoncé pour l’instant.":"Kò tíì sí ìpàdé kankan tí a kéde.","Ouverture des inscriptions":"Ìṣísílẹ̀ ìforúkọsílẹ̀","Clôture des inscriptions":"Ìpàdé ìforúkọsílẹ̀","Échauffement : {0}":"Ìgbaradì: {0}","Fin du vote : {0}":"Ìparí ìdìbò: {0}","La cérémonie d'ouverture":"Ayẹyẹ ìṣísílẹ̀","Derniers résultats":"Àbájáde tuntun","Aucun résultat validé pour l’instant.":"Kò tíì sí àbájáde tí a fọwọ́ sí.","Espoirs":"Àwọn ìrètí","Ponts entre nations":"Afárá láàrin orílẹ̀-èdè","Premier Pont :":"Afárá àkọ́kọ́:","Résultat corrigé":"Àbájáde tí a ṣàtúnṣe","Définitif":"Ìkẹyìn","Peut encore être contesté":"Ó ṣì lè jẹ́ àtakò","Validé le {0}":"A fọwọ́ sí i ní {0}","Or":"Wúrà","Argent":"Fàdákà","Bronze":"Idẹ","Programmée":"A ti ṣètò rẹ̀","Ordre du défilé tiré au sort":"A ti ṣẹ́ gègé ètò ìrìn-àjò","En direct":"Láàyè","Terminée":"Ó ti parí","Annulée":"A ti fagilé","Résultats en cours":"Àbájáde ń lọ lọ́wọ́","Proclamée":"A ti kéde rẹ̀","Gratuit pour tout le monde, en direct dans la Salle Baobab.":"Ọ̀fẹ́ fún gbogbo ènìyàn, láàyè ní Gbọ̀ngàn Ìrókò.","Sous réserve d’une réclamation":"Ó ṣì dúró de ẹ̀sùn kan","À {0}":"Ní {0}","Nation de l’année":"Orílẹ̀-èdè ọdún","Pont de l’année":"Afárá ọdún","Tableau provisoire":"Tábìlì ìgbà díẹ̀","Tableau des médailles":"Tábìlì àmì-ẹ̀yẹ","Nation":"Orílẹ̀-èdè","Liste raccourcie pour que le résumé reste léger.":"A dín àtòjọ kù kí àkópọ̀ lè fúyẹ́.","Jours précédents":"Àwọn ọjọ́ tó kọjá","Gardés sur ce téléphone, lisibles sans connexion :":"Tí a tọ́jú sórí fóònù yìí, tí a lè kà láìsí ìsopọ̀:","Sur NEURAVID :":"Lórí NEURAVID:","Aucun autre jour gardé par NEURAVID.":"Kò sí ọjọ́ mìíràn tí NEURAVID tọ́jú.","Chercher d’autres jours":"Wá àwọn ọjọ́ mìíràn","Impossible de joindre NEURAVID pour le moment.":"A kò lè dé ọ̀dọ̀ NEURAVID báyìí.","Langue":"Èdè","Traduction en cours de relecture.":"A ń ṣàyẹ̀wò ìtumọ̀ náà.","Page légère : elle garde les {0} derniers résumés pour les lire sans connexion, et ne montre aucun nom de personne.":"Ojú-ìwé fífúyẹ́: ó ń tọ́jú àkópọ̀ {0} tó kẹ́yìn láti kà wọ́n láìsí ìsopọ̀, kò sì fi orúkọ ẹnikẹ́ni hàn.","Résumé copié.":"A ti ṣe àdàkọ àkópọ̀.","Impossible de copier sur ce téléphone.":"A kò lè ṣe àdàkọ lórí fóònù yìí.","Les résultats de la Nuit des Nations arrivent.":"Àbájáde Alẹ́ Àwọn Orílẹ̀-èdè ń bọ̀.","La Nuit des Nations est proclamée.":"A ti kéde Alẹ́ Àwọn Orílẹ̀-èdè.","Une autre nation":"Orílẹ̀-èdè mìíràn","Une partie du résumé n’a pas pu être lue : « — » veut dire inconnu.":"A kò lè ka apá kan nínú àkópọ̀: «—» túmọ̀ sí àìmọ̀.","Passé":"Ó ti kọjá","Avancé":"A ti mú un wá síwájú","La Saison des Nations":"Sáà Àwọn Orílẹ̀-èdè","La Nuit des Nations":"Alẹ́ Àwọn Orílẹ̀-èdè","Chant":"Orin kíkọ","Danse":"Ijó","Humour":"Àwàdà","Court-métrage":"Fíìmù kúkúrú","Arts visuels":"Iṣẹ́ ọnà àfojúrí","Musique et création sonore":"Orin àti ìṣẹ̀dá ohùn","Conte et parole":"Ìtàn àti ọ̀rọ̀ sísọ","Gastronomie":"Oúnjẹ","Élégance et culture":"Ẹwà àti àṣà"}</script>
+<script type="application/json" id="nvI18n-wo">{"La Saison en bref":"Jamono ji ci gàttal","L’essentiel du jour de la Saison des Nations, en version légère.":"Li gën a am solo tey ci Jamonoy Xeet yi, ci jumtukaay bu woyof.","Aperçu":"Wone","Aperçu : un exemple de résumé, pour découvrir la page.":"Wone: misaal bu gàttal, ngir xam xët wi.","Mise à jour…":"Mi ngi koy yeesal…","Le résumé de la Saison n’est pas encore disponible.":"Gàttal Jamono ji amagul ba léegi.","Le résumé n’est plus annoncé par NEURAVID. Voici le dernier résumé gardé, du {0}.":"NEURAVID joxatul gàttal bi. Mii mooy gàttal bu mujj bi ñu denc, bu {0}.","Résumé gardé sur ce téléphone, du {0}.":"Gàttal bi ñu denc ci telefon bii, bu {0}.","Hors connexion : voici le résumé gardé du {0}.":"Amul connexion: mii mooy gàttal bi ñu denc bu {0}.","Aucun résumé gardé sur ce téléphone pour l’instant. Connectez-vous une fois pour le recevoir.":"Amagul benn gàttal bu ñu denc ci telefon bii. Duggal benn yoon ngir jot ko.","À jour : résumé du {0}, calculé à {1}.":"Yees na: gàttalu {0}, ñu waññ ko ci {1}.","Résumé du {0}, calculé à {1}.":"Gàttalu {0}, ñu waññ ko ci {1}.","Actualiser":"Yeesal","Partager le résumé":"Séddoo gàttal bi","Annulé":"Neenal nañu ko","Reporté":"Dàq nañu ko","En cours":"Mi ngi dox","Voir dans l’Arène (version complète)":"Xool ko ci Arène bi (jumtukaay bu mat)","Bientôt : les inscriptions ouvrent le {0}.":"Ci kanam: bindu yi dinañu ubbi {0}.","Inscriptions ouvertes jusqu’au {0}.":"Bindu yi ubbeeku ba {0}.","La compétition est en cours.":"Joŋante bi mi ngi dox.","La Nuit des Nations est en direct.":"Guddig Réew yi mi ngi ci direct.","La Saison est terminée.":"Jamono ji jeex na.","Aucune Saison n’est annoncée pour l’instant.":"Amagul benn Jamono bu ñu yégle.","Inscrits":"Ñi bind","Nations":"Xeet yi","En éveil":"Mi ngi yeewu","Prêtes":"Pare nañu","Les nombres ne sont publiés qu’à partir de {0} inscrits par nation.":"Limm yi dañu leen di siiwal rekk su ñi bind ci benn xeet tolloo {0}.","{0} est prête.":"{0} pare na.","{0} s’éveille.":"{0} mi ngi yeewu.","Prochains rendez-vous":"Ndaje yi di ñëw","Aucun rendez-vous annoncé pour l’instant.":"Amagul benn ndaje bu ñu yégle.","Ouverture des inscriptions":"Ubbiteg bindu yi","Clôture des inscriptions":"Tëjug bindu yi","Échauffement : {0}":"Waajal: {0}","Fin du vote : {0}":"Jeexitu tànn: {0}","La cérémonie d'ouverture":"Xew-xewu ubbiteg bi","Derniers résultats":"Ngérte yu mujj yi","Aucun résultat validé pour l’instant.":"Amagul benn ngérte bu ñu dëggal.","Espoirs":"Yaakaar yi","Ponts entre nations":"Pon yi diggante xeet yi","Premier Pont :":"Pon bu jëkk:","Résultat corrigé":"Ngérte bu ñu defar","Définitif":"Mujj na","Peut encore être contesté":"Mën nañu ko ci kanam ñàkk ndëgg","Validé le {0}":"Ñu dëggal ko {0}","Or":"Wurus","Argent":"Xaalis","Bronze":"Bronz","Programmée":"Ñu tëral na ko","Ordre du défilé tiré au sort":"Tegtalu dox bi ñu tegal ko ndax","En direct":"Ci direct","Terminée":"Jeex na","Annulée":"Neenal nañu ko","Résultats en cours":"Ngérte yi mi ngi dox","Proclamée":"Yégle nañu ko","Gratuit pour tout le monde, en direct dans la Salle Baobab.":"Ci neen ngir ñépp, ci direct ci Néegu Guy gi.","Sous réserve d’une réclamation":"Ngir benn tawat bu des","À {0}":"Ci {0}","Nation de l’année":"Xeetu at bi","Pont de l’année":"Ponu at bi","Tableau provisoire":"Tablo bu des","Tableau des médailles":"Tablo medaay yi","Nation":"Xeet","Liste raccourcie pour que le résumé reste léger.":"Ñu wàññi lim bi ngir gàttal bi woyof.","Jours précédents":"Fan yu weesu yi","Gardés sur ce téléphone, lisibles sans connexion :":"Ñu denc leen ci telefon bii, mën nañu leen jàng te amul connexion:","Sur NEURAVID :":"Ci NEURAVID:","Aucun autre jour gardé par NEURAVID.":"Amul beneen bés bu NEURAVID denc.","Chercher d’autres jours":"Seet yeneen fan","Impossible de joindre NEURAVID pour le moment.":"Mënuñu jot NEURAVID léegi.","Langue":"Làkk","Traduction en cours de relecture.":"Ñu ngi xool tekki bi.","Page légère : elle garde les {0} derniers résumés pour les lire sans connexion, et ne montre aucun nom de personne.":"Xët wu woyof: day denc {0} gàttal yu mujj ngir jàng leen te amul connexion, te du wone turu kenn.","Résumé copié.":"Gàttal bi duppi nañu ko.","Impossible de copier sur ce téléphone.":"Mënuñu duppi ci telefon bii.","Les résultats de la Nuit des Nations arrivent.":"Ngérte yi ci Guddig Réew yi ñu ngi ñëw.","La Nuit des Nations est proclamée.":"Yégle nañu Guddig Réew yi.","Une autre nation":"Beneen xeet","Une partie du résumé n’a pas pu être lue : « — » veut dire inconnu.":"Mënuñu jàng benn pàcc ci gàttal bi: «—» mooy lu ñu xamul.","Passé":"Weesu na","Avancé":"Jëkkal nañu ko","La Saison des Nations":"Jamonoy Xeet yi","La Nuit des Nations":"Guddig Réew yi","Chant":"Woy","Danse":"Fecc","Humour":"Kaf","Court-métrage":"Film bu gàtt","Arts visuels":"Arsu gis","Musique et création sonore":"Misig ak sos coow","Conte et parole":"Léeb ak wax","Gastronomie":"Togg","Élégance et culture":"Rafetaay ak aada"}</script>
+<script type="application/json" id="nvI18n-bm">{"La Saison en bref":"Waati in kuma surun na","L’essentiel du jour de la Saison des Nations, en version légère.":"Bi kow nafamaw Jamanaw ka Waati la, ni a fɔcogo nɔgɔman ye.","Aperçu":"Jirali","Aperçu : un exemple de résumé, pour découvrir la page.":"Jirali: kumasurun misali dɔ, walasa ka ɲɛ in dɔn.","Mise à jour…":"A bɛ kurayali la…","Le résumé de la Saison n’est pas encore disponible.":"Waati kumasurun ma sɔrɔ fɔlɔ.","Le résumé n’est plus annoncé par NEURAVID. Voici le dernier résumé gardé, du {0}.":"NEURAVID tɛ kumasurun di tun. Nin ye kumasurun laban marata ye, {0} ta.","Résumé gardé sur ce téléphone, du {0}.":"Kumasurun marata nin telefɔni in kan, {0} ta.","Hors connexion : voici le résumé gardé du {0}.":"Ɛntɛrinɛti tɛ: nin ye kumasurun marata ye, {0} ta.","Aucun résumé gardé sur ce téléphone pour l’instant. Connectez-vous une fois pour le recevoir.":"Kumasurun si ma mara telefɔni in kan fɔlɔ. I siri siɲɛ kelen walasa k’a sɔrɔ.","À jour : résumé du {0}, calculé à {1}.":"A kuraya: {0} kumasurun, a jatera {1}.","Résumé du {0}, calculé à {1}.":"{0} kumasurun, a jatera {1}.","Actualiser":"Kuraya","Partager le résumé":"Kumasurun tila","Annulé":"A dabilara","Reporté":"A sɛgɛra","En cours":"A bɛ taa","Voir dans l’Arène (version complète)":"A filɛ Arɛni kɔnɔ (a fɔcogo dafalen)","Bientôt : les inscriptions ouvrent le {0}.":"A bɛ na sɔni: tɔgɔsɛbɛnni bɛ dayɛlɛ {0}.","Inscriptions ouvertes jusqu’au {0}.":"Tɔgɔsɛbɛnni dayɛlɛlen don fo {0}.","La compétition est en cours.":"Ɲɔgɔndan bɛ taa a fɛ.","La Nuit des Nations est en direct.":"Jamanaw ka Su bɛ taa sisan.","La Saison est terminée.":"Waati banna.","Aucune Saison n’est annoncée pour l’instant.":"Waati si ma fɔ fɔlɔ.","Inscrits":"Tɔgɔsɛbɛnnenw","Nations":"Jamanaw","En éveil":"Ka kununna","Prêtes":"Labɛnnen","Les nombres ne sont publiés qu’à partir de {0} inscrits par nation.":"Jateminɛw bɛ bɔ dɔrɔn ni mɔgɔ {0} ye tɔgɔ sɛbɛn jamana kelen kɔnɔ.","{0} est prête.":"{0} labɛnnen don.","{0} s’éveille.":"{0} bɛ kununna.","Prochains rendez-vous":"Ɲɔgɔnye nataw","Aucun rendez-vous annoncé pour l’instant.":"Ɲɔgɔnye si ma fɔ fɔlɔ.","Ouverture des inscriptions":"Tɔgɔsɛbɛnni dayɛlɛli","Clôture des inscriptions":"Tɔgɔsɛbɛnni datugu","Échauffement : {0}":"Labɛnni: {0}","Fin du vote : {0}":"Kalata laban: {0}","La cérémonie d'ouverture":"Dayɛlɛli seli","Derniers résultats":"Jaabi labanw","Aucun résultat validé pour l’instant.":"Jaabi si ma sɛmɛntiya fɔlɔ.","Espoirs":"Jigiw","Ponts entre nations":"Jamanaw ni ɲɔgɔn cɛ siraw","Premier Pont :":"Sira fɔlɔ:","Résultat corrigé":"Jaabi latilennen","Définitif":"Laban","Peut encore être contesté":"A bɛ se ka sɔsɔ hali bi","Validé le {0}":"A sɛmɛntiyara {0}","Or":"Sanu","Argent":"Warijɛ","Bronze":"Sira","Programmée":"A labɛnna","Ordre du défilé tiré au sort":"Taama sigicogo kɛra ni kalata ye","En direct":"Sisan","Terminée":"A banna","Annulée":"A dabilara","Résultats en cours":"Jaabiw bɛ taa","Proclamée":"A fɔra","Gratuit pour tout le monde, en direct dans la Salle Baobab.":"A sɔngɔ tɛ mɔgɔ si ma, sisan Sira Sallɛ kɔnɔ.","Sous réserve d’une réclamation":"Kanmaw dɔ bɛ makɔnɔ","À {0}":"{0} la","Nation de l’année":"San jamana","Pont de l’année":"San sira","Tableau provisoire":"Tabali waatininw","Tableau des médailles":"Medayiw tabali","Nation":"Jamana","Liste raccourcie pour que le résumé reste léger.":"Lisɛli surunyara walasa kumasurun ka to nɔgɔman.","Jours précédents":"Tile tɛmɛnenw","Gardés sur ce téléphone, lisibles sans connexion :":"Marata telefɔni in kan, u bɛ se ka kalan ɛntɛrinɛti kɔ:","Sur NEURAVID :":"NEURAVID kan:","Aucun autre jour gardé par NEURAVID.":"Tile wɛrɛ si ma mara NEURAVID fɛ.","Chercher d’autres jours":"Tile wɛrɛw ɲini","Impossible de joindre NEURAVID pour le moment.":"NEURAVID tɛ se ka sɔrɔ sisan.","Langue":"Kan","Traduction en cours de relecture.":"Bayɛlɛmali bɛ lajɛ.","Page légère : elle garde les {0} derniers résumés pour les lire sans connexion, et ne montre aucun nom de personne.":"Ɲɛ nɔgɔman: a bɛ kumasurun {0} labanw mara walasa k’u kalan ɛntɛrinɛti kɔ, a tɛ mɔgɔ si tɔgɔ jira.","Résumé copié.":"Kumasurun bɔra.","Impossible de copier sur ce téléphone.":"A tɛ se ka bɔ telefɔni in kan.","Les résultats de la Nuit des Nations arrivent.":"Jamanaw ka Su jaabiw bɛ na.","La Nuit des Nations est proclamée.":"Jamanaw ka Su fɔra.","Une autre nation":"Jamana wɛrɛ","Une partie du résumé n’a pas pu être lue : « — » veut dire inconnu.":"Kumasurun yɔrɔ dɔ ma se ka kalan: «—» kɔrɔ ye ko a ma dɔn.","Passé":"A tɛmɛna","Avancé":"A ka kɔn","La Saison des Nations":"Jamanaw ka Waati","La Nuit des Nations":"Jamanaw ka Su","Chant":"Dɔnkilida","Danse":"Dɔn","Humour":"Tulongaw","Court-métrage":"Filimu surun","Arts visuels":"Yeli seko","Musique et création sonore":"Fɔli ni mankan dabɔ","Conte et parole":"Nsiirin ni kuma","Gastronomie":"Tobili","Élégance et culture":"Cɛɲi ni laada"}</script>
+<script type="application/json" id="nvI18n-ln">{"La Saison en bref":"Saison na mokuse","L’essentiel du jour de la Saison des Nations, en version légère.":"Makambo ya ntina ya lelo ya Saison ya Bikolo, na lolenge ya pɛpɛlɛ.","Aperçu":"Emoniseli","Aperçu : un exemple de résumé, pour découvrir la page.":"Emoniseli: ndakisa ya mokuse, mpo na koyeba lokasa oyo.","Mise à jour…":"Ezali kozongisa sika…","Le résumé de la Saison n’est pas encore disponible.":"Mokuse ya Saison ezali naino te.","Le résumé n’est plus annoncé par NEURAVID. Voici le dernier résumé gardé, du {0}.":"NEURAVID epesaka lisusu mokuse te. Oyo ezali mokuse ya nsuka oyo ebombami, ya {0}.","Résumé gardé sur ce téléphone, du {0}.":"Mokuse ebombami na telefone oyo, ya {0}.","Hors connexion : voici le résumé gardé du {0}.":"Internet ezali te: oyo ezali mokuse ebombami ya {0}.","Aucun résumé gardé sur ce téléphone pour l’instant. Connectez-vous une fois pour le recevoir.":"Mokuse moko te ebombami na telefone oyo naino. Kangana mbala moko mpo na kozwa yango.","À jour : résumé du {0}, calculé à {1}.":"Ezali ya sika: mokuse ya {0}, etangami na {1}.","Résumé du {0}, calculé à {1}.":"Mokuse ya {0}, etangami na {1}.","Actualiser":"Zongisa sika","Partager le résumé":"Kabola mokuse","Annulé":"Elongolami","Reporté":"Etiami mokolo mosusu","En cours":"Ezali kokoba","Voir dans l’Arène (version complète)":"Tala yango na Arène (lolenge mobimba)","Bientôt : les inscriptions ouvrent le {0}.":"Mosika te: bokomisi nkombo ekofungwama na {0}.","Inscriptions ouvertes jusqu’au {0}.":"Bokomisi nkombo efungwami kino {0}.","La compétition est en cours.":"Bosembo ezali kokoba.","La Nuit des Nations est en direct.":"Butu ya Mabota ezali na direct.","La Saison est terminée.":"Saison esili.","Aucune Saison n’est annoncée pour l’instant.":"Saison moko te esakolami naino.","Inscrits":"Bakomisi nkombo","Nations":"Bikolo","En éveil":"Ezali kolamuka","Prêtes":"Bibongami","Les nombres ne sont publiés qu’à partir de {0} inscrits par nation.":"Mitángo ebimaka kaka soki bato {0} bakomisi nkombo na ekolo moko.","{0} est prête.":"{0} ebongami.","{0} s’éveille.":"{0} ezali kolamuka.","Prochains rendez-vous":"Makita oyo ekoya","Aucun rendez-vous annoncé pour l’instant.":"Likita moko te esakolami naino.","Ouverture des inscriptions":"Bofungoli ya bokomisi nkombo","Clôture des inscriptions":"Bokangi ya bokomisi nkombo","Échauffement : {0}":"Komilengela: {0}","Fin du vote : {0}":"Nsuka ya maponi: {0}","La cérémonie d'ouverture":"Fɛti ya bofungoli","Derniers résultats":"Mbano ya sika","Aucun résultat validé pour l’instant.":"Mbano moko te endimami naino.","Espoirs":"Elikya","Ponts entre nations":"Bikalo kati na bikolo","Premier Pont :":"Ekalo ya liboso:","Résultat corrigé":"Mbano ebongisami","Définitif":"Ya nsuka","Peut encore être contesté":"Bakoki naino koboya yango","Validé le {0}":"Endimami na {0}","Or":"Wolo","Argent":"Palata","Bronze":"Mbengi","Programmée":"Ebongisami","Ordre du défilé tiré au sort":"Molongo ya parade etiamaki na zeke","En direct":"Na direct","Terminée":"Esili","Annulée":"Elongolami","Résultats en cours":"Mbano ezali kokoba","Proclamée":"Esakolami","Gratuit pour tout le monde, en direct dans la Salle Baobab.":"Ofele mpo na bato nyonso, na direct na Ndako ya Baobab.","Sous réserve d’une réclamation":"Ezali kozela likambo moko","À {0}":"Na {0}","Nation de l’année":"Ekolo ya mobu","Pont de l’année":"Ekalo ya mobu","Tableau provisoire":"Etanda ya ntango moke","Tableau des médailles":"Etanda ya bamedaye","Nation":"Ekolo","Liste raccourcie pour que le résumé reste léger.":"Liste ekómi mokuse mpo mokuse etikala pɛpɛlɛ.","Jours précédents":"Mikolo eleki","Gardés sur ce téléphone, lisibles sans connexion :":"Ebombami na telefone oyo, ekoki kotangama kozanga internet:","Sur NEURAVID :":"Na NEURAVID:","Aucun autre jour gardé par NEURAVID.":"Mokolo mosusu te oyo NEURAVID ebombi.","Chercher d’autres jours":"Luka mikolo mosusu","Impossible de joindre NEURAVID pour le moment.":"Tokoki kokóma na NEURAVID sikoyo te.","Langue":"Lokota","Traduction en cours de relecture.":"Libongoli ezali kotalelama.","Page légère : elle garde les {0} derniers résumés pour les lire sans connexion, et ne montre aucun nom de personne.":"Lokasa ya pɛpɛlɛ: ebombaka mikuse {0} ya nsuka mpo na kotanga yango kozanga internet, mpe emonisaka nkombo ya moto moko te.","Résumé copié.":"Mokuse ekopiami.","Impossible de copier sur ce téléphone.":"Tokoki kokopia na telefone oyo te.","Les résultats de la Nuit des Nations arrivent.":"Mbano ya Butu ya Mabota ezali koya.","La Nuit des Nations est proclamée.":"Butu ya Mabota esakolami.","Une autre nation":"Ekolo mosusu","Une partie du résumé n’a pas pu être lue : « — » veut dire inconnu.":"Eteni ya mokuse etangamaki te: «—» elingi koloba eyebani te.","Passé":"Eleki","Avancé":"Ebendami liboso","La Saison des Nations":"Saison ya Bikolo","La Nuit des Nations":"Butu ya Mabota","Chant":"Koyemba","Danse":"Bobina","Humour":"Masano ya kosekisa","Court-métrage":"Filme ya mokuse","Arts visuels":"Mayele ya kotala","Musique et création sonore":"Miziki mpe bokeli ya makelele","Conte et parole":"Lisapo mpe maloba","Gastronomie":"Bilei","Élégance et culture":"Kitoko mpe bonkoko"}</script>
+
+<script>
+(function(){
+/* ════════════════════════════════════════════════════════════════════
+ LA SAISON EN BREF — la version légère de la Saison des Nations (9 novembre 2026)
+ Le résumé du jour du serveur de l'Arène (GET /v1/arene/resume, quelques kilo-octets, sans aucun nom de personne),
+ gardé dans le téléphone pour être relu sans connexion. Rien n'est inventé : une valeur inconnue s'écrit « — » ;
+ la page ne montre le résumé que si /v1/arene/capacites l'annonce ; les exemples n'existent que dans l'aperçu.
+ ════════════════════════════════════════════════════════════════════ */
+'use strict';
+var MOI = 'Saison';
+var GARDES = 14;                                    /* les 14 derniers résumés restent dans le téléphone */
+var CLE0 = 'nv_saison_resumes', CLE_CAP0 = 'nv_saison_cap', CLE = CLE0, CLE_CAP = CLE_CAP0, CAP_DUREE = 6 * 3600 * 1000, RELIRE_APRES = 10 * 60 * 1000;
+var LANGUES_UI = {fr:{nom:'Français', loc:'fr-FR'}, en:{nom:'English', loc:'en-GB'}, es:{nom:'Español', loc:'es-ES'}, pt:{nom:'Português', loc:'pt-BR'},
+  ar:{nom:'العربية', loc:'ar-u-nu-latn', rtl:true}, sw:{nom:'Kiswahili', loc:'sw-KE', relire:true}, ha:{nom:'Hausa', loc:'ha-NG', relire:true},
+  yo:{nom:'Yorùbá', loc:'yo-NG', relire:true}, wo:{nom:'Wolof', loc:'fr-SN', relire:true}, bm:{nom:'Bamanankan', loc:'fr-ML', relire:true},
+  ln:{nom:'Lingála', loc:'fr-CD', relire:true}};
+var VUES = {inscriptions_ouverture:'inscription', inscriptions_cloture:'inscription', echauffement:'echauffements', vote_fin:'vote', nuit:'nuit', ceremonie:'ceremonie'};
+
+function $(id){ return document.getElementById(id); }
+function esc(s){ return String(s == null ? '' : s).replace(/[&<>"']/g, function(c){ return {'&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;'}[c]; }); }
+function brut(k){ try{ return localStorage.getItem(k); }catch(e){ return null; } }
+function lire(k, d){ var v = brut(k); if(v == null) return d; try{ return JSON.parse(v); }catch(e){ return d; } }
+function ecrire(k, v){ try{ localStorage.setItem(k, JSON.stringify(v)); return true; }catch(e){ return false; } }
+function api(){ return window.NV_API_BASE ? String(window.NV_API_BASE).replace(/\/$/, '') : null; }
+/* les routes lues ici sont publiques : jamais de jeton ni d'en-tête ajoutée (aucune vérification CORS en plus sur un réseau lent) */
+function entetes(h){ return h || {}; }
+/* la mémoire du téléphone est liée à l'adresse du serveur : un autre serveur ne montre jamais les résumés d'un autre (relecture) */
+function posercles(){ var a = api() || ''; CLE = a ? CLE0 + '|' + a : CLE0; CLE_CAP = a ? CLE_CAP0 + '|' + a : CLE_CAP0; }
+function nombre(x){ return typeof x === 'number' && isFinite(x) && x >= 0 ? x : null; }
+
+/* ── la langue : la même que le reste de NEURAVID (« nv_ui_langue »), sinon l'application, sinon le téléphone ── */
+function langueDetectee(){
+  try{ var hl = /(?:^#|&)lang=([a-z]{2})/.exec(location.hash || ''); if(hl && LANGUES_UI[hl[1]]) return hl[1]; }catch(e){}
+  var c = brut('nv_ui_langue'); if(c){ try{ c = JSON.parse(c); }catch(e){} if(typeof c === 'string' && LANGUES_UI[c]) return c; }
+  try{ if(window.NV_LANG){ var n = String(window.NV_LANG).slice(0, 2).toLowerCase(); if(LANGUES_UI[n]) return n; } }catch(e){}
+  var l = []; try{ l = navigator.languages && navigator.languages.length ? navigator.languages : [navigator.language || 'fr']; }catch(e){}
+  for(var i = 0; i < l.length; i++){ var k = String(l[i] || '').slice(0, 2).toLowerCase(); if(LANGUES_UI[k]) return k; }
+  return 'fr';
+}
+var L = 'fr', LOC = 'fr-FR', DICO = {};
+function poserLangue(l){
+  L = LANGUES_UI[l] ? l : 'fr'; DICO = {};
+  if(L !== 'fr'){ try{ DICO = JSON.parse($('nvI18n-' + L).textContent) || {}; }catch(e){ L = 'fr'; DICO = {}; } }
+  LOC = LANGUES_UI[L].loc;
+  document.documentElement.lang = L; document.documentElement.dir = LANGUES_UI[L].rtl ? 'rtl' : 'ltr';
+}
+function T(s){ var t = DICO[s] || s, a = arguments; return t.replace(/\{(\d)\}/g, function(m, i){ var v = a[+i + 1]; return v == null ? '—' : String(v); }); }
+/* une phrase traduite (échappée) où {0}… reçoivent du HTML déjà sûr (drapeau + nom de pays) */
+function TH(s){ var t = esc(DICO[s] || s), a = arguments; return t.replace(/\{(\d)\}/g, function(m, i){ var v = a[+i + 1]; return v == null ? '—' : String(v); }); }
+function n0(x){ x = nombre(x); return x == null ? '—' : x.toLocaleString(LOC); }
+
+/* ── les dates (à l'heure du téléphone) ── */
+function jourTexte(j){ var m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(j || ''); if(!m) return '—';
+  try{ return new Date(Date.UTC(+m[1], +m[2] - 1, +m[3], 12)).toLocaleDateString(LOC, {weekday:'long', day:'numeric', month:'long', timeZone:'UTC'}); }catch(e){ return j; } }
+function dateTexte(t){ if(!nombre(t)) return '—'; try{ return new Date(t * 1000).toLocaleDateString(LOC, {day:'numeric', month:'long'}); }catch(e){ return '—'; } }
+function heureTexte(t){ if(!nombre(t)) return '—'; try{ return new Date(t * 1000).toLocaleTimeString(LOC, {hour:'2-digit', minute:'2-digit'}); }catch(e){ return '—'; } }
+function quandTexte(t){ return dateTexte(t) + ', ' + heureTexte(t); }
+function jourLocal(){ var d = new Date(); return d.getUTCFullYear() + '-' + ('0' + (d.getUTCMonth() + 1)).slice(-2) + '-' + ('0' + d.getUTCDate()).slice(-2); }
+
+/* ── les nations : drapeau + nom (le code seul si le téléphone ne connaît pas le nom) ── */
+function drapeau(iso){ iso = String(iso || '').toUpperCase(); if(!/^[A-Z]{2}$/.test(iso)) return ''; return String.fromCodePoint(127397 + iso.charCodeAt(0), 127397 + iso.charCodeAt(1)); }
+var NOMS = null;
+function nomPays(iso){
+  iso = String(iso || '').toUpperCase(); if(!/^[A-Z]{2}$/.test(iso)) return '—';
+  if(NOMS === null){ NOMS = false; try{ NOMS = new Intl.DisplayNames([LOC, 'fr'], {type:'region'}); }catch(e){ NOMS = false; } }
+  var n = null; try{ n = NOMS ? NOMS.of(iso) : null; }catch(e){ n = null; }
+  return n && n !== iso ? n : iso;
+}
+function pays(iso){ if(iso == null) return esc(T('Une autre nation')); var f = drapeau(iso); return (f ? '<span aria-hidden="true">' + f + '</span> ' : '') + esc(nomPays(iso)); }
+function paysTexte(iso){ if(iso == null) return T('Une autre nation'); var f = drapeau(iso); return (f ? f + ' ' : '') + nomPays(iso); }
+function listePays(l){ return Array.isArray(l) && l.length ? l.map(pays).join(', ') : '—'; }
+
+var DISC = {chant:'Chant', danse:'Danse', humour:'Humour', court_metrage:'Court-métrage', arts_visuels:'Arts visuels', musique:'Musique et création sonore',
+  conte:'Conte et parole', gastronomie:'Gastronomie', elegance:'Élégance et culture'};
+function discipline(d){ return DISC[d] ? T(DISC[d]) : '—'; }
+function evTitre(e){
+  if(e.type === 'inscriptions_ouverture') return T('Ouverture des inscriptions');
+  if(e.type === 'inscriptions_cloture') return T('Clôture des inscriptions');
+  if(e.type === 'echauffement') return T('Échauffement : {0}', discipline(e.discipline));
+  if(e.type === 'vote_fin') return T('Fin du vote : {0}', discipline(e.discipline));
+  if(e.type === 'nuit') return T('La Nuit des Nations') + (e.ville ? ' · ' + e.ville : '');
+  if(e.type === 'ceremonie') return T("La cérémonie d'ouverture");
+  return '—';
+}
+
+/* ── l'état ── */
+var ST = {apercu:false, jours:{}, vu:null, etat:'', dernier:0, enCours:false, serveurJours:null, cap:null};
+function valide(r){ return r && typeof r === 'object' && r.v === 1 && typeof r.jour === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(r.jour); }
+function chargerGardes(){
+  var o = lire(CLE, {}), out = {};
+  if(o && typeof o === 'object') Object.keys(o).forEach(function(j){ var x = o[j]; if(x && valide(x.r) && x.r.jour === j) out[j] = {r:x.r, e:typeof x.e === 'string' ? x.e : null, recu:nombre(x.recu) || 0}; });
+  return out;
+}
+function tries(){ return Object.keys(ST.jours).sort().reverse(); }
+function garder(){
+  if(ST.apercu) return;
+  var l = tries(), o = {};
+  l.slice(0, GARDES).forEach(function(j){ o[j] = ST.jours[j]; });
+  if(ST.vu && ST.jours[ST.vu] && !o[ST.vu]) o[ST.vu] = ST.jours[ST.vu];
+  if(!ecrire(CLE, o)){ var k = Object.keys(o).sort(); while(k.length > 1){ delete o[k.shift()]; if(ecrire(CLE, o)) break; } }   /* téléphone plein : les plus anciens partent d'abord */
+}
+
+/* ── le réseau : un seul petit appel, avec l'empreinte du résumé gardé (« 304, rien de nouveau ») ── */
+function appeler(chemin, entetesEnPlus){
+  var ac = typeof AbortController === 'function' ? new AbortController() : null, t = setTimeout(function(){ if(ac) ac.abort(); }, 15000);
+  return fetch(api() + chemin, {headers:entetes(entetesEnPlus), mode:'cors', cache:'no-cache', signal:ac ? ac.signal : undefined})
+    .then(function(r){ clearTimeout(t); return r; }, function(e){ clearTimeout(t); throw e; });
+}
+function capacite(){
+  var c = lire(CLE_CAP, null);
+  if(c && typeof c.ok === 'boolean' && Date.now() - (nombre(c.t) || 0) < CAP_DUREE) return Promise.resolve(c.ok);
+  return appeler('/v1/arene/capacites').then(function(r){ if(!r.ok) throw new Error('http'); return r.json(); }).then(function(j){
+    var ok = !!(j && j.resume && j.resume.actif === true); ecrire(CLE_CAP, {ok:ok, t:Date.now()}); return ok;
+  });
+}
+function actualiser(manuel){
+  if(ST.apercu || !api() || ST.enCours) return;
+  ST.enCours = true; ST.etat = 'maj'; rendreEtat(); rendreActions();
+  if(manuel) try{ localStorage.removeItem(CLE_CAP); }catch(e){}
+  capacite().then(function(ok){
+    ST.cap = ok;
+    if(!ok){ ST.etat = 'indisponible'; return; }
+    /* aucune en-tête posée à la main (elle demanderait une vérification CORS de plus) : avec « no-cache », le navigateur
+       revalide lui-même avec l'empreinte (304 sur le réseau, rien de lourd) ; on compare ensuite l'empreinte reçue à la nôtre */
+    var dernier = tries()[0], e = dernier && ST.jours[dernier].e;
+    return appeler('/v1/arene/resume').then(function(r){
+      if(r.status === 404) try{ localStorage.removeItem(CLE_CAP); }catch(x){}   /* la capacité retirée : elle sera relue */
+      if(!r.ok && r.status !== 304) throw new Error('http ' + r.status);
+      var et = String(r.headers.get('ETag') || '').replace(/^W\//, '').replace(/"/g, '') || null;
+      if(dernier && et && et === e){ ST.jours[dernier].recu = Date.now(); ST.vu = dernier; ST.etat = 'ok'; garder(); return; }
+      if(r.status === 304) throw new Error('304 sans résumé gardé');
+      return r.json().then(function(j){
+        var x = j && j.resume; if(!valide(x)) throw new Error('forme');
+        ST.jours[x.jour] = {r:x, e:et, recu:Date.now()}; ST.vu = x.jour; ST.etat = 'ok'; garder();
+      });
+    });
+  }).catch(function(){ ST.etat = navigator.onLine === false ? 'horsligne' : 'erreur'; })
+    .then(function(){ ST.enCours = false; ST.dernier = Date.now(); rendre(); });
+}
+function chercherJours(){
+  if(ST.apercu || !api() || ST.cap !== true) return;
+  appeler('/v1/arene/resume/jours').then(function(r){ if(!r.ok) throw new Error('http'); return r.json(); }).then(function(j){
+    ST.serveurJours = (j && Array.isArray(j.jours) ? j.jours : []).map(function(x){ return x && x.jour; }).filter(function(x){ return /^\d{4}-\d{2}-\d{2}$/.test(x || ''); });
+    rendreJours();
+  }).catch(function(){ toast(T('Impossible de joindre NEURAVID pour le moment.')); });
+}
+function ouvrirJour(j){
+  if(ST.jours[j]){ ST.vu = j; rendre(); return; }
+  if(ST.apercu || !api()) return;
+  appeler('/v1/arene/resume?jour=' + encodeURIComponent(j)).then(function(r){ if(!r.ok) throw new Error('http'); var et = String(r.headers.get('ETag') || '').replace(/^W\//, '').replace(/"/g, '') || null;
+    return r.json().then(function(o){ var x = o && o.resume; if(!valide(x) || x.jour !== j) throw new Error('forme'); ST.jours[j] = {r:x, e:et, recu:Date.now()}; ST.vu = j; garder(); rendre(); }); })
+    .catch(function(){ toast(T('Impossible de joindre NEURAVID pour le moment.')); });
+}
+
+/* ── ouvrir un autre module (registre des modules : contexte dans sessionStorage « nv_ctx_<id> ») ── */
+function emit(type, payload){
+  var msg = {source:'neuravid', module:MOI, type:type, payload:payload || {}};
+  if(window.NVemit && !window.NVemit.__nvLocal){ try{ window.NVemit(type, msg.payload); }catch(e){} }
+  try{ if(window.flutter_inappwebview) window.flutter_inappwebview.callHandler('nvEvent', msg); }catch(e){}
+  try{ window.dispatchEvent(new CustomEvent('nv:' + type, {detail:msg.payload})); }catch(e){}
+}
+function ouvrir(id, ctx){
+  var base = window.NV_MODULES_BASE ? String(window.NV_MODULES_BASE).replace(/\/?$/, '/') : '', url = base + 'NV_MODULE_' + id + '.html';
+  emit('open_module', {target:'NV' + id, url:url, contexte:ctx || null});
+  try{ if(ctx) sessionStorage.setItem('nv_ctx_' + id, JSON.stringify(ctx)); }catch(e){}
+  if(window.flutter_inappwebview) return;
+  if(window.NVLien && typeof window.NVLien.ouvrir === 'function'){ try{ window.NVLien.ouvrir('NV' + id, ctx); return; }catch(e){} }
+  try{ location.href = url; }catch(e){}
+}
+var toastT = 0;
+function toast(t){ var el = $('toast'); el.textContent = t; el.classList.add('on'); clearTimeout(toastT); toastT = setTimeout(function(){ el.classList.remove('on'); }, 3000); }
+
+/* ── l'affichage ── */
+function courant(){ var x = ST.vu && ST.jours[ST.vu]; return x ? x.r : null; }
+function rendreEtat(){
+  var el = $('etat'), r = courant(), t = '', cls = '';
+  if(ST.apercu) t = T("Aperçu : un exemple de résumé, pour découvrir la page.") + (r ? ' ' + T('Résumé du {0}, calculé à {1}.', jourTexte(r.jour), heureTexte(r.genere)) : '');
+  else if(ST.etat === 'maj') t = T('Mise à jour…');
+  else if(ST.etat === 'indisponible') t = r ? T('Le résumé n’est plus annoncé par NEURAVID. Voici le dernier résumé gardé, du {0}.', jourTexte(r.jour)) : T('Le résumé de la Saison n’est pas encore disponible.');
+  else if(!api()) t = r ? T('Résumé gardé sur ce téléphone, du {0}.', jourTexte(r.jour)) : T('Le résumé de la Saison n’est pas encore disponible.');
+  else if(ST.etat === 'erreur'){ cls = 'hl'; t = T('Impossible de joindre NEURAVID pour le moment.') + (r ? ' ' + T('Résumé gardé sur ce téléphone, du {0}.', jourTexte(r.jour)) : ''); }
+  else if(ST.etat === 'horsligne'){ cls = 'hl'; t = r ? T('Hors connexion : voici le résumé gardé du {0}.', jourTexte(r.jour)) : T('Aucun résumé gardé sur ce téléphone pour l’instant. Connectez-vous une fois pour le recevoir.'); }
+  else if(ST.etat === 'ok' && r){ cls = 'ok'; t = r.jour === tries()[0] ? T('À jour : résumé du {0}, calculé à {1}.', jourTexte(r.jour), heureTexte(r.genere)) : T('Résumé du {0}, calculé à {1}.', jourTexte(r.jour), heureTexte(r.genere)); }
+  else t = r ? T('Résumé du {0}, calculé à {1}.', jourTexte(r.jour), heureTexte(r.genere)) : '';
+  el.className = cls; el.textContent = t; el.hidden = !t;
+}
+function rendreActions(){
+  var h = '';
+  if(!ST.apercu && api()) h += '<button type="button" id="bMaj"' + (ST.enCours ? ' disabled' : '') + '>' + esc(T('Actualiser')) + '</button>';
+  if(courant()) h += '<button type="button" id="bPartager">' + esc(T('Partager le résumé')) + '</button>';
+  $('actions').innerHTML = h;
+}
+function puces(e){
+  var s = '';
+  if(e.annule) s += ' <span class="puce an">' + esc(T('Annulé')) + '</span>';
+  else if(e.reporte) s += ' <span class="puce re">' + esc(T('Reporté')) + '</span>';
+  else if(e.avance) s += ' <span class="puce re">' + esc(T('Avancé')) + '</span>';
+  return s;
+}
+function lienArene(vue, texte){ return '<button type="button" class="lien" data-vue="' + esc(vue) + '">' + esc(texte || T('Voir dans l’Arène (version complète)')) + '</button>'; }
+function phaseTexte(s){
+  if(!s) return '—';
+  if(s.phase === 'bientot') return T('Bientôt : les inscriptions ouvrent le {0}.', dateTexte(s.ouverture));
+  if(s.phase === 'inscriptions') return T('Inscriptions ouvertes jusqu’au {0}.', dateTexte(s.cloture));
+  if(s.phase === 'competition') return T('La compétition est en cours.');
+  if(s.phase === 'nuit') return T('La Nuit des Nations est en direct.');
+  if(s.phase === 'resultats') return T('Les résultats de la Nuit des Nations arrivent.');
+  if(s.phase === 'proclamee') return T('La Nuit des Nations est proclamée.');
+  if(s.phase === 'terminee') return T('La Saison est terminée.');
+  return '—';
+}
+function podium(p){
+  var h = '';
+  [['or', 'Or', 'or'], ['argent', 'Argent', 'ar'], ['bronze', 'Bronze', 'br']].forEach(function(m){
+    var l = p && Array.isArray(p[m[0]]) ? p[m[0]] : [];
+    h += '<span class="med ' + m[2] + '"><i aria-hidden="true"></i><span class="sr">' + esc(T(m[1])) + ' : </span>' + (l.length ? l.map(pays).join(', ') : '—') + '</span>';
+  });
+  return h;
+}
+function rendreContenu(){
+  var r = courant(), h = '';
+  if(!r){ $('contenu').innerHTML = ''; return; }
+  /* la Saison */
+  h += '<section aria-labelledby="hSaison"><h2 id="hSaison">' + esc(T('La Saison des Nations')) + (ST.apercu ? ' <span class="apercu">' + esc(T('Aperçu')) + '</span>' : '') + '</h2>';
+  if(!r.saison) h += '<p class="vide">' + esc(T('Aucune Saison n’est annoncée pour l’instant.')) + '</p>';
+  else {
+    var c = r.chiffres || {};
+    h += '<p style="margin:0 0 10px">' + esc(phaseTexte(r.saison)) + '</p>';
+    h += '<div class="chiffres"><div><b>' + n0(c.inscrits) + '</b><span>' + esc(T('Inscrits')) + '</span></div><div><b>' + n0(c.nations) + '</b><span>' + esc(T('Nations')) + '</span></div>' +
+      '<div><b>' + n0(c.eveil) + '</b><span>' + esc(T('En éveil')) + '</span></div><div><b>' + n0(c.pretes) + '</b><span>' + esc(T('Prêtes')) + '</span></div></div>';
+    h += '<p class="d" style="margin:8px 0 0">' + esc(T('Les nombres ne sont publiés qu’à partir de {0} inscrits par nation.', nombre(c.seuil) ? c.seuil : null)) + '</p>';
+    if(r.eveils === null) h += '<p class="vide">—</p>';
+    else if(Array.isArray(r.eveils) && r.eveils.length) h += '<ul style="margin-top:8px">' + r.eveils.map(function(x){ return '<li>' + (x.etat === 'prete' ? TH('{0} est prête.', pays(x.pays)) : TH('{0} s’éveille.', pays(x.pays))) + ' <span class="d">' + esc(dateTexte(x.at)) + '</span></li>'; }).join('') + '</ul>';
+    h += lienArene('reveil');
+  }
+  h += '</section>';
+  if(r.saison){
+    /* les prochains rendez-vous */
+    h += '<section aria-labelledby="hProchains"><h2 id="hProchains">' + esc(T('Prochains rendez-vous')) + '</h2>';
+    var maint = Date.now() / 1000;
+    if(!Array.isArray(r.prochains)) h += '<p class="vide">—</p>';
+    else if(!r.prochains.length) h += '<p class="vide">' + esc(T('Aucun rendez-vous annoncé pour l’instant.')) + '</p>';
+    else h += '<ul>' + r.prochains.map(function(e){ var fin = nombre(e.fin) || e.at, passe = Math.max(e.at, fin) < maint, enCours = !passe && nombre(e.fin) && e.at <= maint && maint < e.fin;
+      return '<li><div class="l1"><span>' + esc(evTitre(e)) + puces(e) + (enCours && !e.annule ? ' <span class="puce co">' + esc(T('En cours')) + '</span>' : '') + (passe && !e.annule ? ' <span class="puce">' + esc(T('Passé')) + '</span>' : '') + '</span><span class="d">' + esc(quandTexte(e.at)) + '</span></div></li>'; }).join('') + '</ul>';
+    h += lienArene('calendrier');
+    h += '</section>';
+    /* les derniers résultats */
+    h += '<section aria-labelledby="hResultats"><h2 id="hResultats">' + esc(T('Derniers résultats')) + '</h2>';
+    if(!Array.isArray(r.resultats)) h += '<p class="vide">—</p>';
+    else if(!r.resultats.length) h += '<p class="vide">' + esc(T('Aucun résultat validé pour l’instant.')) + '</p>';
+    else h += '<ul>' + r.resultats.map(function(x){
+      var t = discipline(x.discipline) + (x.categorie === 'espoirs' ? ' · ' + T('Espoirs') : x.categorie === 'pont' ? ' · ' + T('Ponts entre nations') : '');
+      var etat = x.corrige ? '<span class="puce re">' + esc(T('Résultat corrigé')) + '</span>' : x.definitif ? '<span class="puce co">' + esc(T('Définitif')) + '</span>' : '<span class="puce">' + esc(T('Peut encore être contesté')) + '</span>';
+      var corps = x.categorie === 'pont' ? esc(T('Premier Pont :')) + ' ' + ((x.pont || []).map(function(p){ return listePays(p); }).join(' / ') || '—') : podium(x.podium);
+      return '<li><div class="l1"><b>' + esc(t) + '</b>' + etat + '</div><div>' + corps + '</div><div class="d">' + esc(T('Validé le {0}', dateTexte(x.valideA))) + '</div></li>'; }).join('') + '</ul>';
+    h += lienArene('vote');
+    h += '</section>';
+    /* la cérémonie */
+    if(r.ceremonie){
+      var ce = r.ceremonie, et = {programmee:'Programmée', figee:'Ordre du défilé tiré au sort', en_direct:'En direct', terminee:'Terminée', annulee:'Annulée'}[ce.etat];
+      h += '<section aria-labelledby="hCe"><h2 id="hCe">' + esc(T("La cérémonie d'ouverture")) + '</h2><div class="l1"><span>' + esc(et ? T(et) : '—') + (ce.etat !== 'annulee' ? puces({reporte:ce.reporte, avance:ce.avance}) : '') +
+        '</span><span class="d">' + esc(quandTexte(ce.debut)) + '</span></div><p class="d" style="margin:6px 0 0">' + esc(T('Gratuit pour tout le monde, en direct dans la Salle Baobab.')) + '</p>' + lienArene('ceremonie') + '</section>';
+    }
+    /* la Nuit */
+    if(r.nuit){
+      var n = r.nuit, en = {programmee:'Programmée', en_direct:'En direct', resultats:'Résultats en cours', proclamee:'Proclamée', annulee:'Annulée'}[n.etat];
+      h += '<section aria-labelledby="hNuit"><h2 id="hNuit">' + esc(T('La Nuit des Nations')) + '</h2><div class="l1"><span>' + esc(en ? T(en) : '—') + (n.etat === 'programmee' ? puces({reporte:n.reporte, avance:n.avance}) : '') +
+        (n.sousReserve ? ' <span class="puce">' + esc(T('Sous réserve d’une réclamation')) + '</span>' : '') + '</span><span class="d">' + esc(quandTexte(n.debut)) + '</span></div>';
+      if(n.ville && n.ville.nom) h += '<p class="d" style="margin:4px 0 0">' + esc(T('À {0}', n.ville.nom)) + (n.ville.pays ? ' · ' + pays(n.ville.pays) : '') + '</p>';
+      if(Array.isArray(n.nationAnnee) && n.nationAnnee.length) h += '<p style="margin:8px 0 0"><b>' + esc(T('Nation de l’année')) + ' :</b> ' + listePays(n.nationAnnee) + '</p>';
+      if(Array.isArray(n.pontAnnee) && n.pontAnnee.length) h += '<p style="margin:4px 0 0"><b>' + esc(T('Pont de l’année')) + ' :</b> ' + n.pontAnnee.map(listePays).join(' / ') + '</p>';
+      if(Array.isArray(n.tableau) && n.tableau.length){
+        h += '<p class="d" style="margin:10px 0 4px">' + esc(n.provisoire ? T('Tableau provisoire') : T('Tableau des médailles')) + '</p><table><thead><tr><th scope="col">' + esc(T('Nation')) + '</th><th scope="col">' + esc(T('Or')) + '</th><th scope="col">' + esc(T('Argent')) + '</th><th scope="col">' + esc(T('Bronze')) + '</th></tr></thead><tbody>' +
+          n.tableau.map(function(t){ return '<tr><td>' + pays(t.pays) + '</td><td>' + n0(t.or) + '</td><td>' + n0(t.argent) + '</td><td>' + n0(t.bronze) + '</td></tr>'; }).join('') + '</tbody></table>';
+      }
+      h += lienArene('nuit') + '</section>';
+    }
+  }
+  if(r.tronque) h += '<p class="d">' + esc(T('Liste raccourcie pour que le résumé reste léger.')) + '</p>';
+  if(r.incomplet) h += '<p class="d">' + esc(T('Une partie du résumé n’a pas pu être lue : « — » veut dire inconnu.')) + '</p>';
+  /* les jours */
+  h += '<section aria-labelledby="hJours"><h2 id="hJours">' + esc(T('Jours précédents')) + '</h2><div class="jours" id="jours"></div></section>';
+  $('contenu').innerHTML = h;
+  rendreJours();
+}
+function rendreJours(){
+  var el = $('jours'); if(!el) return;
+  var l = tries(), h = '';
+  if(l.length) h += '<p class="d" style="margin:0">' + esc(T('Gardés sur ce téléphone, lisibles sans connexion :')) + '</p>' +
+    l.map(function(j){ return '<button type="button" data-jour="' + j + '"' + (j === ST.vu ? ' aria-current="true"' : '') + '>' + esc(jourTexte(j)) + '</button>'; }).join('');
+  if(ST.serveurJours){
+    var autres = ST.serveurJours.filter(function(j){ return !ST.jours[j]; });
+    h += autres.length ? '<p class="d" style="margin:10px 0 0">' + esc(T('Sur NEURAVID :')) + '</p>' + autres.map(function(j){ return '<button type="button" data-jour="' + j + '">' + esc(jourTexte(j)) + '</button>'; }).join('')
+      : '<p class="d" style="margin:10px 0 0">' + esc(T('Aucun autre jour gardé par NEURAVID.')) + '</p>';
+  } else if(!ST.apercu && api() && ST.cap === true) h += '<div><button type="button" class="lien" id="bJours">' + esc(T('Chercher d’autres jours')) + '</button></div>';
+  el.innerHTML = h || '<p class="vide">—</p>';
+}
+function rendrePied(){
+  var h = '<label>' + esc(T('Langue')) + ' <select id="langue">' + Object.keys(LANGUES_UI).map(function(k){ return '<option value="' + k + '"' + (k === L ? ' selected' : '') + '>' + esc(LANGUES_UI[k].nom) + '</option>'; }).join('') + '</select></label>';
+  if(LANGUES_UI[L].relire) h += '<span>' + esc(T('Traduction en cours de relecture.')) + '</span>';
+  h += '<span>' + esc(T('Page légère : elle garde les {0} derniers résumés pour les lire sans connexion, et ne montre aucun nom de personne.', GARDES)) + '</span>';
+  $('pied').innerHTML = h;
+}
+function rendre(){
+  document.title = T('La Saison en bref') + ' · NEURAVID';
+  $('titre').textContent = T('La Saison en bref');
+  $('soustitre').textContent = T('L’essentiel du jour de la Saison des Nations, en version légère.');
+  rendreEtat(); rendreActions(); rendreContenu(); rendrePied();
+}
+
+/* ── le partage : un texte court, à envoyer par message ── */
+function texteResume(r){
+  var l = [T('La Saison en bref') + ' · ' + jourTexte(r.jour)];
+  if(!r.saison) l.push(T('Aucune Saison n’est annoncée pour l’instant.'));
+  else {
+    var c = r.chiffres || {};
+    l.push(phaseTexte(r.saison));
+    l.push(T('Inscrits') + ' : ' + n0(c.inscrits) + ' · ' + T('Nations') + ' : ' + n0(c.nations) + ' · ' + T('En éveil') + ' : ' + n0(c.eveil) + ' · ' + T('Prêtes') + ' : ' + n0(c.pretes));
+    var maint = Date.now() / 1000;    /* un résumé ancien relu hors connexion : jamais un rendez-vous passé présenté comme à venir */
+    (r.prochains || []).filter(function(e){ return Math.max(e.at, nombre(e.fin) || e.at) >= maint; }).slice(0, 3).forEach(function(e){
+      l.push('• ' + evTitre(e) + ' — ' + quandTexte(e.at) + (e.annule ? ' (' + T('Annulé') + ')' : e.reporte ? ' (' + T('Reporté') + ')' : e.avance ? ' (' + T('Avancé') + ')' : '')); });
+    (r.resultats || []).slice(0, 3).forEach(function(x){
+      if(x.categorie === 'pont') l.push('• ' + discipline(x.discipline) + ' — ' + T('Premier Pont :') + ' ' + ((x.pont || []).map(function(p){ return (p || []).map(paysTexte).join(' + '); }).join(' / ') || '—'));
+      else l.push('• ' + discipline(x.discipline) + ' — ' + T('Or') + ' : ' + (((x.podium || {}).or || []).map(paysTexte).join(', ') || '—'));
+    });
+    if(r.nuit && Array.isArray(r.nuit.nationAnnee) && r.nuit.nationAnnee.length) l.push(T('Nation de l’année') + ' : ' + r.nuit.nationAnnee.map(paysTexte).join(', '));
+  }
+  l.push('https://www.neuravid.com/');
+  return l.join('\n');
+}
+function partager(){
+  var r = courant(); if(!r) return;
+  var t = texteResume(r), copier = function(){
+    var fait = function(){ toast(T('Résumé copié.')); };
+    try{ if(navigator.clipboard && navigator.clipboard.writeText){ navigator.clipboard.writeText(t).then(fait, function(){ toast(T('Impossible de copier sur ce téléphone.')); }); return; } }catch(e){}
+    toast(T('Impossible de copier sur ce téléphone.'));
+  };
+  emit('saison_resume_partage', {jour:r.jour});   /* une simple trace : le partage passe par navigator.share (le pont de l'application le prend) */
+  if(navigator.share) navigator.share({title:T('La Saison en bref'), text:t}).catch(function(e){ if(e && e.name !== 'AbortError') copier(); });
+  else copier();
+}
+
+/* ── l'aperçu (démonstration seulement) ── */
+function demoJours(){
+  var now = Math.floor(Date.now() / 1000), J = 86400, j0 = new Date(now * 1000), out = {};
+  function jour(t){ var d = new Date(t * 1000); return d.getUTCFullYear() + '-' + ('0' + (d.getUTCMonth() + 1)).slice(-2) + '-' + ('0' + d.getUTCDate()).slice(-2); }
+  var r = {v:1, jour:jour(now), genere:now - 1200, serveurMaintenant:now - 1200, saison:{id:'s2027', ouverture:now - 40 * J, cloture:now - 12 * J, phase:'competition'},
+    chiffres:{inscrits:4826, nations:41, eveil:23, pretes:18, seuil:5}, eveils:[{pays:'CM', etat:'prete', at:now - 5 * 3600}, {pays:'KE', etat:'eveil', at:now - 30 * 3600}],
+    prochains:[{id:'ep_a1', type:'vote_fin', at:now + 2 * J, fin:null, annule:false, discipline:'danse'}, {id:'ec_b2', type:'echauffement', at:now + 3 * J, fin:now + 6 * J, annule:false, discipline:'conte'},
+      {id:'ce_c3', type:'ceremonie', at:now + 9 * J, fin:now + 9 * J + 7200, annule:false}, {id:'nu_d4', type:'nuit', at:now + 30 * J, fin:null, annule:false, ville:'Dakar', reporte:true}],
+    resultats:[{id:'ep_e5', discipline:'chant', categorie:'generale', phase:'continentales', definitif:false, corrige:false, valideA:now - 8 * 3600, podium:{or:['SN'], argent:['GH'], bronze:['GN']}},
+      {id:'ep_f6', discipline:'gastronomie', categorie:'espoirs', phase:'continentales', definitif:true, corrige:false, valideA:now - 2 * J, podium:{or:['CI'], argent:['ML'], bronze:['BF']}},
+      {id:'ep_g7', discipline:'danse', categorie:'generale', phase:'continentales', definitif:true, corrige:true, valideA:now - 3 * J, podium:{or:['NG'], argent:['CD'], bronze:['TZ']}}],
+    nuit:{id:'nu_d4', etat:'programmee', debut:now + 30 * J, ville:{nom:'Dakar', pays:'SN'}, reporte:true, sousReserve:false, tableau:null, nationAnnee:null, pontAnnee:null},
+    ceremonie:{id:'ce_c3', etat:'programmee', debut:now + 9 * J, reporte:false}};
+  out[r.jour] = {r:r, e:'apercu-1', recu:Date.now()};
+  var r2 = JSON.parse(JSON.stringify(r)); r2.jour = jour(now - J); r2.genere = now - J - 3600; r2.chiffres = {inscrits:4790, nations:40, eveil:23, pretes:17, seuil:5}; r2.eveils = [{pays:'KE', etat:'eveil', at:now - 30 * 3600}]; r2.resultats = r2.resultats.slice(1);
+  out[r2.jour] = {r:r2, e:'apercu-2', recu:Date.now()};
+  return out;
+}
+
+/* ── le démarrage ── */
+function demarrer(){
+  poserLangue(langueDetectee());
+  ST.apercu = !!window.NV_DEMO && !api(); posercles();
+  ST.jours = ST.apercu ? demoJours() : chargerGardes();
+  ST.vu = tries()[0] || null;
+  rendre();
+  document.addEventListener('click', function(ev){
+    var b = ev.target && ev.target.closest ? ev.target.closest('button') : null; if(!b) return;
+    if(b.id === 'bMaj') actualiser(true);
+    else if(b.id === 'bPartager') partager();
+    else if(b.id === 'bJours') chercherJours();
+    else if(b.getAttribute('data-jour')) ouvrirJour(b.getAttribute('data-jour'));
+    else if(b.getAttribute('data-vue')) ouvrir('Arena', {vue:b.getAttribute('data-vue'), depuis:'saison_en_bref'});
+  });
+  document.addEventListener('change', function(ev){
+    if(ev.target && ev.target.id === 'langue'){ var l = ev.target.value; if(!LANGUES_UI[l]) return; ecrire('nv_ui_langue', l); NOMS = null; poserLangue(l); rendre(); var s = $('langue'); if(s) s.focus(); }
+  });
+  window.addEventListener('online', function(){ actualiser(false); });
+  document.addEventListener('visibilitychange', function(){ if(document.visibilityState === 'visible' && Date.now() - ST.dernier > RELIRE_APRES) actualiser(false); });
+  /* la page elle-même reste dans le téléphone (réseau d'abord, la copie gardée sans réseau) : le même service que l'accueil */
+  try{ if('serviceWorker' in navigator && location.protocol === 'https:' && !ST.apercu) navigator.serviceWorker.register(typeof window.NV_SW_URL === 'string' && window.NV_SW_URL ? window.NV_SW_URL : 'sw-tamtam.js').catch(function(){}); }catch(e){}
+  if(!ST.apercu && api()) actualiser(false);
+  window.NVSaison = {etat:function(){ return {etat:ST.etat, vu:ST.vu, jours:tries(), apercu:ST.apercu, langue:L}; }, texte:function(){ var r = courant(); return r ? texteResume(r) : null; }};
+}
+
+demarrer();
+})();
+
+</script>
+</body>
+</html>
