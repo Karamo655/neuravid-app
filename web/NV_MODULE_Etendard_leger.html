@@ -307,6 +307,17 @@ body.feuille-on{overflow:hidden}
 #toast{position:fixed;inset-inline:16px;bottom:calc(var(--dockH) + 16px);z-index:60;max-width:560px;margin:0 auto;padding:12px 16px;border-radius:14px;background:var(--ivoire);color:#1a1200;font-weight:650;box-shadow:0 10px 30px rgba(0,0,0,.4);opacity:0;transform:translateY(8px);transition:opacity .2s,transform .2s;pointer-events:none}
 #toast.on{opacity:1;transform:none}
 @media (min-width:1024px){#scene{max-width:900px}.plans{grid-template-columns:repeat(4,minmax(0,1fr))}.entrees{max-width:640px}}
+/* les partenaires de la Saison (10 nov. 2026) */
+.ps-cagnotte{display:flex;gap:14px;align-items:center}
+.ps-trente{flex:0 0 auto;width:78px;height:86px;display:grid;place-items:center;clip-path:polygon(50% 0,100% 25%,100% 75%,50% 100%,0 75%,0 25%);background:linear-gradient(160deg,var(--or,#f4b942),#c98a12);color:#1a1205}
+.ps-trente b{font:900 1.35em/1 var(--sans)}
+.ps-p{align-items:center}
+.ps-bl{display:grid;place-items:center;font-weight:900;background-size:cover;background-position:center}
+.ps-o.principal{border-color:rgba(244,185,66,.55)}
+.ps-part{color:var(--or,#f4b942)}
+.ps-apercu{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:0 0 12px}
+.ps-entree{margin-top:10px;width:100%}
+.ps-sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;margin:0}
 </style>
 </head>
 <body>
@@ -339,6 +350,13 @@ body.feuille-on{overflow:hidden}
     <h2 class="titre">Demander une campagne à NEURAVID</h2>
     <p class="sous">Vous décrivez ce que vous voulez, NEURAVID vous répond avec une offre. Toute promotion payée sur NEURAVID passe par L'Étendard.</p>
     <div id="corpsDemandes"></div>
+  </section>
+
+  <section class="vue" data-v="saison" aria-label="Les partenaires de la Saison des Nations">
+    <h2 class="titre">Les partenaires de la Saison des Nations</h2>
+    <p class="sous">Accompagnez une discipline, une nation ou la Nuit des Nations. Une part du prix va à la cagnotte de la Saison, pour les gagnants et les Fonds des Nations.</p>
+    <div id="corpsSaison"></div>
+    <p id="psAnnonce" class="ps-sr" aria-live="polite"></p>
   </section>
 
   <section class="vue" data-v="mes" aria-label="Mes sponsorings">
@@ -444,8 +462,10 @@ function compteActuel(){ var u = window.NV_USER || {}; return u.id != null ? Str
 function cleCompte(k){ var id = compteActuel(); return id ? k + '_' + id.replace(/[^\w.-]/g, '').slice(0, 40) : k; }
 var PAS_ICI = 'Ce n\'est pas encore possible ici. Ouvrez L\'Étendard dans l\'application NEURAVID.';
 function drapeau(iso){ iso = String(iso || '').toUpperCase(); if(!/^[A-Z]{2}$/.test(iso)) return ''; return String.fromCodePoint(0x1F1E6 + iso.charCodeAt(0) - 65, 0x1F1E6 + iso.charCodeAt(1) - 65); }
-function nomPays(iso){ iso = String(iso || '').toUpperCase(); if(!/^[A-Z]{2}$/.test(iso)) return ''; try{ return new Intl.DisplayNames([window.NV_LANGUE_UI || 'fr'], {type:'region'}).of(iso) || iso; }catch(e){ return iso; } }
-function nomLangue(c){ try{ var n = new Intl.DisplayNames([window.NV_LANGUE_UI || 'fr'], {type:'language'}).of(c); if(n && n !== c) return n.charAt(0).toLocaleUpperCase() + n.slice(1); }catch(e){ dbg(e); } return LANGUES_NOMS[c] || c; }
+/* les noms des pays et des langues : dans la langue choisie si le téléphone la connaît, sinon dans la langue officielle du pays (NV_LOC), jamais l'anglais par défaut */
+function locNoms(){ return window.NV_LOC || window.NV_LANGUE_UI || 'fr'; }
+function nomPays(iso){ iso = String(iso || '').toUpperCase(); if(!/^[A-Z]{2}$/.test(iso)) return ''; try{ return new Intl.DisplayNames([locNoms()], {type:'region'}).of(iso) || iso; }catch(e){ return iso; } }
+function nomLangue(c){ try{ var n = new Intl.DisplayNames([locNoms()], {type:'language'}).of(c); if(n && n !== c) return n.charAt(0).toLocaleUpperCase() + n.slice(1); }catch(e){ dbg(e); } return LANGUES_NOMS[c] || c; }
 function jourDe(t){ if(!t) return '—'; try{ var d = new Date(t), a = new Date(); if(d.toDateString() === a.toDateString()) return 'Aujourd\'hui'; var h = new Date(a.getTime() - 86400000); if(d.toDateString() === h.toDateString()) return 'Hier'; return d.toLocaleDateString(LOC(), {day:'numeric', month:'short', year:d.getFullYear() === a.getFullYear() ? undefined : 'numeric'}); }catch(e){ return ''; } }
 function dateCourte(t){ if(!t) return '—'; try{ return new Date(t).toLocaleDateString(LOC(), {day:'numeric', month:'short'}); }catch(e){ return '—'; } }
 function empreinte(s){ s = String(s); var h = 5381; for(var i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) | 0; return (h >>> 0).toString(36); }
@@ -495,7 +515,7 @@ var CACHE = {}, ECH = {}, RY = {jusqua:0}, SEQ = {};
 function alea(ms){ return Math.round(ms * (0.6 + Math.random() * 0.8)); }
 function noterAttente(r){ try{ var h = r && r.headers && r.headers.get('Retry-After'); if(!h) return; var s = +h, ms = isFinite(s) ? s * 1000 : Date.parse(h) - Date.now(); if(ms > 0){ RY.jusqua = Math.max(RY.jusqua, Date.now() + Math.min(ms, 300000)); dbg('le serveur demande d\'attendre ' + Math.round(Math.min(ms, 300000) / 1000) + ' s'); } }catch(e){ dbg(e); } }
 function noterEchec(k){ var e = ECH[k] = ECH[k] || {n:0}; e.n++; e.jusqua = Date.now() + Math.min(300000, alea(2000 * Math.pow(2, Math.min(e.n, 8)))); }
-function lireS(chemin, cb, ttl){
+function lireS(chemin, cb, ttl, surRefus){
   var b = api(); if(!b){ cb(null); return; }
   var k = (compteActuel() || '-') + '|' + chemin, c = CACHE[k], t = ttl != null ? ttl : 30000;
   if(c && t > 0 && Date.now() - c.at < t){ cb(c.d); return; }
@@ -504,7 +524,10 @@ function lireS(chemin, cb, ttl){
   var ctl = window.AbortController ? new AbortController() : null, fini = false, n = SEQ[k] = (SEQ[k] || 0) + 1;   /* une réponse plus ancienne qu'une autre n'écrase jamais la plus récente */
   var tm = setTimeout(function(){ if(ctl) try{ ctl.abort(); }catch(e){ dbg(e); } if(!fini){ fini = true; noterEchec(k); if(n === SEQ[k]) cb(c ? c.d : null, true); } }, 12000);
   fetch(b + chemin, {mode:'cors', headers:entetes(), signal:ctl ? ctl.signal : undefined})
-    .then(function(r){ noterAttente(r); if(r.status === 401 || r.status === 403) sessionExpiree(); return r.ok ? r.json() : null; })
+    .then(function(r){ noterAttente(r);
+      /* 401 / 403 : la session a expiré — sauf un 403 « rôle requis » (le compte n'a pas ce rôle : la session est bonne) */
+      if(r.status === 401 || r.status === 403) return r.json().catch(function(){ return null; }).then(function(b){ if(!(surRefus && surRefus(r.status, b)) && !(r.status === 403 && b && b.erreur === 'role_requis')) sessionExpiree(); return null; });
+      return r.ok ? r.json() : null; })
     .then(function(d){ clearTimeout(tm); if(fini) return; fini = true; if(n !== SEQ[k]) return; if(d != null){ CACHE[k] = {at:Date.now(), d:d}; delete ECH[k]; } else noterEchec(k); cb(d, d == null); })
     .catch(function(e){ clearTimeout(tm); dbg(e); if(fini) return; fini = true; if(n !== SEQ[k]) return; noterEchec(k); cb(c ? c.d : null, true); });
 }
@@ -518,7 +541,7 @@ function poster(chemin, corps, cb, cleIdem, ms, annul){
   var h = {'Idempotency-Key':cleIdem || idem('et')}; if(!fd) h['Content-Type'] = 'application/json';
   fetch(b + chemin, {method:'POST', mode:'cors', headers:entetes(h), body:fd ? corps : JSON.stringify(corps || {}), signal:ctl ? ctl.signal : undefined})
     .then(function(r){ noterAttente(r); return r.json().catch(function(){ return {}; }).then(function(d){ return {s:r.status, d:d || {}}; }); })
-    .then(function(x){ clearTimeout(tm); if(fini) return; fini = true; if(x.s === 401 || x.s === 403) sessionExpiree(); cb(x.d, x.s); })
+    .then(function(x){ clearTimeout(tm); if(fini) return; fini = true; if(x.s === 401 || (x.s === 403 && !(x.d && x.d.erreur === 'role_requis'))) sessionExpiree(); cb(x.d, x.s); })
     .catch(function(e){ clearTimeout(tm); dbg(e); if(fini) return; fini = true; cb(null, 0); });
 }
 /* un refus clair pour un fichier trop lourd (413), sinon la raison du serveur */
@@ -3456,6 +3479,401 @@ document.addEventListener('click', function(e){
   }
 });
 
+/* ════════════════════════════════════════════════════════════════════════
+   10 novembre 2026 — LES PARTENAIRES DE LA SAISON DES NATIONS (troisième plan, étape 10)
+   Une marque accompagne UNE discipline, UNE nation ou la Nuit des Nations, à prix fixe publié.
+   La part de la cagnotte (30 % dans le règlement : la part « partenaires ») vient du serveur (partPb) et s'affiche sur chaque offre,
+   chaque partenaire et dans le compteur. Une marque n'est montrée comme partenaire qu'une fois cette part ENTIÈREMENT reçue.
+   Serveur : economie/neuravid_economie/partenaires_saison.py — routes /v1/recolte/saison/partenaires…
+   Rien n'apparaît sans la capacité « partenaires » de /v1/recolte/capacites (l'espace de l'équipe : « equipe » et le rôle finance).
+   Les exemples : seulement dans l'aperçu.
+   ════════════════════════════════════════════════════════════════════════ */
+var PS_DISC = {chant:'Chant', danse:'Danse', humour:'Humour', court_metrage:'Court-métrage', arts_visuels:'Arts visuels', musique:'Musique et création sonore', conte:'Conte et parole', gastronomie:'Gastronomie', elegance:'Élégance et culture'};
+var PS_GENRES = [['', 'Tout'], ['nuit', 'La Nuit des Nations'], ['discipline', 'Les disciplines'], ['nation', 'Les nations']];
+var PS_RANGS = {principal:'Partenaire principal', officiel:'Partenaire officiel'};
+var PS_EMPL = {liste_etendard:'Votre marque sur la page des partenaires de la Saison, dans L\'Étendard', epreuves_discipline:'« Avec le soutien de » à côté des épreuves de la discipline, dans The Nations\' Arena',
+  carte_nation:'« Avec le soutien de » sur la carte de la nation, dans The Nations\' Arena', bloc_nuit_arene:'« Avec le soutien de » dans le bloc de la Nuit des Nations, dans The Nations\' Arena',
+  bloc_nuit_accueil:'« Avec le soutien de » dans le bloc de la Nuit des Nations, sur l\'accueil de NEURAVID'};
+var PS_ETATS = {demandee:'Envoyée', acceptee:'Acceptée, contrat à signer', signee:'Contrat signé', active:'Partenaire de la Saison', refusee:'Refusée', retiree:'Retirée', expiree:'Expirée', rompue:'Partenariat arrêté'};
+var PS_SUITE = {demandee:'NEURAVID lit votre demande et vous répond.', acceptee:'NEURAVID vous envoie le contrat. Une autre personne de NEURAVID le signe avec vous.',
+  signee:'Votre marque apparaît dès que la part de la cagnotte est entièrement reçue.', active:'Votre marque est montrée aux endroits prévus par l\'offre.',
+  refusee:'Vous pouvez faire une nouvelle demande.', retiree:'Vous pouvez faire une nouvelle demande.', expiree:'Le contrat n\'a pas été signé dans les 30 jours : la place est libérée. Vous pouvez faire une nouvelle demande.',
+  rompue:'Ce que la cagnotte a déjà reçu y reste, pour les gagnants et les Fonds des Nations.'};
+var PS_REGLES = ['Un partenaire ne choisit jamais les gagnants, ne vote pas et ne siège dans aucun jury.',
+  'Accompagner une nation ne lui donne aucun avantage : la part de la cagnotte va à la cagnotte commune de la Saison, pas à cette nation.',
+  'Votre marque est montrée seulement quand la part de la cagnotte est entièrement reçue.',
+  'Réservé aux marques de 18 ans et plus, avec un compte vérifié par NEURAVID.',
+  'La Saison est ouverte dès 13 ans : seuls les secteurs ouverts à tous les âges sont acceptés.',
+  'Une seule marque par secteur pour une même discipline, une même nation ou la Nuit.',
+  'Une personne de NEURAVID accepte votre demande ; une autre signe le contrat.'];
+var PS_SECTEURS_OUVERTS = ['alimentation', 'mode', 'tech', 'education', 'voyage', 'sport', 'spectacle', 'sante', 'commerce', 'immobilier', 'transport', 'telecom', 'cause'];
+var PS_RELIRE_MS = 600000;   /* la capacité : relue au plus toutes les 10 minutes en revenant sur la vue */
+var PS = {cap:undefined, capAt:0, etat:'attente', d:null, moi:{etat:'attente', d:null}, file:{etat:'attente', d:null}, filtre:'', envoi:{}, deux:{}, cles:{}, saisies:{}, apercu:false, form:null};
+
+function psApercu(){ return !!window.NV_DEMO && !api(); }
+function psEquipe(){ var u = window.NV_USER || {}, r = u.roles; return Array.isArray(r) ? r.indexOf('finance') >= 0 : typeof r === 'string' && /(^|,)\s*finance\s*(,|$)/.test(r); }
+function psEquipeOk(){ return !PS.apercu && psEquipe() && !!(PS.cap && PS.cap.equipe === true) && PS.file.etat !== 'refuse'; }
+/* un montant du serveur est en plus petite unité de la devise de sa Saison (centimes…) */
+function psArgent(n, devise){
+  if(typeof n !== 'number' || !isFinite(n) || n < 0 || !/^[A-Z]{3}$/.test(String(devise || ''))) return '—';
+  try{ var f = new Intl.NumberFormat(LOC(), {style:'currency', currency:devise}), ch = f.resolvedOptions().maximumFractionDigits; return f.format(n / Math.pow(10, ch)); }catch(e){ return '—'; }
+}
+function psCible(g, c){
+  if(g === 'nuit') return 'La Nuit des Nations';
+  if(g === 'discipline') return PS_DISC[c] || '—';
+  if(g === 'nation') return /^[A-Z]{2}$/.test(String(c || '')) ? drapeau(c) + ' ' + nomPays(c) : '—';
+  return '—';
+}
+function psDate(t){ return typeof t === 'number' && isFinite(t) && t > 0 ? dateCourte(t * 1000) : '—'; }
+function psPour(pb){ return typeof pb === 'number' && isFinite(pb) && pb > 0 && pb <= 10000 ? Math.round(pb / 100) + ' %' : '—'; }
+
+/* ── ce que le serveur envoie, vérifié ── */
+function psOffre(o){
+  if(!o || typeof o !== 'object' || typeof o.id !== 'string' || ['nuit', 'discipline', 'nation'].indexOf(o.genre) < 0) return null;
+  return {id:txt(o.id, 64), genre:o.genre, cible:txt(o.cible, 20), rang:PS_RANGS[o.rang] ? o.rang : 'officiel', places:entier(o.places), libres:n0(o.libres),
+    prix:n0(o.prix), part:n0(o.partCagnotte), empl:liste(o.emplacements, 8).filter(function(e){ return PS_EMPL[e]; }), fin:n0(o.finDemandes), ouverte:o.ouverte === true,
+    devise:/^[A-Z]{3}$/.test(String(o.devise || '')) ? o.devise : null};
+}
+function psPartenaire(p){
+  if(!p || typeof p !== 'object' || typeof p.id !== 'string' || ['nuit', 'discipline', 'nation'].indexOf(p.genre) < 0) return null;
+  return {id:txt(p.id, 64), genre:p.genre, cible:txt(p.cible, 20), rang:PS_RANGS[p.rang] ? p.rang : 'officiel', nom:txt(p.nom, 60) || '—', site:urlSure(p.site), logo:urlSure(p.logo),
+    part:n0(p.partCagnotte), prix:n0(p.prix), depuis:n0(p.depuis)};
+}
+function psVue(d){
+  if(!d || typeof d !== 'object') return null;
+  var s = d.saison && typeof d.saison === 'object' ? {id:txt(d.saison.id, 40), nom:txt(d.saison.nom, 80), devise:/^[A-Z]{3}$/.test(String(d.saison.devise || '')) ? d.saison.devise : null, etat:txt(d.saison.etat, 20)} : null;
+  var c = d.cagnotte && typeof d.cagnotte === 'object' ? d.cagnotte : {};
+  return {saison:s, partPb:n0(d.partPb), offres:liste(d.offres, 200).map(psOffre).filter(Boolean), partenaires:liste(d.partenaires, 200).map(psPartenaire).filter(Boolean),
+    recu:n0(c.recu), signe:n0(c.signe)};
+}
+
+/* ── l'aperçu : des exemples, marqués « Aperçu », jamais envoyés ── */
+function psDemo(){
+  var j = Math.floor(Date.now() / 1000), J = 86400;
+  return psVue({saison:{id:'apercu', nom:'Saison des Nations', devise:'USD', etat:'ouverte'}, partPb:3000, cagnotte:{recu:1500000, signe:900000},
+    offres:[{id:'of_ap_nuit', genre:'nuit', cible:'nuit', rang:'principal', places:1, libres:0, prix:5000000, partCagnotte:1500000, emplacements:['liste_etendard', 'bloc_nuit_arene', 'bloc_nuit_accueil'], finDemandes:j + 40 * J, ouverte:false},
+      {id:'of_ap_nuit2', genre:'nuit', cible:'nuit', rang:'officiel', places:4, libres:3, prix:2000000, partCagnotte:600000, emplacements:['liste_etendard', 'bloc_nuit_arene', 'bloc_nuit_accueil'], finDemandes:j + 40 * J, ouverte:true},
+      {id:'of_ap_chant', genre:'discipline', cible:'chant', rang:'principal', places:1, libres:1, prix:1500000, partCagnotte:450000, emplacements:['liste_etendard', 'epreuves_discipline'], finDemandes:j + 30 * J, ouverte:true},
+      {id:'of_ap_danse', genre:'discipline', cible:'danse', rang:'principal', places:1, libres:1, prix:1500000, partCagnotte:450000, emplacements:['liste_etendard', 'epreuves_discipline'], finDemandes:j + 30 * J, ouverte:true},
+      {id:'of_ap_gn', genre:'nation', cible:'GN', rang:'officiel', places:3, libres:2, prix:500000, partCagnotte:150000, emplacements:['liste_etendard', 'carte_nation'], finDemandes:j + 20 * J, ouverte:true},
+      {id:'of_ap_sn', genre:'nation', cible:'SN', rang:'officiel', places:3, libres:3, prix:500000, partCagnotte:150000, emplacements:['liste_etendard', 'carte_nation'], finDemandes:j + 20 * J, ouverte:true}],
+    partenaires:[{id:'pd_ap_1', genre:'nuit', cible:'nuit', rang:'principal', nom:'Kola Fresh', site:'', secteur:'alimentation', prix:5000000, partCagnotte:1500000, depuis:j - 3 * J},
+      {id:'pd_ap_2', genre:'nation', cible:'GN', rang:'officiel', nom:'Tissus de Kankan', site:'', secteur:'mode', prix:500000, partCagnotte:150000, depuis:j - J}]});
+}
+
+/* ── le réseau ── */
+function psCapacite(cb){
+  if(PS.cap !== undefined && Date.now() - PS.capAt < PS_RELIRE_MS){ cb(); return; }
+  if(psApercu()){ PS.cap = {actif:true}; PS.capAt = Date.now(); PS.apercu = true; cb(); return; }
+  if(!api()){ cb(); return; }
+  lireS('/v1/recolte/capacites', function(d, err){
+    if(err && !d){ cb(); return; }
+    var c = d && d.partenaires && typeof d.partenaires === 'object' ? d.partenaires : null;
+    PS.cap = c && (c.actif === true || c.equipe === true) ? {actif:c.actif === true, equipe:c.equipe === true, hotes:liste(c.hotesLogos, 10).filter(function(h){ return typeof h === 'string' && /^[a-z0-9.-]{3,80}$/.test(h); })} : null;
+    PS.capAt = Date.now(); cb();
+  }, 0);
+}
+function psOuvert(){ return !!(PS.cap && PS.cap.actif); }
+function psLireFile(force){
+  if(!psEquipe() || !PS.cap || PS.cap.equipe !== true) return;
+  var c0 = compteActuel();
+  lireS('/v1/recolte/saison/partenaires/file', function(d){ if(c0 !== compteActuel() || PS.file.etat === 'refuse') return;
+    if(d && Array.isArray(d.demandes)) PS.file = {etat:'ok', d:d}; else PS.file = {etat:PS.file.d ? 'ok' : 'erreur', d:PS.file.d};
+    psRendre(); }, force ? 0 : 30000, function(s, d){ if(s === 403 && d && d.erreur === 'role_requis'){ PS.file = {etat:'refuse', d:null}; psRendre(); return true; } return false; });
+}
+function chargerPartenaires(force){
+  psCapacite(function(){
+    if(PS.apercu){ PS.d = psDemo(); PS.etat = 'ok'; PS.moi = {etat:'ok', d:{demandes:[], peutDemander:true}}; psRendre(); return; }
+    psLireFile(force);
+    if(!psOuvert()){ PS.etat = PS.cap === null || (PS.cap && !PS.cap.actif) ? 'ferme' : api() ? 'erreur' : 'hors'; psRendre(); return; }
+    if(force) oublierCache('/v1/recolte/saison/partenaires');
+    var c0 = compteActuel();
+    lireS('/v1/recolte/saison/partenaires', function(d){ if(c0 !== compteActuel()) return; var v = psVue(d); if(v){ PS.d = v; PS.etat = 'ok'; } else if(!PS.d) PS.etat = 'erreur'; psRendre(); }, force ? 0 : 60000);
+    if(connecte()) lireS('/v1/recolte/saison/partenaires/moi', function(d){ if(c0 !== compteActuel()) return; PS.moi = d && Array.isArray(d.demandes) ? {etat:'ok', d:d} : {etat:PS.moi.d ? 'ok' : 'erreur', d:PS.moi.d}; psRendre(); }, force ? 0 : 30000);
+  });
+}
+
+/* ── l'écran ── */
+function psRendre(){ if(st.vue === 'saison') rendrePartenaires(); if(st.vue === 'accueil') psEntree(); }
+function psAnnoncer(t){ var a = $('psAnnonce'); if(a){ a.textContent = ''; setTimeout(function(){ a.textContent = tr(t); }, 30); } }
+function psBlason(p){ return '<span class="blason petit ps-bl" aria-hidden="true"' + (p.logo ? ' style="background-image:url(&quot;' + esc(p.logo) + '&quot;)"' : '') + '>' + (p.logo ? '' : esc((p.nom || '?').charAt(0).toUpperCase())) + '</span>'; }
+function psCartePartenaire(p, devise, pb){
+  return '<div class="ligne-r ps-p"><span>' + psBlason(p) + '</span><span class="x"><b data-brut dir="auto">' + esc(p.nom) + '</b><small><span>' + esc(PS_RANGS[p.rang]) + '</span> · <span>' + esc(psCible(p.genre, p.cible)) + '</span></small>' +
+    '<small>' + esc(psPour(pb)) + ' pour la cagnotte : ' + esc(psArgent(p.part, devise)) + ' · reçu</small></span>' +
+    (p.site ? '<a class="btn trait mini" href="' + esc(p.site) + '" target="_blank" rel="noopener noreferrer">Le site</a>' : '') + '</div>';
+}
+function psCarteOffre(o, devise, pb){
+  var plein = o.libres === 0, ferme = !o.ouverte;
+  return '<article class="carte ps-o' + (o.rang === 'principal' ? ' principal' : '') + '"><div class="rangee"><b style="flex:1">' + esc(psCible(o.genre, o.cible)) + '</b><span class="etat ' + (o.rang === 'principal' ? 'programme' : 'actif') + '">' + esc(PS_RANGS[o.rang]) + '</span></div>' +
+    '<div class="recap"><span>Prix</span><b>' + esc(psArgent(o.prix, devise)) + '</b><span>Dont ' + esc(psPour(pb)) + ' pour la cagnotte</span><b class="ps-part">' + esc(psArgent(o.part, devise)) + '</b>' +
+    '<span>Places libres</span><b>' + (o.libres == null || o.places == null ? '—' : o.libres + ' sur ' + o.places) + '</b><span>Demandes jusqu\'au</span><b>' + esc(psDate(o.fin)) + '</b></div>' +
+    (o.empl.length ? '<ul class="avantages">' + o.empl.map(function(e){ return '<li>' + esc(PS_EMPL[e]) + '</li>'; }).join('') + '</ul>' : '') +
+    (ferme ? '<p class="petit">' + (plein ? 'Toutes les places sont prises.' : 'Les demandes sont closes.') + '</p>' : '<button class="btn ' + (o.rang === 'principal' ? 'or' : 'lum') + ' large" data-act="ps-demander" data-id="' + esc(o.id) + '">Devenir partenaire</button>') + '</article>';
+}
+function psGroupe(titre, l, devise, pb){ return l.length ? '<h3 class="titre">' + esc(titre) + '</h3><div class="carte">' + l.map(function(p){ return psCartePartenaire(p, devise, pb); }).join('') + '</div>' : ''; }
+function psCorps(){
+  var equipe = psEquipeOk() ? psEspaceEquipe() : '';
+  if(PS.etat === 'hors') return etatVide('Les partenaires de la Saison apparaissent ici dans l\'application NEURAVID', 'Une discipline, une nation ou la Nuit des Nations : une part du prix va à la cagnotte de la Saison.');
+  if(PS.etat === 'ferme') return etatVide('Les partenariats de la Saison ne sont pas encore ouverts', 'NEURAVID publie ici les offres dès qu\'elles sont prêtes.') + equipe;
+  if(PS.etat === 'attente' && !PS.d) return '<p class="petit">Chargement…</p>' + equipe;
+  if(!PS.d) return '<p>Les partenaires de la Saison ne sont pas arrivés. Rien n\'est perdu.</p><button class="btn trait large" data-act="ps-reessayer">Réessayer</button>' + equipe;
+  var d = PS.d, dev = d.saison && d.saison.devise, pb = d.partPb, h = '';
+  if(PS.apercu) h += '<p class="ps-apercu"><span class="etat verification">Aperçu</span> <span>Des exemples pour découvrir les partenaires de la Saison. Rien n\'est envoyé.</span></p>';
+  if(!d.saison) return h + etatVide('Les partenariats de la Saison ne sont pas encore ouverts', 'NEURAVID publie ici les offres dès qu\'elles sont prêtes.') + equipe;
+  h += '<div class="carte ps-cagnotte"><div class="ps-trente" aria-hidden="true"><b>' + esc(psPour(pb)) + '</b></div><div><b>' + (psPour(pb) !== '—' ? esc(psPour(pb)) + ' de chaque partenariat va à la cagnotte de la Saison' : 'La part de la cagnotte n\'est pas arrivée') + '</b>' +
+    '<p class="petit">La cagnotte paie les prix de la Nuit, les Fonds des Nations, les prix des phases et les bourses des Espoirs. Le reste revient à NEURAVID, qui organise la Saison.</p></div></div>' +
+    '<div class="recap tot"><span>Reçu des partenaires par la cagnotte</span><b>' + esc(psArgent(d.recu, dev)) + '</b><span>Signé, pas encore reçu</span><b>' + esc(psArgent(d.signe, dev)) + '</b></div>' +
+    '<button class="btn trait large" data-act="ps-cagnotte">Voir la cagnotte dans La Récolte</button>';
+  var P = d.partenaires;
+  h += '<h2 class="titre">Les partenaires de la Saison</h2>';
+  h += P.length ? psGroupe('La Nuit des Nations', P.filter(function(p){ return p.genre === 'nuit'; }), dev, pb) + psGroupe('Les disciplines', P.filter(function(p){ return p.genre === 'discipline'; }), dev, pb) + psGroupe('Les nations', P.filter(function(p){ return p.genre === 'nation'; }), dev, pb)
+    : '<p class="petit">Aucun partenaire pour l\'instant. Une marque apparaît ici dès que la part de la cagnotte est reçue.</p>';
+  h += psMes();
+  h += '<h2 class="titre">Les offres</h2><p class="sous">Un prix fixe, publié. NEURAVID n\'accepte jamais un prix différent pour la même offre.</p>' +
+    '<div class="puces enroule" role="group" aria-label="Les offres">' + PS_GENRES.map(function(g){ var on = PS.filtre === g[0]; return '<button data-act="ps-filtre" data-v="' + g[0] + '" class="' + (on ? 'on' : '') + '" aria-pressed="' + on + '">' + esc(g[1]) + '</button>'; }).join('') + '</div>';
+  var O = d.offres.filter(function(o){ return !PS.filtre || o.genre === PS.filtre; });
+  h += O.length ? O.map(function(o){ return psCarteOffre(o, dev, pb); }).join('') : '<p class="petit">Aucune offre ici pour l\'instant.</p>';
+  h += '<h2 class="titre">Les règles des partenaires</h2><div class="carte"><ul class="promesses">' + PS_REGLES.map(function(r){ return '<li><i aria-hidden="true">⬡</i><span>' + esc(r) + '</span></li>'; }).join('') + '</ul></div>';
+  return h + equipe;
+}
+function rendrePartenaires(){
+  var z = $('corpsSaison'); if(!z) return;
+  var h = psCorps(), cle = h + '|' + LANGUE_UI;
+  if(z._h === cle) return;                        /* rien n'a changé : on ne touche ni au focus ni aux saisies */
+  /* ce qui avait le focus revient : un champ par son id, un bouton par son geste et son identifiant */
+  var ae = document.activeElement, garde = null;
+  if(ae && z.contains(ae)) garde = ae.id ? '#' + ae.id.replace(/[^\w-]/g, '') : ae.dataset && ae.dataset.act ? '[data-act="' + ae.dataset.act + '"]' + (ae.dataset.id ? '[data-id="' + String(ae.dataset.id).replace(/[^\w.-]/g, '') + '"]' : ae.dataset.v != null ? '[data-v="' + String(ae.dataset.v).replace(/[^\w.-]/g, '') + '"]' : '') : null;
+  z.innerHTML = h; z._h = cle;
+  if(garde){ var g = z.querySelector(garde); if(g) try{ g.focus({preventScroll:true}); }catch(e){ dbg(e); } }
+}
+function psMes(){
+  if(PS.apercu || !connecte() || PS.moi.etat !== 'ok' || !PS.moi.d) return '';
+  var l = liste(PS.moi.d.demandes, 50);
+  if(!l.length) return '';
+  return '<h2 class="titre">Mes demandes</h2>' + l.map(function(x){
+    if(!x || typeof x.id !== 'string') return '';
+    var e = PS_ETATS[x.etat] ? x.etat : 'demandee', deux = PS.deux[x.id] === 'retirer', dev = /^[A-Z]{3}$/.test(String(x.devise || '')) ? x.devise : null;
+    return '<div class="carte ps-m"><div class="rangee"><b style="flex:1">' + esc(psCible(x.genre, x.cible)) + '</b><span class="etat ' + ({active:'actif', signee:'programme', refusee:'refuse', rompue:'refuse', expiree:'termine', retiree:'termine'}[e] || 'verification') + '">' + esc(PS_ETATS[e]) + '</span></div>' +
+      '<div class="recap"><span>Votre marque</span><b data-brut dir="auto">' + esc(txt(x.nom, 60) || '—') + '</b><span>Part de la cagnotte</span><b>' + esc(psArgent(n0(x.part), dev)) + '</b><span>Déjà reçu par la cagnotte</span><b>' + esc(psArgent(n0(x.recu), dev)) + '</b>' +
+      (e === 'acceptee' && x.signerAvant ? '<span>Contrat à signer avant le</span><b>' + esc(psDate(n0(x.signerAvant))) + '</b>' : '') + '</div>' +
+      (x.motif === 'offre_retiree' ? '<div class="alerte">NEURAVID a retiré cette offre.</div>' : x.motif ? '<div class="alerte" data-brut dir="auto">' + esc(txt(x.motif, 300)) + '</div>' : '') +
+      '<p class="petit">' + esc(PS_SUITE[e]) + '</p>' +
+      (e === 'demandee' || e === 'acceptee' ? '<button class="btn trait large" data-act="ps-retirer" data-id="' + esc(x.id) + '"' + (PS.envoi[x.id] ? ' disabled' : '') + '>' + (deux ? 'Touchez encore pour retirer votre demande' : 'Retirer ma demande') + '</button>' : '') + '</div>';
+  }).join('');
+}
+
+/* ── la demande : une feuille ── */
+function psOffreParId(id){ var r = null; (PS.d ? PS.d.offres : []).forEach(function(o){ if(o.id === id) r = o; }); return r; }
+function psLogoPermis(u){ if(!u || !PS.cap || !PS.cap.hotes) return false; var m = /^https:\/\/([^\/:?#]+)/i.exec(u); return !!(m && PS.cap.hotes.indexOf(m[1].toLowerCase()) >= 0); }
+function psRemplirMarque(){
+  var f = PS.form, mq = D.marque && D.marque.m; if(!f || !mq) return;
+  if(!f.nom && mq.nom){ f.nom = mq.nom; var n = $('psNom'); if(n && !n.value) n.value = mq.nom; }
+  if(!f.secteur && PS_SECTEURS_OUVERTS.indexOf(mq.secteur) >= 0){ f.secteur = mq.secteur; var s = $('psSecteur'); if(s && !s.value) s.value = mq.secteur; }
+  if(f.logo == null && psLogoPermis(mq.logo)){ f.logo = true; var l = $('psLogoZ'); if(l){ l.hidden = false; var c = $('psLogo'); if(c) c.checked = true; } }
+}
+function psFeuilleDemande(id){
+  var o = psOffreParId(id); if(!o) return;
+  var dev = PS.d.saison && PS.d.saison.devise, pb = PS.d.partPb, m = PS.moi.d || {};
+  if(!PS.apercu && m.peutDemander === false){
+    ouvrirFeuille('Devenir partenaire', '<p>' + (m.majeur === false ? 'Les partenariats de la Saison sont réservés aux 18 ans et plus.' : 'Votre compte de marque doit d\'abord être vérifié par NEURAVID (niveau 3).') + '</p>' +
+      (m.majeur === false ? '' : '<button class="btn lum large" data-act="ouvrir-phare-pro">Faire vérifier ma marque dans Le Phare</button>'), null, 'ps'); return;
+  }
+  var mq = D.marque && D.marque.m || {}, lg = psLogoPermis(mq.logo) ? mq.logo : '';
+  var ff = PS.form && PS.form.id === id ? PS.form : {id:id, nom:txt(mq.nom, 60), site:'', secteur:PS_SECTEURS_OUVERTS.indexOf(mq.secteur) >= 0 ? mq.secteur : '', message:'', accord:false, logo:lg ? true : null};
+  PS.form = ff;
+  ouvrirFeuille('Devenir partenaire', '<div class="recap"><span>Vous accompagnez</span><b>' + esc(psCible(o.genre, o.cible)) + '</b><span>Place</span><b>' + esc(PS_RANGS[o.rang]) + '</b><span>Prix</span><b>' + esc(psArgent(o.prix, dev)) + '</b><span>Dont ' + esc(psPour(pb)) + ' pour la cagnotte</span><b>' + esc(psArgent(o.part, dev)) + '</b></div>' +
+    '<label class="champ"><span>Le nom de votre marque</span><input id="psNom" maxlength="60" value="' + esc(ff.nom) + '" autocomplete="organization"></label>' +
+    '<label class="champ"><span>Le site de votre marque (https://), facultatif</span><input id="psSite" dir="ltr" inputmode="url" maxlength="200" value="' + esc(ff.site) + '" placeholder="https://"></label>' +
+    '<label class="champ"><span>Le secteur</span><select id="psSecteur"><option value="">Choisissez le secteur</option>' + PS_SECTEURS_OUVERTS.map(function(k){ var s = secteur(k); return s ? '<option value="' + k + '"' + (ff.secteur === k ? ' selected' : '') + '>' + esc(s.nom) + '</option>' : ''; }).join('') + '</select></label>' +
+    '<p class="petit">Les secteurs réservés aux adultes ne peuvent pas accompagner la Saison : elle est ouverte dès 13 ans.</p>' +
+    '<label class="accord" id="psLogoZ"' + (lg ? '' : ' hidden') + '><input type="checkbox" id="psLogo"' + (ff.logo !== false ? ' checked' : '') + '><span>Montrer le logo de ma marque</span></label>' +
+    '<label class="champ"><span>Un mot pour NEURAVID, facultatif (500 caractères au plus)</span><textarea id="psMsg" maxlength="500">' + esc(ff.message) + '</textarea></label>' +
+    '<label class="accord"><input type="checkbox" id="psAccord"' + (ff.accord ? ' checked' : '') + '><span>J\'ai lu les règles des partenaires : ma marque ne choisit jamais les gagnants et n\'apparaît qu\'une fois la part de la cagnotte reçue.</span></label>' +
+    '<p class="petit">Rien n\'est payé maintenant. NEURAVID lit votre demande, puis vous envoie un contrat.</p>' +
+    '<button class="btn lum large" data-act="ps-envoyer" data-id="' + esc(id) + '"' + (PS.envoi.form ? ' disabled' : '') + '>Envoyer ma demande</button>', function(){ psGarderForm(); }, 'ps');
+}
+function psGarderForm(){ if(!PS.form) return; var v = function(i){ var e = $(i); return e ? e.value : null; }; if($('psNom')){ PS.form.nom = v('psNom'); PS.form.site = v('psSite'); PS.form.secteur = v('psSecteur'); PS.form.message = v('psMsg'); PS.form.accord = !!($('psAccord') || {}).checked; var lz = $('psLogoZ'); if(lz && !lz.hidden) PS.form.logo = !!($('psLogo') || {}).checked; } }
+/* une clé d'idempotence reste pour un nouvel essai seulement quand le serveur n'a pas répondu (ou 5xx, 408, 429) : un refus lu n'est jamais rejoué */
+function psGarderCle(s){ return !s || s >= 500 || s === 408 || s === 429; }
+function psEnvoyer(id){
+  psGarderForm(); var f = PS.form; if(!f || f.id !== id) return;
+  var nom = String(f.nom || '').trim(), site = String(f.site || '').trim(), msg = String(f.message || '').trim();
+  if(nom.length < 2 || nom.length > 60 || /[<>]/.test(nom)){ toast('Écrivez le nom de votre marque (2 à 60 caractères).'); return; }
+  if(site && !/^https:\/\/[^\s/]+\.[^\s/]{2,}/i.test(site)){ toast('Le site commence par https://'); return; }
+  if(PS_SECTEURS_OUVERTS.indexOf(f.secteur) < 0){ toast('Choisissez le secteur de votre marque.'); return; }
+  if(!f.accord){ toast('Cochez la case pour confirmer que vous avez lu les règles.'); return; }
+  if(PS.apercu){ toast('Aperçu : rien n\'est envoyé.'); return; }
+  if(PS.envoi.form) return;
+  avecMajorite(function(){
+    if(!estMajeur()) return;
+    var mq = D.marque && D.marque.m, lg = f.logo === true && mq && psLogoPermis(mq.logo) ? mq.logo : null;
+    var corps = {offre:id, nom:nom, site:site || null, secteur:f.secteur, logo:lg, message:msg || null}, emp = empreinte(JSON.stringify(corps));
+    if(!PS.cles[emp]) PS.cles[emp] = idem('ps');   /* le même geste réessayé sans réponse garde sa clé : jamais deux demandes */
+    PS.envoi.form = true; var b = document.querySelector('[data-act="ps-envoyer"]'); if(b) b.disabled = true;
+    poster('/v1/recolte/saison/partenaires/demandes', corps, function(r, s){
+      PS.envoi.form = false;
+      if(reussi(s, r) && r && r.ok !== false){ delete PS.cles[emp]; PS.form = null; fermerFeuille(); toast('Demande envoyée. NEURAVID vous répond.', 4200); chargerPartenaires(true); return; }
+      if(!psGarderCle(s)) delete PS.cles[emp];
+      if(b) b.disabled = false;
+      toast(psRaison(s, r), 5200);
+    }, PS.cles[emp], null, null, true);
+  });
+}
+var PS_RAISONS = {secteur_ferme:'La Saison des Nations est ouverte dès 13 ans : ce secteur ne peut pas l\'accompagner.', complet:'Il n\'y a plus de place pour cette offre.', delai:'Les demandes pour cette offre sont closes.',
+  demande_ouverte:'Vous avez déjà une demande en cours pour cette offre.', trop_demandes:'Vous avez déjà cinq demandes en cours pour cette Saison.', kyc_insuffisant:'Votre compte de marque doit d\'abord être vérifié par NEURAVID (niveau 3).',
+  niveau:'Le compte de cette marque n\'est plus vérifié au niveau 3.', age_insuffisant:'Les partenariats de la Saison sont réservés aux 18 ans et plus.', majeur:'Le compte de cette marque n\'est pas celui d\'une personne de 18 ans ou plus.',
+  secteur_pris:'Une marque du même secteur accompagne déjà cette discipline, cette nation ou la Nuit.', quatre_yeux:'Une autre personne de NEURAVID doit faire ce geste.',
+  conflit_interets:'Vous êtes lié à cette marque : une autre personne de NEURAVID doit faire ce geste.', etat:'Ce n\'est plus possible : la page est mise à jour.', offre_engagee:'Une marque tient déjà une place de cette offre : elle ne peut pas être retirée.',
+  motif:'Écrivez un motif (5 à 300 caractères).', reference_invalide:'La référence du contrat : 3 à 80 caractères, lettres, chiffres, . / - _', offre_existe:'Cette offre existe déjà pour cette Saison.', nom_invalide:'Écrivez le nom de votre marque (2 à 60 caractères).', site_invalide:'Le site commence par https://',
+  logo_invalide:'Ce logo ne peut pas être montré. Décochez « Montrer le logo de ma marque », puis envoyez.', refus_repetes:'Cette offre a déjà refusé deux demandes de votre marque.',
+  marque_equipe:'Une personne de l\'équipe finance, ou liée à l\'auteur de l\'offre, ne peut pas en être la marque partenaire.', message_invalide:'Le mot pour NEURAVID fait 500 caractères au plus.',
+  cible_invalide:'Choisissez une discipline de la Saison ou un code de pays valide.', places_invalides:'Partenaire principal : 1 place. Partenaire officiel : 1 à 5 places.', date_invalide:'La fin des demandes est une date à venir, dans les deux ans.',
+  source_inconnue:'Cette Saison n\'a pas encore ouvert la part « partenaires » de sa cagnotte.', genre_invalide:'Choisissez la Nuit, une discipline ou une nation.', rang_invalide:'Choisissez partenaire principal ou partenaire officiel.',
+  montant_invalide:'Écrivez un prix entier, en plus petite unité de la devise.', cle_reutilisee:'Ce geste a déjà été envoyé autrement. Rouvrez la page, puis recommencez.', offre_inconnue:'Cette offre n\'existe plus.', demande_inconnue:'Cette demande n\'existe plus.',
+  role_requis:'Ce geste est réservé à l\'équipe finance de NEURAVID.', saison_inconnue:'Cette Saison n\'existe pas.',
+  deja_fait:'Cette référence de contrat est déjà enregistrée pour cette Saison.'};
+function psRaison(s, r){
+  var c = r && (r.erreur || (r.raison && r.raison.code));
+  if(c && PS_RAISONS[c]) return PS_RAISONS[c];
+  if(s === 401 || s === 403) return raisonEnvoi(s, r);
+  if(psGarderCle(s)) return 'Pas de réponse. Vérifiez votre connexion et réessayez.';
+  return 'NEURAVID n\'a pas accepté ce geste.';
+}
+/* un geste en deux touchers (retirer, accepter, publier, signer…) : le premier prévient (annoncé au lecteur d'écran), le second envoie */
+function psDeux(id, geste){ if(PS.deux[id] === geste){ delete PS.deux[id]; return true; } PS.deux[id] = geste; rendrePartenaires(); psAnnoncer('Touchez encore pour confirmer.'); setTimeout(function(){ if(PS.deux[id] === geste){ delete PS.deux[id]; rendrePartenaires(); } }, 6000); return false; }
+function psGeste(chemin, corps, id, message){
+  if(PS.envoi[id]) return; PS.envoi[id] = true; rendrePartenaires();
+  var k = 'g|' + chemin + '|' + JSON.stringify(corps || {}); if(!PS.cles[k]) PS.cles[k] = idem('ps');
+  poster(chemin, corps || {}, function(r, s){
+    delete PS.envoi[id];
+    if(reussi(s, r) && r && r.ok !== false){ delete PS.cles[k]; Object.keys(PS.saisies).forEach(function(x){ if(x.slice(x.indexOf('-') + 1) === id) delete PS.saisies[x]; }); toast(message, 4200); psAnnoncer(message); chargerPartenaires(true); return; }
+    if(!psGarderCle(s)) delete PS.cles[k];
+    if(r && r.erreur === 'role_requis') PS.file = {etat:'refuse', d:null};
+    toast(psRaison(s, r), 5200); if(s === 409) chargerPartenaires(true); else rendrePartenaires();
+  }, PS.cles[k], null, null, true);
+}
+
+/* ── l'espace de l'équipe (rôle finance) : rien ne s'y fait seul ── */
+function psSaisonsEquipe(){ return PS.file.d ? liste(PS.file.d.saisons, 20).filter(function(x){ return x && typeof x.id === 'string'; }) : []; }
+function psEspaceEquipe(){
+  var F = PS.file, h = '<h2 class="titre">L\'espace de l\'équipe</h2><p class="sous">Quatre yeux : une personne écrit l\'offre, une autre la publie ; une personne accepte une demande, une autre signe le contrat.</p>';
+  if(F.etat !== 'ok' || !F.d){ return h + (F.etat === 'erreur' ? '<p>La file n\'est pas arrivée.</p><button class="btn trait large" data-act="ps-reessayer">Réessayer</button>' : '<p class="petit">Chargement…</p>'); }
+  var O = liste(F.d.offres, 200), Dm = liste(F.d.demandes, 200);
+  h += '<h3 class="titre">Les offres</h3>' + (O.length ? O.map(function(x){ var o = psOffre(x); if(!o) return ''; var br = x.etat === 'brouillon', g = PS.deux[o.id], env = PS.envoi[o.id] ? ' disabled' : '';
+    return '<div class="carte"><div class="rangee"><b style="flex:1">' + esc(psCible(o.genre, o.cible)) + '</b><span class="etat ' + (br ? 'verification' : 'actif') + '">' + (br ? 'À publier' : 'Publiée') + '</span></div><div class="recap"><span>Place</span><b>' + esc(PS_RANGS[o.rang]) + '</b><span>Prix</span><b>' + esc(psArgent(o.prix, o.devise)) + '</b><span>Places libres</span><b>' + (o.libres == null || o.places == null ? '—' : o.libres + ' sur ' + o.places) + '</b><span>Demandes jusqu\'au</span><b>' + esc(psDate(o.fin)) + '</b></div>' +
+      (br ? (x.peutPublier === true ? '<button class="btn lum large" data-act="ps-publier" data-id="' + esc(o.id) + '"' + env + '>' + (g === 'publier' ? 'Touchez encore pour publier' : 'Relire et publier') + '</button>' : '<p class="petit">Une autre personne de l\'équipe doit la publier.</p>') : '') +
+      (x.peutRetirer === false ? '' : '<label class="champ"><span>Motif du retrait (5 à 300 caractères)</span><input id="psMotif-' + esc(o.id) + '" maxlength="300" value="' + esc(PS.saisies['psMotif-' + o.id] || '') + '"></label><button class="btn trait large" data-act="ps-retirer-offre" data-id="' + esc(o.id) + '"' + env + '>' + (g === 'retirer-offre' ? 'Touchez encore pour retirer l\'offre' : 'Retirer l\'offre') + '</button>') + '</div>'; }).join('') : '<p class="petit">Aucune offre.</p>') +
+    (psSaisonsEquipe().length ? '<button class="btn trait large" data-act="ps-nouvelle">Écrire une nouvelle offre</button>' : '<p class="petit">Aucune Saison ouverte aux partenaires.</p>');
+  h += '<h3 class="titre">Les demandes</h3>' + (Dm.length ? Dm.map(function(x){
+    if(!x || typeof x.id !== 'string') return '';
+    var e = PS_ETATS[x.etat] ? x.etat : 'demandee', id = x.id, peut = x.peutAgir === true, g = PS.deux[id], env = PS.envoi[id] ? ' disabled' : '', dev = /^[A-Z]{3}$/.test(String(x.devise || '')) ? x.devise : null;
+    var motif = function(t){ return '<label class="champ"><span>' + esc(t) + '</span><input id="psMotif-' + esc(id) + '" maxlength="300" value="' + esc(PS.saisies['psMotif-' + id] || '') + '"></label>'; };
+    var refuser = motif('Motif du refus (5 à 300 caractères)') + '<button class="btn trait large" data-act="ps-refuser" data-id="' + esc(id) + '"' + env + '>' + (g === 'refuser' ? 'Touchez encore pour refuser' : 'Refuser') + '</button>';
+    var b = '';
+    if(!peut) b = '<p class="petit">Une autre personne de l\'équipe doit faire le geste suivant.</p>';
+    else if(e === 'demandee') b = '<button class="btn lum large" data-act="ps-accepter" data-id="' + esc(id) + '"' + env + '>' + (g === 'accepter' ? 'Touchez encore pour accepter' : 'Accepter la demande') + '</button>' + refuser;
+    else if(e === 'acceptee') b = '<label class="champ"><span>La référence du contrat signé</span><input id="psContrat-' + esc(id) + '" dir="ltr" maxlength="80" value="' + esc(PS.saisies['psContrat-' + id] || '') + '"></label><button class="btn or large" data-act="ps-signer" data-id="' + esc(id) + '"' + env + '>' + (g === 'signer' ? 'Touchez encore pour enregistrer la signature' : 'Enregistrer la signature') + '</button>' + refuser;
+    else if(e === 'signee' || e === 'active') b = (x.ruptureProposee ? '<div class="alerte">Une rupture est proposée. Une autre personne peut la confirmer dans les 7 jours.</div>' + (x.ruptureMotif ? '<p class="petit" data-brut dir="auto">' + esc(txt(x.ruptureMotif, 300)) + '</p>' : '') : motif('Motif de la rupture (5 à 300 caractères)')) +
+      '<button class="btn trait large" data-act="ps-rompre" data-id="' + esc(id) + '"' + env + '>' + (g === 'rompre' ? 'Touchez encore pour confirmer' : x.ruptureProposee ? 'Confirmer la rupture' : 'Proposer la rupture') + '</button>';
+    return '<div class="carte"><div class="rangee"><b style="flex:1" data-brut dir="auto">' + esc(txt(x.nom, 60) || '—') + '</b><span class="etat verification">' + esc(PS_ETATS[e]) + '</span></div>' +
+      '<div class="recap"><span>Accompagne</span><b>' + esc(psCible(x.genre, x.cible)) + '</b><span>Le secteur</span><b>' + esc((secteur(x.secteur) || {}).nom || '—') + '</b><span>Compte vérifié</span><b>' + (n0(x.niveau) != null ? 'niveau ' + x.niveau : '—') + '</b><span>Part de la cagnotte</span><b>' + esc(psArgent(n0(x.part), dev)) + '</b><span>Déjà reçu</span><b>' + esc(psArgent(n0(x.recu), dev)) + '</b></div>' +
+      (x.site ? '<p class="petit" data-brut dir="ltr">' + esc(urlSure(x.site)) + '</p>' : '') + (x.message ? '<p class="petit" data-brut dir="auto">' + esc(txt(x.message, 500)) + '</p>' : '') + b + '</div>';
+  }).join('') : '<p class="petit">Aucune demande en attente.</p>');
+  return h;
+}
+function psNouvelleChamps(){
+  var g = ($('psnG') || {}).value, r = ($('psnR') || {}).value, sd = null, sid = ($('psnS') || {}).value;
+  psSaisonsEquipe().forEach(function(x){ if(x.id === sid) sd = x; });
+  var zd = $('psnDz'), zn = $('psnNz'), p = $('psnP'); if(zd) zd.hidden = g !== 'discipline'; if(zn) zn.hidden = g !== 'nation';
+  if(p){ if(r === 'principal'){ p.value = '1'; p.readOnly = true; } else p.readOnly = false; }
+  var x = entier(String(($('psnX') || {}).value || '').replace(/\D/g, '')), a = $('psnApercu');
+  if(a) a.textContent = x && sd ? psArgent(x, sd.devise) + ' · ' + tr('dont {0} pour la cagnotte').replace('{0}', psPour(sd.partPb)) : '—';
+}
+function feuilleNouvelleOffre(){
+  var S = psSaisonsEquipe(), disc = Object.keys(PS_DISC);
+  if(!S.length){ toast('Aucune Saison ouverte aux partenaires.'); return; }
+  ouvrirFeuille('Écrire une nouvelle offre', '<label class="champ"><span>La Saison</span><select id="psnS" data-brut>' + S.map(function(x){ return '<option value="' + esc(x.id) + '">' + esc(txt(x.nom, 80) || x.id) + ' · ' + esc(String(x.devise || '—')) + '</option>'; }).join('') + '</select></label>' +
+    '<label class="champ"><span>Ce que la marque accompagne</span><select id="psnG"><option value="nuit">La Nuit des Nations</option><option value="discipline">Une discipline</option><option value="nation">Une nation</option></select></label>' +
+    '<label class="champ" id="psnDz" hidden><span>La discipline</span><select id="psnD">' + disc.map(function(k){ return '<option value="' + k + '">' + esc(PS_DISC[k]) + '</option>'; }).join('') + '</select></label>' +
+    '<label class="champ" id="psnNz" hidden><span>La nation (code de deux lettres)</span><input id="psnN" dir="ltr" maxlength="2" placeholder="GN"></label>' +
+    '<label class="champ"><span>La place</span><select id="psnR"><option value="principal">Partenaire principal (1 place)</option><option value="officiel">Partenaire officiel (1 à 5 places)</option></select></label>' +
+    '<label class="champ"><span>Le nombre de places</span><input id="psnP" inputmode="numeric" value="1" readonly></label>' +
+    '<label class="champ"><span>Le prix, en plus petite unité de la devise de la Saison</span><input id="psnX" class="montant" inputmode="numeric"></label>' +
+    '<p class="petit" aria-live="polite"><span>Le prix affiché :</span> <b id="psnApercu" data-brut>—</b></p>' +
+    '<label class="champ"><span>Les demandes jusqu\'au</span><input id="psnF" type="date" min="' + demain() + '"></label>' +
+    '<p class="petit">Une autre personne de l\'équipe la relit et la publie.</p><button class="btn lum large" data-act="ps-creer">Enregistrer l\'offre</button>', null, 'ps');
+  psNouvelleChamps();
+}
+function psCreer(){
+  var sid = ($('psnS') || {}).value, sd = null; psSaisonsEquipe().forEach(function(x){ if(x.id === sid) sd = x; }); if(!sd) return;
+  var g = ($('psnG') || {}).value, r = ($('psnR') || {}).value, pl = entier(String(($('psnP') || {}).value || '').replace(/\D/g, '')), px = entier(String(($('psnX') || {}).value || '').replace(/\D/g, '')), fi = ($('psnF') || {}).value;
+  var cible = g === 'discipline' ? ($('psnD') || {}).value : g === 'nation' ? String(($('psnN') || {}).value || '').toUpperCase().trim() : 'nuit';
+  if(g === 'nation' && !/^[A-Z]{2}$/.test(cible)){ toast('Écrivez le code de la nation (exemple : GN).'); return; }
+  if(!pl || !px){ toast('Écrivez le nombre de places et le prix.'); return; }
+  if(r === 'principal') pl = 1;
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(fi || '')){ toast('Choisissez la date de fin des demandes.'); return; }
+  var fin = Math.floor(new Date(fi + 'T23:59:59').getTime() / 1000);
+  if(PS.envoi.creer) return; PS.envoi.creer = true;
+  var corps = {saison:sd.id, genre:g, cible:cible, rang:r, places:pl, prix:px, finDemandes:fin}, k = 'creer|' + JSON.stringify(corps); if(!PS.cles[k]) PS.cles[k] = idem('ps');
+  poster('/v1/recolte/saison/partenaires/offres', corps, function(x, s){
+    PS.envoi.creer = false;
+    if(reussi(s, x) && x && x.ok !== false){ delete PS.cles[k]; fermerFeuille(); toast('Offre enregistrée. Une autre personne de l\'équipe la publie.', 4600); chargerPartenaires(true); return; }
+    if(!psGarderCle(s)) delete PS.cles[k];
+    toast(psRaison(s, x), 5200);
+    if(s === 409){ fermerFeuille(); chargerPartenaires(true); }   /* l'offre existe peut-être déjà (une réponse perdue) : la file est relue */
+  }, PS.cles[k], null, null, true);
+}
+
+/* ── l'entrée sur l'accueil de L'Étendard : seulement si la capacité est annoncée ── */
+function psEntree(){
+  var z = $('corpsAccueil'); if(!z || !(psOuvert() || psEquipeOk())) return;
+  if(z.querySelector('[data-act="ps-ouvrir"]')) return;
+  var t = z.querySelector('.entrees');
+  var h = '<button class="entree ps-entree" data-act="ps-ouvrir"><i aria-hidden="true">⬡</i><span><b>Partenaire de la Saison des Nations</b><small>Une discipline, une nation ou la Nuit des Nations</small></span></button>';
+  if(t) t.insertAdjacentHTML('afterend', h); else z.insertAdjacentHTML('afterbegin', h);
+}
+var rendreAccueil10 = rendreAccueil;
+rendreAccueil = function(){ rendreAccueil10(); psEntree(); };
+var rendreVue10 = rendreVue;
+rendreVue = function(){ rendreVue10(); if(st.vue === 'saison') rendrePartenaires(); };
+var chargerVue10 = chargerVue;
+chargerVue = function(v){ chargerVue10(v); if(v === 'saison') chargerPartenaires(); if(v === 'accueil') psCapacite(function(){ if(st.vue === 'accueil') psEntree(); }); };
+var verifierCompte10 = verifierCompte;
+verifierCompte = function(){ var avant = D.compte; verifierCompte10(); if(D.compte !== avant){ PS.moi = {etat:'attente', d:null}; PS.file = {etat:'attente', d:null}; PS.form = null; PS.deux = {}; PS.cles = {}; PS.envoi = {}; PS.saisies = {}; var z = $('corpsSaison'); if(z) z._h = ''; } };
+var ouvrirEt10 = window.NVEtendard.ouvrir;
+window.NVEtendard.ouvrir = function(v){ if(v === 'saison' || v === 'partenaires'){ montrer('saison'); return; } ouvrirEt10(v); };
+
+document.addEventListener('click', function(e){
+  var b = e.target.closest && e.target.closest('[data-act]'); if(!b) return;
+  var id = b.dataset.id, v;
+  switch(b.dataset.act){
+    case 'ps-ouvrir': montrer('saison'); break;
+    case 'ps-reessayer': PS.cap = undefined; if(PS.file.etat === 'erreur') PS.file = {etat:'attente', d:null}; chargerPartenaires(true); break;
+    case 'ps-filtre': PS.filtre = b.dataset.v || ''; rendrePartenaires(); break;
+    case 'ps-cagnotte': ouvrir('Recolte', {vue:'nations', depuis:'etendard_partenaires'}); break;
+    case 'ps-demander': if(mineur()){ toast('Les partenariats de la Saison sont réservés aux 18 ans et plus.', 4600); break; } if(!PS.apercu && !connecte()){ toast('Connectez-vous à NEURAVID avec le compte de votre marque.', 4600); break; }
+      psFeuilleDemande(id); if(!PS.apercu && api()) chargerMarque(false, psRemplirMarque); break;
+    case 'ps-envoyer': psEnvoyer(id); break;
+    case 'ps-retirer': if(psDeux(id, 'retirer')) psGeste('/v1/recolte/saison/partenaires/demandes/' + encodeURIComponent(id) + '/retirer', {}, id, 'Demande retirée.'); break;
+    case 'ps-publier': if(psDeux(id, 'publier')) psGeste('/v1/recolte/saison/partenaires/offres/' + encodeURIComponent(id) + '/publier', {}, id, 'Offre publiée.'); break;
+    case 'ps-retirer-offre': v = String(($('psMotif-' + id) || {}).value || '').trim(); if(v.length < 5){ toast('Écrivez un motif (5 à 300 caractères).'); break; }
+      if(psDeux(id, 'retirer-offre')) psGeste('/v1/recolte/saison/partenaires/offres/' + encodeURIComponent(id) + '/retirer', {motif:v}, id, 'Offre retirée. Les demandes en attente sont refusées avec ce motif.'); break;
+    case 'ps-accepter': if(psDeux(id, 'accepter')) psGeste('/v1/recolte/saison/partenaires/demandes/' + encodeURIComponent(id) + '/accepter', {}, id, 'Demande acceptée. Une autre personne signe le contrat.'); break;
+    case 'ps-refuser': v = String(($('psMotif-' + id) || {}).value || '').trim(); if(v.length < 5){ toast('Écrivez un motif (5 à 300 caractères).'); break; }
+      if(psDeux(id, 'refuser')) psGeste('/v1/recolte/saison/partenaires/demandes/' + encodeURIComponent(id) + '/refuser', {motif:v}, id, 'Demande refusée. La marque lit le motif.'); break;
+    case 'ps-signer': v = String(($('psContrat-' + id) || {}).value || '').trim(); if(!/^[\w./-]{3,80}$/.test(v)){ toast('La référence du contrat : 3 à 80 caractères, lettres, chiffres, . / - _', 4600); break; }
+      if(psDeux(id, 'signer')) psGeste('/v1/recolte/saison/partenaires/demandes/' + encodeURIComponent(id) + '/signer', {contrat:v}, id, 'Signature enregistrée. La marque apparaît dès que la part de la cagnotte est reçue.'); break;
+    case 'ps-rompre': v = String(($('psMotif-' + id) || {}).value || '').trim(); var fx = null; (PS.file.d ? liste(PS.file.d.demandes, 200) : []).forEach(function(x){ if(x && x.id === id) fx = x; });
+      if(!(fx && fx.ruptureProposee) && v.length < 5){ toast('Écrivez un motif (5 à 300 caractères).'); break; }
+      if(psDeux(id, 'rompre')) psGeste('/v1/recolte/saison/partenaires/demandes/' + encodeURIComponent(id) + '/rompre', {motif:v || null}, id, fx && fx.ruptureProposee ? 'Rupture confirmée.' : 'Rupture proposée. Une autre personne de l\'équipe peut la confirmer.'); break;
+    case 'ps-nouvelle': feuilleNouvelleOffre(); break;
+    case 'ps-creer': psCreer(); break;
+  }
+});
+/* les saisies d'un formulaire survivent à un nouveau rendu */
+document.addEventListener('input', function(e){ var t = e.target; if(!t) return; if(/^ps(Nom|Site|Msg)$/.test(t.id)) psGarderForm(); if(/^ps(Motif|Contrat)-/.test(t.id)) PS.saisies[t.id] = String(t.value).slice(0, 300); if(/^psn[XP]$/.test(t.id)) psNouvelleChamps(); });
+document.addEventListener('change', function(e){ var t = e.target; if(!t) return; if(/^ps(Secteur|Accord|Logo)$/.test(t.id)) psGarderForm(); if(/^psn[SGR]$/.test(t.id)) psNouvelleChamps(); });
+
 /* ════════════════════════════════════════════════════════════════════
  L'ÉTENDARD EN CINQ LANGUES : FR · EN · ES · PT · AR (de droite à gauche)
  Le texte est écrit en français ; à l'affichage, chaque texte, aria-label,
@@ -3465,6 +3883,10 @@ document.addEventListener('click', function(e){
  ════════════════════════════════════════════════════════════════════ */
 var TITRE0 = document.title;
 var LANGUES_UI = {fr:{nom:'Français', loc:'fr-FR'}, en:{nom:'English', loc:'en-GB'}, es:{nom:'Español', loc:'es-ES'}, pt:{nom:'Português', loc:'pt-BR'}, ar:{nom:'العربية', loc:'ar', rtl:true}};
+/* 10 novembre 2026 : les six langues d'Afrique (traductions récentes, en cours de relecture par des locuteurs). Dates et nombres dans la
+   langue si le téléphone la connaît, sinon dans la langue officielle du pays (jamais l'anglais par défaut). */
+(function(){ var L6 = {sw:['Kiswahili', 'sw-KE', 'en-KE'], ha:['Hausa', 'ha-NG', 'en-NG'], yo:['Yorùbá', 'yo-NG', 'en-NG'], wo:['Wolof', 'wo-SN', 'fr-SN'], bm:['Bamanankan', 'bm-ML', 'fr-ML'], ln:['Lingála', 'ln-CD', 'fr-CD']};
+  Object.keys(L6).forEach(function(k){ var a = L6[k], loc = a[2]; try{ if(Intl.DateTimeFormat.supportedLocalesOf([a[1]]).length) loc = a[1]; }catch(e){ /* rien */ } LANGUES_UI[k] = {nom:a[0], loc:loc}; }); })();
 function langueDetectee(){
 var c = lire('nv_ui_langue', null); if(typeof c === 'string' && LANGUES_UI[c]) return c;
 try{ if(window.NV_LANG){ var n = String(window.NV_LANG).slice(0, 2).toLowerCase(); if(LANGUES_UI[n]) return n; } }catch(e){ dbg(e); }
