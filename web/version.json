@@ -1,6 +1,6 @@
 {
- "version": "2026.11.11-7b10de426455",
- "date": "2026-11-11T09:48:43Z",
+ "version": "2026.11.11-52807862b9e9",
+ "date": "2026-11-11T10:43:21Z",
  "entree": "index.html",
  "modules": [
   "NV_MODULE_Arena.html",
@@ -204,8 +204,8 @@
    "taille": 1049677
   },
   "NV_MODULE_Studio.html": {
-   "sha256": "a1071dc2415dff66f0b4044add5d9e3a8b1f76dc3ea8a5a337be0420837dabe4",
-   "taille": 1300388
+   "sha256": "f148426835532dd67f517e7b0a39283d7eeba56feaa9003fc0ad6c98bf2130e6",
+   "taille": 1301716
   },
   "NV_MODULE_ViralStorm.html": {
    "sha256": "a04594d3e83ae2be8e7bba57c23f0a35785d6d24ee8959b6b956dec5bd6fc288",

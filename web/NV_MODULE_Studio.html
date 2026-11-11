@@ -1591,7 +1591,7 @@ function nettoyerProjet(o){
     Object.keys(m.cells || {}).forEach(function(k){ if(ids[k] && Array.isArray(m.cells[k])) P.motifs[l].cells[k] = m.cells[k].slice(0, n).map(function(v){ return num(v, 0, 1, 0); }); });
     Object.keys(m.notes || {}).forEach(function(k){ if(ids[k] && Array.isArray(m.notes[k])) P.motifs[l].notes[k] = m.notes[k].slice(0, 512).map(function(x){ return x && {deg:Math.round(num(x.deg, -14, 40, 0)), s:Math.round(num(x.s, 0, n - 1, 0)), d:Math.round(num(x.d, 1, 32, 1)), v:num(x.v, 0, 1, .85)}; }).filter(Boolean); }); });
   P.arrangement = (Array.isArray(o.arrangement) ? o.arrangement : []).slice(0, 64).map(function(s){ return s && {id:RE_ID.test(s.id || '') ? s.id : nid('s'), m:LETTRES.indexOf(s.m) >= 0 ? s.m : 'A', fois:Math.round(num(s.fois, 1, 64, 4)), nom:NOMS_SECTIONS.indexOf(s.nom) >= 0 ? s.nom : 'Couplet', coupes:{perc:!!(s.coupes && s.coupes.perc), melo:!!(s.coupes && s.coupes.melo)}}; }).filter(Boolean);
-  P.prises = (Array.isArray(o.prises) ? o.prises : []).slice(0, REGLES.prisesMax * 2).map(function(x){ return x && RE_ID.test(x.id || '') && RE_ID.test(x.aud || '') ? {id:x.id, aud:x.aud, nom:txt(x.nom, 60) || tr('Prise'), debut:num(x.debut, 0, 3600, 0), temps:x.temps != null ? num(x.temps, 0, 1e5, 0) : undefined, decal:num(x.decal, 0, 600, 0), duree:num(x.duree, 0, REGLES.dureeMax, 0), vol:num(x.vol, 0, 1.5, 1), fx:EFFETS_VOIX.some(function(f){ return f.k === x.fx; }) ? x.fx : 'studio', voie:x.voie === 'ech' ? 'ech' : 'voix', ignore:x.ignore === true, origine:['prise', 'import', 'catalogue', 'neuravid', 'copie'].indexOf(x.origine) >= 0 ? x.origine : 'import', nv:nvPropre(x.nv), auteur:compteSur(x.auteur)} : null; }).filter(Boolean);
+  P.prises = (Array.isArray(o.prises) ? o.prises : []).slice(0, REGLES.prisesMax * 2).map(function(x){ return x && RE_ID.test(x.id || '') && RE_ID.test(x.aud || '') ? {id:x.id, aud:x.aud, nom:txt(x.nom, 60) || tr('Prise'), debut:num(x.debut, 0, 3600, 0), temps:x.temps != null ? num(x.temps, 0, 1e5, 0) : undefined, decal:num(x.decal, 0, 600, 0), duree:num(x.duree, 0, REGLES.dureeMax, 0), vol:num(x.vol, 0, 1.5, 1), fx:EFFETS_VOIX.some(function(f){ return f.k === x.fx; }) ? x.fx : 'studio', voie:x.voie === 'ech' ? 'ech' : 'voix', ignore:x.ignore === true, origine:['prise', 'import', 'catalogue', 'neuravid', 'copie', 'duo'].indexOf(x.origine) >= 0 ? x.origine : 'import', nv:nvPropre(x.nv), auteur:compteSur(x.auteur)} : null; }).filter(Boolean);
   P.voixMix = nettoyerMix(o.voixMix); if(o.echMix) P.echMix = nettoyerMix(o.echMix);
   var mm = o.master || {}; P.master = {cible:CIBLES.some(function(c){ return c.k === mm.cible; }) ? mm.cible : 'ecoute', chaleur:num(mm.chaleur, -6, 6, 0), brillance:num(mm.brillance, -6, 6, 0), colle:num(mm.colle, 0, 1, .4), gainDb:mm.gainDb != null ? num(mm.gainDb, -24, 24, 0) : undefined};
   var pa = o.paroles || {}; P.paroles = {texte:String(pa.texte || '').slice(0, 6000), temps:(Array.isArray(pa.temps) ? pa.temps : []).slice(0, 400).map(function(t){ return num(t, 0, 3600, 0); })};
@@ -2159,13 +2159,27 @@ function pisteFaiteIci(P, p){
   var lettres = {}; sectionsDe(P).l.forEach(function(x){ lettres[x.s.m] = 1; });
   return Object.keys(lettres).some(function(l){ var m = P.motifs[l] || {}; return (m.cells && (m.cells[p.id] || []).some(function(v){ return v > 0; })) || (m.notes && (m.notes[p.id] || []).length > 0); });
 }
+/* Décision de Karamo (11 nov. 2026, « le meilleur choix pour moi ») : en duo, la valeur est PARTAGÉE quand chacun a vraiment
+   apporté sa part. La prise ou la piste du partenaire, jouée en direct dans le duo, compte comme faite sur NEURAVID pour moi
+   seulement si j'ai moi-même une prise ou une piste qu'on entend dans le morceau ; sinon elle compte comme un import. */
+function pisteDuo(P, p){
+  if(!sonne(P, p.mix) || !(p.par || []).some(function(a){ return String(a).indexOf('autre:') === 0; })) return false;
+  var lettres = {}; sectionsDe(P).l.forEach(function(x){ lettres[x.s.m] = 1; });
+  return Object.keys(lettres).some(function(l){ var m = P.motifs[l] || {}; return (m.cells && (m.cells[p.id] || []).some(function(v){ return v > 0; })) || (m.notes && (m.notes[p.id] || []).length > 0); });
+}
+function prisesEntendues(P){ return P.prises.filter(function(x){ return !x.ignore && sonne(P, x.voie === 'ech' ? (P.echMix || MIX0()) : P.voixMix); }); }
+function maPart(P){ return prisesEntendues(P).some(function(x){ return x.origine === 'prise' && (!x.auteur || aMoi(x.auteur)); }) || P.pistes.some(function(p){ return pisteFaiteIci(P, p); }); }
 function sourcesMorceau(P){
-  var l = P.prises.filter(function(x){ return !x.ignore && sonne(P, x.voie === 'ech' ? (P.echMix || MIX0()) : P.voixMix); }).map(function(x){
-    var o = x.origine === 'prise' && x.auteur && !aMoi(x.auteur) ? 'import' : x.origine;
+  var partage = maPart(P);
+  var l = prisesEntendues(P).map(function(x){
+    var o = x.origine === 'duo' ? (partage ? 'prise' : 'import') : x.origine === 'prise' && x.auteur && !aMoi(x.auteur) ? 'import' : x.origine;
     return {origine:o, nv:x.nv, kind:'audio', duree:x.duree, blob:function(){ return idbLire('audio', x.aud).then(function(a){ return a && a.blob; }); },
       garder:function(nv){ modifierProjet(P.id, function(P2){ P2.prises.forEach(function(y){ if(y.id === x.id) y.nv = nv; }); }); }};
   });
-  return NVProvenance.sources(l).then(function(r){ if(P.pistes.some(function(p){ return pisteFaiteIci(P, p); })) r.push({type:'prise'}); return r; });
+  return NVProvenance.sources(l).then(function(r){
+    if(P.pistes.some(function(p){ return pisteFaiteIci(P, p); })) r.push({type:'prise'});
+    if(P.pistes.some(function(p){ return pisteDuo(P, p) && !pisteFaiteIci(P, p); })) r.push({type:partage ? 'prise' : 'import'});
+    return r; });
 }
 /* un projet ouvert depuis un fichier .zip : rien n'y est de ce compte (ni prise ni piste écrite), quoi qu'en dise le fichier */
 function recuDAutrui(P, avant, de){
@@ -2174,7 +2188,7 @@ function recuDAutrui(P, avant, de){
   var autre = 'autre:' + (compteSur(String(de || '')) || '?').slice(0, 60);
   P.prises.forEach(function(x){
     if(mesPrises[x.id]){ x.auteur = mesPrises[x.id]; return; }
-    if(x.origine === 'prise'){ x.origine = 'import'; x.auteur = autre; }
+    if(x.origine === 'prise' || x.origine === 'duo'){ x.origine = de ? 'duo' : 'import'; x.auteur = autre; }
     else if(x.auteur && aMoi(x.auteur)) x.auteur = autre;
     if(avant && x.nv){ var y = avant.prises.filter(function(z){ return z.id === x.id; })[0]; if(!y || !y.nv || y.nv.attestation !== x.nv.attestation) x.nv = null; }
     else if(!avant) x.nv = null;
