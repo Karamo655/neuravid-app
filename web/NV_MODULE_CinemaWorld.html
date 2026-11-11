@@ -4580,7 +4580,8 @@ function rendrePresenter(){
     '<div class="sur"><i>📜</i><span><b>Le contrat de droits</b> s\'ouvre juste après : vous gardez tous vos droits, et vous le signez avec un code reçu sur votre téléphone.</span></div>' +
     '<h4>Ma vidéo</h4><div class="modes">' +
       (st.recu ? (st.recu.de === 'forge' ? '<button data-film-mode="recu"><i>🔥</i><span><b>Mon film de La Forge</b><span>La vidéo montée que vous venez d\'envoyer</span></span></button>' : '<button data-film-mode="recu"><i>🎭</i><span><b>Ma self-tape du Conteur</b><span>La vidéo montée que vous venez d\'envoyer</span></span></button>') : '<button data-act="vers-conteur"><i>🎭</i><span><b>Jouer une scène dans Le Conteur</b><span>Répétition et self-tape, puis l\'envoi ici</span></span></button>') +
-      (window.NVCamera && NVCamera.studioJoignable() ? '<button data-film-mode="studio"><i>🎬</i><span><b>Filmer avec La Forge</b><span>Filtres, montage, musique</span></span></button>' :
+      (window.NVCamera && NVCamera.studioJoignable() ? '<button data-film-mode="studio"><i>🎬</i><span><b>Filmer avec La Forge</b><span>Filtres, montage, musique</span></span></button>' +
+      '<button data-film-mode="galerie"><i>🖼️</i><span><b>Choisir dans ma galerie</b><span>Un film déjà tourné et monté</span></span></button>' :
       '<button data-film-mode="ici"><i>⏺</i><span><b>Filmer ici</b><span>La caméra, directement dans la salle</span></span></button>' +
       '<button data-film-mode="galerie"><i>🖼️</i><span><b>Choisir dans ma galerie</b><span>Un film déjà tourné et monté</span></span></button>') + '</div>';
   ouvrirFeuille(d ? 'Relever le défi' : 'Présenter mon film', h, lireForm);

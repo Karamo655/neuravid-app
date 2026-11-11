@@ -1,6 +1,6 @@
 {
- "version": "2026.11.11-4a3b0bec6457",
- "date": "2026-11-11T06:29:45Z",
+ "version": "2026.11.11-722eb4e9200b",
+ "date": "2026-11-11T07:45:59Z",
  "entree": "index.html",
  "modules": [
   "NV_MODULE_Arena.html",
@@ -56,8 +56,8 @@
    "taille": 1962293
   },
   "NV_MODULE_Artistes.html": {
-   "sha256": "ffc256efd5c455800cec74eed17355320e22dd243257819cac297ebe7b49139c",
-   "taille": 1222086
+   "sha256": "8d4334d747bcc3f7927eb90a7843fdd9646662a00482510030459c4aa2f6bad9",
+   "taille": 1223619
   },
   "NV_MODULE_Baobab.html": {
    "sha256": "2001021f849a2ba2b03a9b2535cb02e4d5e6bfefc47558a7659aa60ac0923a74",
@@ -80,8 +80,8 @@
    "taille": 1812519
   },
   "NV_MODULE_CinemaWorld.html": {
-   "sha256": "0fc14be7a3750302c80eeda67312c5816e1916e4e3a18d0782dba364b5d2cf77",
-   "taille": 1019476
+   "sha256": "8d8049294fd3d4df94c11df7c222826120e1c91e9b546bf30d8148411269ba6a",
+   "taille": 1019631
   },
   "NV_MODULE_Conditions.html": {
    "sha256": "5477e90bd963bbd15532f3ee1b4cfa283b35c67a4295dbdaeb9889187ce775a7",
