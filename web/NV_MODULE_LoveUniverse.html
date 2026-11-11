@@ -4843,9 +4843,9 @@ function rendreFiche(){
     '<label class="coche"><input type="checkbox" id="fAccord"' + (f.accord ? ' checked' : '') + '><span><b>Nous sommes deux adultes</b>, et nous sommes d\'accord tous les deux pour publier cette vidéo.</span></label>' +
     '<label class="coche"><input type="checkbox" id="fAutres"' + (f.autres ? ' checked' : '') + '><span>Toute autre personne filmée (famille, amis) a donné son accord. Aucun enfant n\'est montré.</span></label>' +
     '<h4>Notre vidéo</h4><div class="modes">' +
-      (window.NVCamera && NVCamera.studioJoignable() ? '<button data-film-mode="studio"><i>🎬</i><span><b>Filmer avec La Forge</b><span>Filtres, montage, musique du Griot</span></span></button>' : '') +
+      (window.NVCamera && NVCamera.studioJoignable() ? '<button data-film-mode="studio"><i>🎬</i><span><b>Filmer avec La Forge</b><span>Filtres, montage, musique du Griot</span></span></button>' :
       '<button data-film-mode="ici"><i>⏺</i><span><b>Filmer ici</b><span>La caméra, directement</span></span></button>' +
-      '<button data-film-mode="galerie"><i>🖼️</i><span><b>Choisir dans ma galerie</b><span>Une vidéo déjà tournée</span></span></button></div>';
+      '<button data-film-mode="galerie"><i>🖼️</i><span><b>Choisir dans ma galerie</b><span>Une vidéo déjà tournée</span></span></button>') + '</div>';
   ouvrirFeuille('Relever un défi à deux', h, lireFiche);
 }
 function lireFiche(){
@@ -4888,7 +4888,7 @@ function ouvrirCam(refaire){
   var ctx = st.ctx; if(!ctx || camOuverture) return;
   if(!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia && window.MediaRecorder)){ $('galerie').click(); return; }
   camOuverture = true;   /* un double toucher n'ouvre pas deux caméras */
-  navigator.mediaDevices.getUserMedia({video:{facingMode:'user', width:{ideal:720}, height:{ideal:1280}}, audio:true}).then(function(f){
+  navigator.mediaDevices.getUserMedia({video:{facingMode:'user', resizeMode:'none', width:{ideal:1280}, height:{ideal:1280}}, audio:true}).then(function(f){
     camOuverture = false; arreterFlux();
     if(refaire !== true && !camPousse){ try{ history.pushState({nv:'lu-cam'}, ''); camPousse = true; }catch(e){ dbg(e); } }
     cam.flux = f; var v = $('camVid'); v.srcObject = f; v.removeAttribute('src'); v.muted = true; v.controls = false; v.loop = false; v.classList.add('miroir'); v.play().catch(function(){});

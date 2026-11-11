@@ -4724,8 +4724,8 @@ function rendreDefier(){
     (defi.mode === 'crew' ? '<h4>Le format</h4><div class="puces">' + ['3v3', '5v5'].map(function(f){ return '<button data-dformat="' + f + '"' + ((defi.format || '3v3') === f ? ' class="on"' : '') + (f === '5v5' && nbMembres < 5 ? ' disabled title="Il faut 5 membres dans le crew"' : '') + '>' + f.replace('v', ' contre ') + '</button>'; }).join('') + '</div><p class="petit">Chaque manche est une vidéo collective de votre crew.</p>' : '') +
     '<div class="champs">' + (defi.mode === 'cible' ? '<label>Son pseudo<input id="dCible" maxlength="40" placeholder="@pseudo" value="' + esc(defi.cible) + '"></label>' : '') +
     '<label>Votre message (facultatif)<textarea id="dMessage" maxlength="140" placeholder="Une phrase pour lancer le duel, avec respect">' + esc(defi.message) + '</textarea></label></div>' +
-    '<h4>Votre attaque</h4><div class="modes">' + (window.NVCamera && NVCamera.studioJoignable() ? '<button data-film="studio"><i>🎬</i><span><b>Filmer avec La Forge</b><span>Filtres, effets, musique, double caméra</span></span></button>' : '') +
-    '<button data-film="ici"><i>⏺</i><span><b>Filmer ici</b><span>La caméra, directement dans le ring</span></span></button><button data-film="galerie"><i>🖼️</i><span><b>Choisir dans ma galerie</b><span>Une vidéo déjà filmée</span></span></button></div>', function(){ lireFormDefi(); });
+    '<h4>Votre attaque</h4><div class="modes">' + (window.NVCamera && NVCamera.studioJoignable() ? '<button data-film="studio"><i>🎬</i><span><b>Filmer avec La Forge</b><span>Filtres, effets, musique, double caméra</span></span></button>' :   /* 11 nov. 2026 : La Forge seule quand elle est joignable */
+    '<button data-film="ici"><i>⏺</i><span><b>Filmer ici</b><span>La caméra, directement dans le ring</span></span></button><button data-film="galerie"><i>🖼️</i><span><b>Choisir dans ma galerie</b><span>Une vidéo déjà filmée</span></span></button>') + '</div>', function(){ lireFormDefi(); });
 }
 function lireFormDefi(){ var c = $('dCible'), m = $('dMessage'); if(c) defi.cible = c.value.trim(); if(m) defi.message = m.value.trim(); }
 function preparerFilm(mode, ctx){
@@ -4751,8 +4751,8 @@ function relever(id){
   var x = (st.defis || []).filter(function(d){ return String(d.id) === String(id); })[0]; if(!x) return;
   var a = age(); if(a != null && a < REGLES.ageParticipation){ toast('Les battles sont ouverts à partir de ' + REGLES.ageParticipation + ' ans.'); return; }
   ouvrirFeuille('Relever le défi', '<p>Filmez votre réponse à ' + esc((x.auteur && x.auteur.nom) || 'ce défi') + ' : ' + dureeLongue(REGLES.dureeMax) + ' au maximum. Le battle commence dès qu\'elle est vérifiée.</p><div class="modes">' +
-    (window.NVCamera && NVCamera.studioJoignable() ? '<button data-filmr="studio" data-id="' + esc(x.id) + '"><i>🎬</i><span><b>Filmer avec La Forge</b><span>Filtres, effets, musique</span></span></button>' : '') +
-    '<button data-filmr="ici" data-id="' + esc(x.id) + '"><i>⏺</i><span><b>Filmer ici</b><span>La caméra, directement dans le ring</span></span></button><button data-filmr="galerie" data-id="' + esc(x.id) + '"><i>🖼️</i><span><b>Choisir dans ma galerie</b><span>Une vidéo déjà filmée</span></span></button></div>');
+    (window.NVCamera && NVCamera.studioJoignable() ? '<button data-filmr="studio" data-id="' + esc(x.id) + '"><i>🎬</i><span><b>Filmer avec La Forge</b><span>Filtres, effets, musique</span></span></button>' :
+    '<button data-filmr="ici" data-id="' + esc(x.id) + '"><i>⏺</i><span><b>Filmer ici</b><span>La caméra, directement dans le ring</span></span></button><button data-filmr="galerie" data-id="' + esc(x.id) + '"><i>🖼️</i><span><b>Choisir dans ma galerie</b><span>Une vidéo déjà filmée</span></span></button>') + '</div>');
 }
 
 /* ════════ La caméra du ring (quand La Forge n'est pas joignable) ════════ */
@@ -4761,7 +4761,7 @@ function dureeTxt(s){ s = Math.max(0, Math.floor(s)); return Math.floor(s / 60) 
 function ouvrirCam(refaire){
   var ctx = st.ctx; if(!ctx) return;
   if(!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia && window.MediaRecorder)){ $('galerie').click(); return; }
-  navigator.mediaDevices.getUserMedia({video:{facingMode:'user', width:{ideal:720}, height:{ideal:1280}}, audio:true}).then(function(f){
+  navigator.mediaDevices.getUserMedia({video:{facingMode:'user', resizeMode:'none', width:{ideal:1280}, height:{ideal:1280}}, audio:true}).then(function(f){
     var pousser = function(){ if(refaire === true || camPousse) return; if(retourFeuille){ setTimeout(pousser, 40); return; } try{ history.pushState({nv:'bt-cam'}, ''); camPousse = true; }catch(e){} };
     pousser();
     if(actif){ try{ actif.v.pause(); }catch(e){} }

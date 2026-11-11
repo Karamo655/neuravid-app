@@ -8094,10 +8094,18 @@ if(document.readyState === 'loading') document.addEventListener('DOMContentLoade
   function filmerIci(ctx){
     if(tropJeune()) return true;
     preparerDepot(ctx);
+    /* 11 nov. 2026 (Karamo) : La Forge est la caméra de tous les défis ; la caméra d'Orbite ne sert que si La Forge n'est pas joignable */
+    if(window.NVCamera && window.NVCamera.studioJoignable && window.NVCamera.studioJoignable()){
+      var v = 'aucun';
+      try{ v = window.NVCamera.filmer({module:'Orbite', defi:ctxDepot.defi, titre:ctxDepot.titre || null, astre:ctxDepot.astre || null, saison:ctxDepot.saison, candidature:ctxDepot.candidature || null, ouverture:!!ctxDepot.ouverture, dureeMax:ctxDepot.dureeMax || null, minSeconds:REGLES_O.dureeMin, maxSeconds:maxO()}); }catch(e){ v = 'aucun'; }
+      if(v !== 'aucun') return true;
+    }
     ouvrirCamO(); return true;
   }
   function choisirGalerieO(ctx){
     if(tropJeune()) return true;
+    /* 11 nov. 2026 : La Forge joignable = elle seule ouvre la caméra et la galerie (son import garde ses règles) */
+    if(window.NVCamera && window.NVCamera.studioJoignable && window.NVCamera.studioJoignable()) return filmerIci(ctx);
     preparerDepot(ctx);
     $('ogalerie').click(); return true;
   }
@@ -8107,7 +8115,7 @@ if(document.readyState === 'loading') document.addEventListener('DOMContentLoade
   function ouvrirCamO(refaire){
     if(!ctxDepot) return;
     if(!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia && window.MediaRecorder)){ $('ogalerie').click(); return; }
-    navigator.mediaDevices.getUserMedia({video:{facingMode:'user', width:{ideal:720}, height:{ideal:1280}}, audio:true}).then(function(f){
+    navigator.mediaDevices.getUserMedia({video:{facingMode:'user', resizeMode:'none', width:{ideal:1280}, height:{ideal:1280}}, audio:true}).then(function(f){
       if(refaire !== true && !$('ocam').dataset.pousse){ $('ocam').dataset.pousse = '1'; pousser('cam'); }
       pauseLect(); stopVideos(null);
       CAM.flux = f; var v = $('ocamV'); v.srcObject = f; v.removeAttribute('src'); v.muted = true; v.controls = false; v.loop = false; v.classList.add('miroir'); v.play().catch(function(){});
@@ -8305,7 +8313,11 @@ if(document.readyState === 'loading') document.addEventListener('DOMContentLoade
   function reprendreO(id){ return baseO().then(function(db){ return new Promise(function(res){ if(!db) return res(null); try{ var q = db.transaction('videos', 'readonly').objectStore('videos').get(id); q.onsuccess = function(){ res(q.result || null); }; q.onerror = function(){ res(null); }; }catch(e){ res(null); } setTimeout(function(){ res(null); }, 2500); }); }); }
   window.NVOrbite.deposer = function(blob, meta){
     meta = meta || {}; if(!blob) return false;
-    if(!ctxDepot){ var a = astreActif(); var c = (window.NVCameraReprise && window.NVCameraReprise.ctx) || {}; ctxDepot = {astre:c.astre || (a && a.id) || null, astreNom:a ? a.nom : '', defi:c.defi || (a ? 'orbite_' + a.id : null), titre:c.titre || null, siege:/^siege_/.test(c.defi || ''), saison:c.saison != null ? c.saison : null, dureeMax:+c.dureeMax > 0 ? +c.dureeMax : null}; }
+    /* 11 nov. 2026 (relecture) : un ancien dépôt resté en mémoire ne capte jamais une vidéo revenue de La Forge pour un autre défi */
+    var rp = window.NVCameraReprise && window.NVCameraReprise.ctx;
+    if(ctxDepot && rp && (rp.defi !== ctxDepot.defi || (rp.candidature || null) !== (ctxDepot.candidature || null) || !!rp.ouverture !== !!ctxDepot.ouverture)) ctxDepot = null;
+    if(!ctxDepot){ var a = astreActif(); var c = (window.NVCameraReprise && window.NVCameraReprise.ctx) || {}; ctxDepot = {astre:c.astre || (a && a.id) || null, astreNom:a ? a.nom : '', defi:c.defi || (a ? 'orbite_' + a.id : null), titre:c.titre || null, siege:/^siege_/.test(c.defi || ''), saison:c.saison != null ? c.saison : null, dureeMax:+c.dureeMax > 0 ? +c.dureeMax : null, candidature:c.candidature || null, ouverture:!!c.ouverture};
+      if(ctxDepot.candidature || ctxDepot.ouverture){ ctxDepot.astre = null; ctxDepot.astreNom = ''; ctxDepot.siege = false; } }
     deposerO(blob, meta.seconds || null, meta.source || 'studio', false); return true;
   };
   window.NVOrbite.regles = function(o){ o = o || {}; ['dureeMin', 'dureeMax', 'ageParticipation', 'ageDirect', 'ageAnimer', 'ageArgent', 'ageBenevolat', 'tailleMaxMo'].forEach(function(k){ if(typeof o[k] === 'number' && o[k] > 0 && o[k] < 1e6 && (!/^age/.test(k) || (o[k] >= 13 && o[k] <= 21))) REGLES_O[k] = Math.round(o[k]); });   /* un âge publié reste entre 13 et 21 ans */ if(o.repartition && isFinite(o.repartition.createur)){ var rc = +o.repartition.createur, rf = isFinite(o.repartition.fonds) ? +o.repartition.fonds : 0; REGLES_O.repartition = {createur:rc, fonds:rf, neuravid:isFinite(o.repartition.neuravid) ? +o.repartition.neuravid : 100 - rc - rf}; configCadeauxO(); } rafraichirMoiO(); };
@@ -10996,6 +11008,8 @@ if(document.readyState === 'loading') document.addEventListener('DOMContentLoade
       astre: c.astre || null, saison: (c.saison != null ? c.saison : null),
       blob: blob, seconds: (meta && meta.seconds) || 0, source:'studio'
     };
+    /* 11 nov. 2026 : une candidature d'astre ou la vidéo qui ouvre une orbite n'est pas une participation : Orbite la dépose lui-même */
+    if((c.candidature || c.ouverture) && window.NVOrbite && typeof window.NVOrbite.deposer === 'function' && window.NVOrbite.deposer(blob, {seconds:(meta && meta.seconds) || 0, source:'studio'})) return;
     if(typeof window.NVChallengeSubmit === 'function'){
       window.NVChallengeSubmit(charge);
       (window.NVemit||function(){})('orbite_participation', {astre:charge.astre, voie:'studio_pro'});

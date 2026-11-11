@@ -1,6 +1,6 @@
 {
- "version": "2026.11.10-81eaa0b47409",
- "date": "2026-11-10T10:21:31Z",
+ "version": "2026.11.11-4a3b0bec6457",
+ "date": "2026-11-11T06:29:45Z",
  "entree": "index.html",
  "modules": [
   "NV_MODULE_Arena.html",
@@ -48,16 +48,16 @@
  "config": "nv-config.js (exclu de l'empreinte : il change selon le déploiement)",
  "fichiers": {
   "NV_MODULE_Arena.html": {
-   "sha256": "e8ed336b52352575d43d95564b8fe61f33413f1e5a859a0d2d932171234c0d0a",
-   "taille": 1868985
+   "sha256": "33375b06e57fd8f815b113f1986aca0f9a03fb5b66be13ba24034179d5c173b7",
+   "taille": 1873800
   },
   "NV_MODULE_ArenaArts.html": {
-   "sha256": "db3b46825333d879a66dd59640b799c8f334ec9c0ed758dd5a7908f664c41bc9",
-   "taille": 1960043
+   "sha256": "005856526e3409a33759fc4f4a80bf2208fc9e8fc60260c57a2d900946bd69e0",
+   "taille": 1962293
   },
   "NV_MODULE_Artistes.html": {
-   "sha256": "0226d8a7690ef6f1afdba19476c042c5f28b742457439174923905d458233e38",
-   "taille": 1220520
+   "sha256": "ffc256efd5c455800cec74eed17355320e22dd243257819cac297ebe7b49139c",
+   "taille": 1222086
   },
   "NV_MODULE_Baobab.html": {
    "sha256": "2001021f849a2ba2b03a9b2535cb02e4d5e6bfefc47558a7659aa60ac0923a74",
@@ -68,20 +68,20 @@
    "taille": 756748
   },
   "NV_MODULE_Battle.html": {
-   "sha256": "61e130cbb4f56421a89105b2238bd7a19c3c6b8785ea4cd93fad4d7da822a588",
-   "taille": 1401688
+   "sha256": "d224476a25f0b4833b3b81e600b6741e4171e60219be9b74187320d90a184c46",
+   "taille": 1401771
   },
   "NV_MODULE_CallUniverse.html": {
    "sha256": "bd55e6026c1183cf3473e8c0fd87a118eb6727a31048ad4c570879d1acda8f2f",
    "taille": 1286453
   },
   "NV_MODULE_ChallengeUniverse.html": {
-   "sha256": "29294ba368a4b0973d16aaa8a0f7cbc4e27a0a77bc2496e31729fb68f605280d",
-   "taille": 1812500
+   "sha256": "ee5566be29a1d970606d448d7a32c55d4327e7714bfe7c5a83bc8843f423304b",
+   "taille": 1812519
   },
   "NV_MODULE_CinemaWorld.html": {
-   "sha256": "ad797b728012562d4f99b699c690f531fed639b44484884e7b5306b3df1335aa",
-   "taille": 1017226
+   "sha256": "0fc14be7a3750302c80eeda67312c5816e1916e4e3a18d0782dba364b5d2cf77",
+   "taille": 1019476
   },
   "NV_MODULE_Conditions.html": {
    "sha256": "5477e90bd963bbd15532f3ee1b4cfa283b35c67a4295dbdaeb9889187ce775a7",
@@ -92,8 +92,8 @@
    "taille": 1400800
   },
   "NV_MODULE_Create.html": {
-   "sha256": "a54e4115655449c9c826da598be6feff9df3fc41ab314f6a67ae99d5af4e2d59",
-   "taille": 1930921
+   "sha256": "de4afde353f3e26bf1380a2822c9f7ec6fb60763dcd6972e9736f24090013433",
+   "taille": 1934681
   },
   "NV_MODULE_Dashboard.html": {
    "sha256": "22f8fde7c2c3ee5f0fc7b29ceb44eb68ccb191e9f06b92e27da130e86f511209",
@@ -136,20 +136,20 @@
    "taille": 2505098
   },
   "NV_MODULE_LoveUniverse.html": {
-   "sha256": "be5e81372d9d43503a443c379b144dbd0428c131cd47a098e34bc41013407a21",
-   "taille": 1469248
+   "sha256": "0b3bc688f34e5d8deb026174b313219f6941a0201ee7417c53b635ce16917216",
+   "taille": 1469268
   },
   "NV_MODULE_MissMaster.html": {
-   "sha256": "70631b7fa39389d66c06f405689513223297f12f666e309b54ec97a7c4a2da4a",
-   "taille": 930101
+   "sha256": "f8fec07ca97badc1039343b0e1531bba844f387effa046800792f88c8c15472a",
+   "taille": 931673
   },
   "NV_MODULE_Notifications.html": {
    "sha256": "ec24e2b055ea3a20d428d1ad2c45a66dc4fe45dd207cf4b0f513427935079dff",
    "taille": 490119
   },
   "NV_MODULE_Orbite.html": {
-   "sha256": "aa7ab41d52746cc16208f60af4c4d7c655103c4cca83de46f1c535ea53478c47",
-   "taille": 1423290
+   "sha256": "2e53e2394970e3c15cb7cf095c00794930a035772a7b8ff333274011c8977af5",
+   "taille": 1425118
   },
   "NV_MODULE_Passeport.html": {
    "sha256": "552dc1d0ae51d53010cd53547a929a104092a55b75e2f49863d7008312d375f7",
@@ -208,8 +208,8 @@
    "taille": 1264014
   },
   "NV_MODULE_ViralStorm.html": {
-   "sha256": "a0bfa5b60eafbe2c71db92319b042c5cab63d568404d05449ba86e2734e4ff04",
-   "taille": 1034880
+   "sha256": "a04594d3e83ae2be8e7bba57c23f0a35785d6d24ee8959b6b956dec5bd6fc288",
+   "taille": 1034900
   },
   "cadeaux3d/1f0cf.webp": {
    "sha256": "06bc2293f925386fd47d7c71ca561ba9e911274fcf6188fa8617170ba1705253",

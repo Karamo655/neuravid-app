@@ -3992,9 +3992,9 @@ function relever(id, twist, parent){
   ouvrirFeuille(parent ? 'Continuer la chaîne' : 'Relever « ' + d.nom + ' »',
     '<div class="consigne"><b>Le défi</b>' + esc(d.desc) + '</div>' + (twist ? '<div class="twist"><b>🎲 Contrainte surprise</b>' + esc(twist) + '</div>' : '') +
     '<p class="petit">Une vraie vidéo de ' + dureeLongue(d.min) + ' à ' + dureeLongue(d.max) + ', filmée par vous. Elle est vérifiée avant d\'entrer dans la tempête.</p>' +
-    '<div class="modes">' + (window.NVCamera && NVCamera.studioJoignable() ? '<button data-film="studio"><i>🎬</i><span><b>Filmer avec La Forge</b><span>Filtres, effets, musique, double caméra</span></span></button>' : '') +
+    '<div class="modes">' + (window.NVCamera && NVCamera.studioJoignable() ? '<button data-film="studio"><i>🎬</i><span><b>Filmer avec La Forge</b><span>Filtres, effets, musique, double caméra</span></span></button>' :
     '<button data-film="ici"><i>⏺</i><span><b>Filmer ici</b><span>La caméra, directement dans la tempête</span></span></button>' +
-    '<button data-film="galerie"><i>🖼️</i><span><b>Choisir dans ma galerie</b><span>Une vraie vidéo que vous avez filmée</span></span></button></div>');
+    '<button data-film="galerie"><i>🖼️</i><span><b>Choisir dans ma galerie</b><span>Une vraie vidéo que vous avez filmée</span></span></button>') + '</div>');
 }
 function choisirDefi(){
   ouvrirFeuille('Quel défi relevez-vous ?', '<button class="surprise" data-surprise style="margin:0 0 12px"><span class="de">🎲</span><span><b>Le Défi surprise</b><span>Un défi et une contrainte au hasard.</span></span></button>' +
@@ -4015,7 +4015,7 @@ function dureeTxt(s){ s = Math.max(0, Math.floor(s)); return Math.floor(s / 60) 
 function ouvrirCam(refaire){
   var ctx = st.ctx; if(!ctx) return;
   if(!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia && window.MediaRecorder)){ $('galerie').click(); return; }
-  navigator.mediaDevices.getUserMedia({video:{facingMode:'user', width:{ideal:720}, height:{ideal:1280}}, audio:true}).then(function(f){
+  navigator.mediaDevices.getUserMedia({video:{facingMode:'user', resizeMode:'none', width:{ideal:1280}, height:{ideal:1280}}, audio:true}).then(function(f){
     if(refaire !== true && !camPousse){ try{ history.pushState({vs:'cam'}, ''); camPousse = true; }catch(e){} }
     pauseFil();
     cam.flux = f; var v = $('camVid'); v.srcObject = f; v.removeAttribute('src'); v.muted = true; v.controls = false; v.loop = false; v.classList.add('miroir'); v.play().catch(function(){});
