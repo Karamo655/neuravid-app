@@ -1132,7 +1132,7 @@ body.feuille-ouverte .raccourcis{visibility:hidden}
 /* ════════ L'ÉCRAN DE LA BARRE DU BAS (ac17, 6 novembre 2026) ════════ */
 .bas.avec-ecran{background:none!important;backdrop-filter:none!important;-webkit-backdrop-filter:none!important}
 .bas.avec-ecran::before{display:none}
-.bas-ecran{position:absolute;left:0;top:-44px;width:100%;height:calc(100% + 44px);z-index:0;pointer-events:none;display:block}
+.bas-ecran{position:absolute;left:0;top:0;width:100%;height:100%;z-index:0;pointer-events:none;display:block}
 .bas.avec-ecran .nb{z-index:1}
 .bas.avec-ecran .nb{color:#C9C2E6}
 .bas.avec-ecran .nb.on{color:#fff}
@@ -5632,108 +5632,109 @@ function demarrerV5(){ document.addEventListener('scroll', raccourcisDefilement,
        étincelle dorée le long de la barre (dans l'aperçu, celles de l'aperçu).
    Économe : 20 images/s au plus, 10 en accueil léger, le fond dessiné une seule fois, une image fixe en mouvement réduit ; rien ne se dessine quand
    la page est cachée ou qu'une feuille (le menu) est ouverte. Aucune donnée inventée : ce ne sont que des lumières.
-   ── 12 novembre 2026, demande de Karamo (« plus belle, plus importante, qui attire l'attention du monde entier ») ──
-     – l'écran déborde de 44 px au-dessus de la barre (transparent, sans toucher) pour que l'œil d'Iris ait sa COURONNE :
-       un halo qui respire, des rayons de prisme qui tournent lentement, deux hexagones lumineux qui tournent en sens
-       contraires et six petites gemmes aux couleurs de NEURAVID en orbite (jamais sur le nom « Iris ») ;
-     – le bord coule en couleurs (teal → violet → rose → or) et deux comètes à traînée le parcourent ;
-     – « le battement du monde » : toutes les 9 s, une onde hexagonale part d'Iris, la ruche et le bord s'illuminent ;
-     – chaque onglet a son petit halo hexagonal qui respire à sa couleur ; le projecteur glisse vers l'onglet choisi ;
-     – des poussières de lumière montent doucement dans la barre.
-   Toujours 20 images/s au plus, rien quand la page est cachée, une image fixe (avec la couronne) en mouvement réduit.
+   ── 12 novembre 2026, demande de Karamo : « des animations vidéo impressionnantes À L'INTÉRIEUR de la barre, comme les
+      autres cartes » (rien au-dessus de la barre, rien sur l'œil d'Iris) ──
+     L'intérieur de la barre joue un FILM panoramique, comme les films des carreaux (ac20) : quatre plans qui s'enchaînent
+     en fondu, la caméra qui avance et glisse, la lumière qui passe, un voile qui garde les libellés lisibles :
+       1. la savane au coucher du soleil (acacias, éléphant, girafe et antilope qui traversent, oiseaux) ;
+       2. la nuit des étoiles (aurore qui ondule, étoile filante, constellation hexagonale qui se dessine) ;
+       3. la scène des talents (projecteurs qui balaient, public qui bouge, confettis hexagonaux) ;
+       4. le fleuve au lever du jour (soleil, vagues, reflets, une pirogue qui glisse).
+     Ce sont des illustrations : aucun nom, aucun chiffre. Absent de l'accueil léger ; image fixe en mouvement réduit.
    ════════════════════════════════════════════════════════════════════ */
-var BAS = {fond:null, hexs:[], cv:null, x:null, W:0, H:0, dpr:1, raf:0, tPrec:0, onglets:[], centre:null, gouttes:[], vagues:[], etincelles:[], tPluie:0, ro:null, actif:0,
-  ext:44, E:0, spot:null, chocs:[], tBat:3, poussieres:[], bord:null};
+var BAS = {fond:null, hexs:[], cv:null, x:null, W:0, H:0, dpr:1, raf:0, tPrec:0, onglets:[], centre:null, gouttes:[], vagues:[], etincelles:[], tPluie:0, ro:null, actif:0};
 var BAS_C = ['#2EE6C5', '#FF2D55', '#9B6BFF', '#3BE38A', '#B98CFF'];
-var BAS_GEMMES = ['#2EE6C5', '#FFC93D', '#FF3D9A', '#9B6BFF', '#3BE38A', '#FF7A45'];
 function basHexA(c, a){ var v = Math.round(Math.max(0, Math.min(1, a)) * 255).toString(16); return c + (v.length < 2 ? '0' + v : v); }
-function basHexa(x, cx, cy, r, rot){ x.beginPath(); for(var k = 0; k < 6; k++){ var an = Math.PI / 3 * k + (rot || 0); x[k ? 'lineTo' : 'moveTo'](cx + Math.cos(an) * r, cy + Math.sin(an) * r); } x.closePath(); }
 /* la forme : bord supérieur à y0, qui se soulève en hexagone (largeur lc) autour du centre */
 function basForme(x, W, H, y0, cx, lc, haut){ var d = lc / 2, e = lc * .22; x.beginPath(); x.moveTo(0, y0); x.lineTo(cx - d - e, y0); x.lineTo(cx - d, haut); x.lineTo(cx + d, haut); x.lineTo(cx + d + e, y0); x.lineTo(W, y0); x.lineTo(W, H); x.lineTo(0, H); x.closePath(); }
 function basBord(x, W, y0, cx, lc, haut){ var d = lc / 2, e = lc * .22; x.beginPath(); x.moveTo(0, y0); x.lineTo(cx - d - e, y0); x.lineTo(cx - d, haut); x.lineTo(cx + d, haut); x.lineTo(cx + d + e, y0); x.lineTo(W, y0); }
-/* le bord comme une ligne brisée mesurée : pour y faire courir les comètes */
-function basLigne(W, y0, cx, lc, haut){ var d = lc / 2, e = lc * .22, P = [[0, y0], [cx - d - e, y0], [cx - d, haut], [cx + d, haut], [cx + d + e, y0], [W, y0]], L = [0];
-  for(var i = 1; i < P.length; i++) L.push(L[i - 1] + Math.hypot(P[i][0] - P[i - 1][0], P[i][1] - P[i - 1][1])); return {P:P, L:L, tot:L[L.length - 1]}; }
-function basSur(b, s){ s = Math.max(0, Math.min(b.tot, s)); for(var i = 1; i < b.P.length; i++) if(s <= b.L[i]){ var k = (s - b.L[i - 1]) / ((b.L[i] - b.L[i - 1]) || 1); return [b.P[i - 1][0] + (b.P[i][0] - b.P[i - 1][0]) * k, b.P[i - 1][1] + (b.P[i][1] - b.P[i - 1][1]) * k]; } return b.P[b.P.length - 1]; }
-function basMesurer(){ var el = $('bas'), cv = BAS.cv; if(!el || !cv) return; var r = el.getBoundingClientRect(); BAS.dpr = Math.min(1.25, window.devicePixelRatio || 1); BAS.E = BAS.ext * BAS.dpr;
-  BAS.W = Math.round(r.width * BAS.dpr); BAS.H = Math.round((r.height + BAS.ext) * BAS.dpr); if(cv.width !== BAS.W || cv.height !== BAS.H){ cv.width = BAS.W; cv.height = BAS.H; }
-  BAS.onglets = [].map.call(el.querySelectorAll('.nb'), function(b, i){ var ic = b.querySelector('.ic') || b, q = ic.getBoundingClientRect(); return {el:b, x:(q.left + q.width / 2 - r.left) * BAS.dpr, y:(q.top + q.height / 2 - r.top) * BAS.dpr + BAS.E, c:BAS_C[i % BAS_C.length], centre:b.classList.contains('centre'), on:b.classList.contains('on'), k:b.getAttribute('data-v')}; });
-  BAS.centre = BAS.onglets.filter(function(o){ return o.centre; })[0] || {x:BAS.W / 2, y:BAS.E + 12 * BAS.dpr};
-  var u = BAS.dpr; BAS.bord = basLigne(BAS.W, BAS.E + 22 * u, BAS.centre.x, 104 * u, BAS.E + 4 * u);
-  if(!BAS.poussieres.length) for(var i = 0; i < 16; i++) BAS.poussieres.push({x:Math.random(), y:Math.random(), v:.04 + Math.random() * .08, p:Math.random() * 6.3, c:BAS_GEMMES[i % 6]});
-  basFond(); }
+function basMesurer(){ var el = $('bas'), cv = BAS.cv; if(!el || !cv) return; var r = el.getBoundingClientRect(); BAS.dpr = Math.min(1.25, window.devicePixelRatio || 1);
+  BAS.W = Math.round(r.width * BAS.dpr); BAS.H = Math.round(r.height * BAS.dpr); if(cv.width !== BAS.W || cv.height !== BAS.H){ cv.width = BAS.W; cv.height = BAS.H; }
+  BAS.onglets = [].map.call(el.querySelectorAll('.nb'), function(b, i){ var ic = b.querySelector('.ic') || b, q = ic.getBoundingClientRect(); return {x:(q.left + q.width / 2 - r.left) * BAS.dpr, y:(q.top + q.height / 2 - r.top) * BAS.dpr, c:BAS_C[i % BAS_C.length], centre:b.classList.contains('centre'), on:b.classList.contains('on'), k:b.getAttribute('data-v')}; });
+  BAS.centre = BAS.onglets.filter(function(o){ return o.centre; })[0] || {x:BAS.W / 2, y:BAS.H / 2}; basFond(); }
 /* le fond fixe (dégradé, ruche très fine) dessiné une seule fois : chaque image le recopie, sans le recalculer */
-function basFond(){ var W = BAS.W, H = BAS.H, u = BAS.dpr, E = BAS.E; if(!W || !H) return; var f = BAS.fond; if(!f) return; f.width = W; f.height = H; var x = f.getContext('2d'); basForme(x, W, H, E + 22 * u, BAS.centre.x, 104 * u, E + 4 * u); x.clip();
-  var g = x.createLinearGradient(0, E, 0, H); g.addColorStop(0, '#1A0F44'); g.addColorStop(.5, '#100A30'); g.addColorStop(1, '#08051C'); x.fillStyle = g; x.fillRect(0, 0, W, H);
-  /* la plaque de verre de l'œil, plus profonde */
-  var pl = x.createRadialGradient(BAS.centre.x, E + 20 * u, 0, BAS.centre.x, E + 20 * u, 80 * u); pl.addColorStop(0, '#2B1670'); pl.addColorStop(1, 'rgba(26,15,68,0)'); x.fillStyle = pl; x.fillRect(BAS.centre.x - 90 * u, E, 180 * u, H - E);
-  var R = 9 * u, dx = R * 1.732, dy = R * 1.5, y0 = E + 22 * u; x.lineWidth = .7 * u; x.strokeStyle = 'rgba(185,140,255,.06)'; x.beginPath(); BAS.hexs = [];
+function basFond(){ var W = BAS.W, H = BAS.H, u = BAS.dpr; if(!W || !H) return; var f = BAS.fond; if(!f) return; f.width = W; f.height = H; var x = f.getContext('2d'); basForme(x, W, H, 22 * u, BAS.centre.x, 104 * u, 4 * u); x.clip();
+  var g = x.createLinearGradient(0, 0, 0, H); g.addColorStop(0, '#1A0F44'); g.addColorStop(.5, '#100A30'); g.addColorStop(1, '#08051C'); x.fillStyle = g; x.fillRect(0, 0, W, H);
+  var R = 9 * u, dx = R * 1.732, dy = R * 1.5, y0 = 22 * u; x.lineWidth = .7 * u; x.strokeStyle = 'rgba(185,140,255,.06)'; x.beginPath(); BAS.hexs = [];
   for(var row = 0, yy = y0 + R * .2; yy < H + R; row++, yy += dy) for(var xx = (row % 2 ? dx / 2 : 0) - dx; xx < W + dx; xx += dx){ BAS.hexs.push([xx, yy]); for(var k = 0; k <= 6; k++){ var an = Math.PI / 3 * k - Math.PI / 6; x[k ? 'lineTo' : 'moveTo'](xx + Math.cos(an) * R, yy + Math.sin(an) * R); } }
   x.stroke(); }
-/* la couronne de l'œil d'Iris : au-dessus de la barre, derrière l'icône, jamais sur le nom « Iris » */
-function basCouronne(x, t, u, force){ var c = BAS.centre, cx = c.x, cy = c.y, i, bas = cy + 30 * u;
-  x.save(); x.beginPath(); x.rect(0, 0, BAS.W, bas); x.clip(); x.globalCompositeOperation = 'lighter';
-  /* le halo qui respire */
-  var hr = (66 + 6 * Math.sin(t * 1.3)) * u, hl = x.createRadialGradient(cx, cy, 0, cx, cy, hr); hl.addColorStop(0, basHexA('#B98CFF', .42 * force)); hl.addColorStop(.45, basHexA('#9B6BFF', .2 * force)); hl.addColorStop(1, basHexA('#9B6BFF', 0)); x.fillStyle = hl; x.beginPath(); x.arc(cx, cy, hr, 0, 6.29); x.fill();
-  /* les rayons de prisme, qui tournent lentement */
-  for(i = 0; i < 9; i++){ var an = t * .12 + i * Math.PI * 2 / 9, lg = (74 + 10 * Math.sin(t * .9 + i)) * u, la = .9, col = BAS_GEMMES[i % 6];
-    var gr = x.createLinearGradient(cx, cy, cx + Math.cos(an) * lg, cy + Math.sin(an) * lg); gr.addColorStop(0, basHexA(col, .0)); gr.addColorStop(.35, basHexA(col, .16 * force)); gr.addColorStop(1, basHexA(col, 0)); x.fillStyle = gr;
-    x.beginPath(); x.moveTo(cx, cy); x.lineTo(cx + Math.cos(an - la / 10) * lg, cy + Math.sin(an - la / 10) * lg); x.lineTo(cx + Math.cos(an + la / 10) * lg, cy + Math.sin(an + la / 10) * lg); x.closePath(); x.fill(); }
-  /* l'écrin : un hexagone lumineux aligné sur l'icône, une lumière qui en fait le tour, et un second qui s'éloigne en respirant */
-  var g1 = x.createLinearGradient(cx - 50 * u, cy - 50 * u, cx + 50 * u, cy + 50 * u); g1.addColorStop(0, '#2EE6C5'); g1.addColorStop(.5, '#B98CFF'); g1.addColorStop(1, '#FF3D9A');
-  var r1 = 46 * u; x.strokeStyle = g1; x.globalAlpha = .28 * force; x.lineWidth = 7 * u; basHexa(x, cx, cy, r1, -Math.PI / 2); x.stroke(); x.globalAlpha = .8 * force; x.lineWidth = 1.6 * u; x.stroke();
-  var per = r1 * 6, pos = (t * .22 % 1) * per; x.setLineDash([per * .18, per * .82]); x.lineDashOffset = -pos; x.strokeStyle = '#FFFFFF'; x.globalAlpha = .9 * force; x.lineWidth = 2.4 * u; basHexa(x, cx, cy, r1, -Math.PI / 2); x.stroke();
-  x.lineDashOffset = -(pos + per / 2); x.strokeStyle = '#FFE29A'; x.stroke(); x.setLineDash([]);
-  var ph = (t * .45) % 1, r2 = r1 + ph * 22 * u; x.globalAlpha = .5 * (1 - ph) * force; x.strokeStyle = g1; x.lineWidth = 1.4 * u; basHexa(x, cx, cy, r2, -Math.PI / 2); x.stroke();
-  /* six gemmes en orbite */
-  for(i = 0; i < 6; i++){ var ao = t * .3 + i * Math.PI / 3, gx = cx + Math.cos(ao) * 58 * u, gy = cy + Math.sin(ao) * 54 * u, gc = BAS_GEMMES[i], sc = 1 + .25 * Math.sin(t * 3 + i);
-    x.globalAlpha = force; var gg = x.createRadialGradient(gx, gy, 0, gx, gy, 9 * u); gg.addColorStop(0, basHexA(gc, .7)); gg.addColorStop(1, basHexA(gc, 0)); x.fillStyle = gg; x.beginPath(); x.arc(gx, gy, 9 * u, 0, 6.29); x.fill();
-    x.fillStyle = gc; basHexa(x, gx, gy, 3 * u * sc, ao); x.fill(); }
+/* ════════ Le film de l'intérieur de la barre (12 novembre 2026) ════════ */
+var BAS_FILM = {n:4, d:6};
+function basFilmPlan(i, k, x, W, H, t, U){ var j, q, R = U.R, A = U.A, sol;
+  if(i === 0){ /* la savane au coucher du soleil */
+    U.ciel(x, W, H, '#2B0F3A', '#FF8A3D', '#C2457A'); var sx = W * .74, sy = H * (.62 + .1 * k);
+    x.globalCompositeOperation = 'lighter'; U.lu(x, sx, sy, H * 1.3, '#FFB347', .5); x.globalCompositeOperation = 'source-over';
+    x.fillStyle = '#FFD27A'; x.beginPath(); x.arc(sx, sy, H * .22, 0, 6.29); x.fill();
+    U.oiseaux(x, W, H, t, 4, 'rgba(40,10,30,.75)', .22);
+    sol = H * .8; x.fillStyle = '#2A0E22'; x.beginPath(); x.moveTo(0, sol); for(j = 0; j <= 12; j++) x.lineTo(W * j / 12, sol - Math.sin(j * 1.7) * H * .04); x.lineTo(W, H); x.lineTo(0, H); x.closePath(); x.fill();
+    for(j = 0; j < 4; j++){ var ax = ((R(j + 7) * W - t * W * .012) % (W * 1.2) + W * 1.2) % (W * 1.2) - W * .1, ah = H * (.32 + R(j) * .14);
+      x.fillStyle = '#1C0718'; x.fillRect(ax - H * .015, sol - ah, H * .03, ah); x.beginPath(); x.ellipse(ax, sol - ah, H * (.26 + R(j + 2) * .1), H * .06, 0, 0, 6.29); x.fill(); }
+    for(j = 0; j < 3; j++){ q = ((t * .035 + j * .36) % 1.25) - .12; U.animal(x, j, q * W, sol + H * .02, H * (j === 1 ? .2 : .26), t + j, '#160512'); } }
+  else if(i === 1){ /* la nuit des étoiles */
+    U.ciel(x, W, H, '#05061C', '#1B0E46'); U.etoiles(x, W, H, t, 70, 31); U.filante(x, W, H, t, 3.2, .4);
+    x.globalCompositeOperation = 'lighter';
+    [['#2EE6C5', 0], ['#9B6BFF', 1.8], ['#FF3D9A', 3.4]].forEach(function(a, n){ x.beginPath(); for(var px = 0; px <= W; px += W / 24){ var py = H * (.35 + n * .14) + Math.sin(px / W * 6 + t * .7 + a[1]) * H * .12; x[px ? 'lineTo' : 'moveTo'](px, py); }
+      x.strokeStyle = A(a[0], .22); x.lineWidth = H * .16; x.stroke(); x.strokeStyle = A(a[0], .35); x.lineWidth = H * .03; x.stroke(); });
+    var pts = []; for(j = 0; j < 7; j++) pts.push([W * (.08 + j * .14), H * (.3 + R(j + 50) * .45)]); var vu = Math.min(pts.length - 1, k * 9);
+    x.strokeStyle = 'rgba(255,230,160,.55)'; x.lineWidth = 1.2; x.beginPath(); x.moveTo(pts[0][0], pts[0][1]); for(j = 1; j <= Math.floor(vu); j++) x.lineTo(pts[j][0], pts[j][1]);
+    var f = vu - Math.floor(vu), a0 = pts[Math.floor(vu)], b0 = pts[Math.min(pts.length - 1, Math.floor(vu) + 1)]; x.lineTo(a0[0] + (b0[0] - a0[0]) * f, a0[1] + (b0[1] - a0[1]) * f); x.stroke();
+    for(j = 0; j <= Math.floor(vu); j++){ U.lu(x, pts[j][0], pts[j][1], H * .12, '#FFE29A', .7); x.fillStyle = '#FFF6D8'; U.hx(x, pts[j][0], pts[j][1], H * .035, t * .5); x.fill(); } }
+  else if(i === 2){ /* la scène des talents */
+    U.ciel(x, W, H, '#14062E', '#3A0F4A'); x.globalCompositeOperation = 'lighter';
+    ['#2EE6C5', '#FF3D9A', '#FFC93D', '#9B6BFF'].forEach(function(col, n){ var bx = W * (.12 + n * .25), an = Math.sin(t * .9 + n * 1.7) * .55, lg = H * 1.6;
+      var g = x.createLinearGradient(bx, H, bx + Math.sin(an) * lg, H - Math.cos(an) * lg); g.addColorStop(0, A(col, .55)); g.addColorStop(1, A(col, 0)); x.fillStyle = g;
+      x.beginPath(); x.moveTo(bx - H * .05, H); x.lineTo(bx + Math.sin(an - .16) * lg, H - Math.cos(an - .16) * lg); x.lineTo(bx + Math.sin(an + .16) * lg, H - Math.cos(an + .16) * lg); x.closePath(); x.fill(); });
+    for(j = 0; j < 22; j++){ q = (t * (.12 + R(j) * .1) + R(j + 9)) % 1; x.fillStyle = A(['#FFC93D', '#FF3D9A', '#2EE6C5', '#B98CFF'][j % 4], .85 * (1 - q)); U.hx(x, R(j + 20) * W + Math.sin(t * 2 + j) * H * .1, q * H, H * .035, t * 2 + j); x.fill(); }
+    x.globalCompositeOperation = 'source-over'; for(j = 0; j < 30; j++){ var hx = (j + .5) * W / 30, hb = Math.max(0, Math.sin(t * 3 + j * 1.3)) * H * .06; U.silhouette(x, hx, H * 1.02 - hb, H * .34, '#0A0216'); } }
+  else { /* le fleuve au lever du jour */
+    U.ciel(x, W, H, '#1C3A6E', '#FFB27A', '#7A6FB0'); var lx = W * .28, ly = H * (.5 - .12 * k);
+    x.globalCompositeOperation = 'lighter'; U.lu(x, lx, ly, H * 1.2, '#FFD27A', .45); x.globalCompositeOperation = 'source-over'; x.fillStyle = '#FFE6A8'; x.beginPath(); x.arc(lx, ly, H * .18, 0, 6.29); x.fill();
+    sol = H * .58; var ge = x.createLinearGradient(0, sol, 0, H); ge.addColorStop(0, '#1F4E7A'); ge.addColorStop(1, '#0A1A36'); x.fillStyle = ge; x.fillRect(0, sol, W, H - sol);
+    x.globalCompositeOperation = 'lighter'; for(j = 0; j < 9; j++){ var ry = sol + H * .05 + j * H * .045, rw = H * (.5 - j * .03) * (.7 + .3 * Math.sin(t * 2 + j)); x.fillStyle = A('#FFD27A', .35 - j * .03); x.fillRect(lx - rw / 2 + Math.sin(t * 1.5 + j) * H * .05, ry, rw, Math.max(1, H * .012)); }
+    x.strokeStyle = 'rgba(160,210,255,.25)'; x.lineWidth = 1; for(j = 0; j < 5; j++){ x.beginPath(); for(var wx = 0; wx <= W; wx += W / 30){ var wy = sol + H * (.08 + j * .08) + Math.sin(wx / W * 14 + t * 1.8 + j) * H * .015; x[wx ? 'lineTo' : 'moveTo'](wx, wy); } x.stroke(); }
+    x.globalCompositeOperation = 'source-over'; var px2 = ((t * .04) % 1.3 - .15) * W, py2 = sol + H * .14 + Math.sin(t * 2) * H * .01;
+    x.fillStyle = '#120A1E'; x.beginPath(); x.moveTo(px2 - H * .45, py2); x.quadraticCurveTo(px2, py2 + H * .1, px2 + H * .45, py2); x.closePath(); x.fill(); U.silhouette(x, px2 + H * .08, py2, H * .26, '#120A1E');
+    x.strokeStyle = '#120A1E'; x.lineWidth = Math.max(1, H * .02); x.beginPath(); x.moveTo(px2 + H * .2, py2 - H * .2); x.lineTo(px2 + H * .36, py2 + H * .06); x.stroke();
+    x.fillStyle = '#0E1A2A'; x.beginPath(); x.moveTo(0, sol); x.lineTo(W * .12, sol - H * .12); x.lineTo(W * .2, sol); x.fill(); x.beginPath(); x.moveTo(W * .82, sol); x.lineTo(W * .92, sol - H * .16); x.lineTo(W, sol - H * .05); x.lineTo(W, sol); x.fill(); } }
+/* le film entier : un plan, le fondu vers le suivant, la caméra qui avance, la lumière qui passe, le voile qui garde les libellés lisibles */
+function basFilm(x, W, Hc, t, y0){ if(typeof FILM_U === 'undefined' || (typeof LEGER !== 'undefined' && LEGER.on)) return;
+  var H = Hc - y0, F = BAS_FILM, T = t / F.d, i = Math.floor(T) % F.n, k = T - Math.floor(T);
+  function plan(pi, pk){ x.save(); var z = 1 + .06 * Math.min(pk, 1.2), px = (pi % 2 ? -1 : 1) * W * .02 * Math.min(pk, 1.2); x.translate(W / 2 + px, H / 2); x.scale(z, z); x.translate(-W / 2, -H / 2); basFilmPlan(pi, Math.min(pk, 1.3), x, W, H, t, FILM_U); x.restore(); }
+  x.save(); x.translate(0, y0); x.globalCompositeOperation = 'source-over'; x.globalAlpha = 1; plan(i, k);
+  if(k < .16){ x.globalAlpha = 1 - k / .16; plan((i + F.n - 1) % F.n, 1 + k); x.globalAlpha = 1; }
+  var sw = (t * .16) % 1.6 - .3; if(sw > -.2 && sw < 1.2){ x.globalCompositeOperation = 'lighter'; var gs = x.createLinearGradient(W * (sw - .18), 0, W * (sw + .05), H); gs.addColorStop(0, 'rgba(255,255,255,0)'); gs.addColorStop(.5, 'rgba(255,255,255,.1)'); gs.addColorStop(1, 'rgba(255,255,255,0)'); x.fillStyle = gs; x.fillRect(0, 0, W, H); }
+  x.globalCompositeOperation = 'source-over'; var vo = x.createLinearGradient(0, 0, 0, H); vo.addColorStop(0, 'rgba(10,6,30,.12)'); vo.addColorStop(.5, 'rgba(10,6,30,.3)'); vo.addColorStop(1, 'rgba(8,4,24,.62)'); x.fillStyle = vo; x.fillRect(0, -y0, W, Hc);
   x.restore(); }
-function basDessiner(t, dt){ var x = BAS.x, W = BAS.W, H = BAS.H, u = BAS.dpr, E = BAS.E; if(!x || !W) return; var y0 = E + 22 * u, cx = BAS.centre.x, lc = 104 * u, haut = E + 4 * u, i;
-  x.clearRect(0, 0, W, H);
-  /* le battement du monde : toutes les 9 s, une onde part d'Iris */
-  BAS.tBat -= dt; if(BAS.tBat <= 0){ BAS.tBat = 9; BAS.chocs.push({v:0}); } var eclat = 0;
-  BAS.chocs.forEach(function(c){ eclat = Math.max(eclat, Math.sin(Math.min(1, c.v) * Math.PI)); });
-  basCouronne(x, t, u, 1 + .35 * eclat);
-  x.save(); basForme(x, W, H, y0, cx, lc, haut); x.clip();
+function basDessiner(t, dt){ var x = BAS.x, W = BAS.W, H = BAS.H, u = BAS.dpr; if(!x || !W) return; var y0 = 22 * u, cx = BAS.centre.x, lc = 104 * u, haut = 4 * u, i;
+  x.clearRect(0, 0, W, H); x.save(); basForme(x, W, H, y0, cx, lc, haut); x.clip();
+  /* le film de l'intérieur de la barre (dessous les lumières) */
+  basFilm(x, W, H, t, y0); var film = typeof FILM_U !== 'undefined' && !(typeof LEGER !== 'undefined' && LEGER.on);
   /* le fond opaque est un canevas à part, dessous (dessiné une seule fois) : ici, seulement les lumières */
+  /* l'aurore qui coule lentement (trois voiles colorés) */
   x.globalCompositeOperation = 'lighter';
-  [['#2EE6C5', 0], ['#9B6BFF', 2.1], ['#FF3D9A', 4.2]].forEach(function(a){ var px = (Math.sin(t * .23 + a[1]) * .5 + .5) * W, ra = x.createRadialGradient(px, y0, 0, px, y0, W * .45); ra.addColorStop(0, basHexA(a[0], .2 + .1 * eclat)); ra.addColorStop(1, basHexA(a[0], 0)); x.fillStyle = ra; x.fillRect(px - W * .45, E, W * .9, H - E); });
-  /* la ruche s'éclaire en vague depuis le centre ; plus fort au battement */
-  var R = 9 * u; x.lineWidth = .8 * u; x.strokeStyle = basHexA('#B98CFF', .14 + .22 * eclat); x.beginPath();
-  BAS.hexs.forEach(function(h){ var dist = Math.hypot(h[0] - cx, h[1] - y0) / W; if(Math.sin(t * 1.4 - dist * 9) < .55 - eclat * .9) return; for(var k = 0; k <= 6; k++){ var an = Math.PI / 3 * k - Math.PI / 6; x[k ? 'lineTo' : 'moveTo'](h[0] + Math.cos(an) * R, h[1] + Math.sin(an) * R); } }); x.stroke();
-  /* les ondes du battement */
-  for(i = BAS.chocs.length - 1; i >= 0; i--){ var ch = BAS.chocs[i]; ch.v += dt * .7; if(ch.v >= 1){ BAS.chocs.splice(i, 1); continue; } var rr = (20 + ch.v * W / u * .75) * u;
-    x.save(); x.translate(cx, BAS.centre.y); x.scale(1, .45); x.strokeStyle = basHexA('#E8D9FF', (1 - ch.v) * .55); x.lineWidth = 3 * u; basHexa(x, 0, 0, rr, -Math.PI / 2); x.stroke(); x.restore(); }
-  /* les poussières de lumière qui montent */
-  BAS.poussieres.forEach(function(p){ p.y -= dt * p.v; if(p.y < 0){ p.y = 1; p.x = Math.random(); } var px = p.x * W, py = y0 + p.y * (H - y0), a = (.35 + .35 * Math.sin(t * 3 + p.p)) * Math.min(1, p.y * 4);
-    x.fillStyle = basHexA(p.c, a); x.beginPath(); x.arc(px, py, 1.3 * u, 0, 6.29); x.fill(); });
-  /* chaque onglet a son halo hexagonal qui respire à sa couleur */
-  BAS.onglets.forEach(function(o, j){ if(o.centre) return; var on = o.el ? o.el.classList.contains('on') : o.on, a = (on ? .1 : .07) + .05 * Math.sin(t * 1.6 + j * 1.3); x.fillStyle = basHexA(o.c, a); basHexa(x, o.x, o.y, 22 * u, -Math.PI / 2); x.fill();
-    if(on){ if(!BAS.spot || BAS.spot.k !== o.k) BAS.spot = {x:BAS.spot ? BAS.spot.x : o.x, y:o.y, c:o.c, k:o.k, tx:o.x}; else { BAS.spot.tx = o.x; BAS.spot.y = o.y; } } });
-  /* le projecteur hexagonal glisse vers l'onglet actif */
-  var sp = BAS.spot; if(sp){ if(sp.tx == null) sp.tx = sp.x; sp.x += (sp.tx - sp.x) * Math.min(1, dt * 7); var sg = x.createRadialGradient(sp.x, sp.y, 0, sp.x, sp.y, 34 * u); sg.addColorStop(0, basHexA(sp.c, .32 + .1 * Math.sin(t * 2))); sg.addColorStop(1, basHexA(sp.c, 0)); x.fillStyle = sg; basHexa(x, sp.x, sp.y, 30 * u, -Math.PI / 2); x.fill(); }
+  [['#2EE6C5', 0], ['#9B6BFF', 2.1], ['#FF3D9A', 4.2]].forEach(function(a){ var px = (Math.sin(t * .23 + a[1]) * .5 + .5) * W, ra = x.createRadialGradient(px, y0, 0, px, y0, W * .45); ra.addColorStop(0, basHexA(a[0], film ? .1 : .2)); ra.addColorStop(1, basHexA(a[0], 0)); x.fillStyle = ra; x.fillRect(px - W * .45, 0, W * .9, H); });
+  /* la ruche s'éclaire en vague depuis le centre (seulement les hexagones allumés, en un seul tracé) */
+  var R = 9 * u; x.lineWidth = .8 * u; x.strokeStyle = film ? 'rgba(185,140,255,.07)' : 'rgba(185,140,255,.14)'; x.beginPath();
+  BAS.hexs.forEach(function(h){ var dist = Math.hypot(h[0] - cx, h[1] - y0) / W; if(Math.sin(t * 1.4 - dist * 9) < .55) return; for(var k = 0; k <= 6; k++){ var an = Math.PI / 3 * k - Math.PI / 6; x[k ? 'lineTo' : 'moveTo'](h[0] + Math.cos(an) * R, h[1] + Math.sin(an) * R); } }); x.stroke();
+  /* le projecteur hexagonal sous l'onglet actif */
+  BAS.onglets.forEach(function(o){ if(!o.on || o.centre) return; var sp = x.createRadialGradient(o.x, o.y, 0, o.x, o.y, 34 * u); sp.addColorStop(0, basHexA(o.c, .28 + .1 * Math.sin(t * 2))); sp.addColorStop(1, basHexA(o.c, 0)); x.fillStyle = sp; x.beginPath(); for(var k = 0; k < 6; k++){ var an = Math.PI / 3 * k - Math.PI / 2; x[k ? 'lineTo' : 'moveTo'](o.x + Math.cos(an) * 30 * u, o.y + Math.sin(an) * 30 * u); } x.closePath(); x.fill(); });
   /* « tout converge vers Iris » : des lumières glissent de chaque onglet vers le centre */
   BAS.tPluie -= dt; if(BAS.tPluie <= 0 && BAS.onglets.length){ BAS.tPluie = .55; var src = BAS.onglets.filter(function(o){ return !o.centre; }); var o0 = src[Math.floor(Math.random() * src.length)]; if(o0) BAS.gouttes.push({x0:o0.x, y0:o0.y + 6 * u, c:o0.c, v:0, s:.35 + Math.random() * .25}); }
   for(i = BAS.gouttes.length - 1; i >= 0; i--){ var gt = BAS.gouttes[i]; gt.v += dt * gt.s; if(gt.v >= 1){ BAS.gouttes.splice(i, 1); continue; } var e2 = gt.v * gt.v * (3 - 2 * gt.v), gx = gt.x0 + (cx - gt.x0) * e2, gy = gt.y0 + (BAS.centre.y - gt.y0) * e2 - Math.sin(gt.v * Math.PI) * 10 * u, al = Math.sin(gt.v * Math.PI);
     var lg = x.createRadialGradient(gx, gy, 0, gx, gy, 7 * u); lg.addColorStop(0, basHexA(gt.c, .9 * al)); lg.addColorStop(1, basHexA(gt.c, 0)); x.fillStyle = lg; x.beginPath(); x.arc(gx, gy, 7 * u, 0, 6.29); x.fill(); }
   /* les vagues d'un toucher */
-  for(i = BAS.vagues.length - 1; i >= 0; i--){ var vg = BAS.vagues[i]; vg.v += dt * 1.6; if(vg.v >= 1){ BAS.vagues.splice(i, 1); continue; } x.strokeStyle = basHexA(vg.c, (1 - vg.v) * .8); x.lineWidth = 2 * u; basHexa(x, vg.x, vg.y, (10 + vg.v * 60) * u, -Math.PI / 2); x.stroke(); }
+  for(i = BAS.vagues.length - 1; i >= 0; i--){ var vg = BAS.vagues[i]; vg.v += dt * 1.6; if(vg.v >= 1){ BAS.vagues.splice(i, 1); continue; } x.strokeStyle = basHexA(vg.c, (1 - vg.v) * .8); x.lineWidth = 2 * u; x.beginPath(); for(var k2 = 0; k2 < 6; k2++){ var a2 = Math.PI / 3 * k2 - Math.PI / 2, rr = (10 + vg.v * 60) * u; x[k2 ? 'lineTo' : 'moveTo'](vg.x + Math.cos(a2) * rr, vg.y + Math.sin(a2) * rr); } x.closePath(); x.stroke(); }
   /* « la barre respire avec le monde » : une étincelle dorée par vraie publication */
   for(i = BAS.etincelles.length - 1; i >= 0; i--){ var et = BAS.etincelles[i]; et.v += dt * .5; if(et.v >= 1){ BAS.etincelles.splice(i, 1); continue; } var ex = et.dep + (cx - et.dep) * et.v, ey = y0 + 2 * u, ra2 = x.createRadialGradient(ex, ey, 0, ex, ey, 16 * u);
     ra2.addColorStop(0, basHexA('#FFE29A', .95 * Math.sin(et.v * Math.PI))); ra2.addColorStop(1, basHexA('#FFC93D', 0)); x.fillStyle = ra2; x.beginPath(); x.arc(ex, ey, 16 * u, 0, 6.29); x.fill(); }
   /* le halo de l'œil d'Iris */
-  var hi = x.createRadialGradient(cx, BAS.centre.y, 0, cx, BAS.centre.y, 70 * u); hi.addColorStop(0, basHexA('#9B6BFF', .35 + .12 * Math.sin(t * 1.7) + .2 * eclat)); hi.addColorStop(1, basHexA('#9B6BFF', 0)); x.fillStyle = hi; x.fillRect(cx - 80 * u, E, 160 * u, H - E);
+  var hi = x.createRadialGradient(cx, BAS.centre.y, 0, cx, BAS.centre.y, 70 * u); hi.addColorStop(0, basHexA('#9B6BFF', .35 + .12 * Math.sin(t * 1.7))); hi.addColorStop(1, basHexA('#9B6BFF', 0)); x.fillStyle = hi; x.fillRect(cx - 80 * u, 0, 160 * u, H);
   x.restore();
-  /* le bord lumineux : des couleurs qui coulent, et deux comètes à traînée */
-  x.save(); x.globalCompositeOperation = 'lighter'; var dec = (t * .08 % 1) * W, bg = x.createLinearGradient(-W + dec, 0, W + dec, 0);
-  ['#2EE6C5', '#9B6BFF', '#FF3D9A', '#FFC93D', '#2EE6C5', '#9B6BFF', '#FF3D9A', '#FFC93D', '#2EE6C5'].forEach(function(c, k){ bg.addColorStop(k / 8, c); });
-  x.strokeStyle = bg; x.globalAlpha = .22 + .3 * eclat; x.lineWidth = 9 * u; basBord(x, W, y0, cx, lc, haut); x.stroke(); x.globalAlpha = .45; x.lineWidth = 4 * u; x.stroke(); x.globalAlpha = 1; x.lineWidth = 1.8 * u; x.stroke();
-  var b = BAS.bord; if(b){ [0, .5].forEach(function(dp, n){ var s0 = (((t * .16 + dp) % 1) * (b.tot + 120 * u)) - 60 * u, col = n ? '#FFE29A' : '#FFFFFF';
-    for(var k = 0; k < 16; k++){ var pt = basSur(b, s0 - k * 5 * u), a = (1 - k / 16); if(s0 - k * 5 * u < 0 || s0 - k * 5 * u > b.tot) continue; x.fillStyle = basHexA(col, .85 * a * a); x.beginPath(); x.arc(pt[0], pt[1], (2.6 - k * .12) * u, 0, 6.29); x.fill(); }
-    var tp = basSur(b, s0); if(s0 >= 0 && s0 <= b.tot){ var cg = x.createRadialGradient(tp[0], tp[1], 0, tp[0], tp[1], 14 * u); cg.addColorStop(0, basHexA(col, .8)); cg.addColorStop(1, basHexA(col, 0)); x.fillStyle = cg; x.beginPath(); x.arc(tp[0], tp[1], 14 * u, 0, 6.29); x.fill(); } }); }
-  x.restore(); }
+  /* le bord lumineux : un dégradé teal → violet → rose, et une étincelle qui le parcourt */
+  x.save(); x.globalCompositeOperation = 'lighter'; var bg = x.createLinearGradient(0, 0, W, 0); bg.addColorStop(0, '#2EE6C5'); bg.addColorStop(.5, '#9B6BFF'); bg.addColorStop(1, '#FF3D9A');
+  x.strokeStyle = bg; x.globalAlpha = .25; x.lineWidth = 6 * u; basBord(x, W, y0, cx, lc, haut); x.stroke(); x.globalAlpha = 1; x.lineWidth = 1.6 * u; x.stroke();
+  var lon = W + lc * .5, pos = ((t * .18) % 1) * lon; x.setLineDash([46 * u, lon]); x.lineDashOffset = -pos; x.strokeStyle = 'rgba(255,255,255,.95)'; x.lineWidth = 2.2 * u; basBord(x, W, y0, cx, lc, haut); x.stroke();
+  x.lineDashOffset = -(pos + lon / 2); x.stroke(); x.setLineDash([]); x.restore(); }
 function basPas(ms){ BAS.raf = 0; var t = ms / 1000, figee = document.hidden || document.body.classList.contains('feuille-ouverte');
   var pas = LEGER.on ? 1 / 10 : 1 / 20; if(!figee && !CALME.on && t - BAS.tPrec >= pas){ var dt = Math.min(.1, BAS.tPrec ? t - BAS.tPrec : pas); BAS.tPrec = t; basDessiner(t, dt); }
   if(!CALME.on) BAS.raf = requestAnimationFrame(basPas); }
