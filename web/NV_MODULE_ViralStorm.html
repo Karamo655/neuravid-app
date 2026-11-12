@@ -3309,6 +3309,51 @@ window.NVSponsorsKit = {
 
 </script>
 <script>
+/* ═════════════════════════════════════════════════════════════════
+   NEURAVID — NV_SCEAU.js · le sceau « Créé sur NEURAVID » des lecteurs qui ont leur propre écran
+   (Orbite, Viral Storm ; 12 nov. 2026). Même sceau que le lecteur commun des défis (nv_lecteur.js v2.3) :
+   un petit hexagone doré juste après le nom du créateur, AUCUN texte posé sur la vidéo ; un toucher montre
+   « Créé sur NEURAVID » 2,5 s dans la langue de la page (11 langues), sans arrêter la vidéo, toujours dans l'écran.
+   Seulement la vraie valeur du serveur (creeSurNeuravid === true), jamais sur un direct ; jamais dans les votes ni l'argent.
+
+   NVSceau.html(item) → '' ou le bouton à poser après le nom ;  NVSceau.oui(item) → vrai si le sceau s'affiche.
+   ═════════════════════════════════════════════════════════════════ */
+(function(){
+  'use strict';
+  var R = window;
+  if(R.NVSceau) return;
+  var TXT = {fr:'Créé sur NEURAVID', en:'Made on NEURAVID', es:'Creado en NEURAVID', pt:'Criado no NEURAVID', ar:'صُنع على NEURAVID', sw:'Imetengenezwa kwenye NEURAVID', ha:'An ƙirƙira a NEURAVID', yo:'A ṣẹ̀dá rẹ̀ lórí NEURAVID', wo:'Sos nañu ko ci NEURAVID', bm:'A dilanna NEURAVID kan', ln:'Esalemaki na NEURAVID'};
+  function esc(s){ return String(s == null ? '' : s).replace(/[&<>"']/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
+  function texte(){ var l = ''; try{ l = String(document.documentElement.getAttribute('lang') || R.NV_LANG || '').slice(0, 2).toLowerCase(); }catch(e){} return TXT[l] || TXT.fr; }
+  function oui(c){ return !!c && !c.direct && (c.creeSurNeuravid === true || !!(c._src && c._src.creeSurNeuravid === true)); }
+  function html(c){ if(!oui(c)) return ''; var t = esc(texte()); return '<button type="button" class="nv-sceau" data-nvsceau aria-label="' + t + '" translate="no"><i aria-hidden="true"></i><span class="nv-sceau-t" aria-hidden="true">' + t + '</span></button>'; }
+  function css(){
+    if(document.getElementById('nvSceauCss')) return;
+    var s = document.createElement('style'); s.id = 'nvSceauCss';
+    s.textContent = '.nv-sceau{position:relative;flex:none;width:22px;height:22px;margin:0 -4px;padding:0;border:0;background:none;display:inline-grid;place-items:center;vertical-align:middle;cursor:pointer;-webkit-tap-highlight-color:transparent}' +
+      '.nv-sceau i{display:block;width:13px;height:15px;background:linear-gradient(160deg,#ffe08a,#e8b84a 55%,#c88a1c);clip-path:polygon(50% 0,100% 25%,100% 75%,50% 100%,0 75%,0 25%);filter:drop-shadow(0 1px 2px rgba(0,0,0,.6))}' +
+      '.nv-sceau i::after{content:"";display:block;width:5px;height:5px;margin:5px auto 0;border-radius:50%;background:#2a1300;opacity:.75}' +
+      '.nv-sceau-t{position:absolute;bottom:calc(100% + 6px);left:50%;transform:translateX(calc(-50% + var(--nvdx,0px))) translateY(4px);white-space:nowrap;padding:5px 10px;border-radius:10px;background:rgba(20,11,51,.86);-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);color:#ffe08a;font-size:12px;font-weight:800;line-height:1.2;text-shadow:none;box-shadow:inset 0 0 0 1px rgba(232,184,74,.55);opacity:0;pointer-events:none;transition:opacity .18s,transform .18s;z-index:5}' +
+      '.nv-sceau.dit .nv-sceau-t{opacity:1;transform:translateX(calc(-50% + var(--nvdx,0px))) translateY(0)}' +
+      '@media (prefers-reduced-motion:reduce){.nv-sceau-t{transition:none}}';
+    (document.head || document.documentElement).appendChild(s);
+  }
+  /* le toucher est pris AVANT le lecteur (phase de capture) : la vidéo ne s'arrête pas, la page ne défile pas */
+  function toucher(e){
+    var b = e.target && e.target.closest && e.target.closest('[data-nvsceau]'); if(!b) return;
+    e.stopPropagation(); e.preventDefault();
+    var t = b.querySelector('.nv-sceau-t'), x = texte(); if(!t) return;
+    t.textContent = x; b.setAttribute('aria-label', x);
+    t.style.setProperty('--nvdx', '0px');
+    var r = t.getBoundingClientRect(), lv = R.innerWidth || document.documentElement.clientWidth, dx = r.left < 8 ? 8 - r.left : r.right > lv - 8 ? lv - 8 - r.right : 0;
+    t.style.setProperty('--nvdx', Math.round(dx) + 'px');
+    b.classList.add('dit'); clearTimeout(b._t); b._t = setTimeout(function(){ b.classList.remove('dit'); }, 2500);
+  }
+  function poser(){ css(); document.addEventListener('click', toucher, true); }
+  if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', poser); else poser();
+  R.NVSceau = {html:html, oui:oui, texte:texte};
+})();
+
 (function(){
 'use strict';
 var MOI = 'ViralStorm';
@@ -3646,7 +3691,7 @@ function normClip(x){
   var a = x.auteur || {};
   var mineur = !!(a.mineur || a.jeune || (typeof a.age === 'number' && a.age < 18));
   var u = window.NV_USER || {}, moi = x.moi === true || (!!u.id && !!a.id && String(u.id) === String(a.id)) || (!!a.handle && !!moiNom() && cle(a.handle) === cle(moiNom()));
-  return {id:String(x.id), clip:String(x.clip || x.id), defi:defiDe(String(x.defi || '')) ? String(x.defi) : null, video:urlSure(x.video), poster:urlSure(x.poster),
+  return {id:String(x.id), clip:String(x.clip || x.id), creeSurNeuravid:x.creeSurNeuravid === true, defi:defiDe(String(x.defi || '')) ? String(x.defi) : null, video:urlSure(x.video), poster:urlSure(x.poster),
     auteur:{id:a.id ? String(a.id) : null, nom:String(a.nom || a.name || a.handle || 'Un créateur').slice(0, 40), handle:a.handle ? String(a.handle).slice(0, 40) : '', pays:String(a.pays || a.country || '').slice(0, 40), drapeau:String(a.drapeau || a.flag || '').slice(0, 8), photo:urlSure(a.photo || a.avatar), mineur:mineur},
     vues:typeof x.vues === 'number' ? x.vues : (typeof x.views === 'number' ? x.views : null), hvs:typeof x.hvs === 'number' ? x.hvs : null,
     likes:typeof x.likes === 'number' ? x.likes : null, comments:typeof x.comments === 'number' ? x.comments : null, supers:typeof x.supers === 'number' ? x.supers : null, shares:typeof x.shares === 'number' ? x.shares : null,
@@ -3694,7 +3739,7 @@ function rendreFil(versK){
       (c.video ? '<video playsinline webkit-playsinline preload="' + (k < 2 ? 'auto' : 'metadata') + '" loop src="' + esc(c.video) + '"' + (c.poster ? ' poster="' + esc(c.poster) + '"' : '') + '></video>' : c.local ? '<video playsinline webkit-playsinline loop data-locale="' + esc(c.local) + '"></video>' : '<div class="attente-v">Vidéo en préparation.</div>') +
       '<div class="ombre"></div>' +
       /* en bas à gauche : qui, d'où, quel défi. Rien d'autre. */
-      '<div class="info"><div class="auteur"><span class="av" style="' + fond(a.photo) + '">' + (a.photo ? '' : esc(a.nom.charAt(0).toUpperCase())) + '</span><b>' + esc(a.nom) + '</b>' + (a.drapeau ? '<span class="drap">' + esc(a.drapeau) + '</span>' : '') +
+      '<div class="info"><div class="auteur"><span class="av" style="' + fond(a.photo) + '">' + (a.photo ? '' : esc(a.nom.charAt(0).toUpperCase())) + '</span><b>' + esc(a.nom) + '</b>' + (window.NVSceau ? NVSceau.html(c) : '') + (a.drapeau ? '<span class="drap">' + esc(a.drapeau) + '</span>' : '') +
         (c.moi ? '<span class="moi-etat">' + (c.statut === 'attente' ? 'En attente' : c.statut === 'envoye' ? 'En vérification' : 'Vous') + '</span>' : '') + '</div>' +
         '<div class="puces-clip">' + (d ? '<button class="defi-chip" data-defi="' + d.id + '">' + d.emo + ' ' + esc(d.nom) + '</button>' : '') +
         (d && d.chaine ? '<button class="chip-chaine" data-continuer="' + esc(c.id) + '" aria-label="Continuer la chaîne">⛓️ Continuer</button>' : '') + '</div></div>' +

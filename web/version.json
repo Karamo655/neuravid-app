@@ -1,6 +1,6 @@
 {
- "version": "2026.11.12-7f2632ea0737",
- "date": "2026-11-12T00:10:04Z",
+ "version": "2026.11.12-9a2377d3f582",
+ "date": "2026-11-12T00:23:39Z",
  "entree": "index.html",
  "modules": [
   "NV_MODULE_Arena.html",
@@ -148,8 +148,8 @@
    "taille": 490119
   },
   "NV_MODULE_Orbite.html": {
-   "sha256": "2e53e2394970e3c15cb7cf095c00794930a035772a7b8ff333274011c8977af5",
-   "taille": 1425118
+   "sha256": "27b9fcd41f06143d478d7a46a6bf36b12d3e17923d1af0a6d41e54df9142ecf5",
+   "taille": 1430002
   },
   "NV_MODULE_Passeport.html": {
    "sha256": "552dc1d0ae51d53010cd53547a929a104092a55b75e2f49863d7008312d375f7",
@@ -208,8 +208,8 @@
    "taille": 1301716
   },
   "NV_MODULE_ViralStorm.html": {
-   "sha256": "a04594d3e83ae2be8e7bba57c23f0a35785d6d24ee8959b6b956dec5bd6fc288",
-   "taille": 1034900
+   "sha256": "8877e1955eccad26df92762d39c0bcd565f10982a5ea9dff550d5f9e37ac5f6a",
+   "taille": 1039784
   },
   "cadeaux3d/1f0cf.webp": {
    "sha256": "06bc2293f925386fd47d7c71ca561ba9e911274fcf6188fa8617170ba1705253",
