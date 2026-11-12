@@ -1133,6 +1133,12 @@ body.feuille-ouverte .raccourcis{visibility:hidden}
 .bas.avec-ecran{background:none!important;backdrop-filter:none!important;-webkit-backdrop-filter:none!important}
 .bas.avec-ecran::before{display:none}
 .bas-ecran{position:absolute;left:0;top:0;width:100%;height:100%;z-index:0;pointer-events:none;display:block}
+/* 12 nov. 2026 : le film de l'en-tête en haut (ac32) */
+.haut-ecran{position:absolute;left:0;top:0;width:100%;height:100%;z-index:-1;pointer-events:none;display:block}
+.haut-ecran[hidden]{display:none}
+.tete.avec-film,.tete.avec-film.verre{background:#0B0722;backdrop-filter:none;-webkit-backdrop-filter:none;box-shadow:0 4px 18px rgba(0,0,0,.35)}
+.tete.avec-film .logo-sous{text-shadow:0 1px 3px rgba(0,0,0,.75)}
+.tete.avec-film .logo-mot{filter:drop-shadow(0 1px 3px rgba(0,0,0,.6))}
 .bas.avec-ecran .nb{z-index:1}
 .bas.avec-ecran .nb{color:#C9C2E6}
 .bas.avec-ecran .nb.on{color:#fff}
@@ -6745,6 +6751,52 @@ function spChoisir(k, focus){ if(!SP_BLOCS.some(function(b){ return b.k === k; }
   var o = oublierV2; oublierV2 = function(){ SP.cle = ''; o.apply(this, arguments); spMaj(); };
   var cl = changerLangue; changerLangue = function(){ var r = cl.apply(this, arguments); SP.cle = ''; spMaj(); return r; };
 })();
+
+/* ════════════════════════════════════════════════════════════════════
+   LE FILM DE L'EN-TÊTE EN HAUT (12 novembre 2026, demande de Karamo)
+   « Faire exactement les mêmes animations sur l'en-tête en haut comme à l'en-tête en bas : l'intérieur de la carte
+     en haut doit être animé, bien plus attractif. »
+   L'intérieur de l'en-tête (derrière le menu, le logo, NEURAVID et la recherche) joue le MÊME film que la barre du bas
+   (ac17 : basFilm, quatre plans de 6 s en fondu, caméra qui avance, lumière qui passe, voile de lisibilité), décalé
+   de deux plans pour que le haut et le bas ne montrent jamais la même scène au même moment :
+     la savane au coucher du soleil · la nuit des étoiles · la scène des talents · le fleuve au lever du jour.
+   Par-dessus : l'aurore qui coule et le bord lumineux du bas de l'en-tête (teal → violet → rose) que parcourent deux
+   lumières, comme le bord de la barre du bas.
+   Rien n'est ajouté ni retiré dans les boutons : le menu, le logo, le mot NEURAVID, la devise et la recherche restent
+   exactement les mêmes. Illustrations seulement (aucun nom, aucun chiffre).
+   Économie : 20 images/s au plus, rien quand la page est cachée ou qu'une feuille est ouverte, absent de l'accueil
+   léger (l'en-tête reprend alors son verre habituel), une image fixe en mouvement réduit.
+   ════════════════════════════════════════════════════════════════════ */
+var HAUT = {cv:null, x:null, W:0, H:0, dpr:1, raf:0, tPrec:0, ro:null, decale:12};
+function hautActif(){ return !!HAUT.cv && typeof FILM_U !== 'undefined' && !(typeof LEGER !== 'undefined' && LEGER.on); }
+function hautMesurer(){ var el = $('tete'), cv = HAUT.cv; if(!el || !cv) return; var r = el.getBoundingClientRect(); HAUT.dpr = Math.min(1.25, window.devicePixelRatio || 1);
+  HAUT.W = Math.round(r.width * HAUT.dpr); HAUT.H = Math.round(r.height * HAUT.dpr); if(HAUT.W && HAUT.H && (cv.width !== HAUT.W || cv.height !== HAUT.H)){ cv.width = HAUT.W; cv.height = HAUT.H; } }
+/* le bord lumineux du bas de l'en-tête et les deux lumières qui le parcourent */
+function hautBord(x, W, H, t, u){ var y = H - 1 * u; x.save(); x.globalCompositeOperation = 'lighter'; var bg = x.createLinearGradient(0, 0, W, 0); bg.addColorStop(0, '#2EE6C5'); bg.addColorStop(.5, '#9B6BFF'); bg.addColorStop(1, '#FF3D9A');
+  x.strokeStyle = bg; x.globalAlpha = .28; x.lineWidth = 6 * u; x.beginPath(); x.moveTo(0, y); x.lineTo(W, y); x.stroke(); x.globalAlpha = 1; x.lineWidth = 1.6 * u; x.stroke();
+  var pos = ((t * .18) % 1) * (W * 1.4) - W * .2; x.setLineDash([46 * u, W * 1.4]); x.lineDashOffset = -pos; x.strokeStyle = 'rgba(255,255,255,.95)'; x.lineWidth = 2.2 * u; x.beginPath(); x.moveTo(0, y); x.lineTo(W, y); x.stroke();
+  x.lineDashOffset = -(pos + W * .7); x.stroke(); x.setLineDash([]); x.restore(); }
+function hautDessiner(t){ var x = HAUT.x, W = HAUT.W, H = HAUT.H, u = HAUT.dpr; if(!x || !W || !H) return; x.clearRect(0, 0, W, H);
+  basFilm(x, W, H, t + HAUT.decale, 0);
+  /* l'aurore qui coule lentement (les trois voiles colorés de la barre du bas) */
+  x.save(); x.globalCompositeOperation = 'lighter';
+  [['#2EE6C5', 0], ['#9B6BFF', 2.1], ['#FF3D9A', 4.2]].forEach(function(a){ var px = (Math.sin(t * .23 + a[1]) * .5 + .5) * W, ra = x.createRadialGradient(px, H, 0, px, H, W * .45); ra.addColorStop(0, basHexA(a[0], .1)); ra.addColorStop(1, basHexA(a[0], 0)); x.fillStyle = ra; x.fillRect(px - W * .45, 0, W * .9, H); });
+  x.restore(); hautBord(x, W, H, t, u); }
+function hautPas(ms){ HAUT.raf = 0; if(!hautActif()){ hautEtat(); return; } var t = ms / 1000, figee = document.hidden || document.body.classList.contains('feuille-ouverte');
+  if(!figee && !CALME.on && t - HAUT.tPrec >= 1 / 20){ HAUT.tPrec = t; hautDessiner(t); }
+  if(!CALME.on) HAUT.raf = requestAnimationFrame(hautPas); }
+/* allumer ou éteindre selon l'accueil léger, puis relancer */
+function hautEtat(){ var el = $('tete'); if(!el || !HAUT.cv) return; var on = hautActif(); HAUT.cv.hidden = !on; el.classList.toggle('avec-film', on);
+  if(!on){ if(HAUT.raf){ cancelAnimationFrame(HAUT.raf); HAUT.raf = 0; } return; } hautMesurer(); if(CALME.on){ hautDessiner(4); return; } if(!HAUT.raf) HAUT.raf = requestAnimationFrame(hautPas); }
+function demarrerHaut(){ var el = $('tete'); if(!el || el.querySelector('#cvHaut')) return; var cv = document.createElement('canvas'); cv.id = 'cvHaut'; cv.className = 'haut-ecran'; cv.setAttribute('aria-hidden', 'true');
+  el.insertBefore(cv, el.firstChild); HAUT.cv = cv; HAUT.x = cv.getContext('2d');
+  if('ResizeObserver' in window){ HAUT.ro = new ResizeObserver(function(){ hautEtat(); }); HAUT.ro.observe(el); } else window.addEventListener('resize', hautEtat);
+  document.addEventListener('visibilitychange', function(){ if(!document.hidden) hautEtat(); });
+  try{ var mq = matchMedia('(prefers-reduced-motion: reduce)'); if(mq.addEventListener) mq.addEventListener('change', function(){ setTimeout(hautEtat, 0); }); }catch(e){ dbg(e); }
+  hautEtat(); }
+/* l'accueil léger s'allume ou s'éteint : l'en-tête suit */
+(function(){ var cl0 = calculerLeger; calculerLeger = function(){ var r = cl0.apply(this, arguments); try{ hautEtat(); }catch(e){ dbg(e); } return r; }; })();
+(function(){ var db0 = demarrerBas; demarrerBas = function(){ var r = db0.apply(this, arguments); try{ demarrerHaut(); }catch(e){ dbg(e); } return r; }; })();
 
 /* ════════════════════════════════════════════════════════════════════
    LE DÉMARRAGE, CE QUE DIT LE SERVEUR, L'INTERFACE PUBLIQUE
