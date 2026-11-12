@@ -2830,6 +2830,9 @@ if(document.readyState === 'loading') document.addEventListener('DOMContentLoade
    o.touche(it, e, section) → true si le module prend le toucher d'un direct ; o.surFin(it, section) ;
    o.boutons(it) → [{id, ico, label, compte, on}] dans la colonne d'hexagones, o.bouton(id, it, bouton) ;
    NVLecteur.majBoutons() · NVLecteur.majChips().
+   v2.3 (11 nov. 2026, « Créé sur NEURAVID ») : it.creeSurNeuravid === true (ou it._src.creeSurNeuravid === true), annoncé par
+   le serveur seulement : un petit sceau hexagonal doré juste après le nom, sans texte sur la vidéo (rien ne cache l'image) ;
+   un toucher montre « Créé sur NEURAVID » 2,5 s dans la langue de la page ; jamais sur un direct.
    NVLecteur.fermer() · NVLecteur.ouvert() · NVLecteur.majSignature()
    ═════════════════════════════════════════════════════════════════ */
 (function(){
@@ -2882,6 +2885,11 @@ if(document.readyState === 'loading') document.addEventListener('DOMContentLoade
   '.nvl-av{width:32px;height:32px;border-radius:50%;flex:none;display:grid;place-items:center;font-weight:800;font-size:14px;background:linear-gradient(140deg,#6c2bd9,#e0249a) center/cover;box-shadow:0 0 0 2px #fff}' +
   '.nvl-aut b{font-size:15.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}' +
   '.nvl-dr{font-size:15px;flex:none}' +
+  '.nvl-nv{position:relative;flex:none;width:22px;height:22px;margin:0 -4px;padding:0;border:0;background:none;display:grid;place-items:center;cursor:pointer;-webkit-tap-highlight-color:transparent}' +
+  '.nvl-nv i{display:block;width:13px;height:15px;background:linear-gradient(160deg,#ffe08a,#e8b84a 55%,#c88a1c);clip-path:polygon(50% 0,100% 25%,100% 75%,50% 100%,0 75%,0 25%);filter:drop-shadow(0 1px 2px rgba(0,0,0,.6))}' +
+  '.nvl-nv i::after{content:"";display:block;width:5px;height:5px;margin:5px auto 0;border-radius:50%;background:#2a1300;opacity:.75}' +
+  '.nvl-nvt{position:absolute;bottom:calc(100% + 6px);left:50%;transform:translateX(calc(-50% + var(--nvdx,0px))) translateY(4px);white-space:nowrap;padding:5px 10px;border-radius:10px;background:rgba(20,11,51,.86);backdrop-filter:blur(8px);color:#ffe08a;font-size:12px;font-weight:800;text-shadow:none;box-shadow:inset 0 0 0 1px rgba(232,184,74,.55);opacity:0;pointer-events:none;transition:opacity .18s,transform .18s}' +
+  '.nvl-nv.dit .nvl-nvt{opacity:1;transform:translateX(calc(-50% + var(--nvdx,0px))) translateY(0)}' +
   '.nvl-toi{flex:none;padding:2px 9px;border-radius:10px;background:#ffc531;color:#2a1300;font-size:11.5px;font-weight:800;text-shadow:none}' +
   '.nvl-puce{display:inline-flex;align-items:center;max-width:100%;height:28px;margin-top:8px;padding:0 12px;border-radius:14px;font-size:12.5px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-shadow:none;background:rgba(20,11,51,.45);backdrop-filter:blur(8px);box-shadow:inset 0 0 0 1px rgba(255,255,255,.3);color:#fff}' +
   '.nvl-puce.or{background:linear-gradient(100deg,#ffc531,#ff8a3d);color:#2a1300;box-shadow:none}' +
@@ -3025,6 +3033,11 @@ if(document.readyState === 'loading') document.addEventListener('DOMContentLoade
     var fait = false; try{ fait = !!(s.fait && s.fait(it)); }catch(e){}
     return '<button class="nvl-sig' + (fait ? ' fait' : '') + '"' + (cache ? ' hidden' : '') + ' data-nvlsig="' + esc(it.id) + '" aria-label="' + esc(s.label || 'Voter') + '" aria-pressed="' + fait + '"><span class="nvl-hx">' + HEX + '<i>' + (s.ico || '★') + '</i></span><span>' + esc((fait && s.labelFait) || s.label || 'Voter') + '</span></button>';
   }
+  /* « Créé sur NEURAVID » : seulement la vraie valeur du serveur ; le texte suit la langue de la page */
+  var NV_CREE = {fr:'Créé sur NEURAVID', en:'Made on NEURAVID', es:'Creado en NEURAVID', pt:'Criado no NEURAVID', ar:'صُنع على NEURAVID', sw:'Imetengenezwa kwenye NEURAVID', ha:'An ƙirƙira a NEURAVID', yo:'A ṣẹ̀dá rẹ̀ lórí NEURAVID', wo:'Sos nañu ko ci NEURAVID', bm:'A dilanna NEURAVID kan', ln:'Esalemaki na NEURAVID'};
+  function creeSurNv(it){ return !!it && !it.direct && (it.creeSurNeuravid === true || !!(it._src && it._src.creeSurNeuravid === true)); }
+  function texteNv(){ var l = ''; try{ l = String(document.documentElement.getAttribute('lang') || R.NV_LANG || '').slice(0, 2).toLowerCase(); }catch(e){} return NV_CREE[l] || NV_CREE.fr; }
+  function sceauNv(it){ if(!creeSurNv(it)) return ''; var t = esc(texteNv()); return '<button class="nvl-nv" data-nvlnv aria-label="' + t + '" translate="no"><i aria-hidden="true"></i><span class="nvl-nvt" aria-hidden="true">' + t + '</span></button>'; }
   function boutonsHTML(it, k){
     if(!E.boutons) return '';
     var l = []; try{ l = E.boutons(it) || []; }catch(e){}
@@ -3037,7 +3050,7 @@ if(document.readyState === 'loading') document.addEventListener('DOMContentLoade
       return '<section class="nvl-s' + (it.direct ? ' direct' : '') + '" data-k="' + k + '">' +
         (src ? '<video playsinline webkit-playsinline' + (it.crossOrigin ? ' crossorigin="anonymous"' : '') + boucle + ' preload="' + (Math.abs(k - depart) < 2 && (!it.direct || k === depart) ? 'auto' : it.direct ? 'none' : 'metadata') + '" src="' + esc(src) + '"' + (urlOk(it.poster) ? ' poster="' + esc(it.poster) + '"' : '') + '></video>' : '<video playsinline webkit-playsinline' + boucle + ' data-nvlblob="' + k + '"' + (urlOk(it.poster) ? ' poster="' + esc(it.poster) + '"' : '') + '></video>') +
         '<div class="nvl-ombre"></div>' + (E.calque ? '<div class="nvl-calque" data-nvlcal="' + k + '"></div>' : '') +
-        '<div class="nvl-info"><div class="nvl-aut"><span class="nvl-av"' + avStyle(it) + '>' + (it.photo ? '' : esc(String(it.auteur || '✦').replace(/^@/, '').charAt(0).toUpperCase())) + '</span><b><bdi>' + esc(it.auteur || '') + '</bdi></b>' + (it.drapeau ? '<span class="nvl-dr">' + esc(it.drapeau) + '</span>' : '') +
+        '<div class="nvl-info"><div class="nvl-aut"><span class="nvl-av"' + avStyle(it) + '>' + (it.photo ? '' : esc(String(it.auteur || '✦').replace(/^@/, '').charAt(0).toUpperCase())) + '</span><b><bdi>' + esc(it.auteur || '') + '</bdi></b>' + sceauNv(it) + (it.drapeau ? '<span class="nvl-dr">' + esc(it.drapeau) + '</span>' : '') +
           (it.moi ? '<span class="nvl-toi">' + esc(it.etatMoi || 'Vous') + '</span>' : '') + '</div>' +
           (it.chip ? '<span class="nvl-puce' + (it.chipOr ? ' or' : '') + '">' + esc(it.chip) + '</span>' : '') + '</div>' +
         '<div class="nvl-rail">' + signatureHTML(it) + boutonsHTML(it, k) + '<div class="nvl-reac" data-nvlreac="' + k + '"></div>' +
@@ -3121,6 +3134,8 @@ if(document.readyState === 'loading') document.addEventListener('DOMContentLoade
     calmeT = setTimeout(function(){ if(E && actif && !pauseVoulue && !ouvertAilleurs()) n.classList.add('calme'); }, 3200);
   }
   function toucheFil(e){
+    var nvb = e.target.closest && e.target.closest('[data-nvlnv]');
+    if(nvb){ e.stopPropagation(); var tt = nvb.querySelector('.nvl-nvt'); if(tt) tt.textContent = texteNv(); nvb.setAttribute('aria-label', texteNv()); tt.style.setProperty('--nvdx', '0px'); var rr = tt.getBoundingClientRect(), lv = R.innerWidth || document.documentElement.clientWidth, dx = rr.left < 8 ? 8 - rr.left : rr.right > lv - 8 ? lv - 8 - rr.right : 0; tt.style.setProperty('--nvdx', Math.round(dx) + 'px'); nvb.classList.add('dit'); clearTimeout(nvb._t); nvb._t = setTimeout(function(){ nvb.classList.remove('dit'); }, 2500); return; }
     var calme = $('nvl').classList.contains('calme'); reveil();
     var s = e.target.closest('.nvl-s'); if(!s || e.target.closest('button,.nvl-reac,.nvl-prog')) return;
     var v = s.querySelector('video'); if(!v) return;
@@ -3684,7 +3699,7 @@ function normFilm(f){
   var n = f.notes && typeof f.notes === 'object' ? f.notes : null;
   var x = {
     id:String(f.id || f.clip || ('f' + Math.random().toString(36).slice(2))), clip:String(f.clip || f.id || ''),
-    titre:txt(f.titre || f.title, 90) || 'Sans titre', url:url || null, poster:urlSure(f.poster || f.affiche || f.thumbnail) || null,
+    titre:txt(f.titre || f.title, 90) || 'Sans titre', url:url || null, creeSurNeuravid:f.creeSurNeuravid === true, poster:urlSure(f.poster || f.affiche || f.thumbnail) || null,
     duree:nbS(f.duree || f.seconds, 36000), genre:g, defi:defiDe(f.defi) ? f.defi : null,
     langue:txt(f.langue, 40), vo:!!(f.vo || f.versionOriginale), sousTitres:Array.isArray(f.sousTitres) ? f.sousTitres.map(function(s){ return txt(s, 12); }).slice(0, 12) : [],
     synopsis:txt(f.synopsis || f.resume, 280), auteur:normPersonne(f.auteur || f.createur || {}),
@@ -4089,7 +4104,7 @@ function positionSeance(s){
 function lecteurPret(){ if(window.NVLecteur) return true; toast('Le lecteur se charge, réessayez dans un instant.'); return false; }
 function lecteurOuvert(){ return !!(window.NVLecteur && NVLecteur.ouvert()); }
 function itemFilm(f, sansReac){
-  return {id:f.id, clip:f.clip || f.id, url:f.url || null, blob:f.blob || null, poster:f.poster || null, photo:f.auteur.photo || null,
+  return {id:f.id, clip:f.clip || f.id, url:f.url || null, blob:f.blob || null, poster:f.poster || null, photo:f.auteur.photo || null, creeSurNeuravid:f.creeSurNeuravid === true,
     auteur:f.auteur.nom || f.auteur.handle || 'Un cinéaste', drapeau:f.auteur.drapeau || '', couleur:'#e2b04a',
     moi:!!f.moi, etatMoi:f.envId ? etatEnvoi(envoiDe(f.envId))[1] : 'Votre film', mineur:!!f.auteur.mineur || !!f.envId,
     hvs:f.hvs, vues:f.vues, likes:f.likes, comments:f.comments, supers:f.supers, shares:f.shares,
@@ -5013,7 +5028,7 @@ function voirEssais(id){
   lireS('/v1/cinema/castings/' + encodeURIComponent(c.id) + '/reponses', function(d){
     var el = $('essais'); if(!el) return;
     var l = d ? (Array.isArray(d) ? d : d.items || []) : [];
-    l = l.map(function(x){ return x && {id:String(x.id), url:urlSure(x.url || x.video || x.media_url || x.video_url), auteur:normPersonne(x.auteur || {}), decision:x.decision || null}; }).filter(function(x){ return x && x.url; });
+    l = l.map(function(x){ return x && {id:String(x.id), url:urlSure(x.url || x.video || x.media_url || x.video_url), creeSurNeuravid:x.creeSurNeuravid === true, auteur:normPersonne(x.auteur || {}), decision:x.decision || null}; }).filter(function(x){ return x && x.url; });
     voirEssais.l = l; voirEssais.c = c; rendreEssais();
   }, 0);
 }
@@ -5027,7 +5042,7 @@ function voirEssai(k){
   var l = voirEssais.l || [], x = l[k]; if(!x || !lecteurPret()) return;
   /* le lecteur s'ouvre par-dessus la feuille des essais, qui reste en place : un seul état d'historique en plus, et rien à rouvrir */
   $('fCorps').querySelectorAll('video').forEach(function(v){ try{ v.pause(); }catch(e){ dbg(e); } });
-  NVLecteur.ouvrir({items:l.map(function(y){ return {id:'essai:' + y.id, clip:null, url:y.url, auteur:y.auteur.nom || 'Un acteur', drapeau:y.auteur.drapeau, sansReactions:true, chip:'🎭 Essai · ' + voirEssais.c.titre}; }), index:k, titre:'Les essais', module:MOI,
+  NVLecteur.ouvrir({items:l.map(function(y){ return {id:'essai:' + y.id, clip:null, url:y.url, creeSurNeuravid:y.creeSurNeuravid === true, auteur:y.auteur.nom || 'Un acteur', drapeau:y.auteur.drapeau, sansReactions:true, chip:'🎭 Essai · ' + voirEssais.c.titre}; }), index:k, titre:'Les essais', module:MOI,
     onFerme:function(){ rendreEssais(); }});
 }
 function deciderEssai(k, dec){
