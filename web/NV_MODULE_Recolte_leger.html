@@ -1728,60 +1728,88 @@ function pasRuche(t){
   /* au repos, le miel ondule doucement ; immobile si l'appareil demande moins de mouvement */
   if(RU.actif && RU.vue && !document.hidden && (bouge || !CALME.on)) RU.raf = requestAnimationFrame(pasRuche);
 }
-function dessinerRuche(t){
-  var g = RU.g; if(!g || !RU.W) return;
-  t = t || performance.now();
-  g.setTransform(RU.dpr, 0, 0, RU.dpr, 0, 0);
-  g.clearRect(0, 0, RU.W, RU.H);
-  var r = RU.r;
+/* Vitesse (14 nov. 2026) : ce qui ne bouge pas (lueur, cire, contours, icônes, noms avec leur ombre)
+   est dessiné une seule fois dans deux calques gardés, puis recopié ; seuls le miel, le reflet et
+   l'éclat sont redessinés à chaque image. Le calque du dessus est refait dès que son état change
+   (miel apparu, alvéole pressée, focus, langue, taille). Le résultat à l'écran est le même. */
+RU.calques = {fond:null, dessus:null, cleFond:'', cleDessus:''};
+function calqueVide(){ var c = document.createElement('canvas'); c.width = RU.cv.width; c.height = RU.cv.height; var x = c.getContext('2d'); x.setTransform(RU.dpr, 0, 0, RU.dpr, 0, 0); return {c:c, g:x}; }
+function calqueFond(){
+  var k = calqueVide(), g = k.g, r = RU.r, R = r * 2.16;
   /* la lueur derrière la ruche */
   var lu = g.createRadialGradient(RU.cx, RU.cy, r * .5, RU.cx, RU.cy, r * 5.2);
   lu.addColorStop(0, 'rgba(255,182,39,.30)'); lu.addColorStop(1, 'rgba(255,182,39,0)');
   g.fillStyle = lu; g.fillRect(0, 0, RU.W, RU.H);
-  /* la grande alvéole du centre : ce qui est disponible */
-  /* à plat : ses côtés font face aux alvéoles, comme dans un vrai rayon */
-  var R = r * 2.16;
+  /* la grande alvéole du centre : ce qui est disponible ; à plat, ses côtés font face aux alvéoles */
   cheminHex(g, RU.cx, RU.cy, R, true);
   var gc = g.createLinearGradient(0, RU.cy - R, 0, RU.cy + R);
   gc.addColorStop(0, '#FFE58C'); gc.addColorStop(.5, '#FFB627'); gc.addColorStop(1, '#E8741A');
   g.fillStyle = gc; g.fill();
   g.lineWidth = r * .12; g.strokeStyle = 'rgba(255,240,200,.55)'; g.stroke();
-  /* un reflet qui passe lentement sur la cire */
-  if(!CALME.on){ g.save(); cheminHex(g, RU.cx, RU.cy, R, true); g.clip(); var p = ((t / 5200) % 1) * R * 4 - R * 2; var re = g.createLinearGradient(RU.cx + p - R, RU.cy - R, RU.cx + p + R, RU.cy + R); re.addColorStop(0, 'rgba(255,255,255,0)'); re.addColorStop(.5, 'rgba(255,255,255,.16)'); re.addColorStop(1, 'rgba(255,255,255,0)'); g.fillStyle = re; g.fillRect(RU.cx - R, RU.cy - R, R * 2, R * 2); g.restore(); }
   /* les alvéoles de cire vides de l'anneau extérieur */
   (RU.vides || []).forEach(function(p){ cheminHex(g, p.x, p.y, r * .94); g.fillStyle = 'rgba(255,243,218,.035)'; g.fill(); g.lineWidth = r * .05; g.strokeStyle = 'rgba(255,226,170,.14)'; g.stroke(); });
-  /* les alvéoles des sources */
+  /* le fond de cire des alvéoles des sources */
+  RU.cells.forEach(function(c){ cheminHex(g, c.x, c.y, r * .94); g.fillStyle = 'rgba(255,243,218,.07)'; g.fill(); });
+  return k.c;
+}
+function calqueDessus(etats, noms, focusVu){
+  var k = calqueVide(), g = k.g, r = RU.r, R = r * 2.16;
   RU.cells.forEach(function(c, ic){
-    var rr = r * .94, niv = RU.niveaux[c.id] || 0, presse = RU.presse === c.id, ec = RU.eclat[c.id];
+    var rr = r * .94, e = etats[ic], presse = e === 'p';
     cheminHex(g, c.x, c.y, rr);
-    g.fillStyle = 'rgba(255,243,218,.07)'; g.fill();
-    if(niv > 0){
-      g.save(); cheminHex(g, c.x, c.y, rr); g.clip();
-      var haut = c.y + rr - niv * rr * 2, vague = CALME.on ? 0 : Math.sin(t / 700 + c.x / 30) * r * .05;
-      var gm = g.createLinearGradient(0, haut, 0, c.y + rr);
-      gm.addColorStop(0, '#FFE07A'); gm.addColorStop(1, '#F0801A');
-      g.fillStyle = gm;
-      g.beginPath(); g.moveTo(c.x - rr, c.y + rr);
-      for(var k = 0; k <= 12; k++){ var xx = c.x - rr + k * rr / 6; g.lineTo(xx, haut + Math.sin(k * .9 + t / 600) * vague); }
-      g.lineTo(c.x + rr, c.y + rr); g.closePath(); g.fill();
-      g.restore();
-    }
-    cheminHex(g, c.x, c.y, rr);
-    g.lineWidth = presse ? r * .11 : r * .07; g.strokeStyle = presse ? '#FFE07A' : niv > 0 ? 'rgba(255,182,39,.85)' : 'rgba(255,226,170,.28)'; g.stroke();
-    if(ec){ var k2 = Math.min(1, (t - ec) / 1400); cheminHex(g, c.x, c.y, rr * (1 + k2 * .45)); g.lineWidth = r * .06 * (1 - k2); g.strokeStyle = 'rgba(255,224,122,' + (1 - k2).toFixed(2) + ')'; g.stroke(); }
+    g.lineWidth = presse ? r * .11 : r * .07; g.strokeStyle = presse ? '#FFE07A' : e !== '0' ? 'rgba(255,182,39,.85)' : 'rgba(255,226,170,.28)'; g.stroke();
     g.textAlign = 'center'; g.textBaseline = 'middle';
     g.font = Math.round(r * .62) + 'px system-ui,"Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif';
-    if(c.glyphe){ g.font = '700 ' + Math.round(r * .58) + 'px ' + 'Georgia,serif'; g.fillStyle = niv > .55 ? '#3b2563' : '#FFE07A'; }
+    if(c.glyphe){ g.font = '700 ' + Math.round(r * .58) + 'px ' + 'Georgia,serif'; g.fillStyle = e === '2' || (presse && RU.niveaux[c.id] > .55) ? '#3b2563' : '#FFE07A'; }
     else g.fillStyle = '#fff';
     g.fillText(c.ico, c.x, c.y - r * .18);
     g.font = '600 ' + Math.max(8, Math.round(r * .26)) + 'px system-ui,sans-serif';
     g.shadowColor = 'rgba(30,12,50,.7)'; g.shadowBlur = 4;
-    g.fillStyle = '#FFF3DA'; g.fillText(trCourt(c.court), c.x, c.y + r * .44);
+    g.fillStyle = '#FFF3DA'; g.fillText(noms[ic], c.x, c.y + r * .44);
     g.shadowBlur = 0;
-    if(RU.focus === ic + 1 && document.activeElement === RU.cv){ cheminHex(g, c.x, c.y, rr * 1.12); g.setLineDash([4, 3]); g.lineWidth = 2.5; g.strokeStyle = '#FFE07A'; g.stroke(); g.setLineDash([]); }
+    if(focusVu && RU.focus === ic + 1){ cheminHex(g, c.x, c.y, rr * 1.12); g.setLineDash([4, 3]); g.lineWidth = 2.5; g.strokeStyle = '#FFE07A'; g.stroke(); g.setLineDash([]); }
   });
-  if(RU.focus === 0 && document.activeElement === RU.cv){ cheminHex(g, RU.cx, RU.cy, R * 1.06, true); g.setLineDash([5, 4]); g.lineWidth = 3; g.strokeStyle = '#FFF3DA'; g.stroke(); g.setLineDash([]); }
+  if(focusVu && RU.focus === 0){ cheminHex(g, RU.cx, RU.cy, R * 1.06, true); g.setLineDash([5, 4]); g.lineWidth = 3; g.strokeStyle = '#FFF3DA'; g.stroke(); g.setLineDash([]); }
+  return k.c;
 }
+function dessinerRuche(t){
+  var g = RU.g; if(!g || !RU.W) return;
+  t = t || performance.now();
+  var r = RU.r, R = r * 2.16, L = RU.calques;
+  var cleTaille = RU.cv.width + 'x' + RU.cv.height + '@' + RU.dpr + ':' + RU.W + ':' + RU.cells.length;
+  if(L.cleFond !== cleTaille || !L.fond){ L.fond = calqueFond(); L.cleFond = cleTaille; }
+  var etats = [], noms = [], focusVu = document.activeElement === RU.cv;
+  RU.cells.forEach(function(c){ var n = RU.niveaux[c.id] || 0; etats.push(RU.presse === c.id ? 'p' : n > .55 ? '2' : n > 0 ? '1' : '0'); noms.push(trCourt(c.court)); });
+  var cleD = cleTaille + '|' + etats.join('') + '|' + noms.join('\u0001') + '|' + (focusVu ? RU.focus : 'x');
+  if(L.cleDessus !== cleD || !L.dessus){ L.dessus = calqueDessus(etats, noms, focusVu); L.cleDessus = cleD; }
+  g.setTransform(1, 0, 0, 1, 0, 0);
+  g.clearRect(0, 0, RU.cv.width, RU.cv.height);
+  g.drawImage(L.fond, 0, 0);
+  g.setTransform(RU.dpr, 0, 0, RU.dpr, 0, 0);
+  /* un reflet qui passe lentement sur la cire */
+  if(!CALME.on){ g.save(); cheminHex(g, RU.cx, RU.cy, R, true); g.clip(); var p = ((t / 5200) % 1) * R * 4 - R * 2; var re = g.createLinearGradient(RU.cx + p - R, RU.cy - R, RU.cx + p + R, RU.cy + R); re.addColorStop(0, 'rgba(255,255,255,0)'); re.addColorStop(.5, 'rgba(255,255,255,.16)'); re.addColorStop(1, 'rgba(255,255,255,0)'); g.fillStyle = re; g.fillRect(RU.cx - R, RU.cy - R, R * 2, R * 2); g.restore(); }
+  /* le miel des alvéoles des sources */
+  RU.cells.forEach(function(c){
+    var rr = r * .94, niv = RU.niveaux[c.id] || 0;
+    if(niv <= 0) return;
+    g.save(); cheminHex(g, c.x, c.y, rr); g.clip();
+    var haut = c.y + rr - niv * rr * 2, vague = CALME.on ? 0 : Math.sin(t / 700 + c.x / 30) * r * .05;
+    var gm = g.createLinearGradient(0, haut, 0, c.y + rr);
+    gm.addColorStop(0, '#FFE07A'); gm.addColorStop(1, '#F0801A');
+    g.fillStyle = gm;
+    g.beginPath(); g.moveTo(c.x - rr, c.y + rr);
+    for(var k = 0; k <= 12; k++){ var xx = c.x - rr + k * rr / 6; g.lineTo(xx, haut + Math.sin(k * .9 + t / 600) * vague); }
+    g.lineTo(c.x + rr, c.y + rr); g.closePath(); g.fill();
+    g.restore();
+  });
+  g.setTransform(1, 0, 0, 1, 0, 0);
+  g.drawImage(L.dessus, 0, 0);
+  g.setTransform(RU.dpr, 0, 0, RU.dpr, 0, 0);
+  /* l'éclat d'un nouveau gain */
+  RU.cells.forEach(function(c){ var ec = RU.eclat[c.id]; if(!ec) return; var k2 = Math.min(1, (t - ec) / 1400); cheminHex(g, c.x, c.y, r * .94 * (1 + k2 * .45)); g.lineWidth = r * .06 * (1 - k2); g.strokeStyle = 'rgba(255,224,122,' + (1 - k2).toFixed(2) + ')'; g.stroke(); });
+}
+/* une police arrivée après le premier dessin : les calques sont refaits */
+try{ if(document.fonts && document.fonts.addEventListener) document.fonts.addEventListener('loadingdone', function(){ RU.calques.cleFond = RU.calques.cleDessus = ''; dessinerRuche(); }); }catch(e){ dbg(e); }
 /* le nom court dessiné dans le canevas suit la langue de l'interface */
 function trCourt(s){ try{ return typeof tr === 'function' ? tr(s) : s; }catch(e){ return s; } }
 function celluleA(e){
