@@ -70,12 +70,14 @@ self.addEventListener('fetch', function(e){ var r = e.request, u = new URL(r.url
   if(r.method !== 'GET' || u.origin !== self.location.origin || /\/v1\//.test(u.pathname)) return;
   var piece = NV_ACCUEIL.filter(function(p){ return u.pathname.slice(-p.length) === p; })[0]; if(!piece) return;
   /* 4 nov. 2026 : sur un réseau très lent, la copie gardée s'ouvre après 4 secondes d'attente (le réseau reste demandé en premier) */
-  e.respondWith(reseauPuisCopie(r, NV_ACCUEIL_CACHE, piece)); });
-function reseauPuisCopie(req, nom, cle){ return new Promise(function(ok){ var fini = false, garde = null;
+  e.respondWith(copieVerifiee(r, NV_ACCUEIL_CACHE, piece, piece)); });
+function reseauPuisCopie(req, nom, cle, frais){ return new Promise(function(ok){ var fini = false, garde = null;
   function servir(x){ if(!fini && x){ fini = true; ok(x); } }
   caches.open(nom).then(function(c){ return c.match(cle); }).then(function(m){ garde = m || null; }).catch(function(){});
   var minuteur = setTimeout(function(){ if(garde) servir(garde.clone()); }, 4000);
-  fetch(req).then(function(rep){ clearTimeout(minuteur); if(rep && rep.ok && rep.type === 'basic'){ var cp = rep.clone(); caches.open(nom).then(function(c){ return c.put(cle, cp); }).catch(function(){}); } servir(rep); })
+  /* « frais » : la carte des versions annonce un fichier changé, on redemande au site sans la copie du navigateur (une réponse 304 si rien n'a bougé) */
+  var dem = frais ? fetch(req.url, {cache:'no-cache', credentials:'same-origin'}).then(function(rep){ return rep.redirected ? fetch(req) : rep; }) : fetch(req);
+  dem.then(function(rep){ clearTimeout(minuteur); if(rep && rep.ok && rep.type === 'basic' && !rep.redirected) garder(nom, cle, rep); servir(rep); })
     .catch(function(){ clearTimeout(minuteur); caches.open(nom).then(function(c){ return c.match(cle); }).then(function(m){ servir(m || Response.error()); }, function(){ servir(Response.error()); }); }); }); }
 
 /* ── Les autres pages (4 novembre 2026, la vitesse) : chaque module ouvert (NV_MODULE_*.html, index.html, demo.html) est gardé
@@ -86,4 +88,54 @@ self.addEventListener('fetch', function(e){ var r = e.request, u; try{ u = new U
   if(r.method !== 'GET' || u.origin !== self.location.origin || /\/v1\//.test(u.pathname)) return;
   if(NV_ACCUEIL.some(function(p){ return u.pathname.slice(-p.length) === p; })) return;      /* l'accueil : son propre écouteur */
   if(!/(^|\/)(NV_MODULE_[A-Za-z_]+\.html|index\.html|demo\.html)$/.test(u.pathname)) return;
-  var cle = u.origin + u.pathname; e.respondWith(reseauPuisCopie(r, NV_PAGES_CACHE, cle)); });
+  var cle = u.origin + u.pathname; e.respondWith(copieVerifiee(r, NV_PAGES_CACHE, cle, nomFichier(u))); });
+
+/* ── La copie VÉRIFIÉE (14 novembre 2026, la vitesse) ──
+   Chaque page gardée porte l'empreinte SHA-256 de ses octets (X-NV-Sha). Le site publie version.json : l'empreinte de chaque fichier.
+   Si l'empreinte de la copie est celle du site, la copie EST la version en ligne, octet pour octet : elle s'ouvre tout de suite,
+   sans attendre le réseau. Sinon (nouvelle version, ou carte inconnue), on fait comme avant : réseau d'abord, la copie après 4 s ou sans réseau.
+   La carte (quelques Ko) est relue au plus toutes les minutes ; plus vieille que 5 minutes, on la redemande d'abord (1,5 s au plus).
+   Sur un bon réseau (4G ou Wi-Fi, jamais en économie de données), les pages déjà gardées qui ont changé sont remises à jour en arrière-plan,
+   12 au plus : la prochaine ouverture est aussi immédiate. Les images 3D des cadeaux (cadeaux3d/) suivent la même règle. */
+var NV_CARTE_CACHE = 'nv-carte-1', NV_IMAGES_CACHE = 'nv-images-1', CARTE = {f:null, lu:0, prom:null}, CARTE_FRAICHE = 5 * 60000, CARTE_RELIRE = 60000, MAJ_EN_COURS = false;
+function nomFichier(u){ var s = new URL(self.registration.scope).pathname, p = u.pathname; if(p.indexOf(s) !== 0) return null; try{ return decodeURIComponent(p.slice(s.length)) || 'index.html'; }catch(e){ return null; } }
+function shaDe(buf){ return crypto.subtle.digest('SHA-256', buf).then(function(h){ return Array.prototype.map.call(new Uint8Array(h), function(b){ return (b < 16 ? '0' : '') + b.toString(16); }).join(''); }); }
+function garder(nom, cle, rep){ var h = new Headers(rep.headers), st = rep.status, tx = rep.statusText;
+  return rep.clone().arrayBuffer().then(function(buf){ return shaDe(buf).then(function(sha){ h.set('X-NV-Sha', sha); h.delete('Content-Encoding'); h.delete('Content-Length');
+    return caches.open(nom).then(function(c){ return c.put(cle, new Response(buf, {status:st, statusText:tx, headers:h})); }); }); }).catch(function(){}); }
+function carteGardee(){ if(CARTE.f) return Promise.resolve(CARTE);
+  return caches.open(NV_CARTE_CACHE).then(function(c){ return c.match('carte'); }).then(function(r){ return r ? r.json() : null; })
+    .then(function(j){ if(j && j.f && !CARTE.f){ CARTE.f = j.f; CARTE.lu = +j.lu || 0; } return CARTE; }).catch(function(){ return CARTE; }); }
+function lireCarte(){ if(CARTE.prom) return CARTE.prom;
+  CARTE.prom = fetch(new URL('version.json', self.registration.scope).href, {cache:'no-cache', credentials:'same-origin'})
+    .then(function(r){ if(!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+    .then(function(j){ var f = {}; if(j && j.fichiers && typeof j.fichiers === 'object') Object.keys(j.fichiers).forEach(function(k){ var x = j.fichiers[k]; if(x && typeof x.sha256 === 'string') f[k] = x.sha256; });
+      if(!Object.keys(f).length) return CARTE;
+      CARTE.f = f; CARTE.lu = Date.now();
+      caches.open(NV_CARTE_CACHE).then(function(c){ return c.put('carte', new Response(JSON.stringify({f:f, lu:CARTE.lu}), {headers:{'Content-Type':'application/json'}})); }).catch(function(){});
+      majEnArrierePlan(f); return CARTE; })
+    .catch(function(){ return CARTE; }).then(function(x){ CARTE.prom = null; return x; });
+  return CARTE.prom; }
+function auPlus(p, ms){ return Promise.race([p, new Promise(function(ok){ setTimeout(ok, ms); })]); }
+function copieVerifiee(req, nom, cle, fichier){
+  return Promise.all([caches.open(nom).then(function(c){ return c.match(cle); }).catch(function(){ return null; }), carteGardee()]).then(function(r){
+    var garde = r[0], sha = garde && garde.headers.get('X-NV-Sha');
+    function juste(){ return !!(sha && fichier && CARTE.f && CARTE.f[fichier] === sha); }
+    if(!sha){ lireCarte(); return reseauPuisCopie(req, nom, cle); }
+    var age = Date.now() - CARTE.lu;
+    if(juste() && age < CARTE_FRAICHE){ if(age > CARTE_RELIRE) lireCarte(); return garde; }
+    return auPlus(lireCarte(), 1500).then(function(){ return juste() ? garde : reseauPuisCopie(req, nom, cle, true); });
+  }).catch(function(){ return reseauPuisCopie(req, nom, cle); }); }
+function bonReseau(){ var c = self.navigator && self.navigator.connection; if(!c) return true; if(c.saveData) return false; return !c.effectiveType || c.effectiveType === '4g'; }
+function majEnArrierePlan(f){ if(MAJ_EN_COURS || !bonReseau()) return; MAJ_EN_COURS = true; var travaux = [];
+  /* quelques secondes d'abord : la page qu'on ouvre garde tout le réseau pour elle */
+  new Promise(function(ok){ setTimeout(ok, 6000); }).then(function(){ return Promise.all([NV_ACCUEIL_CACHE, NV_PAGES_CACHE].map(function(nom){ return caches.open(nom).then(function(c){ return c.keys().then(function(ks){ return Promise.all(ks.map(function(k){ return c.match(k).then(function(rep){
+    var fi = nomFichier(new URL(k.url)); if(fi && f[fi] && rep && rep.headers.get('X-NV-Sha') !== f[fi]) travaux.push({nom:nom, cle:k, url:k.url}); }); })); }); }); })); })
+  .then(function(){ return travaux.slice(0, 12).reduce(function(p, t){ return p.then(function(){ return fetch(t.url, {cache:'no-cache', credentials:'same-origin'})
+      .then(function(rep){ if(rep.ok && rep.type === 'basic' && !rep.redirected) return garder(t.nom, t.cle, rep); }).catch(function(){}); }); }, Promise.resolve()); })
+  .catch(function(){}).then(function(){ MAJ_EN_COURS = false; }); }
+self.addEventListener('fetch', function(e){ var r = e.request, u; try{ u = new URL(r.url); }catch(x){ return; }
+  if(r.method !== 'GET' || u.origin !== self.location.origin || !/\/cadeaux3d\/[0-9a-f_-]+\.webp$/i.test(u.pathname)) return;
+  e.respondWith(copieVerifiee(r, NV_IMAGES_CACHE, u.origin + u.pathname, nomFichier(u))); });
+/* une page (ou un essai) peut demander de relire la carte tout de suite : {type:'nv_carte_relire'} */
+self.addEventListener('message', function(e){ var m = e.data || {}; if(m.type === 'nv_carte_relire'){ CARTE.lu = 0; e.waitUntil(lireCarte()); } });

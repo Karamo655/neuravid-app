@@ -1,6 +1,67 @@
 <!DOCTYPE html>
 <html lang="fr">
 <head>
+<!--NV_VITESSE--><script>/* NEURAVID — la vitesse commune (14 novembre 2026). Injectée en tête de chaque module par injecter_vitesse.py.
+   Rien n'est retiré : chaque animation reste, elle travaille seulement quand on la voit.
+   1. La cadence des images (requestAnimationFrame) suit le téléphone et la personne :
+      - téléphone modeste (≤ 4 cœurs, ≤ 2 Go, ou économie de données) : 30 images/s au plus ;
+      - personne qui ne touche à rien depuis 15 s : 30 images/s (20 sur un téléphone modeste) ; tout geste rend la pleine cadence ;
+      - jamais pendant une capture (caméra, micro ou enregistrement en cours) : pleine cadence, rien n'est touché.
+   2. Les animations CSS sans fin s'arrêtent quand elles sortent de l'écran, et reprennent dès qu'elles reviennent.
+   window.NVVitesse = {faible, cadence(), repos(), capture()} pour les essais. */
+(function(){ 'use strict';
+  if(window.NVVitesse || typeof window.requestAnimationFrame !== 'function') return;
+  var N = navigator, cx = N.connection || {}, coeurs = N.hardwareConcurrency || 8, mem = N.deviceMemory || 8;
+  var faible = coeurs <= 4 || mem <= 2 || !!cx.saveData;
+  var REPOS_MS = 15000, IV_FAIBLE = 1000 / 30, IV_REPOS = 1000 / (faible ? 20 : 30);
+  var natRAF = window.requestAnimationFrame.bind(window), natCAF = window.cancelAnimationFrame.bind(window);
+  var maintenant = function(){ return (window.performance && performance.now) ? performance.now() : Date.now(); };
+  var file = new Map(), suivant = 1, demande = 0, dernier = -1e9, geste = maintenant();
+
+  /* ── la capture : flux de la caméra ou du micro encore vivants, ou enregistrement en cours ── */
+  var flux = [], enregistreurs = [], capCache = {t:0, v:false};
+  function enCapture(){ var t = maintenant(); if(t - capCache.t < 400) return capCache.v; capCache.t = t; var v = false;
+    try{
+      flux = flux.filter(function(s){ return s.getTracks().some(function(k){ return k.readyState === 'live'; }); }); if(flux.length) v = true;
+      enregistreurs = enregistreurs.filter(function(r){ return r.state !== 'inactive'; }); if(enregistreurs.length) v = true;
+    }catch(e){ v = true; }
+    return (capCache.v = v); }
+  try{ var md = N.mediaDevices; if(md && md.getUserMedia){ var gum = md.getUserMedia.bind(md);
+    md.getUserMedia = function(){ return gum.apply(null, arguments).then(function(s){ flux.push(s); capCache.t = 0; return s; }); }; } }catch(e){}
+  try{ if(md && md.getDisplayMedia){ var gdm = md.getDisplayMedia.bind(md);
+    md.getDisplayMedia = function(){ return gdm.apply(null, arguments).then(function(s){ flux.push(s); capCache.t = 0; return s; }); }; } }catch(e){}
+  try{ if(window.MediaRecorder && MediaRecorder.prototype.start){ var dem = MediaRecorder.prototype.start;
+    MediaRecorder.prototype.start = function(){ enregistreurs.push(this); capCache.t = 0; return dem.apply(this, arguments); }; } }catch(e){}
+
+  function repos(){ return maintenant() - geste > REPOS_MS; }
+  function intervalle(){ if(enCapture()) return 0; if(repos()) return IV_REPOS; return faible ? IV_FAIBLE : 0; }
+  function tour(ts){ demande = 0; if(!file.size) return;
+    var iv = intervalle(); if(iv && ts - dernier < iv - 3){ demande = natRAF(tour); return; }
+    dernier = ts; var lot = file; file = new Map();
+    lot.forEach(function(cb){ try{ cb(ts); }catch(e){ setTimeout(function(){ throw e; }, 0); } }); }
+  window.requestAnimationFrame = function(cb){ if(typeof cb !== 'function') return natRAF(cb); var id = suivant++; file.set(id, cb); if(!demande) demande = natRAF(tour); return id; };
+  window.cancelAnimationFrame = function(id){ file.delete(id); if(!file.size && demande){ natCAF(demande); demande = 0; } };
+  function bouge(){ var r = repos(); geste = maintenant(); if(r) dernier = -1e9; }
+  ['pointerdown', 'touchstart', 'keydown', 'wheel', 'scroll'].forEach(function(n){ window.addEventListener(n, bouge, {capture:true, passive:true}); });
+
+  /* ── les animations CSS sans fin hors de l'écran ── */
+  var suivis = typeof WeakMap === 'function' ? new WeakMap() : null, arretees = [], io = null;
+  function sansFin(a){ try{ return a.effect && a.effect.getTiming && a.effect.getTiming().iterations === Infinity; }catch(e){ return false; } }
+  function voulueEnPause(el){ try{ return /paused/.test(getComputedStyle(el).animationPlayState || ''); }catch(e){ return false; } }
+  if(suivis && 'IntersectionObserver' in window && document.getAnimations){
+    io = new IntersectionObserver(function(es){ es.forEach(function(e){ var el = e.target, s = suivis.get(el); if(!s) return; s.vu = e.isIntersecting;
+      if(s.vu){ var reste = []; arretees.forEach(function(a){ var t = a.effect && a.effect.target;
+          if(t === el){ if(a.playState === 'paused' && !voulueEnPause(el)) try{ a.play(); }catch(x){} } else reste.push(a); }); arretees = reste; }
+      else { try{ el.getAnimations().forEach(function(a){ if(a.playState === 'running' && sansFin(a) && window.CSSAnimation && a instanceof CSSAnimation){ try{ a.pause(); arretees.push(a); }catch(x){} } }); }catch(x){} } }); }, {rootMargin:'120px'});
+    var balayer = function(){ if(document.hidden) return; arretees = arretees.filter(function(a){ var t = a.effect && a.effect.target; return t && t.isConnected; });
+      try{ document.getAnimations().forEach(function(a){ if(!(window.CSSAnimation && a instanceof CSSAnimation) || !sansFin(a)) return; var t = a.effect && a.effect.target; if(!t || t.nodeType !== 1) return;
+        var s = suivis.get(t); if(!s){ suivis.set(t, {vu:true}); io.observe(t); return; }
+        if(!s.vu && a.playState === 'running'){ try{ a.pause(); arretees.push(a); }catch(x){} } }); }catch(e){} };
+    var lancer = function(){ balayer(); setInterval(balayer, 2000); };
+    if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', function(){ setTimeout(lancer, 1500); }); else setTimeout(lancer, 1500);
+  }
+  window.NVVitesse = {faible:faible, repos:repos, capture:enCapture, cadence:function(){ var iv = intervalle(); return iv ? Math.round(1000 / iv) : 60; }};
+})();</script><!--/NV_VITESSE-->
 <!--NV_CONFIG--><script src="nv-config.js"></script><!--/NV_CONFIG-->
 <!--NV_DEMO--><script id="nv-demo">
 /* NEURAVID — LA DÉMONSTRATION dans chaque module (injectée en tête de page, avant le module).
