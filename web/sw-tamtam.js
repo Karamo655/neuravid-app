@@ -88,7 +88,10 @@ self.addEventListener('fetch', function(e){ var r = e.request, u; try{ u = new U
   if(r.method !== 'GET' || u.origin !== self.location.origin || /\/v1\//.test(u.pathname)) return;
   if(NV_ACCUEIL.some(function(p){ return u.pathname.slice(-p.length) === p; })) return;      /* l'accueil : son propre écouteur */
   if(!/(^|\/)(NV_MODULE_[A-Za-z_]+\.html|index\.html|demo\.html)$/.test(u.pathname)) return;
-  var cle = u.origin + u.pathname; e.respondWith(copieVerifiee(r, NV_PAGES_CACHE, cle, nomFichier(u))); });
+  var cle = u.origin + u.pathname; e.respondWith(copieVerifiee(r, NV_PAGES_CACHE, cle, nomFichier(u)));
+  /* Le Direct et la Salle Baobab prennent leurs images de cadeaux dans cadeaux3d/ : on les garde toutes une fois (bon réseau seulement),
+     pour qu'aucune ne manque ensuite, même sans réseau */
+  if(/NV_MODULE_(Live|Baobab)(_leger)?\.html$/.test(u.pathname)) garderCadeaux(); });
 
 /* ── La copie VÉRIFIÉE (14 novembre 2026, la vitesse) ──
    Chaque page gardée porte l'empreinte SHA-256 de ses octets (X-NV-Sha). Le site publie version.json : l'empreinte de chaque fichier.
@@ -139,3 +142,14 @@ self.addEventListener('fetch', function(e){ var r = e.request, u; try{ u = new U
   e.respondWith(copieVerifiee(r, NV_IMAGES_CACHE, u.origin + u.pathname, nomFichier(u))); });
 /* une page (ou un essai) peut demander de relire la carte tout de suite : {type:'nv_carte_relire'} */
 self.addEventListener('message', function(e){ var m = e.data || {}; if(m.type === 'nv_carte_relire'){ CARTE.lu = 0; e.waitUntil(lireCarte()); } });
+/* les images 3D des cadeaux, gardées toutes une fois par le téléphone (14 nov. 2026) : seulement sur un bon réseau, 12 s après l'ouverture,
+   une à la fois, seulement celles qui manquent ou qui ont changé (empreinte de version.json) */
+var CADEAUX_FAIT = false;
+function garderCadeaux(){ if(CADEAUX_FAIT || !bonReseau()) return; CADEAUX_FAIT = true;
+  new Promise(function(ok){ setTimeout(ok, 12000); }).then(function(){ return carteGardee(); }).then(function(){ return CARTE.f ? CARTE : lireCarte(); }).then(function(){
+    var f = CARTE.f || {}, l = Object.keys(f).filter(function(k){ return /^cadeaux3d\/[0-9a-f_-]+\.webp$/i.test(k); });
+    return caches.open(NV_IMAGES_CACHE).then(function(c){ return l.reduce(function(p, k){ return p.then(function(){ if(!bonReseau()) return;
+      var url = new URL(k, self.registration.scope).href;
+      return c.match(url).then(function(m){ if(m && m.headers.get('X-NV-Sha') === f[k]) return;
+        return fetch(url, {credentials:'same-origin'}).then(function(rep){ if(rep.ok && rep.type === 'basic' && !rep.redirected) return garder(NV_IMAGES_CACHE, url, rep); }).catch(function(){}); }); }); }, Promise.resolve()); }); })
+  .catch(function(){}).then(function(){ /* réessayé à la prochaine vie du service si le réseau a manqué */ }); }
