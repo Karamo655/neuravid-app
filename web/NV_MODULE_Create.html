@@ -1590,36 +1590,44 @@ function fermerCamera(){
 function camTaille(f){ try{ var s = f.getVideoTracks()[0].getSettings(); return {w:s.width || 0, h:s.height || 0}; }catch(e){ return {w:0, h:0}; } }
 function camDebout(f){ var t = camTaille(f); return !(t.w && t.h && t.w > t.h); }
 /* le sens réel de l'image : celui des images reçues (un navigateur peut annoncer le format du capteur et livrer l'image tournée) */
-function camDeboutReel(f){
+function camDeboutReel(f){ return camImageReelle(f).then(function(t){ return t.w && t.h ? t.h >= t.w : camDebout(f); }); }
+/* la taille réelle des images reçues ({w, h} ; 0 si inconnue) */
+function camImageReelle(f){
   return new Promise(function(ok){
     var v = document.createElement('video'), fini = false, fin = function(r){ if(fini) return; fini = true; try{ v.srcObject = null; }catch(e){ dbg(e); } ok(r); };
     v.muted = true; v.playsInline = true;
-    v.onloadedmetadata = function(){ fin(v.videoWidth && v.videoHeight ? v.videoHeight >= v.videoWidth : camDebout(f)); };
-    setTimeout(function(){ fin(camDebout(f)); }, 1500);
-    try{ v.srcObject = f; v.play().catch(dbg); }catch(e){ fin(camDebout(f)); }
+    v.onloadedmetadata = function(){ fin(v.videoWidth && v.videoHeight ? {w:v.videoWidth, h:v.videoHeight} : camTaille(f)); };
+    setTimeout(function(){ fin(camTaille(f)); }, 1500);
+    try{ v.srcObject = f; v.play().catch(dbg); }catch(e){ fin(camTaille(f)); }
   });
 }
 function camOuvrirDebout(){
   var md = navigator.mediaDevices, son = {echoCancellation:true, noiseSuppression:true, autoGainControl:true}, telephone = window.innerHeight > window.innerWidth;
-  /* 15 nov. 2026 (la vitesse, La Forge, étape A) : d'abord le mode DEBOUT natif (1080 × 1920, sans découpe). Avant, la première demande
-     était carrée (1920 × 1920) : un téléphone haut de gamme donnait 1088 × 1088, dont l'aperçu 9:16 n'utilisait que 612 × 1088 pixels,
-     agrandis (moins net, et souvent moins d'images par seconde). Le debout est gardé seulement s'il est vraiment debout et assez grand
-     (petit côté ≥ 720) ; sinon la demande carrée d'avant, puis la demande debout ordinaire, comme avant. */
+  /* 15 nov. 2026 (la vitesse, La Forge, étape A, 2e essai) : un mode ALLONGÉ (16:9) natif d'abord. Sur le Galaxy Z Fold6, la demande
+     1080 × 1920 donnait encore 1088 × 1088 : le navigateur compare la demande aux formats du capteur, qui sont COUCHÉS (1920 × 1080,
+     1440 × 1080, 1088 × 1088…), et le carré était le plus proche. On demande donc d'abord 1920 × 1080 (le format couché du capteur,
+     que le navigateur tourne à la verticale), puis 1080 × 1920. Ces deux demandes ne sont gardées que si l'image reçue est vraiment
+     debout, allongée (côté long ≥ 1,5 × côté court) et assez grande (côté court ≥ 720) : un carré ne suffit plus. Ensuite, comme avant :
+     la demande carrée (gardée si debout), puis la demande debout ordinaire. Les tailles reçues sont notées (panneau de mesure). */
   var demandes = [
+    {facingMode:CAM.face, resizeMode:'none', width:{ideal:1920}, height:{ideal:1080}, aspectRatio:{ideal:16 / 9}, frameRate:{ideal:30}},
     {facingMode:CAM.face, resizeMode:'none', width:{ideal:1080}, height:{ideal:1920}, aspectRatio:{ideal:9 / 16}, frameRate:{ideal:30}},
     {facingMode:CAM.face, resizeMode:'none', width:{ideal:1920}, height:{ideal:1920}, frameRate:{ideal:30}},
     {facingMode:CAM.face, width:{min:480, ideal:1080}, height:{min:640, ideal:1920}}
   ];
-  var i = 0;
+  var ALLONGEES = 2, i = telephone ? 0 : 2; CAM.essaisCam = [];   /* ordinateur (écran couché) : la demande carrée d'avant, comme avant */
   function essai(){
     var d = demandes[i];
     return md.getUserMedia({video:d, audio:son}).then(function(f){
       CAM.essaiCam = i + 1;
-      if(!telephone || i >= demandes.length - 1) return f;
-      return camDeboutReel(f).then(function(debout){
-        var t = camTaille(f), assez = i > 0 || !t.w || Math.min(t.w, t.h) >= 720;
-        if(debout && assez) return f; f.getTracks().forEach(function(t){ t.stop(); }); i++; return essai(); });
-    }, function(e){ if(i === 0 && !(e && /Overconstrained|Type/i.test(e.name || ''))) throw e; if(i >= demandes.length - 1) return md.getUserMedia({video:{facingMode:CAM.face}, audio:son}); i++; return essai(); });
+      if(!telephone || i >= demandes.length - 1){ var t0 = camTaille(f); CAM.essaisCam.push((i + 1) + ':' + t0.w + '×' + t0.h); return f; }
+      return camImageReelle(f).then(function(t){
+        CAM.essaisCam.push((i + 1) + ':' + (t.w || '?') + '×' + (t.h || '?'));
+        var debout = t.w && t.h ? t.h >= t.w : camDebout(f), bon;
+        if(i < ALLONGEES) bon = !!(t.w && t.h) && t.h >= t.w * 1.5 && t.w >= 720;
+        else bon = debout;
+        if(bon) return f; f.getTracks().forEach(function(x){ x.stop(); }); i++; return essai(); });
+    }, function(e){ CAM.essaisCam.push((i + 1) + ':refus'); if(i === 0 && !(e && /Overconstrained|Type/i.test(e.name || ''))) throw e; if(i >= demandes.length - 1) return md.getUserMedia({video:{facingMode:CAM.face}, audio:son}); i++; return essai(); });
   }
   return essai();
 }
@@ -6059,7 +6067,7 @@ function corpsMoteur(){
 function mesuresMoteur(){
   var tv = CAM.toile ? CAM.toile.width + ' × ' + CAM.toile.height : '—', sc = {}; try{ sc = CAM.piste && CAM.piste.getSettings ? CAM.piste.getSettings() : {}; }catch(e){ dbg(e); }
   var vb = $('camBrute'), vw = vb && vb.videoWidth ? vb.videoWidth + ' × ' + vb.videoHeight + ' / ' : '';
-  var tc = sc.width && sc.height ? vw + sc.width + ' × ' + sc.height + (sc.resizeMode === 'none' ? ' · 1:1' : sc.resizeMode ? ' · ✂' : '') + (sc.zoom != null ? ' · zoom ' + (Math.round(sc.zoom * 10) / 10) : '') + (CAM.essaiCam ? ' · ' + CAM.essaiCam + '/3' : '') : '—';
+  var tc = sc.width && sc.height ? vw + sc.width + ' × ' + sc.height + (sc.resizeMode === 'none' ? ' · 1:1' : sc.resizeMode ? ' · ✂' : '') + (sc.zoom != null ? ' · zoom ' + (Math.round(sc.zoom * 10) / 10) : '') + (CAM.essaiCam ? ' · ' + CAM.essaiCam + '/4' : '') : '—';
   return '<p>' + phrase('Image : {0}', '<span data-brut>' + esc(tv) + '</span>') + '</p><p>' + phrase('Caméra : {0}', '<span data-brut>' + esc(tc) + '</span>') + '</p><p>' + phrase('Images par seconde : {0}', '<span data-brut>' + esc(MOTEUR.fps != null ? String(MOTEUR.fps) : '—') + '</span>') + '</p><p>' +
     phrase('Batterie : {0}', '<span data-brut>' + esc(MOTEUR.batterie != null ? Math.round(MOTEUR.batterie * 100) + ' %' : '—') + '</span>') + (MOTEUR.charge ? ' · ' + esc('en charge') : '') + '</p><p>' + phrase('Processeurs : {0}', '<span data-brut>' + esc(coeurs() ? String(coeurs()) : '—') + '</span>') + '</p>';
 }
@@ -7857,6 +7865,7 @@ function diagTexte(){
   var v = $('camBrute'), tc = CAM.toile, l = [];
   var n = performance.now(), dt = (n - DIAG.camT) / 1000; if(dt >= 1){ DIAG.camIps = DIAG.cam / dt; DIAG.cam = 0; DIAG.camT = n; DIAG.dessinIps = DIAG.nDessins / dt; DIAG.nDessins = 0; }
   l.push('Caméra : ' + (v && v.videoWidth ? v.videoWidth + '×' + v.videoHeight : '—') + ' · ' + (DIAG.camIps ? DIAG.camIps.toFixed(0) + ' images/s' : '—'));
+  l.push('Demandes à la caméra : ' + (CAM.essaisCam && CAM.essaisCam.length ? CAM.essaisCam.join(' · ') + ' (gardée : ' + CAM.essaiCam + '/4)' : '—'));
   l.push('Aperçu : ' + (tc ? tc.width + '×' + tc.height : '—') + ' · ' + (DIAG.dessinIps != null ? DIAG.dessinIps.toFixed(0) + ' dessins/s' : '—'));
   l.push('Dessin d\'une image : ' + diagStats(DIAG.dessins));
   ['visage', 'mains', 'corps', 'multiclasse'].forEach(function(k){
