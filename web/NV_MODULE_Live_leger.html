@@ -577,9 +577,9 @@ html[dir=rtl] #ecrireBarre .env svg{transform:scaleX(-1)}
 .stu-defil::-webkit-scrollbar{display:none}
 .stu-defil button,.stu-rail.stu-court>button{flex:0 0 auto}
 .stu-rail.stu-defile .stu-defil{-webkit-mask:linear-gradient(180deg,#000 calc(100% - 36px),transparent);mask:linear-gradient(180deg,#000 calc(100% - 36px),transparent)}
-.stu-rail.stu-defile.stu-haut .stu-defil{-webkit-mask:linear-gradient(180deg,transparent,#000 28px,#000 calc(100% - 36px),transparent);mask:linear-gradient(180deg,transparent,#000 28px,#000 calc(100% - 36px),transparent)}
-.stu-rail.stu-defile.stu-haut.stu-fin .stu-defil{-webkit-mask:linear-gradient(180deg,transparent,#000 28px);mask:linear-gradient(180deg,transparent,#000 28px)}
-.stu-rail.stu-defile.stu-fin:not(.stu-haut) .stu-defil{-webkit-mask:none;mask:none}
+.stu-rail.stu-defile.rail-cache-haut .stu-defil{-webkit-mask:linear-gradient(180deg,transparent,#000 28px,#000 calc(100% - 36px),transparent);mask:linear-gradient(180deg,transparent,#000 28px,#000 calc(100% - 36px),transparent)}
+.stu-rail.stu-defile.rail-cache-haut.rail-au-bout .stu-defil{-webkit-mask:linear-gradient(180deg,transparent,#000 28px);mask:linear-gradient(180deg,transparent,#000 28px)}
+.stu-rail.stu-defile.rail-au-bout:not(.rail-cache-haut) .stu-defil{-webkit-mask:none;mask:none}
 .stu-rail button{filter:drop-shadow(0 0 5px rgba(138,77,255,.38))}
 .stu-rail button i{position:relative;isolation:isolate;width:46px;height:50px;font-size:20px;box-shadow:none;
   background:linear-gradient(160deg,rgba(25,227,197,.95),rgba(138,77,255,.9) 52%,rgba(255,79,163,.95));transition:transform .16s ease}
@@ -8558,7 +8558,7 @@ rendreStudio = function(){
 /* le rail défile quand l'écran est trop court : on le dit (classe stu-defile) et on garde « Plus » visible en bas */
 function railDefile(r){ r = r || $('stuRail'); if(!r) return; var z = r.querySelector('.stu-defil') || r;
   try{ var trop = z.scrollHeight > z.clientHeight + 1; r.classList.toggle('stu-defile', trop);
-    r.classList.toggle('stu-haut', trop && z.scrollTop > 2); r.classList.toggle('stu-fin', !trop || z.scrollTop + z.clientHeight >= z.scrollHeight - 2); }catch(e){ dbg(e); } }
+    r.classList.toggle('rail-cache-haut', trop && z.scrollTop > 2); r.classList.toggle('rail-au-bout', !trop || z.scrollTop + z.clientHeight >= z.scrollHeight - 2); }catch(e){ dbg(e); } }
 try{ addEventListener('resize', function(){ railDefile(); }); }catch(e){ dbg(e); }
 function familleDe(a){ for(var i = 0; i < FAMILLES_STU.length; i++) if(FAMILLES_STU[i][1].indexOf(a) >= 0) return i; return FAMILLES_STU.length; }
 function htmlPanneau(){
