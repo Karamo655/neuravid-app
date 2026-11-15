@@ -7902,7 +7902,7 @@ function diagTexte(){
     var e = IA.etat[k]; if(!e && !IA.outils[k]) return;
     l.push('Suivi ' + k + ' : ' + (IA.outils[k] ? 'prêt' : (typeof e === 'string' ? e : 'en chargement')) + ' · ' + ((IA.delegue && IA.delegue[k]) || '—') + ' · ' + diagStats(IA.temps[k]) + ' · ' + (IA.cadence[k] || '—') + '/s' + (IA.besoin[k] ? '' : ' (pas utilisé)'));
   });
-  if(typeof FIL !== 'undefined' && FIL.w) l.push('Fil à part : ' + (FIL.mode || '—') + ' · ' + Object.keys(FIL.recus).map(function(k){ return k + ' ' + diagStats(FIL.msFil[k]); }).join(' · ') + (FIL.erreur ? ' · erreur ' + FIL.erreur : ''));
+  if(typeof FIL !== 'undefined' && FIL.w) l.push('Fil à part : ' + (FIL.modeFil || FIL.mode || '—') + ' · ' + Object.keys(FIL.recus).map(function(k){ return k + ' ' + diagStats(FIL.msFil[k]); }).join(' · ') + (FIL.erreur ? ' · erreur ' + FIL.erreur : ''));
   l.push('Beauté : ' + diagStats(BEA.temps) + (BEA.lent ? ' · demi-résolution' : '') + (BEA.allegee ? ' · allégée' : ''));
   l.push('Lumière du visage : ' + diagStats(EXPO.temps) + (EXPO.eteint ? ' · éteinte' : '') + ' · mode ' + EXPO.mode);
   l.push('Moteur : ' + (MOTEUR.fps ? Math.round(MOTEUR.fps) + ' i/s' : '—') + (MOTEUR.baisse ? ' · baissé en 720' : '') + ' · plafond ' + plafondDefinition());
@@ -7957,7 +7957,7 @@ function filPossible(){
 /* le code du fil : charge le moteur (importScripts), crée les outils, répond à chaque image */
 function filCode(){
   return [
-    'var V=null,FS=null,O={},H={},C=null,G=null;',
+    'var V=null,FS=null,O={},H={},C=null,G=null,SANS_VF=false,CHOIX=null,TRI={n:0,direct:[],toile:[]};',
     'function rep(m,t){ try{ postMessage(m,t||[]); }catch(e){} }',
     'function plat(r){ if(!r) return null; var o={};',
     ' if(r.faceLandmarks) o.faceLandmarks=r.faceLandmarks.map(function(l){ return l.map(function(q){ return {x:q.x,y:q.y,z:q.z}; }); });',
@@ -7980,12 +7980,19 @@ function filCode(){
     '   .then(function(x){ O[m.k]=x.o; rep({type:"init",id:m.id,ok:true,delegue:x.d}); },function(err){ rep({type:"init",id:m.id,ok:false,err:String(err&&err.message||err)}); });',
     '  return; }',
     ' if(m.type==="image"){ var o=O[m.k], t=Math.max(m.t,(H[m.k]||0)+1); H[m.k]=t; var t0=performance.now(), r=null, err=null, img=m.img;',
-    '  try{ var s=m.vf||m.img, vw=m.vf?m.vf.displayWidth:m.img.width, vh=m.vf?m.vf.displayHeight:m.img.height, w=Math.min(m.larg||480,vw), hh=Math.max(2,Math.round(w*vh/vw));',
+    /* 1) la VideoFrame telle quelle (le moteur la pose sur le processeur graphique sans copie ; on lui donne ses dimensions) ;
+          2) si cela échoue une fois : la VideoFrame dessinée dans une petite toile (OffscreenCanvas), pour toujours. */
+    /* les deux façons sont essayées tour à tour sur les 12 premières images ; la plus rapide SUR CE TÉLÉPHONE est gardée */
+    '  var mode="toile", veut=m.vf&&!SANS_VF?(CHOIX||(TRI.n++%2?"toile":"direct")):"toile";',
+    '  if(veut==="direct"){ try{ var f=m.vf; try{ Object.defineProperty(f,"width",{value:f.displayWidth,configurable:true}); Object.defineProperty(f,"height",{value:f.displayHeight,configurable:true}); Object.defineProperty(f,"videoWidth",{value:f.displayWidth,configurable:true}); Object.defineProperty(f,"videoHeight",{value:f.displayHeight,configurable:true}); }catch(x){}',
+    '    if(o) r=plat(o.detectForVideo(f,t)); mode="direct"; }catch(x){ SANS_VF=String(x&&x.message||x); r=null; } }',
+    '  if(mode!=="direct"){ try{ var s=m.vf||m.img, vw=m.vf?m.vf.displayWidth:m.img.width, vh=m.vf?m.vf.displayHeight:m.img.height, w=Math.min(m.larg||480,vw), hh=Math.max(2,Math.round(w*vh/vw));',
     '    if(!C||C.width!==w||C.height!==hh){ C=new OffscreenCanvas(w,hh); G=C.getContext("2d"); } G.drawImage(s,0,0,w,hh); img=C; }catch(x){ err=String(x&&x.message||x); }',
+    '    try{ if(o&&!err) r=plat(o.detectForVideo(img,t+0.5)); }catch(x){ err=String(x&&x.message||x); } }',
     '  try{ if(m.vf) m.vf.close(); }catch(x){}',
-    '  try{ if(o&&!err) r=plat(o.detectForVideo(img,t)); }catch(x){ err=String(x&&x.message||x); }',
+    '  if(m.vf&&!CHOIX&&!err){ var d=performance.now()-t0, L=TRI[mode]; if(L) L.push(d); if(SANS_VF) CHOIX="toile"; else if(TRI.direct.length>=6&&TRI.toile.length>=6){ var md=function(a){ a=a.slice(1).sort(function(x,y){return x-y;}); return a[a.length>>1]; }; CHOIX=md(TRI.direct)<=md(TRI.toile)?"direct":"toile"; } }',
     '  try{ if(m.img) m.img.close(); }catch(x){}',
-    '  rep({type:"image",k:m.k,n:m.n,r:r,ms:performance.now()-t0,err:err}); return; }',
+    '  rep({type:"image",k:m.k,n:m.n,r:r,ms:performance.now()-t0,err:err,mode:m.vf?(mode==="direct"?"VideoFrame directe":"VideoFrame → toile"+(SANS_VF?" ("+SANS_VF+")":""))+(CHOIX?" (la plus rapide ici)":" (essai des deux)"):"copie"}); return; }',
     ' if(m.type==="fermer"){ try{ if(O[m.k]&&O[m.k].close) O[m.k].close(); }catch(x){} O[m.k]=null; }',
     '};'
   ].join('\n');
@@ -8040,11 +8047,16 @@ function iaFilEnvoyer(k, src, t){
 }
 function filRecu(m){
   var k = m.k; FIL.dernier = m; FIL.occupe[k] = 0; FIL.recus[k] = (FIL.recus[k] || 0) + 1; if(m.err) FIL.erreur = m.err; else { var l = FIL.msFil[k] = FIL.msFil[k] || []; l.push(m.ms); if(l.length > 60) l.shift(); }
-  if(!IA.outils[k] || !IA.outils[k].fil || !IA.besoin[k]) return;
+  if(!IA.outils[k] || !IA.outils[k].fil || !IA.besoin[k] || !CAM.ouvert) return;   /* le fil ne sert qu'à la caméra : une réponse arrivée après sa fermeture est ignorée */
   if(m.err){ dbg(m.err); return; }
   iaAppliquer(k, m.r);
+  if(m.mode) FIL.modeFil = m.mode;
+  /* 15 nov. 2026 (mesure du Fold6) : dans le fil à part, un modèle lent ne bloque plus l'aperçu ; il donne seulement un résultat
+     un peu plus ancien. La garde du fil principal (45 ms → cadence divisée, puis modèle éteint) a éteint le suivi du visage
+     à 41–45 ms. Ici : le fil limite déjà la cadence (une image en route) ; on ralentit seulement au-delà de 150 ms
+     (résultat trop en retard pour suivre un visage), et on n'éteint qu'au-delà de 400 ms. */
   IA.temps[k] = IA.temps[k] || [];
-  chrono({temps:IA.temps[k]}, m.ms, 99, 45, 8, function(){ if(IA.cadence[k] > 6){ IA.cadence[k] = Math.round(IA.cadence[k] / 2); IA.temps[k] = []; } else iaEteindre(k); });
+  chrono({temps:IA.temps[k]}, m.ms, 99, 150, 8, function(med){ if(med > 400 && IA.cadence[k] <= 6){ iaEteindre(k); return; } if(IA.cadence[k] > 6){ IA.cadence[k] = Math.round(IA.cadence[k] / 2); } IA.temps[k] = []; });
 }
 /* les usages hors direct (montage, photo) : un outil sur le fil principal, comme avant */
 function iaDetecterDirect(k, src, t){
