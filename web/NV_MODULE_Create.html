@@ -1242,6 +1242,26 @@ window.NVMarque = window.NVMarque || {
    Chaque moteur chronomètre son coût sur le téléphone de la personne et se retire s'il gêne, en le disant.
    ════════════════════════════════════════════════════════════════════ */
 function mediane(l){ if(!l.length) return 0; var t = l.slice().sort(function(a, b){ return a - b; }); return t[t.length >> 1]; }
+/* 15 nov. 2026 (la vitesse, La Forge, étape 2 bis) : lire des pixels EN ARRIÈRE-PLAN.
+   Sur un téléphone, getImageData sur une image de la caméra ou de l'aperçu oblige le processeur graphique à s'arrêter
+   et à tout finir avant de répondre : l'aperçu saccade, et ce temps était compté dans les mesures qui éteignent la
+   lumière du visage ou allègent la beauté. Ici l'image est copiée sans attendre (createImageBitmap), puis lue un peu
+   plus tard, dans une petite toile à part. Mêmes mesures ; sans createImageBitmap, chaque mesure fait comme avant.
+   lireApres(source, x, y, l, h, largeurVoulue, hauteurVoulue, fn(donnees, l, h)) → false si la copie n'a pas pu partir. */
+var LIRE_AP = {ok:typeof createImageBitmap === 'function', cv:null, g:null};
+function lireApres(source, x, y, l, h, rl, rh, fn){
+  if(!LIRE_AP.ok || !(l > 0) || !(h > 0)) return false;
+  var p; try{ p = rl ? createImageBitmap(source, x, y, l, h, {resizeWidth:rl, resizeHeight:rh, resizeQuality:'low'}) : createImageBitmap(source, x, y, l, h); }catch(e){ dbg(e); return false; }
+  p.then(function(b){
+    var W = b.width, Hh = b.height, d = null;
+    if(!LIRE_AP.cv){ LIRE_AP.cv = document.createElement('canvas'); LIRE_AP.g = LIRE_AP.cv.getContext('2d', {willReadFrequently:true}); }
+    if(LIRE_AP.cv.width !== W || LIRE_AP.cv.height !== Hh){ LIRE_AP.cv.width = W; LIRE_AP.cv.height = Hh; } else LIRE_AP.g.clearRect(0, 0, W, Hh);
+    try{ LIRE_AP.g.drawImage(b, 0, 0); d = LIRE_AP.g.getImageData(0, 0, W, Hh).data; }catch(e){ dbg(e); }
+    try{ b.close(); }catch(e){ dbg(e); }
+    fn(d, W, Hh);
+  }, function(e){ dbg(e); fn(null, 0, 0); });
+  return true;
+}
 function chrono(etat, ms, seuilLent, seuilCoupe, n, couper){ etat.temps.push(ms); if(etat.temps.length > (n || 8)) etat.temps.shift(); if(etat.temps.length < (n || 8)) return; var m = mediane(etat.temps); if(m > seuilCoupe) couper(Math.round(m)); else if(m > seuilLent) etat.lent = true; }
 
 /* ════════ Le visage : le détecteur du téléphone s'il existe, sinon le suivi d'un motif visé ════════ */
@@ -1458,10 +1478,26 @@ function appliquerRetouche(g, L, H, src, miroir){
 /* ════════ La lumière mesurée sur le visage (et non sur le mur derrière) ════════
    1) la caméra corrige elle-même si elle le permet (exposureCompensation) ; 2) sinon un relèvement doux, plafonné. */
 var EXPO = {mode:'visage', cible:132, biais:0, mesure:0, releve:0, materiel:false, pasMat:0, dernier:0, cadence:6, temps:[], eteint:false, raison:'', pcv:null, pcx:null, piste:null};
+/* en arrière-plan (étape 2 bis) : la mesure part maintenant et sert au tour suivant (1/6 s plus tard) ; une seule à la fois,
+   et chaque résultat ne sert qu'une fois. Sans copie possible : la mesure directe, comme avant. */
 function expoMesurer(src){
+  if(LIRE_AP.ok && src && src.videoWidth){
+    var r = EXPO.pret; EXPO.pret = null;
+    if(!EXPO.enLecture || performance.now() - EXPO.enLecture > 2000){
+      var b = boiteVisage(); EXPO.enLecture = performance.now();
+      if(!lireApres(src, 0, 0, src.videoWidth, src.videoHeight, 64, 64, function(d){ EXPO.enLecture = 0; if(d) EXPO.pret = expoCalcul(d, b); })){ EXPO.enLecture = 0; LIRE_AP.ok = false; return expoMesurerDirect(src); }
+    }
+    return r;
+  }
+  return expoMesurerDirect(src);
+}
+function expoMesurerDirect(src){
   var P = 64; if(!EXPO.pcv){ EXPO.pcv = document.createElement('canvas'); EXPO.pcv.width = EXPO.pcv.height = P; EXPO.pcx = EXPO.pcv.getContext('2d', {willReadFrequently:true}); }
   var d; try{ EXPO.pcx.drawImage(src, 0, 0, P, P); d = EXPO.pcx.getImageData(0, 0, P, P).data; }catch(e){ return null; }
-  var b = boiteVisage(), somme = 0, poids = 0;
+  return expoCalcul(d, boiteVisage());
+}
+function expoCalcul(d, b){
+  var P = 64, somme = 0, poids = 0;
   for(var y = 0; y < P; y++) for(var x = 0; x < P; x++){
     var i = (y * P + x) * 4, l = .2126 * d[i] + .7152 * d[i + 1] + .0722 * d[i + 2], w;
     if(b){ var dx = (x / P - (b.x + b.w / 2)) / (b.w * .6), dy = (y / P - (b.y + b.h / 2)) / (b.h * .6); w = Math.exp(-(dx * dx + dy * dy)); }
@@ -6703,7 +6739,17 @@ function mesurerTeint(src){
   var v = IA.res.visage; if(!v || !v.p || performance.now() - v.t > 600 || !src || !src.videoWidth) return;
   if(!TEINT.cv){ TEINT.cv = document.createElement('canvas'); TEINT.g = TEINT.cv.getContext('2d', {willReadFrequently:true}); }
   var w = 120, h = Math.max(1, Math.round(w * src.videoHeight / src.videoWidth)); if(TEINT.cv.width !== w || TEINT.cv.height !== h){ TEINT.cv.width = w; TEINT.cv.height = h; }
+  /* en arrière-plan (étape 2 bis) : même mesure, avec les points du visage de l'image copiée */
+  if(LIRE_AP.ok){
+    if(TEINT.enLecture && performance.now() - TEINT.enLecture < 2000) return;
+    TEINT.enLecture = performance.now();
+    if(lireApres(src, 0, 0, src.videoWidth, src.videoHeight, w, h, function(d, W, Hh){ TEINT.enLecture = 0; if(d) finTeint(d, W, Hh, v); })) return;
+    TEINT.enLecture = 0;
+  }
   var d; try{ TEINT.g.drawImage(src, 0, 0, w, h); d = TEINT.g.getImageData(0, 0, w, h).data; }catch(e){ dbg(e); return; }
+  finTeint(d, w, h, v);
+}
+function finTeint(d, w, h, v){
   var m = moyennePeau(d, w, h, function(i){ var q = v.p[i]; return q ? {x:q.x * w, y:q.y * h} : null; }); if(!m) return;
   var lab = versLab(m.r, m.g, m.b), f = TEINT.n ? .25 : 1;
   TEINT.L = TEINT.n ? TEINT.L + (lab.L - TEINT.L) * f : lab.L; TEINT.a = TEINT.n ? TEINT.a + (lab.a - TEINT.a) * f : lab.a; TEINT.b = TEINT.n ? TEINT.b + (lab.b - TEINT.b) * f : lab.b;
@@ -6851,15 +6897,25 @@ function appliquerBeaute(g, L, H, mir){
 }
 
 /* ── « Garder la couleur de ma peau » : la peau est mesurée avant et après la beauté (2 à 3 fois par seconde) ── */
-function lirePeauToile(g, L, H, mir){
+function zonePeauToile(L, H, mir){
   var v = IA.res.visage; if(!v || !v.p) return null;
   var pts = PEAU_ECH.map(function(i){ return v.p[i] ? ptToile(v.p[i], L, H, mir) : null; }).filter(Boolean); if(pts.length < 4) return null;
   var x0 = Math.max(0, Math.floor(Math.min.apply(null, pts.map(function(p){ return p.x; })) - 2)), y0 = Math.max(0, Math.floor(Math.min.apply(null, pts.map(function(p){ return p.y; })) - 2));
   var x1 = Math.min(L, Math.ceil(Math.max.apply(null, pts.map(function(p){ return p.x; })) + 2)), y1 = Math.min(H, Math.ceil(Math.max.apply(null, pts.map(function(p){ return p.y; })) + 2));
   if(x1 - x0 < 3 || y1 - y0 < 3) return null;
-  var d; try{ d = g.getImageData(x0, y0, x1 - x0, y1 - y0).data; }catch(e){ return null; }
-  var m = moyennePeau(d, x1 - x0, y1 - y0, function(i){ var q = v.p[i]; if(!q) return null; var p = ptToile(q, L, H, mir); return {x:p.x - x0, y:p.y - y0}; });
-  return m ? versLab(m.r, m.g, m.b).L : null;
+  return {x:x0, y:y0, w:x1 - x0, h:y1 - y0, pos:function(i){ var q = v.p[i]; if(!q) return null; var p = ptToile(q, L, H, mir); return {x:p.x - x0, y:p.y - y0}; }};
+}
+function clartePeau(d, z){ var m = d ? moyennePeau(d, z.w, z.h, z.pos) : null; return m ? versLab(m.r, m.g, m.b).L : null; }
+function lirePeauToile(g, L, H, mir){
+  var z = zonePeauToile(L, H, mir); if(!z) return null;
+  var d; try{ d = g.getImageData(z.x, z.y, z.w, z.h).data; }catch(e){ return null; }
+  return clartePeau(d, z);
+}
+/* en arrière-plan (étape 2 bis) : la zone de la peau est copiée telle qu'elle est À CET INSTANT, puis lue plus tard ;
+   fn(clarté ou null). false : la copie n'a pas pu partir. */
+function lirePeauToileApres(g, L, H, mir, fn){
+  var z = zonePeauToile(L, H, mir); if(!z) return false;
+  return lireApres(g.canvas, z.x, z.y, z.w, z.h, 0, 0, function(d){ fn(clartePeau(d, z)); });
 }
 function retoucheEclaircit(){ return RET.lissage > .02 || RET.eclat > .02 || RET.chaleur > .02 || BEA.sculpt > .02 || FX.eclat; }
 
@@ -6869,7 +6925,17 @@ appliquerRetouche = function(g, L, H, src, mir){
   var now = performance.now(), frais = iaPret('visage') && IA.res.visage && now - IA.res.visage.t < 600;
   if(frais && (CAM.tiroir === 'beaute' || retoucheActive()) && now - BEA.tMesure > 700){ BEA.tMesure = now; mesurerTeint(src); }
   BEA.avant = null;
-  if(BEA.garde && frais && (retoucheEclaircit() || beaPrecise()) && now - BEA.tAvant > 400 && VIS.k === 'none'){ BEA.tAvant = now; BEA.avant = lirePeauToile(g, L, H, mir); }
+  BEA.paireIci = null;
+  if(BEA.garde && frais && (retoucheEclaircit() || beaPrecise()) && now - BEA.tAvant > 400 && VIS.k === 'none'){
+    BEA.tAvant = now;
+    /* en arrière-plan (étape 2 bis) : la clarté AVANT est copiée maintenant, l'APRÈS au même tour (plus bas) ; une paire à la fois */
+    if(LIRE_AP.ok){
+      if(!BEA.paire || now - BEA.paire.depuis > 2000){
+        var paire = {depuis:now, avant:undefined, apres:undefined};
+        if(lirePeauToileApres(g, L, H, mir, function(l){ paire.avant = l; gardeFinir(paire); })){ BEA.paire = paire; BEA.paireIci = paire; }
+      }
+    } else BEA.avant = lirePeauToile(g, L, H, mir);
+  }
   if(RET.lissage > .02 || RET.eclat > .02 || RET.chaleur > .02){
     var k = BEA.garde ? BEA.k : 1, l0 = RET.lissage, e0 = RET.eclat, c0 = RET.chaleur;
     RET.lissage *= k; RET.eclat *= k; RET.chaleur *= k;
@@ -6880,9 +6946,19 @@ appliquerRetouche = function(g, L, H, src, mir){
 var _dessinerVisagePrecisBea = dessinerVisagePrecis;
 dessinerVisagePrecis = function(g, L, H, mir){
   _dessinerVisagePrecisBea(g, L, H, mir);
+  var paire = BEA.paireIci; BEA.paireIci = null;
+  if(paire){
+    if(VIS.k !== 'none' || !lirePeauToileApres(g, L, H, mir, function(l){ paire.apres = l; gardeFinir(paire); })){ paire.apres = null; gardeFinir(paire); }
+    return;
+  }
   if(BEA.avant == null || VIS.k !== 'none') return;
   var apres = lirePeauToile(g, L, H, mir); if(apres == null) return;
-  var e = apres - BEA.avant; BEA.ecart = BEA.ecart == null ? e : BEA.ecart + (e - BEA.ecart) * .35;
+  gardeEcart(BEA.avant, apres);
+};
+/* les deux copies sont lues : la paire est terminée (une autre peut partir) ; l'écart n'est compté que si les deux clartés existent */
+function gardeFinir(p){ if(p.avant === undefined || p.apres === undefined) return; if(BEA.paire === p) BEA.paire = null; if(p.avant != null && p.apres != null) gardeEcart(p.avant, p.apres); }
+function gardeEcart(avant, apres){
+  var e = apres - avant; BEA.ecart = BEA.ecart == null ? e : BEA.ecart + (e - BEA.ecart) * .35;
   /* plus de 3 points de clarté gagnés : la retouche se retient ; sous 1,5 : elle revient doucement */
   if(BEA.ecart > 3) BEA.k = Math.max(.3, BEA.k * .85); else if(BEA.ecart < 1.5) BEA.k = Math.min(1, BEA.k + .04);
   /* assombrie : la clarté d'origine revient peu à peu ; trop claire : elle se retire */
