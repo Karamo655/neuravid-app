@@ -1,6 +1,6 @@
 {
- "version": "2026.11.15-8ca8f72b2925",
- "date": "2026-11-15T21:52:52Z",
+ "version": "2026.11.15-fd468be15ed4",
+ "date": "2026-11-15T23:04:40Z",
  "entree": "index.html",
  "modules": [
   "NV_MODULE_Arena.html",
@@ -1176,8 +1176,8 @@
    "taille": 671
   },
   "essai.html": {
-   "sha256": "8c7eeb455be7aef8b0bd9fa6dbb07c0a418774a04ce034b247b83681a984f1ee",
-   "taille": 6337
+   "sha256": "35bea1050c188404663f31787e427e72ededb15521700ac6577fe329b8e2a537",
+   "taille": 6632
   },
   "ia/LICENCE_MediaPipe_Apache-2.0.txt": {
    "sha256": "379dc9be621e253a565b178cfefb3b18976a56b6a10a9f7678f297cfed21f31a",

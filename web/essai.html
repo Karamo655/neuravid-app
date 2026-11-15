@@ -38,7 +38,7 @@ ol{margin:6px 0 0;padding-left:20px;color:var(--doux)}li{margin:4px 0}
 
 <div class="carte"><b>Ce qu'il faut essayer</b>
 <ol>
-<li>S'inscrire avec l'empreinte (clé d'accès), dans le navigateur Chrome du téléphone.</li>
+<li>« Créer mon compte » avec son courriel (le code arrive par courriel), puis protéger le compte avec l'empreinte, dans le navigateur Chrome du téléphone.</li>
 <li>Fermer NEURAVID, le rouvrir et se reconnecter.</li>
 <li>Filmer et publier une courte vidéo avec La Forge.</li>
 <li>Lancer un court direct, puis le regarder depuis un second téléphone branché lui aussi.</li>
@@ -72,7 +72,8 @@ ol{margin:6px 0 0;padding-left:20px;color:var(--doux)}li{margin:4px 0}
       if(!x.ok){ $('serveur').textContent = 'Le serveur répond avec l\'erreur ' + x.s + '.'; return; }
       var m = (x.j && x.j.methodes) || {}, rp = (x.j && x.j.rp && x.j.rp.id) || '—';
       $('serveur').textContent = 'Le serveur répond. Inscription par empreinte : ' + (m.cleAcces ? 'ouverte' : 'fermée')
-        + ' · par téléphone : ' + (m.telephone ? 'ouverte' : 'fermée') + ' · domaine des clés : ' + rp
+        + ' · par courriel : ' + (m.courriel ? 'ouverte' : 'fermée') + ' · par téléphone : ' + (m.telephone ? 'ouverte' : 'fermée') + ' · domaine des clés : ' + rp
+        + ((m.courriel || m.telephone) ? '' : '. Inscription impossible pour l\'instant : aucun envoi de code (courriel ou SMS) n\'est branché sur le serveur')
         + (rp !== '—' && rp !== location.hostname ? ' (différent de cette page : ' + location.hostname + ')' : '');
     }).catch(function(){
       if(fini) return; fini = true; clearTimeout(minuteur);
