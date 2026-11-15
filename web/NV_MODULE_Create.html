@@ -1662,7 +1662,7 @@ function boucleCamera(){
      (avant : à chaque image de l'écran, 2 à 3 fois la même image, avec la retouche et le suivi du visage à chaque fois).
      Au moins 10 fois par seconde quand même, pour les animations posées par-dessus. Sans requestVideoFrameCallback : comme avant. */
   var neuve = true, vu = 0, dessine = 0, chaine = 0;
-  function armer(){ if(!v.requestVideoFrameCallback) return; var id = ++chaine; v.requestVideoFrameCallback(function suite(){ if(id !== chaine) return; neuve = true; vu = performance.now(); v.requestVideoFrameCallback(suite); }); }
+  function armer(){ if(!v.requestVideoFrameCallback) return; var id = ++chaine; v.requestVideoFrameCallback(function suite(){ if(id !== chaine) return; neuve = true; vu = performance.now(); DIAG.cam++; v.requestVideoFrameCallback(suite); }); }
   armer(); CAM.nouvelleImage = function(){ return neuve; };
   var tour = function(t){
     if(!CAM.ouvert) return;
@@ -1679,7 +1679,7 @@ function boucleCamera(){
       if(cv.width !== L || cv.height !== H){ cv.width = L; cv.height = H; } majMarqueCamera(L, H);
       var t0 = performance.now();
       dessinerScene(g, L, H, v, t);
-      var ms = performance.now() - t0; CAM.lent = ms > 40 ? CAM.lent + 1 : 0;
+      var ms = performance.now() - t0; CAM.lent = ms > 40 ? CAM.lent + 1 : 0; diagNoter(ms);
     }
     CAM.raf = requestAnimationFrame(tour);
   };
@@ -4489,7 +4489,9 @@ function iaCreer(cle, buf, V, fs){
     if(cle === 'vignettes') return V.ImageEmbedder.createFromOptions(fs, {baseOptions:b, runningMode:'IMAGE', l2Normalize:true});
     return Promise.reject(new Error('inconnu'));
   };
-  return essai('GPU').catch(function(e){ dbg(e); return essai('CPU'); });
+  /* 15 nov. 2026 : on garde lequel a marché, pour le panneau de mesure */
+  var noter = function(d){ return function(o){ IA.delegue = IA.delegue || {}; IA.delegue[cle] = d; return o; }; };
+  return essai('GPU').then(noter('processeur graphique')).catch(function(e){ dbg(e); return essai('CPU').then(noter('processeur')); });
 }
 /* activer un modèle : promesse de l'outil ; l'état est gardé (absent / pret / eteint) */
 function iaActiver(cle){
@@ -6088,12 +6090,17 @@ var HARMO = {cv:null, g:null, couleur:null, t:0};
 function harmoniserDecor(g, L, H){
   var n = performance.now();
   if(!HARMO.cv){ HARMO.cv = document.createElement('canvas'); HARMO.cv.width = 8; HARMO.cv.height = 14; HARMO.g = HARMO.cv.getContext('2d', {willReadFrequently:true}); }
-  if(n - HARMO.t > 500){ HARMO.t = n; try{ HARMO.g.drawImage(g.canvas, 0, 0, 8, 14); var d = HARMO.g.getImageData(0, 0, 8, 14).data, r = 0, v = 0, b = 0, k = 0;
-    /* les bords de l'image = surtout le décor */
-    for(var y = 0; y < 14; y++) for(var x = 0; x < 8; x++){ if(x > 1 && x < 6 && y > 2 && y < 12) continue; var i = (y * 8 + x) * 4; r += d[i]; v += d[i + 1]; b += d[i + 2]; k++; }
-    HARMO.couleur = 'rgb(' + Math.round(r / k) + ',' + Math.round(v / k) + ',' + Math.round(b / k) + ')'; }catch(e){ dbg(e); } }
+  /* 15 nov. 2026 : la couleur du décor est lue EN ARRIÈRE-PLAN (lireApres) : plus d'arrêt de l'aperçu deux fois par seconde */
+  if(n - HARMO.t > 500 && LIRE_AP.ok && !HARMO.enLecture){ HARMO.t = n; HARMO.enLecture = true;
+    if(!lireApres(g.canvas, 0, 0, g.canvas.width, g.canvas.height, 8, 14, function(d){ HARMO.enLecture = false; if(d) HARMO.couleur = harmoCouleur(d); })) HARMO.enLecture = false; }
+  if(n - HARMO.t > 500 && !LIRE_AP.ok){ HARMO.t = n; try{ HARMO.g.drawImage(g.canvas, 0, 0, 8, 14); HARMO.couleur = harmoCouleur(HARMO.g.getImageData(0, 0, 8, 14).data); }catch(e){ dbg(e); } }
   if(!HARMO.couleur) return;
   g.save(); g.globalCompositeOperation = 'soft-light'; g.globalAlpha = .22; g.fillStyle = HARMO.couleur; g.fillRect(0, 0, L, H); g.restore();
+}
+function harmoCouleur(d){ var r = 0, v = 0, b = 0, k = 0;
+    /* les bords de l'image = surtout le décor */
+    for(var y = 0; y < 14; y++) for(var x = 0; x < 8; x++){ if(x > 1 && x < 6 && y > 2 && y < 12) continue; var i = (y * 8 + x) * 4; r += d[i]; v += d[i + 1]; b += d[i + 2]; k++; }
+  return 'rgb(' + Math.round(r / k) + ',' + Math.round(v / k) + ',' + Math.round(b / k) + ')';
 }
 function corpsDecors(){
   var h = '<p class="note">' + esc('Changez le décor derrière vous, puis accordez votre lumière à celle du décor. Un décor virtuel est toujours noté dans le carnet de création.') + '</p>';
@@ -6892,6 +6899,10 @@ function appliquerBeaute(g, L, H, mir){
   if(BEA.comp > .01 && peau) poser(calque('beaE', src.cv, 'brightness(1.16) saturate(1.05)', peau), 'source-over', BEA.comp);
   chrono(BEA, performance.now() - t0, 12, 26, 10, function(){
     if(!BEA.lent){ BEA.lent = true; BEA.temps = []; return; }
+    /* 15 nov. 2026 : une seule fois. Avant, si le téléphone peinait encore après l'allègement, les mêmes réglages
+       étaient recoupés et le message relancé toutes les 10 images (vu sur le téléphone de Karamo). */
+    if(BEA.allegee) return;
+    BEA.allegee = true;
     BEA.peau = BEA.mat = BEA.sculpt = 0; BEA.raison = 'la beauté sur mesure était trop lourde pour ce téléphone'; emit('beaute_allegee', {}); toast('Beauté allégée : la peau, la matité et la lumière sculptée sont coupées sur ce téléphone.', 4200); majTiroir(); majRail();
   });
 }
@@ -7058,7 +7069,7 @@ function phbSource(){
   var sv = {}, sfx = {}, sres = IA.res.visage, scad = CAM.cadre, slent = BEA.lent, steint = BEA.eteint, scomp = BEA.comp;
   BEA_CLES.forEach(function(x){ sv[x] = BEA[x]; BEA[x] = PHB.v[x] || 0; });
   ['levres', 'paupieres', 'blush', 'eclat', 'iris', 'barbe', 'age', 'lunettes', 'couronne', 'sourire', 'clin'].forEach(function(x){ sfx[x] = FX[x]; FX[x] = PHB.fx[x] || (typeof FX[x] === 'boolean' ? false : null); });
-  try{ IA.res.visage = {p:PHB.visage.p, t:performance.now(), lacet:PHB.visage.lacet || 0, roulis:PHB.visage.roulis || 0, b:{}}; CAM.cadre = null; BEA.lent = false; BEA.eteint = false;
+  try{ IA.res.visage = {p:PHB.visage.p, t:performance.now(), lacet:PHB.visage.lacet || 0, roulis:PHB.visage.roulis || 0, b:{}}; CAM.cadre = null; BEA.lent = false; BEA.allegee = false; BEA.eteint = false;
     var l0 = lirePeauToile(g, L, H, false), essais = [0, .3, .55, .8];
     for(var n = 0; n < essais.length; n++){
       if(n){ g.drawImage(PHO.img, 0, 0, L, H); } BEA.comp = essais[n]; appliquerBeaute(g, L, H, false);
@@ -7798,6 +7809,92 @@ exporter = function(){
 };
 var _metaDepartProv = metaDepart;
 metaDepart = function(){ var m = _metaDepartProv.apply(this, arguments); m.provenance = EXPORT.provenance ? {creation:EXPORT.provenance.creation} : null; return m; };
+/* ════════ 15 nov. 2026 : le panneau de mesure CACHÉ (pour l'équipe, demandé par Karamo) ════════
+   Cinq touchers en 3 s sur l'œil de la signature, en bas à gauche de l'aperçu, ouvrent un petit panneau qui montre,
+   sur le vrai téléphone, le temps pris par chaque partie de La Forge : caméra, dessin de l'aperçu, suivi du visage
+   (processeur graphique ou processeur), beauté, lumière, moteur. Rien n'est envoyé : on le lit, on le copie, on le ferme.
+   Les utilisateurs ne le voient jamais (aucun bouton, aucun libellé dans l'interface ordinaire). */
+var DIAG = {cam:0, camT:performance.now(), camIps:0, dessins:[], nDessins:0, ouvert:false, tic:null, touchers:[], gpu:null, flou:null};
+function diagNoter(ms){ DIAG.nDessins++; DIAG.dessins.push(ms); if(DIAG.dessins.length > 60) DIAG.dessins.shift(); }
+function diagStats(l){
+  if(!l || !l.length) return '—';
+  var s = l.slice().sort(function(a, b){ return a - b; }), med = s[Math.floor(s.length / 2)], max = s[s.length - 1];
+  return med.toFixed(1) + ' ms (max ' + max.toFixed(0) + ')';
+}
+/* le processeur graphique annoncé par le navigateur (Adreno, Mali… ou un moteur logiciel) */
+function diagGpu(){
+  if(DIAG.gpu) return DIAG.gpu;
+  try{
+    var c = document.createElement('canvas'), gl = c.getContext('webgl2') || c.getContext('webgl');
+    if(!gl){ DIAG.gpu = 'aucun WebGL'; return DIAG.gpu; }
+    var ext = gl.getExtension('WEBGL_debug_renderer_info');
+    DIAG.gpu = (ext ? gl.getParameter(ext.UNMASKED_RENDERER_WEBGL) : gl.getParameter(gl.RENDERER)) + (gl.getContextAttributes && gl.getContextAttributes().failIfMajorPerformanceCaveat ? '' : '');
+    var l = gl.getExtension('WEBGL_lose_context'); if(l) l.loseContext();
+  }catch(e){ DIAG.gpu = 'erreur'; }
+  return DIAG.gpu;
+}
+/* une seule épreuve : un flou de 8 px sur une toile de la taille de l'aperçu, lu ensuite (le temps compte tout le travail) */
+function diagFlou(){
+  if(DIAG.flou != null) return DIAG.flou;
+  try{
+    var L = (CAM.toile && CAM.toile.width) || 480, H = (CAM.toile && CAM.toile.height) || 854;
+    var a = document.createElement('canvas'), b = document.createElement('canvas'); a.width = b.width = L; a.height = b.height = H;
+    var ga = a.getContext('2d'), gb = b.getContext('2d'); ga.fillStyle = '#8a5a3c'; ga.fillRect(0, 0, L, H); ga.fillStyle = '#fff'; ga.fillRect(L / 4, H / 4, L / 2, H / 2);
+    var t = performance.now();
+    for(var i = 0; i < 3; i++){ gb.filter = 'blur(8px)'; gb.drawImage(a, 0, 0); gb.filter = 'none'; }
+    gb.getImageData(0, 0, 1, 1);
+    DIAG.flou = (performance.now() - t) / 3;
+  }catch(e){ DIAG.flou = -1; }
+  return DIAG.flou;
+}
+function diagTexte(){
+  var v = $('camBrute'), tc = CAM.toile, l = [];
+  var n = performance.now(), dt = (n - DIAG.camT) / 1000; if(dt >= 1){ DIAG.camIps = DIAG.cam / dt; DIAG.cam = 0; DIAG.camT = n; DIAG.dessinIps = DIAG.nDessins / dt; DIAG.nDessins = 0; }
+  l.push('Caméra : ' + (v && v.videoWidth ? v.videoWidth + '×' + v.videoHeight : '—') + ' · ' + (DIAG.camIps ? DIAG.camIps.toFixed(0) + ' images/s' : '—'));
+  l.push('Aperçu : ' + (tc ? tc.width + '×' + tc.height : '—') + ' · ' + (DIAG.dessinIps != null ? DIAG.dessinIps.toFixed(0) + ' dessins/s' : '—'));
+  l.push('Dessin d\'une image : ' + diagStats(DIAG.dessins));
+  ['visage', 'mains', 'corps', 'multiclasse'].forEach(function(k){
+    var e = IA.etat[k]; if(!e && !IA.outils[k]) return;
+    l.push('Suivi ' + k + ' : ' + (IA.outils[k] ? 'prêt' : (typeof e === 'string' ? e : 'en chargement')) + ' · ' + ((IA.delegue && IA.delegue[k]) || '—') + ' · ' + diagStats(IA.temps[k]) + ' · ' + (IA.cadence[k] || '—') + '/s' + (IA.besoin[k] ? '' : ' (pas utilisé)'));
+  });
+  l.push('Beauté : ' + diagStats(BEA.temps) + (BEA.lent ? ' · demi-résolution' : '') + (BEA.allegee ? ' · allégée' : ''));
+  l.push('Lumière du visage : ' + diagStats(EXPO.temps) + (EXPO.eteint ? ' · éteinte' : '') + ' · mode ' + EXPO.mode);
+  l.push('Moteur : ' + (MOTEUR.fps ? Math.round(MOTEUR.fps) + ' i/s' : '—') + (MOTEUR.baisse ? ' · baissé en 720' : '') + ' · plafond ' + plafondDefinition());
+  l.push('Lecture en arrière-plan : ' + (LIRE_AP.ok ? 'oui' : 'non'));
+  l.push('Processeur graphique : ' + diagGpu());
+  var f = diagFlou(); l.push('Épreuve de flou (aperçu entier) : ' + (f < 0 ? 'erreur' : f.toFixed(1) + ' ms'));
+  l.push('Appareil : ' + (navigator.hardwareConcurrency || '—') + ' cœurs · ' + (navigator.deviceMemory || '—') + ' Go · écran ×' + (window.devicePixelRatio || 1));
+  var m = /Chrome\/([\d.]+)/.exec(navigator.userAgent); l.push('Navigateur : ' + (m ? 'Chrome ' + m[1] : '—') + (window.flutter_inappwebview ? ' · dans l\'application' : '') + (window.NVVitesse && NVVitesse.cran ? ' · cran ' + NVVitesse.cran() : ''));
+  return l.join('\n');
+}
+function diagOuvrir(){
+  if(DIAG.ouvert) return; DIAG.ouvert = true;
+  var p = document.createElement('div'); p.id = 'diagForge'; p.setAttribute('role', 'dialog');
+  p.style.cssText = 'position:fixed;left:8px;right:8px;top:56px;z-index:2147483000;background:rgba(10,8,24,.94);color:#f4efe2;border:1px solid #f2b632;border-radius:12px;padding:10px 12px;font:12px/1.45 ui-monospace,Menlo,monospace;white-space:pre-wrap;max-height:70vh;overflow:auto';
+  p.innerHTML = '<div style="display:flex;gap:8px;justify-content:flex-end;margin-bottom:6px"><button type="button" data-d="copier" style="font:inherit;padding:4px 10px;border-radius:8px;border:0;background:#f2b632;color:#1d1830">Copier</button><button type="button" data-d="fermer" aria-label="×" style="font:inherit;padding:4px 10px;border-radius:8px;border:0;background:#3b2f6b;color:#fff">×</button></div><div id="diagTexte"></div>';
+  document.body.appendChild(p);
+  p.addEventListener('click', function(e){
+    var b = e.target.closest && e.target.closest('[data-d]'); if(!b) return; e.stopPropagation();
+    if(b.dataset.d === 'fermer') diagFermer();
+    else { var t = diagTexte(); try{ navigator.clipboard.writeText(t).then(function(){ b.textContent = '✓'; }, function(){ b.textContent = '—'; }); }catch(err){ b.textContent = '—'; } }
+  });
+  var maj = function(){ var el = $('diagTexte'); if(el) el.textContent = diagTexte(); };
+  maj(); DIAG.tic = setInterval(maj, 1000);
+}
+function diagFermer(){ DIAG.ouvert = false; clearInterval(DIAG.tic); var p = $('diagForge'); if(p) p.remove(); }
+/* cinq touchers en 3 s sur l'œil : la zone de la signature (calculée comme dessinerMarque, avec une marge) */
+document.addEventListener('pointerdown', function(e){
+  var cv = $('camToile'); if(!cv || !CAM.ouvert || !cv.width) return;
+  var r = cv.getBoundingClientRect(); if(!r.width) return;
+  var k = Math.min(r.width / cv.width, r.height / cv.height), ox = r.left + (r.width - cv.width * k) / 2, oy = r.top + (r.height - cv.height * k) / 2;
+  var x = (e.clientX - ox) / k, y = (e.clientY - oy) / k, z = DIAG.zone;
+  if(!z){ try{ var c = document.createElement('canvas'); c.width = cv.width; c.height = cv.height; var m = dessinerMarque(c.getContext('2d'), cv.width, cv.height, {pellicule:false}); z = DIAG.zone = {x:m.x, y:m.y, l:m.largeur, h:m.hauteur, w:cv.width}; }catch(err){ return; } }
+  if(z.w !== cv.width){ DIAG.zone = null; return; }
+  var marge = Math.max(z.l, z.h) * .6;
+  if(x < z.x - marge || x > z.x + z.l + marge || y < z.y - marge || y > z.y + z.h + marge) return;
+  var n = performance.now(); DIAG.touchers = DIAG.touchers.filter(function(t){ return n - t < 3000; }); DIAG.touchers.push(n);
+  if(DIAG.touchers.length >= 5){ DIAG.touchers = []; diagOuvrir(); }
+}, true);
 
 /* ════════════════════════════════════════════════════════════════════
  LA FORGE EN ONZE LANGUES : FR · EN · ES · PT · AR (de droite à gauche) · SW · HA · YO · WO · BM · LN
