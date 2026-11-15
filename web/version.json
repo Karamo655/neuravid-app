@@ -1,6 +1,6 @@
 {
- "version": "2026.11.15-bbb7480a9c03",
- "date": "2026-11-15T09:55:28Z",
+ "version": "2026.11.15-af5c470d90a5",
+ "date": "2026-11-15T11:19:03Z",
  "entree": "index.html",
  "modules": [
   "NV_MODULE_Arena.html",
@@ -128,12 +128,12 @@
    "taille": 1050225
   },
   "NV_MODULE_Live.html": {
-   "sha256": "71bba137fe32e8dd6cd79dff8017905d8f2e876c070c10229d4129361304298c",
-   "taille": 2521415
+   "sha256": "e806e246da06e27aacc01d7e992351c703187f25f1470977a9b35b07032a9256",
+   "taille": 2531760
   },
   "NV_MODULE_Live_leger.html": {
-   "sha256": "71bba137fe32e8dd6cd79dff8017905d8f2e876c070c10229d4129361304298c",
-   "taille": 2521415
+   "sha256": "e806e246da06e27aacc01d7e992351c703187f25f1470977a9b35b07032a9256",
+   "taille": 2531760
   },
   "NV_MODULE_LoveUniverse.html": {
    "sha256": "78c3c5fd3093997d80de253e8eb8a64dba0c0e54c775766a96571825243f8ae7",
