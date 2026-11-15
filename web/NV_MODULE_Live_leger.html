@@ -570,12 +570,56 @@ html[dir=rtl] #ecrireBarre .env svg{transform:scaleX(-1)}
 .stu-rail button span{max-width:58px;text-align:center;line-height:1.1}
 /* 3 nov. 2026 : le rail léger (cinq outils + « Plus ») tient sans défiler ; « Plus » ouvre tous les outils par familles */
 .stu-rail.stu-court{-webkit-mask:none;mask:none;padding-bottom:2px;gap:6px;max-height:calc(100% - 150px - var(--st) - var(--sb))}
-/* 15 nov. 2026 : tous les outils dans le rail (aligné à droite), « Plus » reste visible en bas quand le rail défile */
-.stu-rail.stu-court{overscroll-behavior:contain;-webkit-overflow-scrolling:touch}
-.stu-rail.stu-court button{flex:0 0 auto}
-.stu-rail.stu-court button[data-stu="plus"]{position:sticky;bottom:0;z-index:1}
-.stu-rail.stu-defile button[data-stu="plus"]{padding-top:14px;padding-bottom:4px;bottom:-2px;background:linear-gradient(180deg,rgba(6,9,32,0),rgba(6,9,32,.92) 26%);box-shadow:0 6px 0 0 rgba(6,9,32,.92);border-radius:0 0 14px 14px}
-.stu-rail.stu-defile button[data-stu="plus"] i{background:rgb(10,14,40)}.stu-rail.stu-defile button[data-stu="plus"].on i{background:rgb(14,92,98)}
+/* 15 nov. 2026 : tous les outils dans le rail (aligné à droite) ; (2) ils défilent dans leur propre bande (.stu-defil),
+   « Plus » reste dessous, jamais recouvert ; boutons hexagonaux à anneau d'aurore, verre sombre, reflet et halo */
+.stu-rail.stu-court{overflow:visible;padding:0;gap:4px;right:4px}
+.stu-defil{display:flex;flex-direction:column;align-items:center;gap:6px;flex:0 1 auto;min-height:0;width:68px;padding:4px 2px 8px;overflow-y:auto;overflow-x:hidden;scrollbar-width:none;overscroll-behavior:contain;-webkit-overflow-scrolling:touch}
+.stu-defil::-webkit-scrollbar{display:none}
+.stu-defil button,.stu-rail.stu-court>button{flex:0 0 auto}
+.stu-rail.stu-defile .stu-defil{-webkit-mask:linear-gradient(180deg,#000 calc(100% - 36px),transparent);mask:linear-gradient(180deg,#000 calc(100% - 36px),transparent)}
+.stu-rail.stu-defile.stu-haut .stu-defil{-webkit-mask:linear-gradient(180deg,transparent,#000 28px,#000 calc(100% - 36px),transparent);mask:linear-gradient(180deg,transparent,#000 28px,#000 calc(100% - 36px),transparent)}
+.stu-rail.stu-defile.stu-haut.stu-fin .stu-defil{-webkit-mask:linear-gradient(180deg,transparent,#000 28px);mask:linear-gradient(180deg,transparent,#000 28px)}
+.stu-rail.stu-defile.stu-fin:not(.stu-haut) .stu-defil{-webkit-mask:none;mask:none}
+.stu-rail button{filter:drop-shadow(0 0 5px rgba(138,77,255,.38))}
+.stu-rail button i{position:relative;isolation:isolate;width:46px;height:50px;font-size:20px;box-shadow:none;
+  background:linear-gradient(160deg,rgba(25,227,197,.95),rgba(138,77,255,.9) 52%,rgba(255,79,163,.95));transition:transform .16s ease}
+.stu-rail button i::before{content:'';position:absolute;inset:2px;z-index:-1;clip-path:var(--hex);
+  background:radial-gradient(120% 90% at 50% 15%,rgba(72,84,178,.74),rgba(14,18,54,.74) 60%,rgba(6,9,32,.82))}
+.stu-rail button i::after{content:'';position:absolute;inset:2px 2px 50%;z-index:-1;clip-path:polygon(50% 0,100% 50%,100% 100%,0 100%,0 50%);
+  background:linear-gradient(180deg,rgba(255,255,255,.24),rgba(255,255,255,0))}
+.stu-rail button span{font-weight:800;letter-spacing:.01em;text-shadow:0 1px 2px #000,0 0 7px rgba(0,0,0,.85)}
+.stu-rail button:active i{transform:scale(.9)}
+.stu-rail button.on{filter:drop-shadow(0 0 8px rgba(25,227,197,.6))}
+.stu-rail button.on i,.stu-rail.stu-defile button.on i{background:linear-gradient(160deg,#8afff0,var(--teal) 50%,#0b9c88)}
+.stu-rail button.on i::before{background:radial-gradient(120% 90% at 50% 15%,rgba(25,227,197,.55),rgba(6,48,58,.78) 62%,rgba(6,20,36,.85))}
+.stu-rail button.off{filter:drop-shadow(0 0 7px rgba(255,84,112,.55))}
+.stu-rail button.off i{background:linear-gradient(160deg,#ffb0bd,var(--braise) 55%,#b8203d)}
+.stu-rail button.off i::before{background:radial-gradient(120% 90% at 50% 15%,rgba(255,84,112,.55),rgba(60,10,26,.8) 62%,rgba(30,6,16,.86))}
+.stu-rail button[data-stu="plus"]{filter:drop-shadow(0 0 8px rgba(255,79,163,.5));margin-top:2px}
+.stu-rail button[data-stu="plus"] i{background:linear-gradient(160deg,#fff,rgba(255,255,255,.75))}
+.stu-rail button[data-stu="plus"] i::before{background:linear-gradient(160deg,var(--teal),var(--violet) 52%,var(--rose))}
+.stu-rail button[data-stu="plus"] i{font-weight:900;font-size:22px;color:#fff;text-shadow:0 1px 2px rgba(0,0,0,.4)}
+@media (prefers-reduced-motion:reduce){.stu-rail button i{transition:none}}
+/* le panneau « Tous les outils » : lueur d'aurore discrète, titres à hexagone, cartes de verre à bord d'aurore */
+#stuPlus{position:relative;isolation:isolate}
+#stuPlus::before{content:'';position:absolute;inset:-14px -18px auto;height:280px;z-index:-1;pointer-events:none;
+  background:radial-gradient(55% 70% at 12% 0,rgba(25,227,197,.16),transparent 70%),radial-gradient(50% 70% at 92% 8%,rgba(255,79,163,.13),transparent 70%),radial-gradient(60% 60% at 55% 40%,rgba(138,77,255,.12),transparent 70%)}
+#stuPlus h3.petitT{display:flex;align-items:center;gap:9px}
+#stuPlus h3.petitT::before{content:'';flex:none;width:12px;height:14px;clip-path:var(--hex);background:var(--aur)}
+#stuPlus h3.petitT::after{content:'';flex:1;height:1px;background:linear-gradient(90deg,rgba(138,77,255,.55),rgba(25,227,197,.25) 40%,transparent)}
+#stuPlus .stu-o{border:1px solid transparent;border-radius:16px;
+  background:linear-gradient(160deg,rgba(40,50,120,.55),rgba(14,18,54,.6)) padding-box,linear-gradient(160deg,rgba(25,227,197,.45),rgba(138,77,255,.35) 50%,rgba(255,79,163,.42)) border-box;
+  box-shadow:0 6px 16px rgba(0,0,0,.28),inset 0 1px 0 rgba(255,255,255,.08);transition:transform .14s ease}
+#stuPlus .stu-o:active{transform:scale(.96)}
+#stuPlus .stu-o .nx-hex{position:relative;isolation:isolate;width:44px;height:48px;font-size:20px;background:linear-gradient(160deg,rgba(25,227,197,.95),rgba(138,77,255,.9) 52%,rgba(255,79,163,.95))}
+#stuPlus .stu-o .nx-hex::before{content:'';position:absolute;inset:2px;z-index:-1;clip-path:var(--hex);background:radial-gradient(120% 90% at 50% 15%,rgba(72,84,178,.9),rgba(14,18,54,.95) 62%)}
+#stuPlus .stu-o .nx-hex::after{content:'';position:absolute;inset:2px 2px 50%;z-index:-1;clip-path:polygon(50% 0,100% 50%,100% 100%,0 100%,0 50%);background:linear-gradient(180deg,rgba(255,255,255,.22),rgba(255,255,255,0))}
+#stuPlus .stu-o small{display:inline-block;margin-top:4px;padding:1px 8px;border-radius:999px;background:rgba(25,227,197,.14);border:1px solid rgba(25,227,197,.38)}
+#stuPlus .stu-c:has(.stu-pin.on) .stu-o{background:linear-gradient(160deg,rgba(25,227,197,.2),rgba(14,30,64,.7)) padding-box,linear-gradient(160deg,#8afff0,var(--teal) 50%,var(--violet)) border-box;box-shadow:0 0 14px rgba(25,227,197,.22),0 6px 16px rgba(0,0,0,.28)}
+#stuPlus .stu-o.on .nx-hex{background:linear-gradient(160deg,#8afff0,var(--teal) 50%,#0b9c88)}
+#stuPlus .stu-o.off .nx-hex{background:linear-gradient(160deg,#ffb0bd,var(--braise) 55%,#b8203d)}
+#stuPlus .stu-pin.on::before{background:var(--aur);box-shadow:0 0 10px rgba(25,227,197,.45)}
+@media (prefers-reduced-motion:reduce){#stuPlus .stu-o{transition:none}}
 @media (max-height:700px){.stu-rail.stu-court{gap:4px}.stu-rail.stu-court button i{width:40px;height:44px;font-size:17px}.stu-rail.stu-court button span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:10px}}
 .stu-grille{display:grid;grid-template-columns:repeat(auto-fill,minmax(86px,1fr));gap:8px;margin:4px 0 14px}
 .stu-o{display:flex;flex-direction:column;align-items:center;gap:4px;min-height:44px;padding:8px 4px;border-radius:14px;border:1px solid var(--trait);background:var(--voile);font-size:12px;font-weight:700;text-align:center;line-height:1.15}
@@ -8498,6 +8542,13 @@ rendreStudio = function(){
   /* rien n'est retiré du rail : les outils choisis montent en tête (dans l'ordre choisi), les autres gardent leur ordre */
   var garde = railChoisi(), n = 0;
   garde.slice().reverse().forEach(function(a){ var b = bs.filter(function(x){ return x.dataset.stu === a; })[0]; if(b){ b.classList.add('stu-tete'); r.insertBefore(b, r.firstChild); } });
+  /* 15 nov. 2026 (2) : les outils défilent dans leur propre bande (.stu-defil) ; « Plus » reste dessous, hors du défilement,
+     donc jamais recouvert ; la position de défilement est gardée d'un rendu à l'autre */
+  var defil = document.createElement('div'); defil.className = 'stu-defil';
+  [].slice.call(r.querySelectorAll('button[data-stu]')).forEach(function(b){ if(b.dataset.stu !== 'plus') defil.appendChild(b); });
+  r.insertBefore(defil, r.firstChild);
+  if(STU.railY) defil.scrollTop = STU.railY;
+  defil.addEventListener('scroll', function(){ STU.railY = defil.scrollTop; railDefile(r); }, {passive:true});
   var p = prets().length, enDir = enDirectConfirme();
   r.insertAdjacentHTML('beforeend', '<button data-stu="plus" class="' + (n || (p && enDir) ? 'on' : '') + '" aria-haspopup="dialog"><i>⋯</i><span>' + esc('Plus') + (n + (enDir ? p : 0) ? '<b class="stu-n"> · ' + (n + (enDir ? p : 0)) + '</b>' : '') + '</span></button>');
   r.classList.add('stu-court');
@@ -8505,7 +8556,9 @@ rendreStudio = function(){
   majPanneau();
 };
 /* le rail défile quand l'écran est trop court : on le dit (classe stu-defile) et on garde « Plus » visible en bas */
-function railDefile(r){ r = r || $('stuRail'); if(!r) return; try{ r.classList.toggle('stu-defile', r.scrollHeight > r.clientHeight + 1); }catch(e){ dbg(e); } }
+function railDefile(r){ r = r || $('stuRail'); if(!r) return; var z = r.querySelector('.stu-defil') || r;
+  try{ var trop = z.scrollHeight > z.clientHeight + 1; r.classList.toggle('stu-defile', trop);
+    r.classList.toggle('stu-haut', trop && z.scrollTop > 2); r.classList.toggle('stu-fin', !trop || z.scrollTop + z.clientHeight >= z.scrollHeight - 2); }catch(e){ dbg(e); } }
 try{ addEventListener('resize', function(){ railDefile(); }); }catch(e){ dbg(e); }
 function familleDe(a){ for(var i = 0; i < FAMILLES_STU.length; i++) if(FAMILLES_STU[i][1].indexOf(a) >= 0) return i; return FAMILLES_STU.length; }
 function htmlPanneau(){
