@@ -1620,13 +1620,13 @@ function camOuvrirDebout(){
     var d = demandes[i];
     return md.getUserMedia({video:d, audio:son}).then(function(f){
       CAM.essaiCam = i + 1;
-      if(!telephone || i >= demandes.length - 1){ var t0 = camTaille(f); CAM.essaisCam.push((i + 1) + ':' + t0.w + '×' + t0.h); return f; }
+      if(!telephone || i >= demandes.length - 1){ CAM.demandeCam = d; var t0 = camTaille(f); CAM.essaisCam.push((i + 1) + ':' + t0.w + '×' + t0.h); return f; }
       return camImageReelle(f).then(function(t){
         CAM.essaisCam.push((i + 1) + ':' + (t.w || '?') + '×' + (t.h || '?'));
         var debout = t.w && t.h ? t.h >= t.w : camDebout(f), bon;
         if(i < ALLONGEES) bon = !!(t.w && t.h) && t.h >= t.w * 1.5 && t.w >= 720;
         else bon = debout;
-        if(bon) return f; f.getTracks().forEach(function(x){ x.stop(); }); i++; return essai(); });
+        if(bon){ CAM.demandeCam = d; return f; } f.getTracks().forEach(function(x){ x.stop(); }); i++; return essai(); });
     }, function(e){ CAM.essaisCam.push((i + 1) + ':refus'); if(i === 0 && !(e && /Overconstrained|Type/i.test(e.name || ''))) throw e; if(i >= demandes.length - 1) return md.getUserMedia({video:{facingMode:CAM.face}, audio:son}); i++; return essai(); });
   }
   return essai();
@@ -1859,9 +1859,28 @@ function calculPoids(k){
 function appliquerPoids(){
   var c = calculPoids(CAM.poids), t = CAM.piste; if(!t || !t.applyConstraints || CAM.ecran) return;
   var s = {}; try{ s = t.getSettings(); }catch(e){ dbg(e); }
-  /* sans découpe : le navigateur choisit le format natif le plus proche, le champ du capteur reste entier (le poids se règle au débit) */
-  var d = c.hauteur, lg = Math.round(d * 16 / 9), contr = s.width > s.height ? {resizeMode:'none', width:{ideal:lg}, height:{ideal:d}} : {resizeMode:'none', width:{ideal:d}, height:{ideal:lg}};
-  try{ t.applyConstraints(contr).catch(dbg); }catch(e){ dbg(e); }
+  /* sans découpe : le navigateur choisit le format natif le plus proche, le champ du capteur reste entier (le poids se règle au débit).
+     15 nov. 2026 : la demande suit le SENS de la demande d'ouverture retenue (le navigateur compare aux formats couchés du capteur,
+     même quand il annonce une image debout) ; rien n'est redemandé si l'image a déjà la bonne taille ; et si la nouvelle image
+     perd sa forme allongée (cas du Fold6 : 1080 × 1920 → 1088 × 1088), on revient à la demande d'ouverture. */
+  var v = $('camBrute'), allongee = function(w, h){ return w && h && Math.max(w, h) >= Math.min(w, h) * 1.5; };
+  var avant = v && v.videoWidth ? {w:v.videoWidth, h:v.videoHeight} : {w:s.width || 0, h:s.height || 0};
+  var d = c.hauteur, lg = Math.round(d * 16 / 9), dm = CAM.demandeCam;
+  if(avant.w && allongee(avant.w, avant.h) && Math.abs(Math.min(avant.w, avant.h) - d) <= 16) return;
+  var couche = dm && dm.width && dm.height && dm.width.ideal && dm.height.ideal ? dm.width.ideal > dm.height.ideal : s.width > s.height;
+  var contr = couche ? {resizeMode:'none', width:{ideal:lg}, height:{ideal:d}} : {resizeMode:'none', width:{ideal:d}, height:{ideal:lg}};
+  try{
+    t.applyConstraints(contr).then(function(){
+      setTimeout(function(){
+        if(CAM.piste !== t || !v) return;
+        var w = v.videoWidth, h = v.videoHeight; if(CAM.essaisCam) CAM.essaisCam.push('poids:' + w + '×' + h);
+        if(allongee(avant.w, avant.h) && !allongee(w, h) && dm){
+          var r = {resizeMode:'none'}; ['width', 'height', 'aspectRatio', 'frameRate'].forEach(function(k){ if(dm[k]) r[k] = dm[k]; });
+          t.applyConstraints(r).then(function(){ if(CAM.essaisCam) CAM.essaisCam.push('retour'); }).catch(dbg);
+        }
+      }, 1200);
+    }).catch(dbg);
+  }catch(e){ dbg(e); }
 }
 function meilleurType(){
   var l = ['video/mp4;codecs=avc1.4d002a,mp4a.40.2', 'video/mp4;codecs=avc1,mp4a', 'video/mp4', 'video/webm;codecs=vp9,opus', 'video/webm;codecs=vp8,opus', 'video/webm'];
