@@ -4462,7 +4462,7 @@ var IA_FICHIERS = {
   vignettes:'mobilenet_v3_small.tflite',             /* ressemblance entre images (B-roll) */
   profondeur:'depth_anything_v2_small_q8.onnx'       /* profondeur réelle (photos, montage) */
 };
-var IA = {base:null, vision:null, attente:null, fs:null, outils:{}, etat:{}, raison:{}, res:{}, dernier:{}, cadence:{visage:15, mains:12, corps:12, multiclasse:8, segmentation:15}, temps:{}, tour:0, besoin:{}, horloge:0};
+var IA = {base:null, vision:null, attente:null, fs:null, outils:{}, etat:{}, raison:{}, res:{}, dernier:{}, cadence:{visage:15, mains:12, corps:12, multiclasse:8, segmentation:15}, temps:{}, tour:0, besoin:{}, horloge:0, direct:{}};
 /* où est le dossier « ia » : à côté des modules (site web, nouvelle application : web/ia/), sinon un cran au-dessus (ancienne APK : assets/ia).
    Les deux places sont essayées ; la première qui répond est gardée. NV_IA_BASE, s'il est posé, est seul utilisé. */
 function iaBases(){
@@ -4531,7 +4531,10 @@ function iaActiver(cle){
   if(IA.outils[cle]) return Promise.resolve(IA.outils[cle]);
   if(IA.etat[cle] === 'absent' || IA.etat[cle] === 'eteint') return Promise.resolve(null);
   if(IA.etat[cle] && IA.etat[cle].then) return IA.etat[cle];
-  var p = (cle === 'profondeur' ? profCharger() : iaVision().then(function(V){ return iaLireModele(cle).then(function(buf){ return iaFileset().then(function(fs){ return iaCreer(cle, buf, V, fs); }); }); }))
+  /* 15 nov. 2026 : les suivis (visage, mains, corps) essaient d'abord le fil à part (fg33) ; sinon comme avant */
+  var p = (cle === 'profondeur' ? profCharger() : iaVision().then(function(V){ return iaLireModele(cle).then(function(buf){
+      var direct = function(){ return iaFileset().then(function(fs){ return iaCreer(cle, buf, V, fs); }); };
+      return typeof iaFilCreer === 'function' && FIL.cles[cle] ? iaFilCreer(cle, buf).catch(function(e){ dbg(e); return direct(); }) : direct(); }); }))
     .then(function(o){ IA.outils[cle] = o; IA.etat[cle] = 'pret'; emit('ia_prete', {modele:cle}); majPanneauIA(); return o; })
     .catch(function(e){ dbg(e); IA.etat[cle] = 'absent'; IA.raison[cle] = e && e.message === 'moteur' ? 'moteur' : 'absent'; majPanneauIA(); return null; });
   IA.etat[cle] = p; return p;
@@ -4553,18 +4556,23 @@ function iaMesurer(src){
     var k = actifs[(IA.tour + n) % actifs.length];
     if(t - (IA.dernier[k] || 0) < 1000 / IA.cadence[k]) continue;
     IA.tour = (IA.tour + n + 1) % actifs.length; IA.dernier[k] = t;
+    if(IA.outils[k].fil){ if(!iaFilEnvoyer(k, src, t)) IA.dernier[k] = 0; else break; continue; }   /* fil à part : on envoie et on n'attend pas */
     var t0 = performance.now();
     try{
       var r = k === 'multiclasse' ? null : IA.outils[k].detectForVideo(src, t);
-      if(k === 'visage') IA.res.visage = lireVisage(r);
-      else if(k === 'mains') IA.res.mains = (r && r.landmarks || []).map(function(l, i){ return {p:l, cote:(r.handednesses && r.handednesses[i] && r.handednesses[i][0] && r.handednesses[i][0].categoryName) || ''}; });
-      else if(k === 'corps') IA.res.corps = r && r.landmarks && r.landmarks[0] ? r.landmarks[0] : null;
+      if(k !== 'multiclasse') iaAppliquer(k, r);
       else if(k === 'multiclasse') IA.outils.multiclasse.segmentForVideo(src, t, function(res){ IA.res.multiclasse = lireMulti(res); });
     }catch(e){ dbg(e); }
     var ms = performance.now() - t0; IA.temps[k] = IA.temps[k] || [];
     chrono({temps:IA.temps[k]}, ms, 99, 45, 8, function(){ if(IA.cadence[k] > 6){ IA.cadence[k] = Math.round(IA.cadence[k] / 2); IA.temps[k] = []; } else iaEteindre(k); });
     break;
   }
+}
+/* le résultat d'un suivi → IA.res (le même pour le fil principal et le fil à part) */
+function iaAppliquer(k, r){
+  if(k === 'visage') IA.res.visage = lireVisage(r);
+  else if(k === 'mains') IA.res.mains = (r && r.landmarks || []).map(function(l, i){ return {p:l, cote:(r.handednesses && r.handednesses[i] && r.handednesses[i][0] && r.handednesses[i][0].categoryName) || ''}; });
+  else if(k === 'corps') IA.res.corps = r && r.landmarks && r.landmarks[0] ? r.landmarks[0] : null;
 }
 function lireVisage(r){
   if(!r || !r.faceLandmarks || !r.faceLandmarks[0]) return null;
@@ -5379,6 +5387,8 @@ function erreurEnrichir(e){ return e && e.message === 'echec' ? 'Le serveur n\'a
 
 /* ── lire des images d'une vidéo, une à une (pour les analyses) ── */
 function parcourirVideo(m, debut, fin, pas, chaque, L){
+  /* 15 nov. 2026 : si le suivi du visage tourne dans le fil à part, l'analyse charge d'abord son outil sur le fil principal */
+  if(iaPret('visage') && IA.outils.visage && IA.outils.visage.fil && !IA.direct.visage) return iaPreparerDirect('visage').then(function(){ return parcourirVideo(m, debut, fin, pas, chaque, L); });
   return new Promise(function(ok){
     var v = document.createElement('video'), W = L || 160, cv = document.createElement('canvas'), g = cv.getContext('2d', {willReadFrequently:true}), t = debut, fini = false;
     v.muted = true; v.preload = 'auto'; v.src = urlMedia(m);
@@ -5394,7 +5404,7 @@ function parcourirVideo(m, debut, fin, pas, chaque, L){
 function centreSujet(g, cv, v, prec){
   /* 1) le visage (modèle précis), 2) le mouvement, 3) on garde la position d'avant */
   var r = null;
-  try{ if(iaPret('visage')){ var t = IA.horloge = Math.max(performance.now(), IA.horloge + 1), x = IA.outils.visage.detectForVideo(v, t), f = lireVisage(x); if(f) r = {x:f.boite.x + f.boite.w / 2, y:f.boite.y + f.boite.h * .55, sur:1}; } }catch(e){ dbg(e); }
+  try{ if(iaPret('visage')){ var t = IA.horloge = Math.max(performance.now(), IA.horloge + 1), x = iaDetecterDirect('visage', v, t), f = lireVisage(x); if(f) r = {x:f.boite.x + f.boite.w / 2, y:f.boite.y + f.boite.h * .55, sur:1}; } }catch(e){ dbg(e); }
   var d = g.getImageData(0, 0, cv.width, cv.height).data;
   if(!r && prec && prec.d){ var sx = 0, sy = 0, sw = 0; for(var i = 0, k = 0; i < d.length; i += 16, k += 4){ var dv = Math.abs(d[i] - prec.d[i]) + Math.abs(d[i + 1] - prec.d[i + 1]); if(dv > 40){ var px = (i / 4) % cv.width, py = Math.floor(i / 4 / cv.width); sx += px * dv; sy += py * dv; sw += dv; } } if(sw > 2000) r = {x:sx / sw / cv.width, y:sy / sw / cv.height, sur:.5}; }
   return {r:r, d:d};
@@ -5424,7 +5434,7 @@ function analyserMoments(m){
     for(var i = 0; i < w * h; i++){ lum[i] = .299 * d[i * 4] + .587 * d[i * 4 + 1] + .114 * d[i * 4 + 2]; s += lum[i]; s2 += lum[i] * lum[i]; }
     var moy = s / (w * h), varL = s2 / (w * h) - moy * moy, lap = 0; for(var y = 1; y < h - 1; y++) for(var x = 1; x < w - 1; x++){ var k = y * w + x, q = 4 * lum[k] - lum[k - 1] - lum[k + 1] - lum[k - w] - lum[k + w]; lap += q * q; }
     var mv = 0; if(prec){ for(var j = 0; j < lum.length; j += 3) mv += Math.abs(lum[j] - prec[j]); mv /= lum.length / 3; } prec = lum;
-    var vis = 0; try{ if(iaPret('visage')){ var f = lireVisage(IA.outils.visage.detectForVideo(v, IA.horloge = Math.max(performance.now(), IA.horloge + 1))); if(f){ var c = 1 - Math.hypot(f.boite.x + f.boite.w / 2 - .5, f.boite.y + f.boite.h / 2 - .45); vis = f.boite.w * c * (1 + ((f.b.mouthSmileLeft || 0) + (f.b.mouthSmileRight || 0))); } } }catch(e){ dbg(e); }
+    var vis = 0; try{ if(iaPret('visage')){ var f = lireVisage(iaDetecterDirect('visage', v, IA.horloge = Math.max(performance.now(), IA.horloge + 1))); if(f){ var c = 1 - Math.hypot(f.boite.x + f.boite.w / 2 - .5, f.boite.y + f.boite.h / 2 - .45); vis = f.boite.w * c * (1 + ((f.b.mouthSmileLeft || 0) + (f.b.mouthSmileRight || 0))); } } }catch(e){ dbg(e); }
     sec.push({t:t, net:Math.log(1 + lap / (w * h)), mv:mv, con:Math.sqrt(Math.max(0, varL)), vis:vis});
   }).then(function(){
     if(sec.length < 4) return [];
@@ -7082,16 +7092,17 @@ function phbActive(){ return BEA_CLES.some(function(k){ return (PHB.v[k] || 0) >
 /* les points du visage sur la photo (une seule fois par photo) */
 function phbVisage(fin){
   if(PHB.visage !== null || PHB.attente){ fin(); return; }
-  var go = function(){ var o = IA.outils.visage; if(!o || !PHO.img || !PHO.img.naturalWidth){ PHB.visage = false; PHB.etat = 'absent'; fin(); return; }
+  var go = function(){ var o = IA.direct.visage || (IA.outils.visage && !IA.outils.visage.fil ? IA.outils.visage : null); if(!o || !PHO.img || !PHO.img.naturalWidth){ PHB.visage = false; PHB.etat = 'absent'; fin(); return; }
     try{ var c = document.createElement('canvas'), k = Math.min(1, 1280 / Math.max(PHO.img.naturalWidth, PHO.img.naturalHeight)); c.width = Math.round(PHO.img.naturalWidth * k); c.height = Math.round(PHO.img.naturalHeight * k); c.getContext('2d').drawImage(PHO.img, 0, 0, c.width, c.height);
       var r = o.detectForVideo(c, Math.max(performance.now(), (IA.horloge || 0) + 1)); IA.horloge = performance.now(); var v = lireVisage(r); PHB.visage = v || false; PHB.etat = v ? 'ok' : 'aucun';
       if(v){ var d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data, m = moyennePeau(d, c.width, c.height, function(i){ var q = v.p[i]; return q ? {x:q.x * c.width, y:q.y * c.height} : null; });
         if(m){ var lab = versLab(m.r, m.g, m.b), ang = Math.atan2(lab.b, lab.a) * 180 / Math.PI; PHB.teint = {hex:'#' + hex2(m.r) + hex2(m.g) + hex2(m.b), L:lab.L, sous:ang > 58 ? 'chaud' : ang < 46 ? 'froid' : 'neutre', prof:lab.L > 64 ? 0 : lab.L > 48 ? 1 : 2}; } }
     }catch(e){ dbg(e); PHB.visage = false; PHB.etat = 'aucun'; }
     fin(); };
+  if(iaPret('visage') && IA.outils.visage && IA.outils.visage.fil && !IA.direct.visage){ PHB.attente = true; occupe('Préparation du modèle…'); iaPreparerDirect('visage').then(function(){ PHB.attente = false; occupe(false); go(); }); return; }
   if(iaPret('visage')){ go(); return; }
   if(iaAbsent('visage')){ PHB.visage = false; PHB.etat = 'absent'; fin(); return; }
-  PHB.attente = true; occupe('Préparation du modèle…'); iaActiver('visage').then(function(){ PHB.attente = false; occupe(false); if(!iaPret('visage')){ PHB.visage = false; PHB.etat = 'absent'; fin(); return; } go(); });
+  PHB.attente = true; occupe('Préparation du modèle…'); iaActiver('visage').then(function(){ if(!iaPret('visage')){ PHB.attente = false; occupe(false); PHB.visage = false; PHB.etat = 'absent'; fin(); return; } return iaPreparerDirect('visage').then(function(){ PHB.attente = false; occupe(false); go(); }); });
 }
 /* la photo embellie, gardée tant que les réglages ne changent pas */
 function phbSource(){
@@ -7891,6 +7902,7 @@ function diagTexte(){
     var e = IA.etat[k]; if(!e && !IA.outils[k]) return;
     l.push('Suivi ' + k + ' : ' + (IA.outils[k] ? 'prêt' : (typeof e === 'string' ? e : 'en chargement')) + ' · ' + ((IA.delegue && IA.delegue[k]) || '—') + ' · ' + diagStats(IA.temps[k]) + ' · ' + (IA.cadence[k] || '—') + '/s' + (IA.besoin[k] ? '' : ' (pas utilisé)'));
   });
+  if(typeof FIL !== 'undefined' && FIL.w) l.push('Fil à part : ' + (FIL.mode || '—') + ' · ' + Object.keys(FIL.recus).map(function(k){ return k + ' ' + diagStats(FIL.msFil[k]); }).join(' · ') + (FIL.erreur ? ' · erreur ' + FIL.erreur : ''));
   l.push('Beauté : ' + diagStats(BEA.temps) + (BEA.lent ? ' · demi-résolution' : '') + (BEA.allegee ? ' · allégée' : ''));
   l.push('Lumière du visage : ' + diagStats(EXPO.temps) + (EXPO.eteint ? ' · éteinte' : '') + ' · mode ' + EXPO.mode);
   l.push('Moteur : ' + (MOTEUR.fps ? Math.round(MOTEUR.fps) + ' i/s' : '—') + (MOTEUR.baisse ? ' · baissé en 720' : '') + ' · plafond ' + plafondDefinition());
@@ -7929,6 +7941,128 @@ document.addEventListener('pointerdown', function(e){
   var n = performance.now(); DIAG.touchers = DIAG.touchers.filter(function(t){ return n - t < 3000; }); DIAG.touchers.push(n);
   if(DIAG.touchers.length >= 5){ DIAG.touchers = []; diagOuvrir(); }
 }, true);
+/* ════════ 15 nov. 2026 (la vitesse, La Forge, étape B) : le suivi du visage dans un FIL À PART ════════
+   Mesure sur le Galaxy Z Fold6 : le suivi du visage prend ~25 ms, 15 fois par seconde, sur le même fil que le dessin
+   de l'aperçu ; l'aperçu l'attendait (16–21 images/s au lieu de 24). Ici le moteur tourne dans un fil de travail
+   (Web Worker) fabriqué dans la page (aucun fichier en plus) : la caméra lui envoie une copie réduite de l'image
+   (createImageBitmap, ≤ 480 px de large, les points restent en fractions de l'image), l'aperçu se dessine sans attendre
+   et utilise le dernier résultat reçu (au plus une image de retard). Le moteur et le modèle sont les MÊMES fichiers
+   (ia/vision_bundle.js, ia/face_landmarker.task). Si le fil ne démarre pas (ancien navigateur, page locale, moteur
+   chargé autrement…), tout se fait comme avant, sur le fil principal. Les usages hors direct (montage, photos)
+   gardent un outil sur le fil principal, chargé seulement quand ils en ont besoin (iaPreparerDirect). */
+var FIL = {cles:{visage:1, mains:1, corps:1}, w:null, pret:null, n:0, attente:{}, occupe:{}, envoye:{}, recus:{}, msFil:{}, erreur:null, larg:480};
+function filPossible(){
+  return !window.NV_IA_SANS_FIL && typeof Worker === 'function' && typeof createImageBitmap === 'function' && typeof Blob === 'function' && !!(window.URL && URL.createObjectURL);
+}
+/* le code du fil : charge le moteur (importScripts), crée les outils, répond à chaque image */
+function filCode(){
+  return [
+    'var V=null,FS=null,O={},H={},C=null,G=null;',
+    'function rep(m,t){ try{ postMessage(m,t||[]); }catch(e){} }',
+    'function plat(r){ if(!r) return null; var o={};',
+    ' if(r.faceLandmarks) o.faceLandmarks=r.faceLandmarks.map(function(l){ return l.map(function(q){ return {x:q.x,y:q.y,z:q.z}; }); });',
+    ' if(r.faceBlendshapes) o.faceBlendshapes=r.faceBlendshapes.map(function(b){ return {categories:(b.categories||[]).map(function(c){ return {categoryName:c.categoryName,score:c.score}; })}; });',
+    ' if(r.facialTransformationMatrixes) o.facialTransformationMatrixes=r.facialTransformationMatrixes.map(function(m){ return {rows:m.rows,columns:m.columns,data:Array.prototype.slice.call(m.data||[])}; });',
+    ' if(r.landmarks) o.landmarks=r.landmarks.map(function(l){ return l.map(function(q){ return {x:q.x,y:q.y,z:q.z,visibility:q.visibility}; }); });',
+    ' if(r.handednesses) o.handednesses=r.handednesses.map(function(h){ return h.map(function(c){ return {categoryName:c.categoryName,score:c.score}; }); });',
+    ' return o; }',
+    'function creer(k,buf,d){ var b={modelAssetBuffer:buf,delegate:d};',
+    ' if(k==="visage") return V.FaceLandmarker.createFromOptions(FS,{baseOptions:b,runningMode:"VIDEO",numFaces:1,outputFaceBlendshapes:true,outputFacialTransformationMatrixes:true});',
+    ' if(k==="mains") return V.HandLandmarker.createFromOptions(FS,{baseOptions:b,runningMode:"VIDEO",numHands:2});',
+    ' if(k==="corps") return V.PoseLandmarker.createFromOptions(FS,{baseOptions:b,runningMode:"VIDEO",numPoses:1});',
+    ' return Promise.reject(new Error("inconnu")); }',
+    'onmessage=function(e){ var m=e.data||{};',
+    ' if(m.type==="init"){',
+    '  try{ if(!V){ importScripts(m.base+"vision_bundle.js"); V=self.Vision||self.MediaPipeTasksVision; } }catch(err){ rep({type:"init",id:m.id,ok:false,err:"moteur"}); return; }',
+    '  if(!V||!V.FilesetResolver){ rep({type:"init",id:m.id,ok:false,err:"moteur"}); return; }',
+    '  (FS?Promise.resolve(FS):V.FilesetResolver.forVisionTasks(m.base.replace(/\\/$/,"")).then(function(f){ FS=f; return f; }))',
+    '   .then(function(){ var b1=m.buf.slice(0); if(m.cpu) return creer(m.k,new Uint8Array(m.buf),"CPU").then(function(o){ return {o:o,d:"CPU"}; }); return creer(m.k,new Uint8Array(m.buf),"GPU").then(function(o){ return {o:o,d:"GPU"}; },function(){ return creer(m.k,new Uint8Array(b1),"CPU").then(function(o){ return {o:o,d:"CPU"}; }); }); })',
+    '   .then(function(x){ O[m.k]=x.o; rep({type:"init",id:m.id,ok:true,delegue:x.d}); },function(err){ rep({type:"init",id:m.id,ok:false,err:String(err&&err.message||err)}); });',
+    '  return; }',
+    ' if(m.type==="image"){ var o=O[m.k], t=Math.max(m.t,(H[m.k]||0)+1); H[m.k]=t; var t0=performance.now(), r=null, err=null, img=m.img;',
+    '  try{ var s=m.vf||m.img, vw=m.vf?m.vf.displayWidth:m.img.width, vh=m.vf?m.vf.displayHeight:m.img.height, w=Math.min(m.larg||480,vw), hh=Math.max(2,Math.round(w*vh/vw));',
+    '    if(!C||C.width!==w||C.height!==hh){ C=new OffscreenCanvas(w,hh); G=C.getContext("2d"); } G.drawImage(s,0,0,w,hh); img=C; }catch(x){ err=String(x&&x.message||x); }',
+    '  try{ if(m.vf) m.vf.close(); }catch(x){}',
+    '  try{ if(o&&!err) r=plat(o.detectForVideo(img,t)); }catch(x){ err=String(x&&x.message||x); }',
+    '  try{ if(m.img) m.img.close(); }catch(x){}',
+    '  rep({type:"image",k:m.k,n:m.n,r:r,ms:performance.now()-t0,err:err}); return; }',
+    ' if(m.type==="fermer"){ try{ if(O[m.k]&&O[m.k].close) O[m.k].close(); }catch(x){} O[m.k]=null; }',
+    '};'
+  ].join('\n');
+}
+function filOuvrir(){
+  if(FIL.w) return FIL.w;
+  var u = URL.createObjectURL(new Blob([filCode()], {type:'text/javascript'}));
+  FIL.w = new Worker(u);
+  FIL.w.onmessage = function(e){
+    var m = e.data || {};
+    if(m.type === 'init'){ var a = FIL.attente[m.id]; if(a){ delete FIL.attente[m.id]; a(m); } return; }
+    if(m.type === 'image') filRecu(m);
+  };
+  FIL.w.onerror = function(e){ dbg(e); Object.keys(FIL.attente).forEach(function(id){ var a = FIL.attente[id]; delete FIL.attente[id]; a({ok:false, err:'fil'}); }); };
+  return FIL.w;
+}
+/* créer un outil dans le fil : promesse d'un objet « outil » (marqué fil:true), ou d'une erreur (on revient alors à l'ancien chemin) */
+function iaFilCreer(cle, buf){
+  if(!filPossible() || !FIL.cles[cle]) return Promise.reject(new Error('sans_fil'));
+  var base; try{ base = new URL(iaBase(), location.href).href; }catch(e){ return Promise.reject(e); }
+  if(!/^https?:/.test(base)) return Promise.reject(new Error('sans_fil'));
+  return new Promise(function(ok, ko){
+    var w; try{ w = filOuvrir(); }catch(e){ ko(e); return; }
+    var id = ++FIL.n, garde = setTimeout(function(){ if(FIL.attente[id]){ delete FIL.attente[id]; ko(new Error('fil_lent')); } }, 20000);
+    FIL.attente[id] = function(m){ clearTimeout(garde); if(!m.ok){ ko(new Error(m.err || 'fil')); return; }
+      IA.delegue = IA.delegue || {}; IA.delegue[cle] = (m.delegue === 'GPU' ? 'processeur graphique' : 'processeur') + ' · fil à part';
+      ok({fil:true, cle:cle, close:function(){ try{ FIL.w.postMessage({type:'fermer', k:cle}); }catch(e){ dbg(e); } }}); };
+    var copie = buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength);
+    w.postMessage({type:'init', id:id, k:cle, base:base, buf:copie, cpu:!!window.NV_IA_FIL_CPU}, [copie]);
+  });
+}
+/* envoyer une image au fil (une seule en route par modèle ; sinon on passe) */
+function iaFilEnvoyer(k, src, t){
+  var n = performance.now();
+  if(FIL.occupe[k] && n - FIL.occupe[k] < 2000) return false;   /* la précédente n'est pas revenue (2 s au plus) */
+  FIL.occupe[k] = n;
+  var sw = src.videoWidth || src.width, sh = src.videoHeight || src.height, o = {};
+  if(sw > FIL.larg){ o.resizeWidth = FIL.larg; o.resizeHeight = Math.max(2, Math.round(FIL.larg * sh / sw)); o.resizeQuality = 'low'; }
+  var num = (FIL.envoye[k] || 0) + 1; FIL.envoye[k] = num;
+  /* d'abord VideoFrame : l'image de la caméra est passée au fil SANS copie (mesuré : ~0 ms ici, contre 15–20 ms pour
+     createImageBitmap sans processeur graphique) ; le fil la réduit lui-même. Sinon, une copie réduite (createImageBitmap). */
+  if(typeof VideoFrame === 'function' && src.videoWidth && !FIL.sansVF){
+    var fr = null; try{ fr = new VideoFrame(src); }catch(e){ dbg(e); FIL.sansVF = true; }
+    if(fr){ try{ FIL.w.postMessage({type:'image', k:k, n:num, t:t, vf:fr, larg:FIL.larg}, [fr]); FIL.mode = 'VideoFrame'; return true; }catch(e){ dbg(e); try{ fr.close(); }catch(x){ dbg(x); } FIL.sansVF = true; } }
+  }
+  FIL.mode = 'ImageBitmap';
+  createImageBitmap(src, o).then(function(img){
+    if(!IA.outils[k] || !IA.outils[k].fil){ try{ img.close(); }catch(e){ dbg(e); } FIL.occupe[k] = 0; return; }
+    FIL.w.postMessage({type:'image', k:k, n:num, t:t, img:img}, [img]);
+  }).catch(function(e){ dbg(e); FIL.occupe[k] = 0; });
+  return true;
+}
+function filRecu(m){
+  var k = m.k; FIL.dernier = m; FIL.occupe[k] = 0; FIL.recus[k] = (FIL.recus[k] || 0) + 1; if(m.err) FIL.erreur = m.err; else { var l = FIL.msFil[k] = FIL.msFil[k] || []; l.push(m.ms); if(l.length > 60) l.shift(); }
+  if(!IA.outils[k] || !IA.outils[k].fil || !IA.besoin[k]) return;
+  if(m.err){ dbg(m.err); return; }
+  iaAppliquer(k, m.r);
+  IA.temps[k] = IA.temps[k] || [];
+  chrono({temps:IA.temps[k]}, m.ms, 99, 45, 8, function(){ if(IA.cadence[k] > 6){ IA.cadence[k] = Math.round(IA.cadence[k] / 2); IA.temps[k] = []; } else iaEteindre(k); });
+}
+/* les usages hors direct (montage, photo) : un outil sur le fil principal, comme avant */
+function iaDetecterDirect(k, src, t){
+  var o = IA.direct[k] || (IA.outils[k] && !IA.outils[k].fil ? IA.outils[k] : null);
+  return o ? o.detectForVideo(src, t) : null;
+}
+function iaPreparerDirect(k){
+  if(IA.direct[k] || (IA.outils[k] && !IA.outils[k].fil)) return Promise.resolve(true);
+  if(!IA.outils[k]) return Promise.resolve(false);
+  if(IA.directAttente && IA.directAttente[k]) return IA.directAttente[k];
+  IA.directAttente = IA.directAttente || {};
+  var d = IA.delegue && IA.delegue[k];
+  var p = iaVision().then(function(V){ return iaLireModele(k).then(function(buf){ return iaFileset().then(function(fs){ return iaCreer(k, buf, V, fs); }); }); })
+    .then(function(o){ IA.direct[k] = o; if(IA.delegue) IA.delegue[k] = d; return true; })
+    .catch(function(e){ dbg(e); if(IA.delegue) IA.delegue[k] = d; return false; })
+    .then(function(r){ delete IA.directAttente[k]; return r; });
+  IA.directAttente[k] = p; return p;
+}
 
 /* ════════════════════════════════════════════════════════════════════
  LA FORGE EN ONZE LANGUES : FR · EN · ES · PT · AR (de droite à gauche) · SW · HA · YO · WO · BM · LN
