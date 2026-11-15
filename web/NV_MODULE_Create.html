@@ -1601,9 +1601,13 @@ function camDeboutReel(f){
 }
 function camOuvrirDebout(){
   var md = navigator.mediaDevices, son = {echoCancellation:true, noiseSuppression:true, autoGainControl:true}, telephone = window.innerHeight > window.innerWidth;
+  /* 15 nov. 2026 (la vitesse, La Forge, étape A) : d'abord le mode DEBOUT natif (1080 × 1920, sans découpe). Avant, la première demande
+     était carrée (1920 × 1920) : un téléphone haut de gamme donnait 1088 × 1088, dont l'aperçu 9:16 n'utilisait que 612 × 1088 pixels,
+     agrandis (moins net, et souvent moins d'images par seconde). Le debout est gardé seulement s'il est vraiment debout et assez grand
+     (petit côté ≥ 720) ; sinon la demande carrée d'avant, puis la demande debout ordinaire, comme avant. */
   var demandes = [
+    {facingMode:CAM.face, resizeMode:'none', width:{ideal:1080}, height:{ideal:1920}, aspectRatio:{ideal:9 / 16}, frameRate:{ideal:30}},
     {facingMode:CAM.face, resizeMode:'none', width:{ideal:1920}, height:{ideal:1920}, frameRate:{ideal:30}},
-    {facingMode:CAM.face, resizeMode:'none', width:{ideal:1080}, height:{ideal:1920}, frameRate:{ideal:30}},
     {facingMode:CAM.face, width:{min:480, ideal:1080}, height:{min:640, ideal:1920}}
   ];
   var i = 0;
@@ -1612,7 +1616,9 @@ function camOuvrirDebout(){
     return md.getUserMedia({video:d, audio:son}).then(function(f){
       CAM.essaiCam = i + 1;
       if(!telephone || i >= demandes.length - 1) return f;
-      return camDeboutReel(f).then(function(debout){ if(debout) return f; f.getTracks().forEach(function(t){ t.stop(); }); i++; return essai(); });
+      return camDeboutReel(f).then(function(debout){
+        var t = camTaille(f), assez = i > 0 || !t.w || Math.min(t.w, t.h) >= 720;
+        if(debout && assez) return f; f.getTracks().forEach(function(t){ t.stop(); }); i++; return essai(); });
     }, function(e){ if(i === 0 && !(e && /Overconstrained|Type/i.test(e.name || ''))) throw e; if(i >= demandes.length - 1) return md.getUserMedia({video:{facingMode:CAM.face}, audio:son}); i++; return essai(); });
   }
   return essai();
