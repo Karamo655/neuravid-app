@@ -1,6 +1,6 @@
 {
- "version": "2026.11.15-12d4269aea59",
- "date": "2026-11-15T11:57:53Z",
+ "version": "2026.11.15-8ca8f72b2925",
+ "date": "2026-11-15T21:52:52Z",
  "entree": "index.html",
  "modules": [
   "NV_MODULE_Arena.html",
@@ -1175,6 +1175,10 @@
    "sha256": "a3fdd43ee8a838303016dba74789629cef0c637ce69bc8d63431e29906c57685",
    "taille": 671
   },
+  "essai.html": {
+   "sha256": "8c7eeb455be7aef8b0bd9fa6dbb07c0a418774a04ce034b247b83681a984f1ee",
+   "taille": 6337
+  },
   "ia/LICENCE_MediaPipe_Apache-2.0.txt": {
    "sha256": "379dc9be621e253a565b178cfefb3b18976a56b6a10a9f7678f297cfed21f31a",
    "taille": 11643
@@ -1236,8 +1240,8 @@
    "taille": 600
   },
   "nv-config.js": {
-   "sha256": "0befc1524851929199e097e78c4bc706a9e635ddb605bfb6566bb4c076bd420b",
-   "taille": 2910
+   "sha256": "0c7d9fb825566c0c4593e1c4f2fd7fbe36782d7e8c809593e460a191947a0c73",
+   "taille": 4265
   },
   "sw-tamtam.js": {
    "sha256": "770ecf9ca7a9102a1a64e84c3054c6c5b941419cbd114257b44ac988c7d0f78d",

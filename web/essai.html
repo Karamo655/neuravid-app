@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#0B0720"><meta name="robots" content="noindex,nofollow">
+<title>NEURAVID · Essai</title>
+<script src="nv-config.js"></script>
+<style>
+:root{--nuit:#0B0720;--carte:#171236;--bord:#2E2760;--texte:#F7F3FF;--doux:#B9B1D9;--or:#FFC93D;--turq:#19E3C5;--rose:#FF4FA3;--violet:#8A4DFF;--rouge:#FF5470}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--nuit);color:var(--texte);font:16px/1.5 system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
+main{max-width:560px;margin:0 auto;padding:24px 16px 40px}
+.hx{width:54px;height:60px;clip-path:polygon(50% 0,100% 25%,100% 75%,50% 100%,0 75%,0 25%);background:linear-gradient(160deg,var(--turq),var(--violet) 55%,var(--rose));display:grid;place-items:center;font-size:24px;margin-bottom:10px}
+h1{font-size:22px;margin:0 0 6px}
+p{margin:0 0 12px;color:var(--doux)}
+.carte{background:var(--carte);border:1px solid var(--bord);border-radius:16px;padding:14px 16px;margin:14px 0}
+.etat{display:flex;align-items:center;gap:10px;font-weight:700;color:var(--texte)}
+.point{width:12px;height:14px;clip-path:polygon(50% 0,100% 25%,100% 75%,50% 100%,0 75%,0 25%);background:var(--doux);flex:none}
+.on .point{background:var(--turq)}.non .point{background:var(--rouge)}
+.ligne{font-size:14px;color:var(--doux);margin:6px 0 0;word-break:break-word}
+button,a.bouton{display:block;width:100%;min-height:48px;border:0;border-radius:999px;font:inherit;font-weight:800;cursor:pointer;margin:10px 0;text-align:center;text-decoration:none;padding:12px 16px}
+.principal{background:linear-gradient(90deg,var(--turq),var(--violet) 55%,var(--rose));color:#fff}
+.second{background:transparent;color:var(--texte);border:1px solid var(--bord)}
+button[disabled]{opacity:.45;cursor:default}
+ol{margin:6px 0 0;padding-left:20px;color:var(--doux)}li{margin:4px 0}
+.annonce{min-height:1.5em;color:var(--or);font-weight:700}
+</style></head>
+<body><main>
+<div class="hx" aria-hidden="true">🧪</div>
+<h1>Essai du vrai serveur</h1>
+<p>Page réservée à l'équipe et aux testeurs. Elle branche <b>seulement ce téléphone</b> (ce navigateur) sur le vrai serveur de NEURAVID. Les autres visiteurs ne voient aucun changement.</p>
+
+<div class="carte" id="carteEtat"><div class="etat" id="etat"><span class="point"></span><span id="etatTxt">—</span></div>
+<div class="ligne" id="adresse">—</div><div class="ligne" id="serveur">—</div></div>
+
+<button class="principal" id="brancher">Brancher ce téléphone sur le vrai serveur</button>
+<button class="second" id="debrancher">Revenir au site normal</button>
+<a class="bouton second" id="ouvrir" href="index.html">Ouvrir NEURAVID</a>
+<div class="annonce" id="annonce" role="status" aria-live="polite"></div>
+
+<div class="carte"><b>Ce qu'il faut essayer</b>
+<ol>
+<li>S'inscrire avec l'empreinte (clé d'accès), dans le navigateur Chrome du téléphone.</li>
+<li>Fermer NEURAVID, le rouvrir et se reconnecter.</li>
+<li>Filmer et publier une courte vidéo avec La Forge.</li>
+<li>Lancer un court direct, puis le regarder depuis un second téléphone branché lui aussi.</li>
+<li>Noter tout ce qui bloque (capture d'écran + heure).</li>
+</ol>
+<p class="ligne">En revenant au site normal, la session d'essai est fermée sur ce téléphone.</p></div>
+</main>
+<script>
+(function(){
+  var adr = window.NV_ESSAI_ADRESSE || '', $ = function(i){ return document.getElementById(i); };
+  function dire(t){ $('annonce').textContent = t; }
+  function actif(){ try{ return !!adr && localStorage.getItem('nv_essai_api') === adr; }catch(e){ return false; } }
+  function rendre(){
+    var reel = !adr && !!window.NV_API_BASE && !window.NV_ESSAI_ACTIF;
+    var on = actif();
+    $('carteEtat').className = 'carte ' + (on ? 'on' : (reel ? 'on' : ''));
+    $('etatTxt').textContent = reel ? 'Le site entier utilise déjà le vrai serveur : ce mode n\'est plus utile.'
+      : !adr ? 'Le mode essai n\'est pas ouvert sur ce site.'
+      : on ? 'Ce téléphone est branché sur le vrai serveur.' : 'Ce téléphone est sur le site normal.';
+    $('adresse').textContent = adr ? ('Serveur d\'essai : ' + adr) : '—';
+    $('brancher').disabled = !adr || on || reel; $('debrancher').disabled = !on;
+  }
+  function verifier(){
+    if(!adr){ $('serveur').textContent = '—'; return; }
+    $('serveur').textContent = 'Vérification du serveur…';
+    var fini = false, minuteur = setTimeout(function(){ if(!fini){ fini = true; $('serveur').textContent = 'Le serveur ne répond pas (délai dépassé).'; } }, 10000);
+    fetch(adr + '/v1/comptes/capacites', {cache:'no-store', credentials:'omit'}).then(function(r){
+      return r.json().then(function(j){ return {ok:r.ok, s:r.status, j:j}; });
+    }).then(function(x){
+      if(fini) return; fini = true; clearTimeout(minuteur);
+      if(!x.ok){ $('serveur').textContent = 'Le serveur répond avec l\'erreur ' + x.s + '.'; return; }
+      var m = (x.j && x.j.methodes) || {}, rp = (x.j && x.j.rp && x.j.rp.id) || '—';
+      $('serveur').textContent = 'Le serveur répond. Inscription par empreinte : ' + (m.cleAcces ? 'ouverte' : 'fermée')
+        + ' · par téléphone : ' + (m.telephone ? 'ouverte' : 'fermée') + ' · domaine des clés : ' + rp
+        + (rp !== '—' && rp !== location.hostname ? ' (différent de cette page : ' + location.hostname + ')' : '');
+    }).catch(function(){
+      if(fini) return; fini = true; clearTimeout(minuteur);
+      $('serveur').textContent = 'Le serveur est injoignable depuis cette page (réseau, ou adresse de ce site non autorisée par le serveur).';
+    });
+  }
+  $('brancher').onclick = function(){
+    try{
+      localStorage.setItem('nv_essai_api', adr); localStorage.removeItem('nv_session');
+      sessionStorage.removeItem('nv_demo');
+      dire('Branché. Touchez « Ouvrir NEURAVID ».');
+    }catch(e){ dire('Impossible sur ce navigateur (stockage bloqué).'); }
+    rendre();
+  };
+  $('debrancher').onclick = function(){
+    try{ localStorage.removeItem('nv_essai_api'); localStorage.removeItem('nv_session'); dire('Revenu au site normal. La session d\'essai est fermée.'); }
+    catch(e){ dire('Impossible sur ce navigateur (stockage bloqué).'); }
+    rendre();
+  };
+  rendre(); verifier();
+})();
+</script>
+</body></html>

@@ -13,8 +13,23 @@
     api: '',                 /* adresse du serveur, sans « / » final. Vide = aucune adresse. */
     avatarOrigines: [],      /* origines autorisées pour les photos des créateurs (ex. 'https://cdn.neuravid.com') */
     iaServeur: '',           /* serveur d'IA (idées de défis de La Ruche : POST /v1/ia/idees-defi). Vide = les idées du guide de chaque défi. */
-    modules: './'            /* où sont les autres modules : './' = à côté de cette page (site web). L'application peut poser NV_MODULES_BASE elle-même. */
+    modules: './',           /* où sont les autres modules : './' = à côté de cette page (site web). L'application peut poser NV_MODULES_BASE elle-même. */
+    essai: 'https://api.neuravid.com'                /* 15 nov. 2026 — le mode essai des testeurs : l'adresse du VRAI serveur, utilisée seulement par les téléphones
+                                branchés depuis essai.html (localStorage « nv_essai_api »), tant que « api » est vide. Jamais une autre adresse. */
   };
+  /* le mode essai : seulement si « api » est vide, jamais dans l'aperçu, et seulement pour l'adresse écrite ici */
+  var apercuTot = false;
+  try{ apercuTot = !!window.NV_APERCU || /(^#|&)demo(=1)?(&|$)/.test(location.hash || '') || sessionStorage.getItem('nv_demo') === '1'; }catch(e){ /* rien */ }
+  try{
+    window.NV_ESSAI_ADRESSE = (!CONFIG.api && CONFIG.essai) ? CONFIG.essai : '';
+    var choisi = localStorage.getItem('nv_essai_api');
+    window.NV_ESSAI_ACTIF = !!(choisi && window.NV_ESSAI_ADRESSE && choisi === window.NV_ESSAI_ADRESSE && !apercuTot);
+    if(window.NV_ESSAI_ACTIF && !window.NV_API_BASE) window.NV_API_BASE = window.NV_ESSAI_ADRESSE;
+    /* un ancien choix qui ne correspond plus à rien (adresse changée, site passé en réel) est oublié avec sa session d'essai */
+    if(choisi && !apercuTot && (!window.NV_ESSAI_ADRESSE || choisi !== window.NV_ESSAI_ADRESSE)){
+      localStorage.removeItem('nv_essai_api'); if(!CONFIG.api) localStorage.removeItem('nv_session');
+    }
+  }catch(e){ /* rien */ }
   try{
     if(CONFIG.api && !window.NV_API_BASE) window.NV_API_BASE = CONFIG.api;
     if(CONFIG.avatarOrigines.length && !window.NV_AVATAR_ORIGINES) window.NV_AVATAR_ORIGINES = CONFIG.avatarOrigines.slice();
