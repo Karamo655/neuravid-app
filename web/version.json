@@ -1,6 +1,6 @@
 {
- "version": "2026.11.16-37ff6dbd7fd3",
- "date": "2026-11-16T19:57:44Z",
+ "version": "2026.11.16-cebe47bcf809",
+ "date": "2026-11-16T21:50:52Z",
  "entree": "index.html",
  "modules": [
   "NV_MODULE_Arena.html",
@@ -48,40 +48,40 @@
  "config": "nv-config.js (exclu de l'empreinte : il change selon le déploiement)",
  "fichiers": {
   "NV_MODULE_Arena.html": {
-   "sha256": "0cab93fe5c02343c14e1d7439055edc5889ab0d1b2fbb46687c9fa2b11427524",
-   "taille": 1887168
+   "sha256": "51386af55a8989ce71554dcfc57804c08c66ca5f25f6658408fb825506c29d4d",
+   "taille": 1888796
   },
   "NV_MODULE_ArenaArts.html": {
-   "sha256": "7ed9287e0c6f34fca7c0b2eb3195d9c08425d63a8b4e64c138e87c2f4a049228",
-   "taille": 1976480
+   "sha256": "7abe4684e38c5205d990b93d3964f00e8219f3c12db06f71da0ca47556c5a960",
+   "taille": 1978679
   },
   "NV_MODULE_Artistes.html": {
-   "sha256": "2497797f41100dec2a97be7ec5ddf09a95fa358a736fe2920f864f128b05172f",
-   "taille": 1237026
+   "sha256": "dfc128f2985263efec09d2cc96c5b9a864a67f6e66bf173022f2e0c9d289747d",
+   "taille": 1238654
   },
   "NV_MODULE_Baobab.html": {
-   "sha256": "7c8b61de243edf82c089e4dd59af58e730cd6cb82079486d359e79c3a4443a89",
-   "taille": 1741232
+   "sha256": "38035b36a917139b57a8a2bbe38b6455f5a9cc927bb6e9ff77a5299dd24c1d93",
+   "taille": 1743431
   },
   "NV_MODULE_Baobab_leger.html": {
-   "sha256": "5e5c8592ce5dff62909ce97855d33a9fa7ae0a69bd4c3d478b6b4cf11db32327",
-   "taille": 770847
+   "sha256": "213271815ac7eea1caa08d3f14a1f9cb1fd751c1c6db5469c489c004904a5f6b",
+   "taille": 773046
   },
   "NV_MODULE_Battle.html": {
-   "sha256": "bdc74867efe7e59780899ed877a2e9c1054e445c380666a25ac5b2832f34b609",
-   "taille": 1415958
+   "sha256": "9158b451f94ae5bd512b69415aedee0e24ed01f038b1aa02c3eeb53cff45cb7b",
+   "taille": 1418157
   },
   "NV_MODULE_CallUniverse.html": {
    "sha256": "fcfeb63c96ad250a231a5b463175946e2ffc02f52c63b6ff556a7d8a54761361",
    "taille": 1297428
   },
   "NV_MODULE_ChallengeUniverse.html": {
-   "sha256": "178bccad49da061e07c53fb8b6492bd05b1842bbfb3a8fba6888e66ef789c984",
-   "taille": 1825887
+   "sha256": "b5af448a49500cac3534944399cb70d1239090763c8c15e9623fa802769b31c3",
+   "taille": 1827515
   },
   "NV_MODULE_CinemaWorld.html": {
-   "sha256": "36c12122c3b7142476cf5192a315e631d75e41164cca930c628f812115571150",
-   "taille": 1033906
+   "sha256": "93e6ccceb57b69febfca82b86e41f6350ded07334b87f0b7168f5d1cce25df6e",
+   "taille": 1036105
   },
   "NV_MODULE_Conditions.html": {
    "sha256": "bcd6a98bd7fd39f56cd0c99fc1e2ea5c13bdb222aee3806cee5be6a153f14d7c",
@@ -92,8 +92,8 @@
    "taille": 1444374
   },
   "NV_MODULE_Create.html": {
-   "sha256": "ffbcfda5f0370ca7c2ffcf48026b1c3d313332ac82b1604fdf469e8cd98bd4fa",
-   "taille": 2005571
+   "sha256": "dc5b80934c73223ab00583265597521ed62c0eb7dbaea2be44bf5a8ba90ddc6d",
+   "taille": 2009415
   },
   "NV_MODULE_Dashboard.html": {
    "sha256": "50b4c7bc3b903e1bb3ef6ddc142d36b5525eb2e7bdfd93e973c9e055314b4c19",
@@ -124,32 +124,32 @@
    "taille": 1965677
   },
   "NV_MODULE_Iris.html": {
-   "sha256": "d00c3d377922957f2b5f95d0ed5b105dc61fe592921cfd2844a0e9a085b3d4e2",
-   "taille": 1050225
+   "sha256": "e3407aeafa27c49fedb531b8bb43928a903b8f4a2e552b5fe31826faa5b87e91",
+   "taille": 1052424
   },
   "NV_MODULE_Live.html": {
-   "sha256": "f4dc8865048ec731bf0af16b9a6f006311b9fd1ee7204715974756b942e70fdc",
-   "taille": 2537933
+   "sha256": "73a1aaa72f6c41da6c2f12dcc733cfcee76335a27089793cc8f19881b1758c20",
+   "taille": 2540132
   },
   "NV_MODULE_Live_leger.html": {
-   "sha256": "f4dc8865048ec731bf0af16b9a6f006311b9fd1ee7204715974756b942e70fdc",
-   "taille": 2537933
+   "sha256": "73a1aaa72f6c41da6c2f12dcc733cfcee76335a27089793cc8f19881b1758c20",
+   "taille": 2540132
   },
   "NV_MODULE_LoveUniverse.html": {
-   "sha256": "78c3c5fd3093997d80de253e8eb8a64dba0c0e54c775766a96571825243f8ae7",
-   "taille": 1483455
+   "sha256": "2dc62eeb1fb2fe86392a775eb0d57d03e9339b5f561b6b744ea46dc5bb451229",
+   "taille": 1485654
   },
   "NV_MODULE_MissMaster.html": {
-   "sha256": "58825d77c0ba3a1d717ee0a1bec83da13d90989f3294ede4c37d27215d530234",
-   "taille": 945080
+   "sha256": "531ad14e0810f0efdd38804ef33555c579e2ce42731e833695d3fb4a8ad53b1b",
+   "taille": 946708
   },
   "NV_MODULE_Notifications.html": {
    "sha256": "1e7157914ae8609b9c34efdb259dee225185399a6060d0cfc1554806b42f7ead",
    "taille": 505570
   },
   "NV_MODULE_Orbite.html": {
-   "sha256": "411fa99f97831e31310c309909549ba94ff2bef27f6f49deb1d6e41a5eaec035",
-   "taille": 1440977
+   "sha256": "b7d81787dddffb71187049df8e6bfe0e8f6c602c266c8c3ed110c650ace6a660",
+   "taille": 1443176
   },
   "NV_MODULE_Passeport.html": {
    "sha256": "d36230935dcfd193bcd7a6707de341d25ae411d1939ce201bb5003981bc1f01b",
@@ -172,8 +172,8 @@
    "taille": 229543
   },
   "NV_MODULE_Profile.html": {
-   "sha256": "c107d8fadedc2109e8b9c823d3c39ddf48038f27bc8702bf3800ba9e73b1abd5",
-   "taille": 859723
+   "sha256": "d011a6f4b1bfc978ac1e79af5a5ea8397ee6211f45fe435f3ef9a1abf074d4ef",
+   "taille": 876311
   },
   "NV_MODULE_Recolte.html": {
    "sha256": "31eb31adc748686181ff4e97b78de81421ce36b3c07679ed521db292cf5600e0",
@@ -184,8 +184,8 @@
    "taille": 448570
   },
   "NV_MODULE_Reglages.html": {
-   "sha256": "649e7db39838efe62a5d1b10c7333471fadc3944994f00bf71f2c74019a376e8",
-   "taille": 562838
+   "sha256": "42d6df2fc5f4ce83474dfbec08bb60abea3c4bc911438b14ddbef3d7ddf1b0d4",
+   "taille": 619500
   },
   "NV_MODULE_Report.html": {
    "sha256": "6464921f94c8ca054d64a3674993f5618cbba946c726496fad964fd8a623e8c4",
@@ -196,20 +196,20 @@
    "taille": 106317
   },
   "NV_MODULE_Search.html": {
-   "sha256": "f4b6acadd4b9e4000e5abb94985315f39bdf624ce842f41af658c359da447587",
-   "taille": 1136599
+   "sha256": "07d02622801c052087d8510b832a730d4a72568b1f003638ce2aec58812ee454",
+   "taille": 1138798
   },
   "NV_MODULE_StoryUniverse.html": {
-   "sha256": "140111870fd7799ac4d20665bc84264a06cdd791cc46af2ba3ba7878e1bdef2b",
-   "taille": 1060996
+   "sha256": "7673ca80254af10c1d3866b06d9716025678dc340bc3848e4ca1189d937f8ac3",
+   "taille": 1063195
   },
   "NV_MODULE_Studio.html": {
    "sha256": "ecb060283feeaecabcc46965e37e7d8fe3f28ab9a5445eee7bd2b8f9f58f80ae",
    "taille": 1312691
   },
   "NV_MODULE_ViralStorm.html": {
-   "sha256": "614bd8985bc6414d7129d9bddef21a0c4c529f3672253b0d0b39f1affd2b3645",
-   "taille": 1050759
+   "sha256": "2e53b9e9c85a7255707551e44f348feef6e365d6a7bc523cbdea39b9fedd7585",
+   "taille": 1052958
   },
   "cadeaux3d/1f0cf.webp": {
    "sha256": "06bc2293f925386fd47d7c71ca561ba9e911274fcf6188fa8617170ba1705253",

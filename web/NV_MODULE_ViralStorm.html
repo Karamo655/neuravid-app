@@ -2115,7 +2115,28 @@ function norm(c, clip){
     type:type, author:c.author || c.auteur || 'Un membre', text:c.text || c.texte || '', sticker:c.sticker || null,
     url:c.media_url || c.url || c.audio_url || c.video_url || null, blob:c.blob || null, duration:+(c.duration || 0), likes:+c.likes || 0, liked:!!c.liked,
     reacts:typeof re === 'object' ? re : {}, myReact:mr, pinned:!!(c.pinned || c.epingle), pinnedAt:c.pinnedAt || c.pinned_at || null, authorLiked:!!(c.authorLiked || c.author_liked),
-    byOwner:!!(c.byOwner || c.by_owner), hidden:!!(c.hidden || c.masque), mine:!!c.mine, at:c.at || c.created_at || Date.now(), local:!!c.local || /^cl_/.test(String(c.id || ''))};
+    byOwner:!!(c.byOwner || c.by_owner), hidden:!!(c.hidden || c.masque), heldFor:typeof c.heldFor === 'string' ? c.heldFor : null, pending:c.pending === true, mine:!!c.mine, at:c.at || c.created_at || Date.now(), local:!!c.local || /^cl_/.test(String(c.id || ''))};
+}
+/* ── Le Cercle de confiance (16 novembre 2026) : un commentaire « mis de côté » (mode Fleurs, mode calme, mot masqué)
+   attend l'accord de l'auteur de la vidéo ; seuls lui et l'auteur du commentaire le voient. Phrases dans les 11 langues ici. ── */
+var NVR_CERCLE = {
+  fr:['Mis de côté : il attend votre accord', 'Accepter', 'En attente de l\'accord de l\'auteur'],
+  en:['Set aside: waiting for your approval', 'Approve', 'Waiting for the creator\'s approval'],
+  es:['Apartado: espera tu aprobación', 'Aceptar', 'Esperando la aprobación del autor'],
+  pt:['Posto de lado: espera a sua aprovação', 'Aceitar', 'À espera da aprovação do autor'],
+  ar:['في الانتظار: ينتظر موافقتك', 'قبول', 'في انتظار موافقة صاحب الفيديو'],
+  sw:['Limewekwa kando: linasubiri idhini yako', 'Kubali', 'Linasubiri idhini ya mwenye video'],
+  ha:['An ajiye a gefe: yana jiran amincewarka', 'Amince', 'Yana jiran amincewar mai bidiyon'],
+  yo:['A fi sí ẹ̀gbẹ́: ó ń dúró de àṣẹ rẹ', 'Gbà á', 'Ó ń dúró de àṣẹ ẹni tó ni fídíò'],
+  wo:['Ñu teg ko ci wet: mu ngi xaar sa nangu', 'Nangu', 'Mu ngi xaar nangu boroom widewo bi'],
+  bm:['A bilalen kɛrɛ fɛ: a bɛ i ka sɔn makɔnɔ', 'A sɔn', 'A bɛ video tigi ka sɔn makɔnɔ'],
+  ln:['Etiami pembeni: ezali kozela ndingisa na yo', 'Ndima', 'Ezali kozela ndingisa ya nkolo ya video']};
+function cercleTxt(i){ var d = NVR_CERCLE[langueUI()] || NVR_CERCLE.fr; return d[i]; }
+function etiquetteMasque(c, proprio){
+  if(!c.hidden) return '';
+  if(c.heldFor && proprio) return '<div class="outils nvr-attente"><button disabled data-brut>' + esc(cercleTxt(0)) + '</button><button data-accepter="' + esc(c.id) + '" data-brut>' + esc(cercleTxt(1)) + '</button></div>';
+  if(c.pending && c.mine && !proprio) return '<div class="outils"><button disabled data-brut>' + esc(cercleTxt(2)) + '</button></div>';
+  return '<div class="outils"><button disabled>Masqué pour les autres</button></div>';
 }
 function aplatir(l){ var r = []; (l || []).forEach(function(c){ r.push(c); if(Array.isArray(c.replies)) c.replies.forEach(function(x){ if(!x.parent && !x.parentId) x.parent = c.id; r.push(x); }); }); return r; }
 function seulementEmojis(t){ try{ var x = t.replace(/\s/g, ''); return x.length > 0 && x.length <= 16 && /^(?:\p{Extended_Pictographic}|\p{Regional_Indicator}|\p{Emoji_Modifier}|‍|️)+$/u.test(x); }catch(e){ return false; } }
@@ -2166,7 +2187,7 @@ function itemC(c, topId, proprio, estRep){
   if(c.auto && !c.voir) return '<li data-cid="' + esc(c.id) + '"><span class="av">!</span><div class="c"><div class="auto">🛡️ Masqué automatiquement : propos blessants<button data-voir="' + esc(c.id) + '">Voir</button></div>' +
     '<div class="outils">' + (!c.mine ? '<button data-signaler="' + esc(c.id) + '">⚠️ Signaler</button>' : '') + '<button class="plusb" data-menu="' + esc(c.id) + '" aria-label="Plus d\'actions">⋯</button></div>%REP%</div></li>';
   return '<li class="' + (c.pinned && !estRep ? 'epingle' : '') + (c.hidden ? ' masque' : '') + '" data-cid="' + esc(c.id) + '"><span class="av">' + esc((String(c.author).replace(/^@/, '')[0] || '?').toUpperCase()) + '</span><div class="c"><b>' + esc(c.author) + badges + '<small>' + ilya(c.at) + '</small></b>' +
-    corpsC(c) + reacs + (c.authorLiked ? '<span class="aime-auteur">❤️ Aimé par l\'auteur</span>' : '') + (c.hidden ? '<div class="outils"><button disabled>Masqué pour les autres</button></div>' : '') + outils + '%REP%</div>' +
+    corpsC(c) + reacs + (c.authorLiked ? '<span class="aime-auteur">❤️ Aimé par l\'auteur</span>' : '') + etiquetteMasque(c, proprio) + outils + '%REP%</div>' +
     '<button class="aimeC' + (c.liked ? ' on' : '') + '" data-aimec="' + esc(c.id) + '" aria-label="Aimer ce commentaire">' + svg('coeur') + '<span>' + (c.likes > 0 ? fmt(c.likes) : '') + '</span></button></li>';
 }
 /* ── Bienveillance : filtre des mots blessants ──
@@ -2660,6 +2681,7 @@ function brancher(){
     }
     if((t = e.target.closest('[data-signaler]'))){ var cs = trouverC(t.dataset.signaler); if(cs) signaler(cs); return; }
     if((t = e.target.closest('[data-menu]'))){ var cmn = trouverC(t.dataset.menu); if(cmn) menuC(cmn); return; }
+    if((t = e.target.closest('[data-accepter]'))){ var ca = trouverC(t.dataset.accepter); if(ca && ca.hidden){ ca.heldFor = null; masquer(ca); } return; }
     if((t = e.target.closest('[data-voir]'))){ var cv = trouverC(t.dataset.voir); if(cv){ cv.voir = true; rendreListe(); } return; }
     var voc = e.target.closest('.nvr-vocal');
     if(voc){
