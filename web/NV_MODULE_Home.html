@@ -947,6 +947,11 @@ body.feuille-ouverte #app *,body.feuille-ouverte #app *::before,body.feuille-ouv
 .ht-txt b{font-size:clamp(12px,3.6vw,15.5px);font-weight:850}
 .ht-txt small{font-size:clamp(9.5px,2.7vw,11.5px);font-weight:700;color:color-mix(in srgb,var(--c) 55%,#fff)}
 .ht-txt em{font-style:normal;font-size:clamp(9px,2.5vw,10.5px);color:#E8E2FA;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+/* 16 nov. 2026 (retour d'un testeur : « Today's challenges / La Ruche des défis », « The Nations' Arena » coupés par le bord de l'hexagone) :
+   le texte remonte dans la partie large de l'hexagone et reste dans la largeur sûre (le bord bas se resserre) ; les noms longs passent à la ligne */
+.ht-txt{left:19%;right:19%;bottom:15%;gap:2px}
+.ht-txt b{font-size:clamp(11.5px,3.3vw,15px);overflow-wrap:anywhere;text-wrap:balance}
+.ht-txt small{font-size:clamp(9px,2.5vw,11px);line-height:1.12;overflow-wrap:anywhere;text-wrap:balance}
 .ht-tag{position:absolute;top:9%;left:50%;transform:translateX(-50%);padding:1px 7px;border-radius:8px;background:rgba(8,4,24,.55);font-size:clamp(8.5px,2.3vw,10px);font-weight:800;letter-spacing:.02em;color:#E8E2FA;white-space:nowrap}
 .ht-tag:empty{display:none}
 .ht-cel .age-min{position:absolute;top:9%;right:24%;font-style:normal;font-size:10px;font-weight:900;padding:1px 5px;border-radius:7px;background:#FF7AC6;color:#2A0A1E}
