@@ -1,0 +1,1068 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<!--NV_VITESSE--><script>/* NEURAVID — la vitesse commune (14 novembre 2026). Injectée en tête de chaque module par injecter_vitesse.py.
+   Rien n'est retiré : chaque animation reste, elle travaille seulement quand on la voit, et au rythme que le téléphone peut tenir.
+   1. La cadence des images (requestAnimationFrame) suit le téléphone et la personne :
+      - téléphone modeste (≤ 4 cœurs, ≤ 2 Go, ou économie de données) : 30 images/s au plus ;
+      - personne qui ne touche à rien depuis 15 s : 30 images/s (20 sur un téléphone modeste) ; tout geste rend la pleine cadence ;
+      - jamais pendant une capture (caméra, micro ou enregistrement en cours) : pleine cadence, rien n'est touché.
+   2. Les animations CSS sans fin s'arrêtent quand elles sortent de l'écran, et reprennent dès qu'elles reviennent.
+   3. (deuxième vague) Quand la cadence est réduite, les animations CSS sans fin et les animations SVG à l'écran avancent AU MÊME
+      rythme que le reste (elles sont « pilotées » : même mouvement, même vitesse, mais une image calculée 30 ou 20 fois par seconde
+      au lieu de 60). Sans cela, une seule petite animation obligeait le téléphone à recomposer tout l'écran 60 fois par seconde.
+      Tout geste les rend à elles-mêmes. Une animation mise en pause par le module n'est jamais relancée.
+   window.NVVitesse = {faible, cadence(), cran(), repos(), capture(), pilotees()} pour les essais. */
+(function(){ 'use strict';
+  if(window.NVVitesse || typeof window.requestAnimationFrame !== 'function') return;
+  var N = navigator, cx = N.connection || {}, coeurs = N.hardwareConcurrency || 8, mem = N.deviceMemory || 8;
+  var faible = coeurs <= 4 || mem <= 2 || !!cx.saveData;
+  var REPOS_MS = 15000, IV_FAIBLE = 1000 / 30, IV_REPOS = 1000 / (faible ? 20 : 30);
+  var natRAF = window.requestAnimationFrame.bind(window), natCAF = window.cancelAnimationFrame.bind(window);
+  var maintenant = function(){ return (window.performance && performance.now) ? performance.now() : Date.now(); };
+  var file = new Map(), suivant = 1, demande = 0, dernier = -1e9, geste = maintenant();
+
+  /* ── la capture : flux de la caméra ou du micro encore vivants, ou enregistrement en cours ── */
+  var flux = [], enregistreurs = [], capCache = {t:0, v:false}, md = null;
+  function enCapture(){ var t = maintenant(); if(t - capCache.t < 400) return capCache.v; capCache.t = t; var v = false;
+    try{
+      flux = flux.filter(function(s){ return s.getTracks().some(function(k){ return k.readyState === 'live'; }); }); if(flux.length) v = true;
+      enregistreurs = enregistreurs.filter(function(r){ return r.state !== 'inactive'; }); if(enregistreurs.length) v = true;
+    }catch(e){ v = true; }
+    return (capCache.v = v); }
+  try{ md = N.mediaDevices; if(md && md.getUserMedia){ var gum = md.getUserMedia.bind(md);
+    md.getUserMedia = function(){ return gum.apply(null, arguments).then(function(s){ flux.push(s); capCache.t = 0; return s; }); }; } }catch(e){}
+  try{ if(md && md.getDisplayMedia){ var gdm = md.getDisplayMedia.bind(md);
+    md.getDisplayMedia = function(){ return gdm.apply(null, arguments).then(function(s){ flux.push(s); capCache.t = 0; return s; }); }; } }catch(e){}
+  try{ if(window.MediaRecorder && MediaRecorder.prototype.start){ var dem = MediaRecorder.prototype.start;
+    MediaRecorder.prototype.start = function(){ enregistreurs.push(this); capCache.t = 0; return dem.apply(this, arguments); }; } }catch(e){}
+
+  function repos(){ return maintenant() - geste > REPOS_MS; }
+  /* 4. la cadence qui s'adapte : si le téléphone n'arrive pas à tenir la cadence voulue (les images arrivent 1,6 fois trop tard
+     pendant 2 s), on descend d'un cran (60 → 30 → 20, ou 30 → 20 → 15 sur un téléphone modeste) ; quand il respire de nouveau
+     pendant 8 s, on remonte. Une cadence tenue est plus fluide, et les touchers sont servis plus vite, qu'une cadence ratée. */
+  var CRANS = faible ? [30, 20, 15] : [60, 30, 20], cran = 0, ema = 0, lent = 0, aise = 0, derniereImage = 0;
+  function voulue(){ var c = CRANS[cran]; if(repos()) c = Math.min(c, faible ? 20 : 30); return c; }
+  function intervalle(){ if(enCapture()) return 0; var c = voulue(); return c >= 60 ? 0 : 1000 / c; }
+  function mesurer(ts){ var d = ts - derniereImage; derniereImage = ts; if(d <= 0 || d > 250){ ema = 0; return; }
+    ema = ema ? ema * .9 + d * .1 : d; var cible = 1000 / voulue();
+    if(ema > cible * 1.6){ lent += d; aise = 0; if(lent > 2000 && cran < CRANS.length - 1){ cran++; lent = 0; ema = 0; } }
+    else if(ema < cible * 1.15){ aise += d; lent = 0; if(aise > 8000 && cran > 0){ cran--; aise = 0; ema = 0; } }
+    else { lent = 0; aise = 0; } }
+
+  /* ── les animations pilotées (CSS sans fin et SVG à l'écran, seulement quand la cadence est réduite) ── */
+  var pilotes = [], svgs = [], gouverne = false;
+  function piloter(ts){
+    for(var i = 0; i < pilotes.length; i++){ var p = pilotes[i]; try{ p.a.currentTime = p.base + (ts - p.t0) * (p.a.playbackRate || 1); }catch(e){} }
+    for(i = 0; i < svgs.length; i++){ var q = svgs[i]; try{ q.s.setCurrentTime(q.base + (ts - q.t0) / 1000); }catch(e){} } }
+  function relancer(){ if(!demande && (file.size || pilotes.length || svgs.length)) demande = natRAF(tour); }
+  function prendre(a){ for(var i = 0; i < pilotes.length; i++) if(pilotes[i].a === a) return;
+    try{ var ct = a.currentTime || 0; a.pause(); a.currentTime = ct; pilotes.push({a:a, base:ct, t0:maintenant()}); relancer(); }catch(e){} }
+  function prendreSvg(s){ for(var i = 0; i < svgs.length; i++) if(svgs[i].s === s) return;
+    try{ if(s.animationsPaused()) return; var ct = s.getCurrentTime(); s.pauseAnimations(); svgs.push({s:s, base:ct, t0:maintenant()}); relancer(); }catch(e){} }
+  function lacher(){ var l = pilotes; pilotes = [];
+    l.forEach(function(p){ try{ var t = p.a.effect && p.a.effect.target; if(p.a.playState === 'paused' && t && t.isConnected) p.a.play(); }catch(e){} });
+    var m = svgs; svgs = []; m.forEach(function(q){ try{ q.s.unpauseAnimations(); }catch(e){} }); }
+  function lacherA(a){ pilotes = pilotes.filter(function(p){ return p.a !== a; }); }
+
+  function tour(ts){ demande = 0; if(!file.size && !pilotes.length && !svgs.length) return;
+    var iv = intervalle(); if(iv && ts - dernier < iv - 3){ demande = natRAF(tour); return; }
+    if(!iv && (pilotes.length || svgs.length)) lacher();
+    dernier = ts; if(!enCapture()) mesurer(ts); if(iv) piloter(ts);
+    var lot = file; file = new Map();
+    lot.forEach(function(cb){ try{ cb(ts); }catch(e){ setTimeout(function(){ throw e; }, 0); } });
+    relancer(); }
+  window.requestAnimationFrame = function(cb){ if(typeof cb !== 'function') return natRAF(cb); var id = suivant++; file.set(id, cb); if(!demande) demande = natRAF(tour); return id; };
+  window.cancelAnimationFrame = function(id){ file.delete(id); if(!file.size && !pilotes.length && !svgs.length && demande){ natCAF(demande); demande = 0; } };
+  function bouge(){ var r = repos(); geste = maintenant(); if(r) dernier = -1e9; if(gouverne && !intervalle()){ gouverne = false; lacher(); } }
+  ['pointerdown', 'touchstart', 'keydown', 'wheel', 'scroll'].forEach(function(n){ window.addEventListener(n, bouge, {capture:true, passive:true}); });
+
+  /* ── les animations CSS sans fin hors de l'écran ── */
+  var suivis = typeof WeakMap === 'function' ? new WeakMap() : null, arretees = [], io = null;
+  function sansFin(a){ try{ return a.effect && a.effect.getTiming && a.effect.getTiming().iterations === Infinity; }catch(e){ return false; } }
+  function voulueEnPause(el){ try{ return /paused/.test(getComputedStyle(el).animationPlayState || ''); }catch(e){ return false; } }
+  function estCSS(a){ return !!(window.CSSAnimation && a instanceof CSSAnimation); }
+  if(suivis && 'IntersectionObserver' in window && document.getAnimations){
+    io = new IntersectionObserver(function(es){ es.forEach(function(e){ var el = e.target, s = suivis.get(el); if(!s) return; s.vu = e.isIntersecting;
+      if(s.vu){ var reste = []; arretees.forEach(function(a){ var t = a.effect && a.effect.target;
+          if(t === el){ if(a.playState === 'paused' && !voulueEnPause(el)){ if(gouverne) prendre(a); else try{ a.play(); }catch(x){} } } else reste.push(a); }); arretees = reste; }
+      else { try{ el.getAnimations().forEach(function(a){ if(!estCSS(a) || !sansFin(a)) return; var pil = pilotes.some(function(p){ return p.a === a; });
+          if(pil){ lacherA(a); arretees.push(a); } else if(a.playState === 'running'){ try{ a.pause(); arretees.push(a); }catch(x){} } }); }catch(x){} } }); }, {rootMargin:'120px'});
+    var balayer = function(){ if(document.hidden) return;
+      arretees = arretees.filter(function(a){ var t = a.effect && a.effect.target; return t && t.isConnected; });
+      pilotes = pilotes.filter(function(p){ var t = p.a.effect && p.a.effect.target; return t && t.isConnected && p.a.playState !== 'idle'; });
+      gouverne = intervalle() > 0; if(!gouverne && (pilotes.length || svgs.length)) lacher();
+      try{ document.getAnimations().forEach(function(a){ if(!estCSS(a) || !sansFin(a)) return; var t = a.effect && a.effect.target; if(!t || t.nodeType !== 1) return;
+        var s = suivis.get(t); if(!s){ suivis.set(t, {vu:true}); io.observe(t); return; }
+        if(!s.vu){ if(a.playState === 'running'){ try{ a.pause(); arretees.push(a); }catch(x){} } return; }
+        if(gouverne && a.playState === 'running' && !voulueEnPause(t)) prendre(a); }); }catch(e){}
+      /* les SVG animés : endormis hors de l'écran, pilotés à l'écran quand la cadence est réduite */
+      try{ [].forEach.call(document.querySelectorAll('svg'), function(s){ if(s.ownerSVGElement || !s.pauseAnimations) return;
+          if(!s.querySelector('animate,animateTransform,animateMotion,set')) return; var r = s.getBoundingClientRect(), vu = !!(r.width && r.bottom > -120 && r.top < innerHeight + 120);
+          if(!vu){ var pil = svgs.some(function(q){ return q.s === s; });
+            if(pil){ svgs = svgs.filter(function(q){ return q.s !== s; }); s.__nvDort = true; }
+            else if(!s.animationsPaused()){ try{ s.pauseAnimations(); s.__nvDort = true; }catch(e){} } return; }
+          if(s.__nvDort){ s.__nvDort = false; try{ s.unpauseAnimations(); }catch(e){} }
+          if(gouverne) prendreSvg(s); }); }catch(e){}
+      svgs = svgs.filter(function(q){ return q.s.isConnected; }); };
+    var lancer = function(){ balayer(); setInterval(balayer, 2000); };
+    if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', function(){ setTimeout(lancer, 1500); }); else setTimeout(lancer, 1500);
+  }
+  window.NVVitesse = {faible:faible, repos:repos, capture:enCapture, cadence:function(){ var iv = intervalle(); return iv ? Math.round(1000 / iv) : 60; }, cran:function(){ return cran; },
+    pilotees:function(){ return {css:pilotes.length, svg:svgs.length}; }};
+})();</script><!--/NV_VITESSE-->
+<!--NV_CONFIG--><script src="nv-config.js"></script><!--/NV_CONFIG-->
+<!--NV_DEMO--><script id="nv-demo">
+/* NEURAVID — LA DÉMONSTRATION dans chaque module (injectée en tête de page, avant le module).
+   Jamais dans l'application ni avec un serveur (NV_API_BASE). Allumée si l'accueil l'a allumée pour la session
+   (sessionStorage « nv_demo » = 1), ou « #demo » dans l'adresse, ou une page ouverte comme fichier (file:, content:).
+   Elle permet seulement d'ouvrir les autres modules à côté (NV_MODULES_BASE) avec le même visiteur de démonstration ;
+   chaque module garde ses propres règles (rien d'inventé hors de la démonstration).
+   Seule exception à « jamais dans l'application » : l'APK « NEURAVID Aperçu » pose window.NV_APERCU = true (3 nov. 2026) ;
+   l'application de production ne le pose jamais. */
+(function(){ try{ var dansApp = !window.NV_APERCU && !!(window.flutter_inappwebview || window.NVLien || window.ReactNativeWebView), h = location.hash || '', s = null; try{ s = sessionStorage.getItem('nv_demo'); }catch(e){ s = null; }
+  if(dansApp || (typeof window.NV_API_BASE === 'string' && window.NV_API_BASE) || s === '0' || /(^#|&)demo=0(&|$)/.test(h)) return;
+  if(!(s === '1' || /(^#|&)demo(=1)?(&|$)/.test(h) || /^(file|content):$/.test(location.protocol))) return;
+  window.NV_DEMO = true; try{ sessionStorage.setItem('nv_demo', '1'); }catch(e){ /* rien */ }
+  if(!window.NV_MODULES_BASE) window.NV_MODULES_BASE = './';
+  if(!window.NV_USER) window.NV_USER = {id:'demo', handle:'visiteur', prenom:'Aya', age:25, majeur:true, iso:'GN'};
+}catch(e){ /* rien */ } })();
+</script><!--/NV_DEMO-->
+
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#140b33">
+<title>La Tresse du monde · NEURAVID</title>
+<style>
+/* La Tresse du monde : une maille de 5 secondes par pays, de pays en pays, sur le globe (16 novembre 2026).
+   Aucune ressource extérieure : le globe est dessiné dans la page, les vidéos viennent du serveur de la publication. */
+:root{
+  --nuit:#140b33; --nuit2:#1c1147; --alv:#241657; --craie:#f6f1ff; --brume:rgba(236,228,255,.74); --trait:rgba(255,255,255,.16);
+  --or:#ffc531; --argent:#d7dbe6; --bronze:#e0995a; --cyan:#16e0d4; --rose:#ff4f9e; --rouge:#ff7a7a;
+  --hex:polygon(25% 0,75% 0,100% 50%,75% 100%,25% 100%,0 50%);
+  --sans:system-ui,-apple-system,"Segoe UI",Roboto,"Noto Sans",sans-serif;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%;text-size-adjust:100%}
+body{margin:0;background:var(--nuit);color:var(--craie);font:16px/1.45 var(--sans);min-height:100vh}
+main{max-width:768px;margin:0 auto;padding:12px 16px calc(32px + env(safe-area-inset-bottom,0px))}
+header{display:flex;align-items:center;gap:10px;padding:6px 0 10px}
+.hex{width:34px;height:30px;flex:0 0 auto;clip-path:var(--hex);background:linear-gradient(135deg,var(--cyan),#6c2bd9);display:grid;place-items:center}
+.hex i{width:14px;height:14px;border-radius:50%;background:var(--nuit);box-shadow:inset 0 0 0 4px var(--craie)}
+h1{font-size:1.2rem;margin:0;line-height:1.2}
+h2{font-size:1rem;margin:0 0 8px;display:flex;align-items:center;gap:8px}
+h2::before{content:"";width:12px;height:11px;clip-path:var(--hex);background:var(--cyan);flex:0 0 auto}
+.sous{margin:0;color:var(--brume);font-size:.88rem}
+.apercu{display:inline-block;margin-inline-start:6px;padding:1px 8px;border-radius:999px;background:var(--or);color:#2a1a00;font-size:.75rem;font-weight:800;vertical-align:middle}
+#etat{margin:0 0 12px;padding:8px 12px;border-radius:10px;background:var(--nuit2);border:1px solid var(--trait);font-size:.9rem}
+#etat.hl{border-color:var(--or)}
+#etat.ok{border-color:rgba(22,224,212,.5)}
+section{background:var(--nuit2);border:1px solid var(--trait);border-radius:14px;padding:12px 14px;margin:0 0 12px}
+ul{list-style:none;margin:0;padding:0}
+li{padding:7px 0;border-top:1px solid var(--trait)}
+li:first-child{border-top:0}
+.l1{display:flex;justify-content:space-between;gap:10px;align-items:baseline;flex-wrap:wrap}
+.d{color:var(--brume);font-size:.86rem}
+.puce{display:inline-block;padding:0 7px;border-radius:999px;font-size:.75rem;font-weight:700;border:1px solid var(--trait);white-space:nowrap}
+.puce.an{color:var(--rouge);border-color:var(--rouge)}
+.puce.re{color:var(--or);border-color:var(--or)}
+.puce.co{color:var(--cyan);border-color:var(--cyan)}
+.chiffres{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;text-align:center}
+.chiffres b{display:block;font-size:1.25rem}
+.chiffres span{font-size:.75rem;color:var(--brume)}
+.med{display:inline-flex;align-items:center;gap:3px;margin-inline-end:8px;white-space:nowrap}
+.med i{width:12px;height:11px;clip-path:var(--hex);display:inline-block}
+.or i{background:var(--or)} .ar i{background:var(--argent)} .br i{background:var(--bronze)}
+table{width:100%;border-collapse:collapse;font-size:.92rem}
+td,th{padding:5px 4px;text-align:center;border-top:1px solid var(--trait)}
+td:first-child,th:first-child{text-align:start}
+th{font-size:.75rem;color:var(--brume);font-weight:600;border-top:0}
+button,select,.lien{font:inherit;color:inherit}
+button{min-height:44px;padding:8px 14px;border-radius:12px;border:1px solid var(--trait);background:var(--alv);cursor:pointer}
+button:focus-visible,select:focus-visible,.lien:focus-visible{outline:2px solid var(--or);outline-offset:2px}
+button[disabled]{opacity:.55;cursor:default}
+.actions{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 12px}
+.actions button{flex:1 1 140px}
+.lien{background:none;border:0;padding:6px 0;min-height:36px;color:var(--cyan);text-decoration:underline;cursor:pointer;font-size:.88rem}
+.jours button{min-height:40px;margin-block:4px 0;margin-inline:0 6px;padding:6px 10px;font-size:.88rem}
+.jours button[aria-current="true"]{border-color:var(--or)}
+footer{color:var(--brume);font-size:.8rem;display:grid;gap:8px;margin-top:4px}
+footer label{display:flex;gap:8px;align-items:center}
+select{min-height:40px;border-radius:10px;background:var(--alv);border:1px solid var(--trait);padding:4px 8px}
+#toast{position:fixed;left:50%;bottom:calc(16px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--craie);color:var(--nuit);padding:8px 14px;border-radius:10px;font-weight:700;opacity:0;pointer-events:none;max-width:calc(100% - 32px)}
+#toast.on{opacity:1}
+.vide{color:var(--brume);margin:0}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+[dir="rtl"] .l1{direction:rtl}
+@media (prefers-reduced-motion:no-preference){#toast{transition:opacity .2s}}
+@media (min-width:560px){h1{font-size:1.35rem}}
+
+.globe-cadre{position:relative;margin:0 auto 10px;max-width:420px}
+#globe{display:block;width:100%;aspect-ratio:1/1;touch-action:pan-y}
+.compte{position:absolute;inset-inline-start:0;bottom:6px;font-size:.85rem;color:var(--brume)}
+.compte b{color:var(--or);font-size:1.1rem}
+.geste{margin:6px 0 0;padding:8px 10px;border-radius:10px;border:1px dashed rgba(255,197,49,.55);color:var(--craie);font-size:.92rem}
+.chips{display:flex;gap:6px;flex-wrap:wrap;margin:0 0 10px}
+.chips button{min-height:38px;padding:4px 12px;font-size:.88rem;border-radius:999px}
+.chips button[aria-pressed="true"]{border-color:var(--or);color:var(--or)}
+.lecteur{position:relative;background:#000;border-radius:14px;overflow:hidden;aspect-ratio:9/16;max-height:62vh;margin:0 auto 10px;max-width:360px}
+.lecteur video,.lecteur canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;background:#000}
+.lecteur .bande{position:absolute;inset-inline:0;top:0;padding:10px 12px;background:linear-gradient(rgba(0,0,0,.7),rgba(0,0,0,0));display:flex;justify-content:space-between;gap:8px;align-items:center;font-size:.92rem}
+.lecteur .bande b{font-size:1rem}
+.lecteur .fil{position:absolute;inset-inline:10px;bottom:10px;height:6px;display:flex;gap:3px}
+.lecteur .fil i{flex:1;border-radius:3px;background:rgba(255,255,255,.25)}
+.lecteur .fil i.fait{background:var(--or)}
+.lecteur .fil i.ici{background:var(--cyan)}
+.maille{display:grid;grid-template-columns:auto 1fr;gap:10px;align-items:center}
+.maille video{width:96px;aspect-ratio:9/16;object-fit:cover;border-radius:10px;background:#000}
+.hexn{display:inline-grid;place-items:center;width:30px;height:26px;clip-path:var(--hex);background:var(--alv);font-size:.8rem;font-weight:800;flex:0 0 auto}
+.liste li{display:flex;gap:10px;align-items:center}
+.etiq{font-size:.8rem;color:var(--brume)}
+.equipe .item{border-top:1px solid var(--trait);padding:10px 0}
+.equipe .item:first-child{border-top:0}
+.equipe video{width:120px;aspect-ratio:9/16;object-fit:cover;border-radius:10px;background:#000;float:inline-start;margin-inline-end:10px}
+.equipe .acts{display:flex;gap:6px;flex-wrap:wrap;clear:both;padding-top:6px}
+.form{display:grid;gap:8px}
+.form label{display:grid;gap:4px;font-size:.88rem}
+.form input:focus-visible,.form textarea:focus-visible{outline:2px solid var(--or);outline-offset:2px}
+.form input,.form textarea{font:inherit;color:inherit;background:var(--alv);border:1px solid var(--trait);border-radius:10px;padding:8px}
+.btn-or{background:linear-gradient(135deg,#ffcf4a,#ff8a3d);color:#2a1300;border:0;font-weight:800}
+</style>
+</head>
+<body>
+<main id="app">
+<header><div class="hex" aria-hidden="true"><i></i></div><div><h1 id="titre">La Tresse du monde</h1><p class="sous" id="soustitre"></p></div></header>
+<p id="etat" role="status" aria-live="polite"></p>
+<div id="contenu"></div>
+<footer id="pied"></footer>
+</main>
+<div id="toast" role="status" aria-live="polite"></div>
+<script type="application/json" id="nvI18n-en">{"La Tresse du monde":"The World Braid","Une maille de 5 secondes par pays, de pays en pays, autour du monde.":"One 5-second strand per country, from country to country, around the world.","Aperçu":"Preview","Aperçu : une tresse d’exemple, pour découvrir la page.":"Preview: an example braid, to discover the page.","Chargement…":"Loading…","La Tresse du monde n’est pas encore ouverte.":"The World Braid is not open yet.","Aucune tresse en cours pour le moment.":"No braid in progress for now.","Pas de connexion pour le moment.":"No connection right now.","Impossible de joindre NEURAVID pour le moment.":"Unable to reach NEURAVID right now.","Les tresses":"The braids","Fermée":"Closed","Le geste à passer :":"The gesture to pass on:","Ouverte jusqu’au {0}.":"Open until {0}.","Ouvre le {0}.":"Opens on {0}.","Fermée depuis le {0}.":"Closed since {0}.","Le globe de la tresse : {0} pays tissés.":"The braid globe: {0} countries woven.","pays tissés":"countries woven","Regarder la tresse":"Watch the braid","Aucune maille pour l’instant : la première ouvre la tresse.":"No strand yet: the first one opens the braid.","De pays en pays":"From country to country","Ma maille":"My strand","Votre maille est prête. Elle sera relue par l’équipe avant d’entrer dans la tresse.":"Your strand is ready. The team will review it before it enters the braid.","Envoi…":"Sending…","Envoyer ma maille":"Send my strand","Refaire":"Redo","Tissée dans la tresse":"Woven into the braid","En relecture par l’équipe":"Being reviewed by the team","Retirer ma maille":"Remove my strand","Toucher encore pour retirer":"Tap again to remove","Maille refusée":"Strand declined","Connectez-vous pour tisser votre maille.":"Sign in to weave your strand.","La Tresse du monde est ouverte à partir de 13 ans.":"The World Braid is open from age 13.","Cette tresse est fermée.":"This braid is closed.","Indiquez d’abord le pays de votre compte.":"First set the country of your account.","Vous avez déjà une maille dans cette tresse.":"You already have a strand in this braid.","Deux mailles refusées : vous ne pouvez plus envoyer dans cette tresse.":"Two strands declined: you can no longer send to this braid.","Se connecter":"Sign in","Indiquer mon pays":"Set my country","Filmez 5 secondes depuis {0} : reprenez le geste du pays précédent et passez-le au suivant.":"Film 5 seconds from {0}: pick up the previous country’s gesture and pass it to the next.","La maille à reprendre : {0}":"The strand to pick up: {0}","Vous ouvrez la tresse : votre geste sera repris par le pays suivant.":"You open the braid: the next country will pick up your gesture.","Filmer ma maille (5 s)":"Film my strand (5 s)","Ouvrir une tresse":"Open a braid","Thème":"Theme","Consigne":"Instruction","Durée en jours (3 à 60)":"Duration in days (3 to 60)","Ouvrir la tresse":"Open the braid","Les mailles à relire":"Strands to review","Aucune maille à relire.":"No strand to review.","Durée : {0} s":"Duration: {0} s","Tisser":"Weave","Motif du refus":"Reason for declining","Refuser":"Decline","Hors du thème de la tresse":"Off the braid’s theme","Plus de 5 secondes":"More than 5 seconds","Contenu non accepté":"Content not accepted","Image ou son illisible":"Picture or sound unreadable","Autre raison":"Other reason","Langue":"Language","Traduction en cours de relecture.":"Translation being reviewed.","Une maille de 5 secondes par pays. Chaque maille est relue par l’équipe avant d’entrer dans la tresse ; le pseudo d’un mineur n’y est jamais montré.":"One 5-second strand per country. Each strand is reviewed by the team before it enters the braid; a minor’s username is never shown in it.","Pause":"Pause","Reprendre":"Resume","Arrêter":"Stop","La tresse est finie : {0} pays.":"The braid is finished: {0} countries.","La Forge n’est pas joignable ici.":"La Forge cannot be reached here.","Une maille de 5 secondes au plus.":"A strand of 5 seconds at most.","Reprenez le geste du pays précédent.":"Pick up the previous country’s gesture.","Maille envoyée : elle sera relue avant d’entrer dans la tresse.":"Strand sent: it will be reviewed before it enters the braid.","Maille retirée.":"Strand removed.","Maille tissée.":"Strand woven.","Tresse ouverte.":"Braid opened.","Envoyez ou refaites d’abord votre maille.":"First send or redo your strand.","Le globe de la tresse : un pays tissé.":"The braid globe: one country woven.","pays tissé":"country woven","La tresse est finie : un pays.":"The braid is finished: one country.","Annuler cette tresse":"Cancel this braid","Toucher encore pour annuler la tresse":"Tap again to cancel the braid","Tresse annulée.":"Braid cancelled."}</script>
+<script type="application/json" id="nvI18n-es">{"La Tresse du monde":"La Trenza del mundo","Une maille de 5 secondes par pays, de pays en pays, autour du monde.":"Un eslabón de 5 segundos por país, de país en país, alrededor del mundo.","Aperçu":"Vista previa","Aperçu : une tresse d’exemple, pour découvrir la page.":"Vista previa: una trenza de ejemplo, para descubrir la página.","Chargement…":"Cargando…","La Tresse du monde n’est pas encore ouverte.":"La Trenza del mundo aún no está abierta.","Aucune tresse en cours pour le moment.":"No hay ninguna trenza en curso por ahora.","Pas de connexion pour le moment.":"Sin conexión por ahora.","Impossible de joindre NEURAVID pour le moment.":"No se puede contactar con NEURAVID por ahora.","Les tresses":"Las trenzas","Fermée":"Cerrada","Le geste à passer :":"El gesto que hay que pasar:","Ouverte jusqu’au {0}.":"Abierta hasta el {0}.","Ouvre le {0}.":"Abre el {0}.","Fermée depuis le {0}.":"Cerrada desde el {0}.","Le globe de la tresse : {0} pays tissés.":"El globo de la trenza: {0} países tejidos.","pays tissés":"países tejidos","Regarder la tresse":"Ver la trenza","Aucune maille pour l’instant : la première ouvre la tresse.":"Ningún eslabón por ahora: el primero abre la trenza.","De pays en pays":"De país en país","Ma maille":"Mi eslabón","Votre maille est prête. Elle sera relue par l’équipe avant d’entrer dans la tresse.":"Tu eslabón está listo. El equipo lo revisará antes de que entre en la trenza.","Envoi…":"Enviando…","Envoyer ma maille":"Enviar mi eslabón","Refaire":"Rehacer","Tissée dans la tresse":"Tejido en la trenza","En relecture par l’équipe":"En revisión por el equipo","Retirer ma maille":"Retirar mi eslabón","Toucher encore pour retirer":"Toca de nuevo para retirar","Maille refusée":"Eslabón rechazado","Connectez-vous pour tisser votre maille.":"Inicia sesión para tejer tu eslabón.","La Tresse du monde est ouverte à partir de 13 ans.":"La Trenza del mundo está abierta a partir de los 13 años.","Cette tresse est fermée.":"Esta trenza está cerrada.","Indiquez d’abord le pays de votre compte.":"Indica primero el país de tu cuenta.","Vous avez déjà une maille dans cette tresse.":"Ya tienes un eslabón en esta trenza.","Deux mailles refusées : vous ne pouvez plus envoyer dans cette tresse.":"Dos eslabones rechazados: ya no puedes enviar a esta trenza.","Se connecter":"Iniciar sesión","Indiquer mon pays":"Indicar mi país","Filmez 5 secondes depuis {0} : reprenez le geste du pays précédent et passez-le au suivant.":"Graba 5 segundos desde {0}: retoma el gesto del país anterior y pásalo al siguiente.","La maille à reprendre : {0}":"El eslabón que hay que retomar: {0}","Vous ouvrez la tresse : votre geste sera repris par le pays suivant.":"Abres la trenza: el siguiente país retomará tu gesto.","Filmer ma maille (5 s)":"Grabar mi eslabón (5 s)","Ouvrir une tresse":"Abrir una trenza","Thème":"Tema","Consigne":"Consigna","Durée en jours (3 à 60)":"Duración en días (3 a 60)","Ouvrir la tresse":"Abrir la trenza","Les mailles à relire":"Eslabones por revisar","Aucune maille à relire.":"Ningún eslabón por revisar.","Durée : {0} s":"Duración: {0} s","Tisser":"Tejer","Motif du refus":"Motivo del rechazo","Refuser":"Rechazar","Hors du thème de la tresse":"Fuera del tema de la trenza","Plus de 5 secondes":"Más de 5 segundos","Contenu non accepté":"Contenido no aceptado","Image ou son illisible":"Imagen o sonido ilegible","Autre raison":"Otro motivo","Langue":"Idioma","Traduction en cours de relecture.":"Traducción en revisión.","Une maille de 5 secondes par pays. Chaque maille est relue par l’équipe avant d’entrer dans la tresse ; le pseudo d’un mineur n’y est jamais montré.":"Un eslabón de 5 segundos por país. El equipo revisa cada eslabón antes de que entre en la trenza; el seudónimo de un menor nunca se muestra.","Pause":"Pausa","Reprendre":"Reanudar","Arrêter":"Detener","La tresse est finie : {0} pays.":"La trenza ha terminado: {0} países.","La Forge n’est pas joignable ici.":"La Forge no está disponible aquí.","Une maille de 5 secondes au plus.":"Un eslabón de 5 segundos como máximo.","Reprenez le geste du pays précédent.":"Retoma el gesto del país anterior.","Maille envoyée : elle sera relue avant d’entrer dans la tresse.":"Eslabón enviado: se revisará antes de entrar en la trenza.","Maille retirée.":"Eslabón retirado.","Maille tissée.":"Eslabón tejido.","Tresse ouverte.":"Trenza abierta.","Envoyez ou refaites d’abord votre maille.":"Primero envía o rehaz tu eslabón.","Le globe de la tresse : un pays tissé.":"El globo de la trenza: un país tejido.","pays tissé":"país tejido","La tresse est finie : un pays.":"La trenza ha terminado: un país.","Annuler cette tresse":"Cancelar esta trenza","Toucher encore pour annuler la tresse":"Toca de nuevo para cancelar la trenza","Tresse annulée.":"Trenza cancelada."}</script>
+<script type="application/json" id="nvI18n-pt">{"La Tresse du monde":"A Trança do mundo","Une maille de 5 secondes par pays, de pays en pays, autour du monde.":"Um elo de 5 segundos por país, de país em país, ao redor do mundo.","Aperçu":"Pré-visualização","Aperçu : une tresse d’exemple, pour découvrir la page.":"Pré-visualização: uma trança de exemplo, para conhecer a página.","Chargement…":"Carregando…","La Tresse du monde n’est pas encore ouverte.":"A Trança do mundo ainda não está aberta.","Aucune tresse en cours pour le moment.":"Nenhuma trança em curso no momento.","Pas de connexion pour le moment.":"Sem conexão no momento.","Impossible de joindre NEURAVID pour le moment.":"Não é possível contactar a NEURAVID no momento.","Les tresses":"As tranças","Fermée":"Fechada","Le geste à passer :":"O gesto a passar:","Ouverte jusqu’au {0}.":"Aberta até {0}.","Ouvre le {0}.":"Abre a {0}.","Fermée depuis le {0}.":"Fechada desde {0}.","Le globe de la tresse : {0} pays tissés.":"O globo da trança: {0} países trançados.","pays tissés":"países trançados","Regarder la tresse":"Ver a trança","Aucune maille pour l’instant : la première ouvre la tresse.":"Nenhum elo por agora: o primeiro abre a trança.","De pays en pays":"De país em país","Ma maille":"Meu elo","Votre maille est prête. Elle sera relue par l’équipe avant d’entrer dans la tresse.":"Seu elo está pronto. A equipe vai revê-lo antes de entrar na trança.","Envoi…":"Enviando…","Envoyer ma maille":"Enviar meu elo","Refaire":"Refazer","Tissée dans la tresse":"Trançado na trança","En relecture par l’équipe":"Em revisão pela equipe","Retirer ma maille":"Retirar meu elo","Toucher encore pour retirer":"Toque novamente para retirar","Maille refusée":"Elo recusado","Connectez-vous pour tisser votre maille.":"Entre para trançar seu elo.","La Tresse du monde est ouverte à partir de 13 ans.":"A Trança do mundo está aberta a partir dos 13 anos.","Cette tresse est fermée.":"Esta trança está fechada.","Indiquez d’abord le pays de votre compte.":"Indique primeiro o país da sua conta.","Vous avez déjà une maille dans cette tresse.":"Você já tem um elo nesta trança.","Deux mailles refusées : vous ne pouvez plus envoyer dans cette tresse.":"Dois elos recusados: você não pode mais enviar para esta trança.","Se connecter":"Entrar","Indiquer mon pays":"Indicar o meu país","Filmez 5 secondes depuis {0} : reprenez le geste du pays précédent et passez-le au suivant.":"Filme 5 segundos a partir de {0}: retome o gesto do país anterior e passe-o ao seguinte.","La maille à reprendre : {0}":"O elo a retomar: {0}","Vous ouvrez la tresse : votre geste sera repris par le pays suivant.":"Você abre a trança: o país seguinte retomará o seu gesto.","Filmer ma maille (5 s)":"Filmar meu elo (5 s)","Ouvrir une tresse":"Abrir uma trança","Thème":"Tema","Consigne":"Instrução","Durée en jours (3 à 60)":"Duração em dias (3 a 60)","Ouvrir la tresse":"Abrir a trança","Les mailles à relire":"Elos a rever","Aucune maille à relire.":"Nenhum elo a rever.","Durée : {0} s":"Duração: {0} s","Tisser":"Trançar","Motif du refus":"Motivo da recusa","Refuser":"Recusar","Hors du thème de la tresse":"Fora do tema da trança","Plus de 5 secondes":"Mais de 5 segundos","Contenu non accepté":"Conteúdo não aceite","Image ou son illisible":"Imagem ou som ilegível","Autre raison":"Outro motivo","Langue":"Idioma","Traduction en cours de relecture.":"Tradução em revisão.","Une maille de 5 secondes par pays. Chaque maille est relue par l’équipe avant d’entrer dans la tresse ; le pseudo d’un mineur n’y est jamais montré.":"Um elo de 5 segundos por país. Cada elo é revisto pela equipe antes de entrar na trança; o nome de utilizador de um menor nunca é mostrado.","Pause":"Pausa","Reprendre":"Retomar","Arrêter":"Parar","La tresse est finie : {0} pays.":"A trança terminou: {0} países.","La Forge n’est pas joignable ici.":"La Forge não está acessível aqui.","Une maille de 5 secondes au plus.":"Um elo de 5 segundos no máximo.","Reprenez le geste du pays précédent.":"Retome o gesto do país anterior.","Maille envoyée : elle sera relue avant d’entrer dans la tresse.":"Elo enviado: será revisto antes de entrar na trança.","Maille retirée.":"Elo retirado.","Maille tissée.":"Elo trançado.","Tresse ouverte.":"Trança aberta.","Envoyez ou refaites d’abord votre maille.":"Primeiro envie ou refaça seu elo.","Le globe de la tresse : un pays tissé.":"O globo da trança: um país trançado.","pays tissé":"país trançado","La tresse est finie : un pays.":"A trança terminou: um país.","Annuler cette tresse":"Cancelar esta trança","Toucher encore pour annuler la tresse":"Toque novamente para cancelar a trança","Tresse annulée.":"Trança cancelada."}</script>
+<script type="application/json" id="nvI18n-ar">{"La Tresse du monde":"ضفيرة العالم","Une maille de 5 secondes par pays, de pays en pays, autour du monde.":"حلقة من 5 ثوانٍ لكل بلد، من بلد إلى بلد، حول العالم.","Aperçu":"معاينة","Aperçu : une tresse d’exemple, pour découvrir la page.":"معاينة: ضفيرة على سبيل المثال، لاكتشاف الصفحة.","Chargement…":"جارٍ التحميل…","La Tresse du monde n’est pas encore ouverte.":"ضفيرة العالم غير مفتوحة بعد.","Aucune tresse en cours pour le moment.":"لا توجد ضفيرة جارية حاليًا.","Pas de connexion pour le moment.":"لا يوجد اتصال حاليًا.","Impossible de joindre NEURAVID pour le moment.":"تعذّر الوصول إلى NEURAVID حاليًا.","Les tresses":"الضفائر","Fermée":"مغلقة","Le geste à passer :":"الحركة التي تُمرَّر:","Ouverte jusqu’au {0}.":"مفتوحة حتى {0}.","Ouvre le {0}.":"تُفتح في {0}.","Fermée depuis le {0}.":"مغلقة منذ {0}.","Le globe de la tresse : {0} pays tissés.":"كرة الضفيرة: {0} بلدان منسوجة.","pays tissés":"بلدان منسوجة","Regarder la tresse":"شاهد الضفيرة","Aucune maille pour l’instant : la première ouvre la tresse.":"لا توجد حلقة بعد: الأولى تفتتح الضفيرة.","De pays en pays":"من بلد إلى بلد","Ma maille":"حلقتي","Votre maille est prête. Elle sera relue par l’équipe avant d’entrer dans la tresse.":"حلقتك جاهزة. سيراجعها الفريق قبل دخولها الضفيرة.","Envoi…":"جارٍ الإرسال…","Envoyer ma maille":"أرسل حلقتي","Refaire":"إعادة","Tissée dans la tresse":"منسوجة في الضفيرة","En relecture par l’équipe":"قيد المراجعة من الفريق","Retirer ma maille":"سحب حلقتي","Toucher encore pour retirer":"المس مرة أخرى للسحب","Maille refusée":"حلقة مرفوضة","Connectez-vous pour tisser votre maille.":"سجّل الدخول لتنسج حلقتك.","La Tresse du monde est ouverte à partir de 13 ans.":"ضفيرة العالم مفتوحة ابتداءً من 13 عامًا.","Cette tresse est fermée.":"هذه الضفيرة مغلقة.","Indiquez d’abord le pays de votre compte.":"حدّد أولًا بلد حسابك.","Vous avez déjà une maille dans cette tresse.":"لديك بالفعل حلقة في هذه الضفيرة.","Deux mailles refusées : vous ne pouvez plus envoyer dans cette tresse.":"رُفضت حلقتان: لم يعد بإمكانك الإرسال إلى هذه الضفيرة.","Se connecter":"تسجيل الدخول","Indiquer mon pays":"تحديد بلدي","Filmez 5 secondes depuis {0} : reprenez le geste du pays précédent et passez-le au suivant.":"صوّر 5 ثوانٍ من {0}: تابِع حركة البلد السابق ومرّرها إلى التالي.","La maille à reprendre : {0}":"الحلقة التي تُستأنف: {0}","Vous ouvrez la tresse : votre geste sera repris par le pays suivant.":"أنت تفتتح الضفيرة: سيتابع البلد التالي حركتك.","Filmer ma maille (5 s)":"صوّر حلقتي (5 ث)","Ouvrir une tresse":"افتح ضفيرة","Thème":"الموضوع","Consigne":"التعليمة","Durée en jours (3 à 60)":"المدة بالأيام (3 إلى 60)","Ouvrir la tresse":"افتح الضفيرة","Les mailles à relire":"الحلقات التي تجب مراجعتها","Aucune maille à relire.":"لا توجد حلقة للمراجعة.","Durée : {0} s":"المدة: {0} ث","Tisser":"انسج","Motif du refus":"سبب الرفض","Refuser":"ارفض","Hors du thème de la tresse":"خارج موضوع الضفيرة","Plus de 5 secondes":"أكثر من 5 ثوانٍ","Contenu non accepté":"محتوى غير مقبول","Image ou son illisible":"صورة أو صوت غير واضح","Autre raison":"سبب آخر","Langue":"اللغة","Traduction en cours de relecture.":"الترجمة قيد المراجعة.","Une maille de 5 secondes par pays. Chaque maille est relue par l’équipe avant d’entrer dans la tresse ; le pseudo d’un mineur n’y est jamais montré.":"حلقة من 5 ثوانٍ لكل بلد. يراجع الفريق كل حلقة قبل دخولها الضفيرة؛ ولا يُعرض فيها أبدًا اسم مستخدم قاصر.","Pause":"إيقاف مؤقت","Reprendre":"استئناف","Arrêter":"إيقاف","La tresse est finie : {0} pays.":"انتهت الضفيرة: {0} بلدان.","La Forge n’est pas joignable ici.":"لا يمكن الوصول إلى La Forge هنا.","Une maille de 5 secondes au plus.":"حلقة من 5 ثوانٍ على الأكثر.","Reprenez le geste du pays précédent.":"تابِع حركة البلد السابق.","Maille envoyée : elle sera relue avant d’entrer dans la tresse.":"أُرسلت الحلقة: ستُراجع قبل دخولها الضفيرة.","Maille retirée.":"سُحبت الحلقة.","Maille tissée.":"نُسجت الحلقة.","Tresse ouverte.":"فُتحت الضفيرة.","Envoyez ou refaites d’abord votre maille.":"أرسل حلقتك أو أعدها أولًا.","Le globe de la tresse : un pays tissé.":"كرة الضفيرة: بلد واحد منسوج.","pays tissé":"بلد منسوج","La tresse est finie : un pays.":"انتهت الضفيرة: بلد واحد.","Annuler cette tresse":"إلغاء هذه الضفيرة","Toucher encore pour annuler la tresse":"المس مرة أخرى لإلغاء الضفيرة","Tresse annulée.":"أُلغيت الضفيرة."}</script>
+<script type="application/json" id="nvI18n-sw">{"La Tresse du monde":"Msuko wa Dunia","Une maille de 5 secondes par pays, de pays en pays, autour du monde.":"Kiungo cha sekunde 5 kwa kila nchi, kutoka nchi hadi nchi, duniani kote.","Aperçu":"Onyesho","Aperçu : une tresse d’exemple, pour découvrir la page.":"Onyesho: msuko wa mfano, ili kugundua ukurasa.","Chargement…":"Inapakia…","La Tresse du monde n’est pas encore ouverte.":"Msuko wa Dunia bado haujafunguliwa.","Aucune tresse en cours pour le moment.":"Hakuna msuko unaoendelea kwa sasa.","Pas de connexion pour le moment.":"Hakuna muunganisho kwa sasa.","Impossible de joindre NEURAVID pour le moment.":"Haiwezekani kufikia NEURAVID kwa sasa.","Les tresses":"Misuko","Fermée":"Imefungwa","Le geste à passer :":"Ishara ya kupitisha:","Ouverte jusqu’au {0}.":"Imefunguliwa hadi {0}.","Ouvre le {0}.":"Inafunguliwa {0}.","Fermée depuis le {0}.":"Imefungwa tangu {0}.","Le globe de la tresse : {0} pays tissés.":"Tufe la msuko: nchi {0} zimesukwa.","pays tissés":"nchi zilizosukwa","Regarder la tresse":"Tazama msuko","Aucune maille pour l’instant : la première ouvre la tresse.":"Hakuna kiungo bado: cha kwanza kinafungua msuko.","De pays en pays":"Kutoka nchi hadi nchi","Ma maille":"Kiungo changu","Votre maille est prête. Elle sera relue par l’équipe avant d’entrer dans la tresse.":"Kiungo chako kiko tayari. Timu itakikagua kabla hakijaingia kwenye msuko.","Envoi…":"Inatuma…","Envoyer ma maille":"Tuma kiungo changu","Refaire":"Rudia","Tissée dans la tresse":"Imesukwa kwenye msuko","En relecture par l’équipe":"Inakaguliwa na timu","Retirer ma maille":"Ondoa kiungo changu","Toucher encore pour retirer":"Gusa tena ili kuondoa","Maille refusée":"Kiungo kimekataliwa","Connectez-vous pour tisser votre maille.":"Ingia ili kusuka kiungo chako.","La Tresse du monde est ouverte à partir de 13 ans.":"Msuko wa Dunia uko wazi kuanzia miaka 13.","Cette tresse est fermée.":"Msuko huu umefungwa.","Indiquez d’abord le pays de votre compte.":"Kwanza weka nchi ya akaunti yako.","Vous avez déjà une maille dans cette tresse.":"Tayari una kiungo kwenye msuko huu.","Deux mailles refusées : vous ne pouvez plus envoyer dans cette tresse.":"Viungo viwili vimekataliwa: huwezi tena kutuma kwenye msuko huu.","Se connecter":"Ingia","Indiquer mon pays":"Weka nchi yangu","Filmez 5 secondes depuis {0} : reprenez le geste du pays précédent et passez-le au suivant.":"Rekodi sekunde 5 kutoka {0}: endeleza ishara ya nchi iliyotangulia na uipitishe kwa inayofuata.","La maille à reprendre : {0}":"Kiungo cha kuendeleza: {0}","Vous ouvrez la tresse : votre geste sera repris par le pays suivant.":"Unafungua msuko: nchi inayofuata itaendeleza ishara yako.","Filmer ma maille (5 s)":"Rekodi kiungo changu (sek 5)","Ouvrir une tresse":"Fungua msuko","Thème":"Mada","Consigne":"Maelekezo","Durée en jours (3 à 60)":"Muda kwa siku (3 hadi 60)","Ouvrir la tresse":"Fungua msuko","Les mailles à relire":"Viungo vya kukagua","Aucune maille à relire.":"Hakuna kiungo cha kukagua.","Durée : {0} s":"Muda: sek {0}","Tisser":"Suka","Motif du refus":"Sababu ya kukataa","Refuser":"Kataa","Hors du thème de la tresse":"Nje ya mada ya msuko","Plus de 5 secondes":"Zaidi ya sekunde 5","Contenu non accepté":"Maudhui hayakubaliwi","Image ou son illisible":"Picha au sauti haisomeki","Autre raison":"Sababu nyingine","Langue":"Lugha","Traduction en cours de relecture.":"Tafsiri inakaguliwa.","Une maille de 5 secondes par pays. Chaque maille est relue par l’équipe avant d’entrer dans la tresse ; le pseudo d’un mineur n’y est jamais montré.":"Kiungo cha sekunde 5 kwa kila nchi. Kila kiungo hukaguliwa na timu kabla ya kuingia kwenye msuko; jina la mtumiaji la mtoto halionyeshwi kamwe.","Pause":"Simamisha","Reprendre":"Endelea","Arrêter":"Acha","La tresse est finie : {0} pays.":"Msuko umekwisha: nchi {0}.","La Forge n’est pas joignable ici.":"La Forge haipatikani hapa.","Une maille de 5 secondes au plus.":"Kiungo cha sekunde 5 kwa kiwango cha juu.","Reprenez le geste du pays précédent.":"Endeleza ishara ya nchi iliyotangulia.","Maille envoyée : elle sera relue avant d’entrer dans la tresse.":"Kiungo kimetumwa: kitakaguliwa kabla ya kuingia kwenye msuko.","Maille retirée.":"Kiungo kimeondolewa.","Maille tissée.":"Kiungo kimesukwa.","Tresse ouverte.":"Msuko umefunguliwa.","Envoyez ou refaites d’abord votre maille.":"Kwanza tuma au rudia kiungo chako.","Le globe de la tresse : un pays tissé.":"Tufe la msuko: nchi moja imesukwa.","pays tissé":"nchi iliyosukwa","La tresse est finie : un pays.":"Msuko umekwisha: nchi moja.","Annuler cette tresse":"Ghairi msuko huu","Toucher encore pour annuler la tresse":"Gusa tena ili kughairi msuko","Tresse annulée.":"Msuko umeghairiwa."}</script>
+<script type="application/json" id="nvI18n-ha">{"La Tresse du monde":"Kitson Duniya","Une maille de 5 secondes par pays, de pays en pays, autour du monde.":"Mahaɗi na daƙiƙa 5 ga kowace ƙasa, daga ƙasa zuwa ƙasa, a duk duniya.","Aperçu":"Samfoti","Aperçu : une tresse d’exemple, pour découvrir la page.":"Samfoti: kitso na misali, don gano shafin.","Chargement…":"Ana lodawa…","La Tresse du monde n’est pas encore ouverte.":"Kitson Duniya bai buɗe ba tukuna.","Aucune tresse en cours pour le moment.":"Babu kitso da ke gudana a yanzu.","Pas de connexion pour le moment.":"Babu haɗi a yanzu.","Impossible de joindre NEURAVID pour le moment.":"Ba za a iya isa ga NEURAVID a yanzu ba.","Les tresses":"Kitsuna","Fermée":"An rufe","Le geste à passer :":"Motsin da za a miƙa:","Ouverte jusqu’au {0}.":"A buɗe har zuwa {0}.","Ouvre le {0}.":"Za a buɗe a {0}.","Fermée depuis le {0}.":"An rufe tun {0}.","Le globe de la tresse : {0} pays tissés.":"Duniyar kitso: ƙasashe {0} da aka saka.","pays tissés":"ƙasashe da aka saka","Regarder la tresse":"Kalli kitson","Aucune maille pour l’instant : la première ouvre la tresse.":"Babu mahaɗi tukuna: na farko zai buɗe kitson.","De pays en pays":"Daga ƙasa zuwa ƙasa","Ma maille":"Mahaɗina","Votre maille est prête. Elle sera relue par l’équipe avant d’entrer dans la tresse.":"Mahaɗinka ya shirya. Ƙungiyar za ta duba shi kafin ya shiga kitson.","Envoi…":"Ana aikawa…","Envoyer ma maille":"Aika mahaɗina","Refaire":"Sake yi","Tissée dans la tresse":"An saka a cikin kitson","En relecture par l’équipe":"Ƙungiyar na dubawa","Retirer ma maille":"Cire mahaɗina","Toucher encore pour retirer":"Sake taɓawa don cirewa","Maille refusée":"An ƙi mahaɗi","Connectez-vous pour tisser votre maille.":"Shiga don saka mahaɗinka.","La Tresse du monde est ouverte à partir de 13 ans.":"Kitson Duniya a buɗe yake daga shekara 13.","Cette tresse est fermée.":"An rufe wannan kitson.","Indiquez d’abord le pays de votre compte.":"Da farko saka ƙasar asusunka.","Vous avez déjà une maille dans cette tresse.":"Kana da mahaɗi a wannan kitson.","Deux mailles refusées : vous ne pouvez plus envoyer dans cette tresse.":"An ƙi mahaɗi biyu: ba za ka iya aikawa a wannan kitson ba kuma.","Se connecter":"Shiga","Indiquer mon pays":"Saka ƙasata","Filmez 5 secondes depuis {0} : reprenez le geste du pays précédent et passez-le au suivant.":"Ɗauki daƙiƙa 5 daga {0}: ci gaba da motsin ƙasar da ta gabata ka miƙa wa ta gaba.","La maille à reprendre : {0}":"Mahaɗin da za a ci gaba: {0}","Vous ouvrez la tresse : votre geste sera repris par le pays suivant.":"Kai ne ka buɗe kitson: ƙasa ta gaba za ta ci gaba da motsinka.","Filmer ma maille (5 s)":"Ɗauki mahaɗina (daƙ 5)","Ouvrir une tresse":"Buɗe kitso","Thème":"Jigo","Consigne":"Umarni","Durée en jours (3 à 60)":"Tsawon kwanaki (3 zuwa 60)","Ouvrir la tresse":"Buɗe kitson","Les mailles à relire":"Mahaɗan da za a duba","Aucune maille à relire.":"Babu mahaɗi da za a duba.","Durée : {0} s":"Tsawo: daƙ {0}","Tisser":"Saka","Motif du refus":"Dalilin ƙi","Refuser":"Ƙi","Hors du thème de la tresse":"Ba a cikin jigon kitson ba","Plus de 5 secondes":"Fiye da daƙiƙa 5","Contenu non accepté":"Ba a karɓi abun ciki ba","Image ou son illisible":"Hoto ko sauti ba ya karantuwa","Autre raison":"Wani dalili","Langue":"Harshe","Traduction en cours de relecture.":"Ana duba fassarar.","Une maille de 5 secondes par pays. Chaque maille est relue par l’équipe avant d’entrer dans la tresse ; le pseudo d’un mineur n’y est jamais montré.":"Mahaɗi na daƙiƙa 5 ga kowace ƙasa. Ƙungiyar na duba kowane mahaɗi kafin ya shiga kitson; ba a taɓa nuna sunan ƙaramin yaro.","Pause":"Dakata","Reprendre":"Ci gaba","Arrêter":"Tsaya","La tresse est finie : {0} pays.":"Kitson ya ƙare: ƙasashe {0}.","La Forge n’est pas joignable ici.":"Ba a iya isa ga La Forge a nan.","Une maille de 5 secondes au plus.":"Mahaɗi na daƙiƙa 5 a mafi yawa.","Reprenez le geste du pays précédent.":"Ci gaba da motsin ƙasar da ta gabata.","Maille envoyée : elle sera relue avant d’entrer dans la tresse.":"An aika mahaɗi: za a duba shi kafin ya shiga kitson.","Maille retirée.":"An cire mahaɗi.","Maille tissée.":"An saka mahaɗi.","Tresse ouverte.":"An buɗe kitso.","Envoyez ou refaites d’abord votre maille.":"Da farko aika ko sake yin mahaɗinka.","Le globe de la tresse : un pays tissé.":"Duniyar kitso: ƙasa ɗaya da aka saka.","pays tissé":"ƙasa da aka saka","La tresse est finie : un pays.":"Kitson ya ƙare: ƙasa ɗaya.","Annuler cette tresse":"Soke wannan kitson","Toucher encore pour annuler la tresse":"Sake taɓawa don soke kitson","Tresse annulée.":"An soke kitso."}</script>
+<script type="application/json" id="nvI18n-yo">{"La Tresse du monde":"Ìdì Irun Àgbáyé","Une maille de 5 secondes par pays, de pays en pays, autour du monde.":"Ìsopọ̀ ìṣẹ́jú-àáyá 5 fún orílẹ̀-èdè kọ̀ọ̀kan, láti orílẹ̀-èdè dé orílẹ̀-èdè, yíká ayé.","Aperçu":"Àyẹ̀wò","Aperçu : une tresse d’exemple, pour découvrir la page.":"Àyẹ̀wò: ìdì irun àpẹẹrẹ, láti mọ ojú-ìwé náà.","Chargement…":"Ń gbé e wọlé…","La Tresse du monde n’est pas encore ouverte.":"Ìdì Irun Àgbáyé kò tíì ṣí.","Aucune tresse en cours pour le moment.":"Kò sí ìdì irun tó ń lọ lọ́wọ́lọ́wọ́.","Pas de connexion pour le moment.":"Kò sí ìsopọ̀ báyìí.","Impossible de joindre NEURAVID pour le moment.":"Kò ṣeé ṣe láti dé NEURAVID báyìí.","Les tresses":"Àwọn ìdì irun","Fermée":"Ti pa","Le geste à passer :":"Ìṣesí tí a ó gbé kọjá:","Ouverte jusqu’au {0}.":"Ó ṣí títí di {0}.","Ouvre le {0}.":"Yóò ṣí ní {0}.","Fermée depuis le {0}.":"Ó ti pa láti {0}.","Le globe de la tresse : {0} pays tissés.":"Àgbáyé ìdì irun: orílẹ̀-èdè {0} tí a ti dì.","pays tissés":"orílẹ̀-èdè tí a ti dì","Regarder la tresse":"Wo ìdì irun náà","Aucune maille pour l’instant : la première ouvre la tresse.":"Kò sí ìsopọ̀ kankan síbẹ̀: èkíní ló máa ṣí ìdì irun náà.","De pays en pays":"Láti orílẹ̀-èdè dé orílẹ̀-èdè","Ma maille":"Ìsopọ̀ mi","Votre maille est prête. Elle sera relue par l’équipe avant d’entrer dans la tresse.":"Ìsopọ̀ rẹ ti ṣetán. Ẹgbẹ́ yóò yẹ̀ ẹ́ wò kí ó tó wọ inú ìdì irun.","Envoi…":"Ń fi ránṣẹ́…","Envoyer ma maille":"Fi ìsopọ̀ mi ránṣẹ́","Refaire":"Tún ṣe","Tissée dans la tresse":"A ti dì í sínú ìdì irun","En relecture par l’équipe":"Ẹgbẹ́ ń yẹ̀ ẹ́ wò","Retirer ma maille":"Yọ ìsopọ̀ mi kúrò","Toucher encore pour retirer":"Fọwọ́ kàn án lẹ́ẹ̀kan sí i láti yọ ọ́","Maille refusée":"A kọ ìsopọ̀ náà","Connectez-vous pour tisser votre maille.":"Wọlé láti dì ìsopọ̀ rẹ.","La Tresse du monde est ouverte à partir de 13 ans.":"Ìdì Irun Àgbáyé ṣí sílẹ̀ láti ọmọ ọdún 13.","Cette tresse est fermée.":"Ìdì irun yìí ti pa.","Indiquez d’abord le pays de votre compte.":"Kọ́kọ́ sọ orílẹ̀-èdè àkáǹtì rẹ.","Vous avez déjà une maille dans cette tresse.":"O ti ní ìsopọ̀ kan nínú ìdì irun yìí.","Deux mailles refusées : vous ne pouvez plus envoyer dans cette tresse.":"A ti kọ ìsopọ̀ méjì: o kò lè fi ránṣẹ́ sí ìdì irun yìí mọ́.","Se connecter":"Wọlé","Indiquer mon pays":"Sọ orílẹ̀-èdè mi","Filmez 5 secondes depuis {0} : reprenez le geste du pays précédent et passez-le au suivant.":"Ya ìṣẹ́jú-àáyá 5 láti {0}: tẹ̀síwájú ìṣesí orílẹ̀-èdè tó ṣáájú kí o sì gbé e fún èyí tó kàn.","La maille à reprendre : {0}":"Ìsopọ̀ tí a ó tẹ̀síwájú: {0}","Vous ouvrez la tresse : votre geste sera repris par le pays suivant.":"Ìwọ ló ṣí ìdì irun: orílẹ̀-èdè tó kàn yóò tẹ̀síwájú ìṣesí rẹ.","Filmer ma maille (5 s)":"Ya ìsopọ̀ mi (ìṣ 5)","Ouvrir une tresse":"Ṣí ìdì irun kan","Thème":"Àkòrí","Consigne":"Ìtọ́sọ́nà","Durée en jours (3 à 60)":"Ìgbà ní ọjọ́ (3 sí 60)","Ouvrir la tresse":"Ṣí ìdì irun náà","Les mailles à relire":"Àwọn ìsopọ̀ tí a ó yẹ̀ wò","Aucune maille à relire.":"Kò sí ìsopọ̀ láti yẹ̀ wò.","Durée : {0} s":"Ìgbà: ìṣ {0}","Tisser":"Dì í","Motif du refus":"Ìdí tí a fi kọ̀","Refuser":"Kọ̀ ọ́","Hors du thème de la tresse":"Kò sí nínú àkòrí ìdì irun","Plus de 5 secondes":"Ó ju ìṣẹ́jú-àáyá 5 lọ","Contenu non accepté":"A kò gba àkóónú náà","Image ou son illisible":"Àwòrán tàbí ohùn kò ṣeé kà","Autre raison":"Ìdí mìíràn","Langue":"Èdè","Traduction en cours de relecture.":"A ń yẹ ìtumọ̀ wò.","Une maille de 5 secondes par pays. Chaque maille est relue par l’équipe avant d’entrer dans la tresse ; le pseudo d’un mineur n’y est jamais montré.":"Ìsopọ̀ ìṣẹ́jú-àáyá 5 fún orílẹ̀-èdè kọ̀ọ̀kan. Ẹgbẹ́ ń yẹ ìsopọ̀ kọ̀ọ̀kan wò kí ó tó wọ inú ìdì irun; a kì í fi orúkọ ọmọdé hàn.","Pause":"Dánudúró","Reprendre":"Tẹ̀síwájú","Arrêter":"Dá dúró","La tresse est finie : {0} pays.":"Ìdì irun ti parí: orílẹ̀-èdè {0}.","La Forge n’est pas joignable ici.":"A kò lè dé La Forge níbí.","Une maille de 5 secondes au plus.":"Ìsopọ̀ ìṣẹ́jú-àáyá 5 ní púpọ̀ jùlọ.","Reprenez le geste du pays précédent.":"Tẹ̀síwájú ìṣesí orílẹ̀-èdè tó ṣáájú.","Maille envoyée : elle sera relue avant d’entrer dans la tresse.":"A ti fi ìsopọ̀ ránṣẹ́: a ó yẹ̀ ẹ́ wò kí ó tó wọ ìdì irun.","Maille retirée.":"A ti yọ ìsopọ̀ náà kúrò.","Maille tissée.":"A ti dì ìsopọ̀ náà.","Tresse ouverte.":"A ti ṣí ìdì irun.","Envoyez ou refaites d’abord votre maille.":"Kọ́kọ́ fi ìsopọ̀ rẹ ránṣẹ́ tàbí tún un ṣe.","Le globe de la tresse : un pays tissé.":"Àgbáyé ìdì irun: orílẹ̀-èdè kan tí a ti dì.","pays tissé":"orílẹ̀-èdè tí a ti dì","La tresse est finie : un pays.":"Ìdì irun ti parí: orílẹ̀-èdè kan.","Annuler cette tresse":"Fagilé ìdì irun yìí","Toucher encore pour annuler la tresse":"Fọwọ́ kàn án lẹ́ẹ̀kan sí i láti fagilé ìdì irun","Tresse annulée.":"A ti fagilé ìdì irun."}</script>
+<script type="application/json" id="nvI18n-wo">{"La Tresse du monde":"Létt bu Àdduna","Une maille de 5 secondes par pays, de pays en pays, autour du monde.":"Lëkkalekaay bu 5 saa-saa ci réew mu nekk, ci réew ba ci réew, ci àdduna bépp.","Aperçu":"Wone","Aperçu : une tresse d’exemple, pour découvrir la page.":"Wone: létt bu misaal, ngir xam xët wi.","Chargement…":"Mi ngi yeb…","La Tresse du monde n’est pas encore ouverte.":"Létt bu Àdduna ubbeeguñu ko ba leegi.","Aucune tresse en cours pour le moment.":"Amul benn létt buy dox léegi.","Pas de connexion pour le moment.":"Amul connexion léegi.","Impossible de joindre NEURAVID pour le moment.":"Mënuñu jot NEURAVID léegi.","Les tresses":"Létt yi","Fermée":"Tëj nañu ko","Le geste à passer :":"Jëf ji ñuy jàllale:","Ouverte jusqu’au {0}.":"Ubbeeku na ba {0}.","Ouvre le {0}.":"Dinañu ko ubbi {0}.","Fermée depuis le {0}.":"Tëj nañu ko ba {0}.","Le globe de la tresse : {0} pays tissés.":"Àdduna létt bi: {0} réew yu ñu létt.","pays tissés":"réew yu ñu létt","Regarder la tresse":"Xool létt bi","Aucune maille pour l’instant : la première ouvre la tresse.":"Amul benn lëkkalekaay ba leegi: bu jëkk bi moo ubbi létt bi.","De pays en pays":"Ci réew ba ci réew","Ma maille":"Sama lëkkalekaay","Votre maille est prête. Elle sera relue par l’équipe avant d’entrer dans la tresse.":"Sa lëkkalekaay pare na. Mbooloo mi dina ko xool balaa muy dugg ci létt bi.","Envoi…":"Mi ngi yónne…","Envoyer ma maille":"Yónne sama lëkkalekaay","Refaire":"Defaraat","Tissée dans la tresse":"Létt nañu ko ci létt bi","En relecture par l’équipe":"Mbooloo mi ngi koy xool","Retirer ma maille":"Dindi sama lëkkalekaay","Toucher encore pour retirer":"Bësaatal ngir dindi","Maille refusée":"Lëkkalekaay bi, gàntu nañu ko","Connectez-vous pour tisser votre maille.":"Duggal ngir létt sa lëkkalekaay.","La Tresse du monde est ouverte à partir de 13 ans.":"Létt bu Àdduna ubbeeku na ci 13 at.","Cette tresse est fermée.":"Létt bii tëj nañu ko.","Indiquez d’abord le pays de votre compte.":"Wonal bu jëkk réewu sa compte.","Vous avez déjà une maille dans cette tresse.":"Am nga lëkkalekaay ci létt bii ba noppi.","Deux mailles refusées : vous ne pouvez plus envoyer dans cette tresse.":"Ñaari lëkkalekaay, gàntu nañu leen: mënatoo yónne ci létt bii.","Se connecter":"Duggu","Indiquer mon pays":"Wone sama réew","Filmez 5 secondes depuis {0} : reprenez le geste du pays précédent et passez-le au suivant.":"Filmal 5 saa-saa ci {0}: jël jëfu réew mi jiitu te jàllale ko ci bi ci topp.","La maille à reprendre : {0}":"Lëkkalekaay bi ñuy jël: {0}","Vous ouvrez la tresse : votre geste sera repris par le pays suivant.":"Yaw a ubbi létt bi: réew mi ci topp dina jël sa jëf.","Filmer ma maille (5 s)":"Filmal sama lëkkalekaay (5 s)","Ouvrir une tresse":"Ubbi benn létt","Thème":"Tëmb","Consigne":"Ndigal","Durée en jours (3 à 60)":"Diir ci fan (3 ba 60)","Ouvrir la tresse":"Ubbi létt bi","Les mailles à relire":"Lëkkalekaay yi ñuy xool","Aucune maille à relire.":"Amul lëkkalekaay buñuy xool.","Durée : {0} s":"Diir: {0} s","Tisser":"Létt","Motif du refus":"Lu tax ñu gàntu","Refuser":"Gàntu","Hors du thème de la tresse":"Bokkul ci tëmbu létt bi","Plus de 5 secondes":"Ëpp na 5 saa-saa","Contenu non accepté":"Ëmbit li, nanguwuñu ko","Image ou son illisible":"Nataal walla baat bu dul leer","Autre raison":"Beneen lu tax","Langue":"Làkk","Traduction en cours de relecture.":"Tekki gi, ñu ngi koy xool.","Une maille de 5 secondes par pays. Chaque maille est relue par l’équipe avant d’entrer dans la tresse ; le pseudo d’un mineur n’y est jamais montré.":"Lëkkalekaay bu 5 saa-saa ci réew mu nekk. Mbooloo mi dina xool lëkkalekaay bu nekk balaa muy dugg ci létt bi; turu xale du feeñ mukk.","Pause":"Taxawal","Reprendre":"Dooraat","Arrêter":"Dakkal","La tresse est finie : {0} pays.":"Létt bi jeex na: {0} réew.","La Forge n’est pas joignable ici.":"Mënuñu jot La Forge fii.","Une maille de 5 secondes au plus.":"Lëkkalekaay bu 5 saa-saa lu ëpp.","Reprenez le geste du pays précédent.":"Jël jëfu réew mi jiitu.","Maille envoyée : elle sera relue avant d’entrer dans la tresse.":"Lëkkalekaay bi yónne nañu ko: dañuy xool balaa muy dugg ci létt bi.","Maille retirée.":"Lëkkalekaay bi dindi nañu ko.","Maille tissée.":"Lëkkalekaay bi létt nañu ko.","Tresse ouverte.":"Létt bi ubbi nañu ko.","Envoyez ou refaites d’abord votre maille.":"Yónneel walla defaraatal sa lëkkalekaay bu jëkk.","Le globe de la tresse : un pays tissé.":"Àdduna létt bi: benn réew bu ñu létt.","pays tissé":"réew bu ñu létt","La tresse est finie : un pays.":"Létt bi jeex na: benn réew.","Annuler cette tresse":"Neenal létt bii","Toucher encore pour annuler la tresse":"Bësaatal ngir neenal létt bi","Tresse annulée.":"Létt bi neenal nañu ko."}</script>
+<script type="application/json" id="nvI18n-bm">{"La Tresse du monde":"Diɲɛ Tresse","Une maille de 5 secondes par pays, de pays en pays, autour du monde.":"Segɔni 5 jɛɛnɛ jamana kelen-kelen bɛɛ ye, ka bɔ jamana dɔ la ka taa dɔ la, diɲɛ bɛɛ la.","Aperçu":"Jirali","Aperçu : une tresse d’exemple, pour découvrir la page.":"Jirali: tresse misali dɔ, walasa ka sɛbɛ in dɔn.","Chargement…":"A bɛ ka doni…","La Tresse du monde n’est pas encore ouverte.":"Diɲɛ Tresse ma da yɛlɛ fɔlɔ.","Aucune tresse en cours pour le moment.":"Tresse si tɛ taama na sisan.","Pas de connexion pour le moment.":"Ɲɔgɔnsira tɛ yen sisan.","Impossible de joindre NEURAVID pour le moment.":"A tɛ se ka NEURAVID sɔrɔ sisan.","Les tresses":"Tresse ninnu","Fermée":"A datugura","Le geste à passer :":"Taamasiyɛn min bɛ di ɲɔgɔn ma:","Ouverte jusqu’au {0}.":"A yɛlɛlen don ka se {0} ma.","Ouvre le {0}.":"A bɛ yɛlɛ {0}.","Fermée depuis le {0}.":"A datugura kabini {0}.","Le globe de la tresse : {0} pays tissés.":"Tresse diɲɛkolo: jamana {0} dɛsɛra.","pays tissés":"jamana dɛsɛlenw","Regarder la tresse":"Tresse lajɛ","Aucune maille pour l’instant : la première ouvre la tresse.":"Segɔni si ma kɛ fɔlɔ: fɔlɔ de bɛ tresse daminɛ.","De pays en pays":"Ka bɔ jamana dɔ la ka taa dɔ la","Ma maille":"N ka segɔni","Votre maille est prête. Elle sera relue par l’équipe avant d’entrer dans la tresse.":"I ka segɔni labɛnna. Jɛkulu bɛna a lajɛ sani a ka don tresse la.","Envoi…":"A bɛ ka ci…","Envoyer ma maille":"N ka segɔni ci","Refaire":"A kɛ kokura","Tissée dans la tresse":"A dɛsɛra tresse la","En relecture par l’équipe":"Jɛkulu b'a lajɛ","Retirer ma maille":"N ka segɔni bɔ","Toucher encore pour retirer":"A digi tugun walasa k'a bɔ","Maille refusée":"Segɔni banna","Connectez-vous pour tisser votre maille.":"I don walasa ka i ka segɔni dɛsɛ.","La Tresse du monde est ouverte à partir de 13 ans.":"Diɲɛ Tresse yɛlɛlen don k'a ta san 13 la.","Cette tresse est fermée.":"Nin tresse datugura.","Indiquez d’abord le pays de votre compte.":"I ka jatebɔsɛbɛn jamana fɔ fɔlɔ.","Vous avez déjà une maille dans cette tresse.":"Segɔni b'i bolo nin tresse in na kaban.","Deux mailles refusées : vous ne pouvez plus envoyer dans cette tresse.":"Segɔni fila banna: i tɛ se ka ci nin tresse in na tugun.","Se connecter":"Don","Indiquer mon pays":"N ka jamana fɔ","Filmez 5 secondes depuis {0} : reprenez le geste du pays précédent et passez-le au suivant.":"Segɔni 5 ja ta ka bɔ {0}: jamana tɛmɛnen ka taamasiyɛn ta k'a di nata ma.","La maille à reprendre : {0}":"Segɔni min bɛ ta: {0}","Vous ouvrez la tresse : votre geste sera repris par le pays suivant.":"I de bɛ tresse daminɛ: jamana nata bɛna i ka taamasiyɛn ta.","Filmer ma maille (5 s)":"N ka segɔni ja ta (5 s)","Ouvrir une tresse":"Tresse dɔ yɛlɛ","Thème":"Barokun","Consigne":"Cikan","Durée en jours (3 à 60)":"Waati tile la (3 ka se 60 ma)","Ouvrir la tresse":"Tresse yɛlɛ","Les mailles à relire":"Segɔni minnu bɛ lajɛ","Aucune maille à relire.":"Segɔni si tɛ yen ka lajɛ.","Durée : {0} s":"Waati: {0} s","Tisser":"A dɛsɛ","Motif du refus":"Bannikun","Refuser":"A ban","Hors du thème de la tresse":"A tɛ tresse barokun kɔnɔ","Plus de 5 secondes":"A ka ca ni segɔni 5 ye","Contenu non accepté":"Kɔnɔnafɛn ma sɔn","Image ou son illisible":"Ja walima kan tɛ kalan","Autre raison":"Kun wɛrɛ","Langue":"Kan","Traduction en cours de relecture.":"Bayɛlɛmali bɛ lajɛ la.","Une maille de 5 secondes par pays. Chaque maille est relue par l’équipe avant d’entrer dans la tresse ; le pseudo d’un mineur n’y est jamais montré.":"Segɔni 5 jɛɛnɛ jamana kelen-kelen bɛɛ ye. Jɛkulu bɛ segɔni kelen-kelen bɛɛ lajɛ sani a ka don tresse la; denmisɛn tɔgɔ tɛ jira abada.","Pause":"A jɔ","Reprendre":"A taa a fɛ","Arrêter":"A dabila","La tresse est finie : {0} pays.":"Tresse banna: jamana {0}.","La Forge n’est pas joignable ici.":"La Forge tɛ sɔrɔ yan.","Une maille de 5 secondes au plus.":"Segɔni 5 a caman na.","Reprenez le geste du pays précédent.":"Jamana tɛmɛnen ka taamasiyɛn ta.","Maille envoyée : elle sera relue avant d’entrer dans la tresse.":"Segɔni cira: a bɛna lajɛ sani a ka don tresse la.","Maille retirée.":"Segɔni bɔra.","Maille tissée.":"Segɔni dɛsɛra.","Tresse ouverte.":"Tresse yɛlɛla.","Envoyez ou refaites d’abord votre maille.":"I ka segɔni ci walima k'a kɛ kokura fɔlɔ.","Le globe de la tresse : un pays tissé.":"Tresse diɲɛkolo: jamana kelen dɛsɛra.","pays tissé":"jamana dɛsɛlen","La tresse est finie : un pays.":"Tresse banna: jamana kelen.","Annuler cette tresse":"Nin tresse dabila","Toucher encore pour annuler la tresse":"A digi tugun walasa ka tresse dabila","Tresse annulée.":"Tresse dabilara."}</script>
+<script type="application/json" id="nvI18n-ln">{"La Tresse du monde":"Lisuku ya Mokili","Une maille de 5 secondes par pays, de pays en pays, autour du monde.":"Ensinga ya sekonde 5 na ekólo moko na moko, ekólo na ekólo, mokili mobimba.","Aperçu":"Emoniseli","Aperçu : une tresse d’exemple, pour découvrir la page.":"Emoniseli: lisuku ya ndakisa, mpo na koyeba lokasa.","Chargement…":"Ezali kofungola…","La Tresse du monde n’est pas encore ouverte.":"Lisuku ya Mokili efungwami naino te.","Aucune tresse en cours pour le moment.":"Lisuku moko te ezali kotambola sikoyo.","Pas de connexion pour le moment.":"Boyokani ezali te sikoyo.","Impossible de joindre NEURAVID pour le moment.":"Ekoki te kokutana na NEURAVID sikoyo.","Les tresses":"Masuku","Fermée":"Ekangami","Le geste à passer :":"Likambo ya koleka:","Ouverte jusqu’au {0}.":"Efungwami kino {0}.","Ouvre le {0}.":"Ekofungwama na {0}.","Fermée depuis le {0}.":"Ekangami banda {0}.","Le globe de la tresse : {0} pays tissés.":"Mokili ya lisuku: mikili {0} esukami.","pays tissés":"mikili esukami","Regarder la tresse":"Tala lisuku","Aucune maille pour l’instant : la première ouvre la tresse.":"Ensinga moko te naino: ya liboso ekofungola lisuku.","De pays en pays":"Ekólo na ekólo","Ma maille":"Ensinga na ngai","Votre maille est prête. Elle sera relue par l’équipe avant d’entrer dans la tresse.":"Ensinga na yo esili. Ekipi ekotala yango liboso ekota na lisuku.","Envoi…":"Ezali kotinda…","Envoyer ma maille":"Tinda ensinga na ngai","Refaire":"Sala lisusu","Tissée dans la tresse":"Esukami na lisuku","En relecture par l’équipe":"Ekipi ezali kotala yango","Retirer ma maille":"Longola ensinga na ngai","Toucher encore pour retirer":"Finá lisusu mpo na kolongola","Maille refusée":"Ensinga eboyami","Connectez-vous pour tisser votre maille.":"Kota mpo na kosuka ensinga na yo.","La Tresse du monde est ouverte à partir de 13 ans.":"Lisuku ya Mokili efungwami banda mbula 13.","Cette tresse est fermée.":"Lisuku oyo ekangami.","Indiquez d’abord le pays de votre compte.":"Liboso, tiá ekólo ya compte na yo.","Vous avez déjà une maille dans cette tresse.":"Ozali na ensinga na lisuku oyo.","Deux mailles refusées : vous ne pouvez plus envoyer dans cette tresse.":"Nsinga mibale eboyami: okoki lisusu te kotinda na lisuku oyo.","Se connecter":"Kota","Indiquer mon pays":"Tiá ekólo na ngai","Filmez 5 secondes depuis {0} : reprenez le geste du pays précédent et passez-le au suivant.":"Zwá sekonde 5 longwa {0}: kamata likambo ya ekólo ya liboso mpe pesá yango na oyo elandi.","La maille à reprendre : {0}":"Ensinga ya kokamata: {0}","Vous ouvrez la tresse : votre geste sera repris par le pays suivant.":"Yo ofungoli lisuku: ekólo oyo elandi ekokamata likambo na yo.","Filmer ma maille (5 s)":"Zwá ensinga na ngai (5 s)","Ouvrir une tresse":"Fungola lisuku","Thème":"Motó","Consigne":"Malako","Durée en jours (3 à 60)":"Ntango na mikolo (3 kino 60)","Ouvrir la tresse":"Fungola lisuku","Les mailles à relire":"Nsinga ya kotala","Aucune maille à relire.":"Ensinga moko te ya kotala.","Durée : {0} s":"Ntango: {0} s","Tisser":"Suka","Motif du refus":"Ntina ya koboya","Refuser":"Boya","Hors du thème de la tresse":"Ezali libanda ya motó ya lisuku","Plus de 5 secondes":"Eleki sekonde 5","Contenu non accepté":"Makambo endimami te","Image ou son illisible":"Elilingi to mongongo emonani malamu te","Autre raison":"Ntina mosusu","Langue":"Lokota","Traduction en cours de relecture.":"Libongoli ezali kotalama.","Une maille de 5 secondes par pays. Chaque maille est relue par l’équipe avant d’entrer dans la tresse ; le pseudo d’un mineur n’y est jamais montré.":"Ensinga ya sekonde 5 na ekólo moko na moko. Ekipi etalaka ensinga nyonso liboso ekota na lisuku; nkombo ya mwana moke emonisamaka soki moke te.","Pause":"Telemisa","Reprendre":"Kobanda lisusu","Arrêter":"Kotelema","La tresse est finie : {0} pays.":"Lisuku esili: mikili {0}.","La Forge n’est pas joignable ici.":"La Forge ezwami awa te.","Une maille de 5 secondes au plus.":"Ensinga ya sekonde 5 koleka te.","Reprenez le geste du pays précédent.":"Kamata likambo ya ekólo ya liboso.","Maille envoyée : elle sera relue avant d’entrer dans la tresse.":"Ensinga etindami: ekotalama liboso ekota na lisuku.","Maille retirée.":"Ensinga elongwami.","Maille tissée.":"Ensinga esukami.","Tresse ouverte.":"Lisuku efungwami.","Envoyez ou refaites d’abord votre maille.":"Liboso, tinda to sala lisusu ensinga na yo.","Le globe de la tresse : un pays tissé.":"Mokili ya lisuku: ekólo moko esukami.","pays tissé":"ekólo esukami","La tresse est finie : un pays.":"Lisuku esili: ekólo moko.","Annuler cette tresse":"Longola lisuku oyo","Toucher encore pour annuler la tresse":"Finá lisusu mpo na kolongola lisuku","Tresse annulée.":"Lisuku elongwami."}</script>
+
+<script>
+/* ══ NV_CAMERA — EMBARQUÉ ════════════════════════════════════
+   Embarqué, pas référencé : un module NEURAVID doit s'ouvrir
+   seul depuis une URL file://, avec rien à côté. */
+/* ═══════════════════════════════════════════════════════════════════
+   NEURAVID — NV_CAMERA.js
+   Le bouton « Filmer » d'un défi ouvre la caméra du Studio créatif.
+
+   À embarquer dans les 16 modules de défi ET dans NV_MODULE_Create.html.
+
+   ── POURQUOI ─────────────────────────────────────────────────────────
+   Chaque défi a son propre enregistreur. Il fonctionne, il grave les
+   filtres et le logo dans l'image — mais il s'arrête là. La caméra du
+   Studio sait faire beaucoup plus, et elle existe déjà :
+
+       double caméra (médaillon, haut/bas, gauche/droite)
+       masques qui suivent le visage
+       effets pluie, neige, étincelles
+       filtres gravés dans l'image enregistrée
+       photo, montage, galerie
+
+   Une personne qui veut participer à un défi n'a aucune raison d'avoir
+   moins d'outils que quelqu'un qui filme pour rien.
+
+   ── LA DIFFICULTÉ RÉELLE ─────────────────────────────────────────────
+   Le Studio est un AUTRE fichier. Changer de page perd tout : le
+   contexte du défi, et surtout la vidéo elle-même — un Blob ne
+   traverse pas une navigation.
+
+   IndexedDB, si. C'est la seule voie, et Create s'en sert déjà pour
+   son relais. On l'emprunte :
+
+       1. le défi range son contexte et ouvre le Studio
+       2. la personne filme avec tous les outils
+       3. le Studio range la vidéo dans IndexedDB et revient au défi
+       4. le défi la reprend et la présente comme sa propre prise
+
+   ── CE QU'ON NE FAIT PAS ─────────────────────────────────────────────
+   On ne copie pas la caméra du Studio dans les seize défis. Elle pèse
+   plus de trois cents kilo-octets, et seize copies divergeraient au
+   premier correctif — c'est exactement ce qui est arrivé à IA et Coach,
+   qui affichaient deux scores différents pour la même vidéo.
+
+   Et on ne supprime pas l'enregistreur existant : si le Studio est
+   injoignable, il reprend la main. Une passerelle ne doit jamais
+   devenir un point de rupture.
+   ═══════════════════════════════════════════════════════════════════ */
+(function (racine) {
+  'use strict';
+  if (racine.NVCamera) return;
+
+  var BASE_DEFAUT = 'file:///android_asset/flutter_assets/assets/modules/';
+  var CLE_CTX = 'nv_cam_ctx';
+  var DB = 'nvcamera';
+  var MAG = 'prises';
+
+  function emit(type, charge) {
+    try { if (typeof racine.NVemit === 'function') racine.NVemit(type, charge || {}); }
+    catch (e) {}
+  }
+  function base() {
+    var b = racine.NV_MODULES_BASE || BASE_DEFAUT;
+    return b.slice(-1) === '/' ? b : b + '/';
+  }
+
+  /* ── LE COFFRE ────────────────────────────────────────────────────
+     Une vidéo de quelques mégaoctets ne tient pas dans localStorage et
+     ne survit pas à une navigation autrement. IndexedDB est le seul
+     endroit où elle peut attendre. */
+  function ouvrirBase() {
+    return new Promise(function (res) {
+      try { if (!racine.indexedDB) return res(null); } catch (e) { return res(null); }   /* stockage bloqué : l'accès lui-même peut lever une erreur */
+      var r;
+      try { r = racine.indexedDB.open(DB, 1); } catch (e) { return res(null); }
+      r.onupgradeneeded = function () {
+        try { r.result.createObjectStore(MAG); } catch (e) {}
+      };
+      r.onsuccess = function () { res(r.result); };
+      r.onerror = function () { res(null); };
+      /* certains navigateurs ne répondent jamais (fichier ouvert en content://) */
+      setTimeout(function () { res(null); }, 2000);
+    });
+  }
+  function ranger(cle, valeur) {
+    return ouvrirBase().then(function (db) {
+      if (!db) return false;
+      return new Promise(function (res) {
+        try {
+          var t = db.transaction(MAG, 'readwrite');
+          t.objectStore(MAG).put(valeur, cle);
+          t.oncomplete = function () { res(true); };
+          t.onerror = function () { res(false); };
+        } catch (e) { res(false); }
+      });
+    });
+  }
+  function reprendre(cle) {
+    return ouvrirBase().then(function (db) {
+      if (!db) return null;
+      return new Promise(function (res) {
+        try {
+          var t = db.transaction(MAG, 'readonly');
+          var q = t.objectStore(MAG).get(cle);
+          q.onsuccess = function () { res(q.result || null); };
+          q.onerror = function () { res(null); };
+        } catch (e) { res(null); }
+      });
+    });
+  }
+  function oublier(cle) {
+    return ouvrirBase().then(function (db) {
+      if (!db) return;
+      try {
+        var t = db.transaction(MAG, 'readwrite');
+        t.objectStore(MAG).delete(cle);
+      } catch (e) {}
+    });
+  }
+
+  /* ── CÔTÉ DÉFI : partir vers le Studio ────────────────────────────── */
+  function filmer(ctx) {
+    ctx = ctx || {};
+    ctx.module = ctx.module || racine.NV_MODULE_NAME || 'defi';
+    ctx.quand = Date.now();
+    /* La contrainte du défi voyage avec : le Studio doit savoir qu'une
+       story flash s'arrête à sept secondes. Sans ça, la personne filme
+       trente secondes et se fait refuser au retour. */
+    try { racine.sessionStorage.setItem(CLE_CTX, JSON.stringify(ctx)); } catch (e) {}
+    try { racine.localStorage.setItem(CLE_CTX, JSON.stringify(ctx)); } catch (e) {}
+    emit('camera_open', ctx);
+
+    /* Si le Studio est déjà dans cette page, on l'ouvre sans changer
+       d'écran : c'est plus rapide et rien ne peut se perdre. */
+    try {
+      if (racine.NVStudio && typeof racine.NVStudio.open === 'function' &&
+          typeof racine.NVStudio.tab === 'function') {
+        racine.NVStudio.open(); racine.NVStudio.tab('video');
+        return 'local';
+      }
+    } catch (e) {}
+    try {
+      if (racine.NVLien && typeof racine.NVLien.ouvrir === 'function') {
+        racine.NVLien.ouvrir('NVCreate', ctx);
+        return 'lien';
+      }
+    } catch (e) {}
+    try {
+      racine.location.href = base() + 'NV_MODULE_Create.html';
+      return 'fichier';
+    } catch (e) {}
+    return 'aucun';   /* l'appelant reprend la main avec son propre enregistreur */
+  }
+
+  /* ── CÔTÉ STUDIO : d'où vient-on, et comment y retourner ──────────── */
+  function contexte() {
+    var t = null;
+    try { t = racine.sessionStorage.getItem(CLE_CTX); } catch (e) {}
+    if (!t) { try { t = racine.localStorage.getItem(CLE_CTX); } catch (e) {} }
+    if (!t) return null;
+    try {
+      var c = JSON.parse(t);
+      /* Un contexte vieux de plus d'une heure n'a plus de sens : la
+         personne est passée à autre chose. On ne la renvoie pas dans un
+         défi qu'elle a quitté. */
+      if (!c || !c.quand || Date.now() - c.quand > 3600000) return null;
+      return c;
+    } catch (e) { return null; }
+  }
+
+  /* Le Studio appelle ceci quand la prise est terminée. */
+  function rendre(blob, meta) {
+    var c = contexte();
+    if (!c) return Promise.resolve(false);
+    var cle = 'prise_' + (c.module || 'defi') + '_' + (c.defi || 'x');
+    return ranger(cle, {blob: blob, meta: meta || {}, ctx: c, at: Date.now()})
+      .then(function (ok) {
+        if (!ok) return false;
+        emit('camera_done', {module: c.module, defi: c.defi || null,
+                             secondes: (meta && meta.seconds) || null});
+        try {
+          if (racine.NVLien && typeof racine.NVLien.ouvrir === 'function') {
+            racine.NVLien.ouvrir('NV' + c.module, c);
+            return true;
+          }
+        } catch (e) {}
+        try { racine.location.href = base() + 'NV_MODULE_' + c.module + '.html'; }
+        catch (e) {}
+        return true;
+      });
+  }
+
+  /* ── CÔTÉ DÉFI : récupérer la prise au retour ─────────────────────── */
+  function recuperer(module, defi) {
+    var cle = 'prise_' + (module || racine.NV_MODULE_NAME || 'defi') + '_' + (defi || 'x');
+    return reprendre(cle).then(function (p) {
+      if (!p) return null;
+      /* On efface tout de suite : une prise reprise deux fois se
+         retrouverait envoyée deux fois. */
+      oublier(cle);
+      if (!p.at || Date.now() - p.at > 3600000) return null;
+      return p;
+    });
+  }
+
+  /* ══ LE MÉNAGE ════════════════════════════════════════════════════
+     Une prise n'est effacée qu'à sa reprise. Si la personne filme puis
+     ne revient jamais dans le défi, l'entrée reste — une vidéo de
+     plusieurs mégaoctets par tentative abandonnée, sur un téléphone
+     d'entrée de gamme.
+
+     On balaie donc au chargement ce qui a plus d'une heure : c'est la
+     même limite que le contexte, et au-delà la personne est passée à
+     autre chose de toute façon. */
+  function balayer() {
+    return ouvrirBase().then(function (db) {
+      if (!db) return 0;
+      return new Promise(function (res) {
+        var n = 0;
+        try {
+          var t = db.transaction(MAG, 'readwrite');
+          var st = t.objectStore(MAG);
+          var q = st.openCursor();
+          q.onsuccess = function () {
+            var c = q.result;
+            if (!c) { res(n); return; }
+            var v = c.value;
+            if (!v || !v.at || Date.now() - v.at > 3600000) { c.delete(); n++; }
+            c.continue();
+          };
+          q.onerror = function () { res(n); };
+        } catch (e) { res(0); }
+      });
+    });
+  }
+  /* au chargement, sans bloquer quoi que ce soit */
+  try { setTimeout(balayer, 3000); } catch (e) {}
+
+  racine.NVCamera = {
+    balayer: balayer,
+    filmer: filmer,
+    contexte: contexte,
+    rendre: rendre,
+    recuperer: recuperer,
+    /* Pour savoir s'il faut proposer le Studio ou rester sur
+       l'enregistreur local. On ne propose jamais une porte qui ne
+       s'ouvre pas. */
+    studioJoignable: function () {
+      try {
+        if (racine.NVStudio && typeof racine.NVStudio.open === 'function') return true;
+        if (racine.NVLien && typeof racine.NVLien.ouvrir === 'function') return true;
+        return !!racine.NV_MODULES_BASE;
+      } catch (e) { return false; }
+    }
+  };
+})(window);
+
+</script>
+<script>
+(function(){
+/* ════════════════════════════════════════════════════════════════════
+ LA TRESSE DU MONDE (16 novembre 2026, recommandation 4 acceptée par Karamo)
+ Une chaîne vidéo mondiale : chaque pays tisse UNE maille de 5 secondes qui reprend le geste du pays précédent.
+ On la regarde d'un trait, de pays en pays, sur le globe. Serveur : /v1/tresses (univers), capacité /v1/tresse/capacites.
+ On filme avec La Forge (NVCamera), qui montre en fantôme la dernière image de la maille précédente (« le relais »).
+ Rien n'est inventé : une valeur inconnue s'écrit « — » ; les exemples n'existent que dans l'aperçu, marqués « Aperçu ».
+ ════════════════════════════════════════════════════════════════════ */
+'use strict';
+var MOI = 'Tresse';
+var GLOBE_B64 = 'CwDfDwDXDwDeEwDZEwDgFwDTFwDZFwDgGwDTGwDZGwDfGwDmGwK3GwK9HwDVHwDbHwDhHwDnHwLBIwDXIwDdIwDiIwDoJwDZJwDeJwDkJwDpJwDvJwKEJwKKJwKPJwLIKwDaKwDgKwDlKwDrKwDwKwD1KwJ+KwKEKwKJKwKPKwKUKwLFLwDcLwDhLwDmLwDsLwDxLwD2LwD7LwGQLwGVLwGaLwJOLwJULwJZLwJeLwJ5LwJ+LwKDLwKJLwKOLwKTMwDaMwDfMwDkMwDpMwDuMwDzMwD5MwD+MwGPMwGUMwGZMwGeMwJPMwJUMwJZMwJeMwJjMwJoMwJzMwJ4MwJ9MwKCMwKHMwKNMwKSMwKXNwDdNwDiNwDnNwDsNwDxNwD2NwD7NwEANwGONwGTNwGYNwGdNwGiNwJPNwJUNwJZNwJeNwJjNwJoNwJtNwJyNwJ3NwJ8NwKBNwKGNwKMNwKRNwKWOwDfOwDkOwDpOwDuOwDzOwD4OwD9OwECOwGIOwGNOwGSOwGXOwGcOwGhOwGmOwJPOwJUOwJZOwJeOwJjOwJoOwJtOwJyOwJ3OwJ8OwKBOwKGOwKKOwKPOwKUOwKZPwDdPwDiPwDnPwDsPwDxPwD2PwD7PwD/PwEEPwEJPwGIPwGMPwGRPwGWPwGbPwGgPwGlPwGqPwHCPwJPPwJUPwJZPwJePwJjPwJnPwJsPwJxPwJ2PwJ7PwKAPwKFPwKJPwKOPwKTPwKYQwDbQwDgQwDlQwDqQwDuQwDzQwD4QwD9QwEBQwEGQwELQwEQQwGHQwGMQwGRQwGVQwGaQwGfQwGkQwGoQwGtQwHAQwHFQwJPQwJUQwJZQwJeQwJiQwJnQwJsQwJxQwJ1QwJ6QwJ/QwKEQwKIQwKNQwKSRwDgRwDkRwDpRwDuRwDyRwD3RwD8RwEARwEFRwEKRwEPRwETRwGERwGJRwGORwGSRwGXRwGcRwGgRwGlRwGqRwGvRwHBRwHGRwJTRwJYRwJdRwJhRwJmRwJrRwJwRwJ0RwJ5RwJ+RwKCRwKHRwKMRwKQSwDfSwDkSwDoSwDtSwDySwD2SwD7SwD/SwEESwEJSwENSwESSwEXSwGCSwGGSwGLSwGPSwGUSwGZSwGdSwGiSwGnSwGrSwGwSwHDSwHHSwJcSwJhSwJlSwJqSwJuSwJzSwJ4SwJ8SwKBSwKGSwKKTgDaTgDeTgDjTgDoTgDsTgDxTgD1TgD6TgD/TgEDTgEITgEMTgERTgEVTgGETgGITgGNTgGRTgGWTgGaTgGfTgGkTgGoTgGtTgGxTgHETgHITgJgTgJkTgJpTgJtTgJyTgJ3TgJ7TgKETgKJUgDQUgDVUgDZUgDeUgDiUgDnUgDrUgDwUgD1UgD5UgD+UgECUgEHUgELUgEQUgEUUgEZUgGFUgGKUgGOUgGTUgGYUgGcUgGhUgGlUgGqUgGuUgGzUgG3UgHJUgJsUgJxUgJ1UgKDVgDRVgDWVgDaVgDfVgDjVgDoVgDsVgDxVgD1VgD6VgD+VgEDVgEHVgEMVgEQVgEVVgEZVgEeVgGFVgGKVgGOVgGTVgGXVgGcVgGgVgGlVgGpVgGuVgGyVgG3VgJ0VgKGWgDOWgDSWgDXWgDbWgDgWgDkWgDpWgDtWgDxWgD2WgD6WgD/WgEDWgEIWgEMWgERWgEVWgEaWgEeWgGFWgGKWgGOWgGSWgGXWgGbWgGgWgGkWgGpWgGtWgGyWgG2XgDKXgDPXgDTXgDYXgDcXgDgXgDlXgDpXgDuXgDyXgD3XgD7XgEAXgEEXgEIXgENXgERXgEWXgEaXgEfXgGFXgGJXgGOXgGSXgGXXgGbXgGgXgGkXgGoXgGtXgGxXgG2XgJAXgJEXgJIXgJ+XgKCXgKHXgKLXgKQYgDHYgDLYgDQYgDUYgDYYgDdYgDhYgDmYgDqYgDvYgDzYgD3YgD8YgEAYgEFYgEJYgENYgESYgEWYgEbYgEfYgGAYgGFYgGJYgGOYgGSYgGWYgGbYgGfYgGkYgGoYgGsYgGxYgG1YgI6YgJZYgJ8YgKAYgKFYgKJZgDJZgDNZgDSZgDWZgDbZgDfZgDjZgDoZgDsZgDxZgD1ZgD6ZgD+ZgECZgEHZgELZgEQZgEUZgGDZgGHZgGLZgGQZgGUZgGZZgGdZgGhZgGmZgGqZgGvZgGzZgG4ZgIzZgI4ZgI8ZgJJZgJOZgJxZgJ1ZgJ6ZgJ+ZgKDagDKagDOagDTagDXagDcagDgagDkagDpagDtagDxagD2agD6agD/agEDagEHagF+agGCagGHagGLagGQagGUagGYagGdagGhagGlagGqagGuagGzagG3agG7agIyagI2agJEagJIagJMagJRagJZbgDObgDTbgDXbgDcbgDgbgDkbgDpbgDtbgDxbgD2bgD6bgD/bgEDbgF+bgGCbgGHbgGLbgGQbgGUbgGYbgGdbgGhbgGlbgGqbgGubgGzbgG3bgG7bgHAbgIubgIybgI2bgJEbgJIbgJMbgJRcgDNcgDScgDWcgDbcgDfcgDjcgDocgDscgDxcgD1cgD6cgD+cgF+cgGDcgGHcgGLcgGQcgGUcgGZcgGdcgGhcgGmcgGqcgGvcgGzcgG4cgG8cgHAcgHFcgIqcgIvcgIzcgJOcgJSdgDQdgDUdgDYdgDddgDhdgDmdgDqdgDvdgDzdgD3dgD8dgFZdgFddgFhdgFmdgFzdgF3dgF8dgGAdgGFdgGJdgGOdgGSdgGWdgGbdgGfdgGkdgGodgGsdgGxdgG1dgG6dgG+dgHDdgHHdgIxdgI1dgJQdgJUegDKegDPegDTegDYegDcegDgegDlegDpegDuegDyegFQegFUegFYegFdegFhegFmegFqegFvegFzegF4egF8egGAegGFegGJegGOegGSegGXegGbegGgegGkegGoegGtegGxegG2egG6egG/egHDegHIegIKegJfegJjfgDXfgDbfgDgfgDkfgDpfgDtfgFPfgFUfgFYfgFdfgFhfgFmfgFqfgFvfgFzfgF4fgF8fgGBfgGFfgGKfgGOfgGSfgGXfgGbfgGgfgGkfgGpfgGtfgGyfgG2fgG7fgG/fgHEfgHIfgHNfgICfgIHfgIvfgI4fgI8ggC7ggC/ggFLggFPggFUggFYggFdggFhggFmggFqggFvggFzggF4ggF8ggGBggGFggGKggGOggGTggGXggGcggGgggGlggGpggGuggGyggG3ggG7ggH/ggIDggIIggIwggI1ggI5ggI+ggJChgCyhgC2hgC7hgC/hgFIhgFNhgFRhgFWhgFahgFfhgFjhgFohgFthgFxhgF2hgF6hgF/hgGDhgGIhgGMhgGRhgGWhgGahgGfhgGjhgGohgGshgGxhgG1hgG6hgG/hgHDhgHIhgH+hgIDhgIHhgIxhgI1hgI6hgI+hgJaigCnigCsigCxigC1igFIigFMigFRigFWigFaigFfigFjigFoigFtigFxigF2igF6igF/igGEigGIigGNigGRigGWigGaigGfigGkigGoigGtigGxigG2igG/igHEigHIigHNigHRigH7igH/igIEigIJigIpigItigIyigI2igI7igJbjgCejgCjjgCnjgCsjgCxjgC1jgDWjgDajgFKjgFOjgFTjgFYjgFcjgFhjgFmjgFqjgFvjgF0jgF4jgF9jgGCjgGGjgGLjgGPjgGUjgGZjgGdjgGijgGnjgGrjgGwjgG5jgG+jgHDjgHHjgHMjgHRjgHVjgHajgH6jgH/jgIEjgIIjgINjgIkjgIpjgItjgIyjgI3jgI7kgCZkgCekgCikgDIkgDNkgFHkgFMkgFQkgFVkgFakgFfkgFjkgFokgFtkgFxkgF2kgF7kgGAkgGEkgGJkgGOkgGSkgGXkgGckgGgkgGlkgGqkgGvkgG4kgG9kgHBkgHGkgHLkgHQkgHUkgHZkgH1kgH6kgH/kgIDkgIIkgINkgIRkgIkkgIpkgIukgIykgI3kgI8lgCQlgCVlgCalgCelgCjlgFLlgFQlgFVlgFalgFelgFjlgFolgFtlgFylgF2lgF7lgGAlgGFlgGKlgGOlgGTlgGYlgGdlgGilgGmlgGrlgGwlgG1lgG6lgG+lgHDlgHIlgHNlgHSlgHWlgHblgHzlgH4lgH9lgIClgIGlgILlgIQlgIVlgIalgIelgIjlgIolgItlgIylgI2lgI7lgJAlgJFlgJKlgJOlgJYmgCLmgCQmgCUmgCZmgCemgCjmgFNmgFSmgFXmgFcmgFhmgFmmgFqmgFvmgF0mgF5mgF+mgGDmgGImgGMmgGRmgGWmgGbmgGgmgGlmgGqmgGzmgG4mgG9mgHCmgHHmgHMmgHVmgHfmgHkmgHpmgHumgHzmgH4mgH8mgIBmgIGmgILmgIQmgIVmgIamgIemgIjmgIomgItmgIymgI3mgI8mgJAmgJFmgJKmgJPmgJUngCLngCQngCVngCangCfngCkngCpngDHngFSngFXngFcngFhngFmngFqngFvngF0ngF5ngF+ngGDngGIngGNngGSngGXngGcngGhngGmngGrngGwngG1ngG6ngG/ngHEngHJngHTngHYngHdngHingHnngHsngHxngH2ngH6ngH/ngIEngIJngIOngITngIYngIdngIingInngIsngIxngI2ngI7ngJAngJFngJKngJPngJUngJZogCGogCLogCRogCWogCbogCgogClogCqogCvogC0ogC5ogC+ogDDogFWogFbogFgogFlogFrogFwogF1ogF6ogF/ogGEogGJogGOogGTogGYogGdogGiogGnogGyogG3ogG8ogHBogHGogHLogHQogHVogHaogHfogHkogHpogHuogHzogH5ogH+ogIDogIIogINogISogIXogIcogIhogImogIrogIwogI1ogI6ogI/ogJFogJKogJPogJUogJZpgCBpgCHpgCMpgCRpgCWpgCbpgChpgCmpgCrpgCwpgC1pgC6pgDApgDFpgFWpgFbpgFgpgFlpgFrpgFwpgF1pgF6pgF/pgGEpgGupgGzpgG4pgG9pgHDpgHIpgHNpgHSpgHXpgHdpgHipgHnpgHspgHxpgH2pgH8pgIBpgIGpgILpgIQpgIWpgIbpgIgpgIlpgIqpgIvpgI1pgI6pgI/pgJEpgJJpgJPpgJUpgJZpgJuqgB4qgB9qgCDqgCIqgCNqgCTqgCYqgCdqgCjqgCoqgCtqgCzqgC4qgC9qgDDqgDIqgDNqgFdqgFjqgFoqgFtqgFzqgF4qgF9qgGzqgG4qgG9qgHDqgHIqgHNqgHTqgHYqgHdqgHjqgHoqgHtqgHzqgH4qgH9qgIDqgIIqgINqgITqgIYqgIdqgIjqgIoqgItqgIzqgI4qgI9qgJDqgJIqgJNqgJTqgJzqgJ4rgB4rgB9rgCDrgCIrgCOrgCTrgCZrgCergCkrgCprgCvrgC0rgC5rgC/rgDErgDKrgDPrgFdrgFtrgFzrgF4rgGkrgGprgG0rgG6rgG/rgHFrgHKrgHQrgHVrgHbrgHgrgHlrgHrrgHwrgH2rgH7rgIBrgIGrgIMrgIRrgIXrgIcrgIhrgInrgIsrgIyrgI3rgI9rgJCrgJIrgJNrgJTrgJYrgJorgJ+sQBzsQB5sQB/sQCEsQCKsQCPsQCVsQCbsQCgsQCmsQCssQCxsQC3sQC8sQDCsQDIsQDNsQDTsQFasQFgsQFlsQGHsQGSsQGYsQGdsQGjsQGpsQGusQG0sQG6sQG/sQHFsQHWsQHbsQHhsQHnsQHssQHysQH3sQH9sQIDsQIIsQIOsQIUsQIZsQIfsQIksQIqsQIwsQI1sQI7sQJBsQJGsQJMsQJRsQJisQJotQB0tQB6tQCAtQCGtQCLtQCRtQCXtQCdtQCjtQCotQCutQC0tQC6tQDAtQDFtQDLtQDRtQDXtQFXtQFctQFitQFotQGFtQGRtQGWtQGctQGotQGutQGztQG5tQG/tQHFtQHWtQHctQHitQHotQHutQHztQH5tQH/tQIFtQILtQIQtQIWtQIctQIitQIotQIttQIztQI5tQI/tQJFtQJKtQJQtQJWtQJctQJitQJnuQB1uQB7uQCBuQCHuQCNuQCTuQCZuQCfuQCluQCruQCxuQC3uQC9uQDDuQDJuQDPuQDVuQDbuQFfuQFluQFruQGDuQGJuQGPuQGVuQGbuQG5uQG/uQHFuQHRuQHXuQHduQHjuQHpuQHvuQH1uQH7uQIBuQIHuQINuQITuQIZuQIfuQIluQIruQIxuQI3uQI9uQJDuQJJuQJPuQJVuQJbuQJhuQJnuQJtuQKFvQBxvQB3vQB9vQCDvQCKvQCQvQCWvQCdvQCjvQCpvQCvvQC2vQC8vQDCvQDIvQDPvQDVvQDbvQDhvQFrvQFxvQF4vQF+vQGEvQGKvQGRvQGXvQGdvQGjvQGqvQGwvQG2vQG9vQHDvQHWvQHcvQHivQHovQHvvQH1vQH7vQIBvQIIvQIOvQIUvQIavQIhvQInvQItvQIzvQI6vQJAvQJGvQJNvQJTvQJZvQJfvQJmvQJsvQJyvQJ4wQBywQB4wQB+wQCFwQCLwQCSwQCYwQCfwQClwQCswQCywQC5wQC/wQDGwQDMwQDTwQDZwQDgwQDmwQDtwQFowQFuwQF1wQF7wQGCwQGIwQGPwQGVwQGcwQGiwQGpwQGvwQG2wQG8wQHDwQHJwQHQwQHWwQHdwQHjwQHqwQHwwQH3wQH9wQIEwQIKwQIRwQIXwQIewQIkwQIrwQIxwQI4wQI+wQJFwQJLwQJSwQJYwQJewQJlwQJrwQJywQJ4wQJ/xQBzxQB6xQCBxQCIxQCPxQCVxQCcxQCjxQCqxQCxxQC3xQC+xQDFxQDMxQDTxQDZxQDgxQDnxQDuxQD1xQFoxQFvxQF2xQF8xQGDxQGKxQGRxQGYxQGexQGlxQGsxQGzxQG6xQHAxQHHxQHOxQHVxQHbxQHixQHpxQHwxQH3xQH9xQIExQILxQISxQIZxQIfxQImxQItxQI0xQI7xQJBxQJIxQJPxQJWxQJdxQJjxQJqxQJxxQJ4xQJ+yQBuyQB2yQB9yQCEyQCLyQCSyQCZyQCgyQCoyQCvyQC2yQC9yQDEyQDLyQDSyQDZyQDhyQDoyQDvyQD2yQFayQFhyQFoyQF2yQF9yQGFyQGMyQGTyQGayQGhyQGoyQGvyQG2yQG+yQHFyQHMyQHTyQHayQHhyQHoyQHvyQH3yQH+yQIFyQIMyQITyQIayQIhyQIoyQIwyQI3yQI+yQJFyQJMyQJTyQJayQJiyQJpyQJwyQJ3yQJ+yQKizQBpzQBwzQB4zQCAzQCHzQCOzQCWzQCezQClzQCszQC0zQC8zQDKzQDazQDhzQDozQDwzQFZzQGOzQGVzQGczQGkzQGszQGzzQG6zQHCzQHKzQHRzQHYzQHgzQHozQHvzQH2zQH+zQIGzQINzQIUzQIczQIkzQIrzQIyzQI6zQJCzQJJzQJQzQJYzQJgzQJnzQJuzQJ20QAk0QBj0QBr0QBz0QB70QCD0QCK0QCS0QCa0QCi0QCq0QCy0QDp0QFg0QGX0QGf0QGn0QGv0QG30QG/0QHH0QHP0QHX0QHf0QHn0QHv0QH20QH+0QIG0QIO0QIW0QIe0QIm0QIu0QI20QI+0QJG0QJN0QJV0QJd0QJl0QJt0QJ10QKs1QAq1QAy1QBc1QBk1QBt1QB11QB+1QCG1QCO1QCX1QCf1QCn1QFg1QF51QGB1QGJ1QGa1QGj1QGr1QGz1QG81QHE1QHM1QHV1QHd1QHm1QHu1QH21QH/1QIH1QIP1QIY1QIg1QIp1QIx1QI51QJC1QJK1QJS1QJb1QJj1QJs1QJ01QJ81QKv2QAo2QAy2QA62QBM2QBW2QBe2QBo2QBw2QB62QCC2QCM2QCU2QCe2QCm2QES2QF22QF+2QGI2QGa2QGi2QGs2QG02QG+2QHG2QHQ2QHY2QHi2QHq2QH02QH82QIG2QIO2QIY2QIg2QIq2QIy2QI82QJE2QJO2QJW2QJg2QJo2QJy2QJ62QKE2QKM2QKW2QKe2QKw2QK63QAd3QAm3QAw3QA63QBD3QBN3QBW3QBg3QBq3QBz3QB93QCG3QCQ3QCa3QCj3QCt3QDd3QED3QEN3QGA3QGK3QGd3QGm3QGw3QG63QHD3QHN3QHW3QHg3QHq3QHz3QH93QIG3QIQ3QIa3QIj3QIt3QI23QJA3QJK3QJT3QJd3QJm3QJw3QJ63QKD3QKN3QKW3QKg3QKq3QKz3QK93QLG4QAa4QAl4QAv4QA54QBE4QBO4QBZ4QBj4QBu4QB44QCC4QCN4QCX4QCi4QCs4QC34QDB4QDL4QDW4QDg4QEK4QEV4QE+4QFJ4QGH4QGS4QGc4QGn4QGx4QG74QHG4QHQ4QHb4QHl4QHw4QH64QIF4QIP4QIZ4QIk4QIu4QI54QJD4QJO4QJY4QJi4QJt4QJ34QKC4QKM4QKX4QKh4QKr4QK24QLA4QLL5QAi5QAu5QA55QBF5QBQ5QBb5QBn5QBy5QB+5QCJ5QCV5QCg5QCr5QC35QDC5QDO5QDZ5QDl5QEH5QES5QEe5QGF5QGQ5QGb5QGn5QGy5QHJ5QHV5QHg5QHr5QH35QIC5QIO5QIZ5QIl5QIw5QI75QJH5QJS5QJe5QJp5QJ15QKA5QKL5QKX5QKi5QKu5QK55QLF6QAr6QA46QBE6QBR6QBd6QBq6QCo6QC06QDA6QDN6QDZ6QD+6QEL6QEX6QEk6QEw6QGT6QGg6QH36QID6QIQ6QIc6QIo6QI16QJB6QJO6QJa6QJm6QJz6QJ/6QKM6QKY6QKl6QKx6QK97QDQ7QD57QEH7QEV7QEj7QEx7QE+7QIA7QIO7QIc7QIq7QI47QJG7QJT7QJh7QJ97QKL8QCF8QCV8QCk8QC08QEC8QES8QEi8QEx8QFB8QIc8QIs8QI79QB+9QCQ9QCi9QC09QDG9QD89QEO9QEg9QEy+QCk+QC5+QDl+QD7+QER+QEn+QE8';
+var LANGUES_UI = {fr:{nom:'Français', loc:'fr-FR'}, en:{nom:'English', loc:'en-GB'}, es:{nom:'Español', loc:'es-ES'}, pt:{nom:'Português', loc:'pt-BR'},
+  ar:{nom:'العربية', loc:'ar-u-nu-latn', rtl:true}, sw:{nom:'Kiswahili', loc:'sw-KE', relire:true}, ha:{nom:'Hausa', loc:'ha-NG', relire:true},
+  yo:{nom:'Yorùbá', loc:'yo-NG', relire:true}, wo:{nom:'Wolof', loc:'fr-SN', relire:true}, bm:{nom:'Bamanankan', loc:'fr-ML', relire:true},
+  ln:{nom:'Lingála', loc:'fr-CD', relire:true}};
+var CLE_FILM = 'nv_tresse_film';
+
+function $(id){ return document.getElementById(id); }
+function esc(s){ return String(s == null ? '' : s).replace(/[&<>"']/g, function(c){ return {'&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;'}[c]; }); }
+function brut(k){ try{ return localStorage.getItem(k); }catch(e){ return null; } }
+function ecrire(k, v){ try{ localStorage.setItem(k, JSON.stringify(v)); return true; }catch(e){ return false; } }
+function api(){ return window.NV_API_BASE ? String(window.NV_API_BASE).replace(/\/$/, '') : null; }
+function jeton(){ return window.NV_TOKEN ? String(window.NV_TOKEN) : ''; }
+function utilisateur(){ return window.NV_USER && typeof window.NV_USER === 'object' ? window.NV_USER : null; }
+function roles(){ var u = utilisateur(); return u && Array.isArray(u.roles) ? u.roles : []; }
+function aRole(){ var r = roles(); for(var i = 0; i < arguments.length; i++) if(r.indexOf(arguments[i]) >= 0) return true; return false; }
+function nombre(x){ return typeof x === 'number' && isFinite(x) && x >= 0 ? x : null; }
+
+/* ── la langue : la même que le reste de NEURAVID (« nv_ui_langue »), sinon l'application, sinon le téléphone ── */
+function langueDetectee(){
+  try{ var hl = /(?:^#|&)lang=([a-z]{2})/.exec(location.hash || ''); if(hl && LANGUES_UI[hl[1]]) return hl[1]; }catch(e){}
+  var c = brut('nv_ui_langue'); if(c){ try{ c = JSON.parse(c); }catch(e){} if(typeof c === 'string' && LANGUES_UI[c]) return c; }
+  try{ if(window.NV_LANG){ var n = String(window.NV_LANG).slice(0, 2).toLowerCase(); if(LANGUES_UI[n]) return n; } }catch(e){}
+  var l = []; try{ l = navigator.languages && navigator.languages.length ? navigator.languages : [navigator.language || 'fr']; }catch(e){}
+  for(var i = 0; i < l.length; i++){ var k = String(l[i] || '').slice(0, 2).toLowerCase(); if(LANGUES_UI[k]) return k; }
+  return 'fr';
+}
+var L = 'fr', LOC = 'fr-FR', DICO = {};
+function poserLangue(l){
+  L = LANGUES_UI[l] ? l : 'fr'; DICO = {};
+  if(L !== 'fr'){ try{ DICO = JSON.parse($('nvI18n-' + L).textContent) || {}; }catch(e){ L = 'fr'; DICO = {}; } }
+  LOC = LANGUES_UI[L].loc;
+  document.documentElement.lang = L; document.documentElement.dir = LANGUES_UI[L].rtl ? 'rtl' : 'ltr';
+}
+function T(s){ var t = DICO[s] || s, a = arguments; return t.replace(/\{(\d)\}/g, function(m, i){ var v = a[+i + 1]; return v == null ? '—' : String(v); }); }
+function n0(x){ x = nombre(x); return x == null ? '—' : x.toLocaleString(LOC); }
+function dateTexte(ms){ if(!nombre(ms)) return '—'; try{ return new Date(ms).toLocaleDateString(LOC, {day:'numeric', month:'long'}); }catch(e){ return '—'; } }
+
+/* ── les pays : drapeau + nom (le code seul si le téléphone ne connaît pas le nom) ── */
+function drapeau(iso){ iso = String(iso || '').toUpperCase(); if(!/^[A-Z]{2}$/.test(iso)) return ''; return String.fromCodePoint(127397 + iso.charCodeAt(0), 127397 + iso.charCodeAt(1)); }
+var NOMS = null;
+function nomPays(iso){
+  iso = String(iso || '').toUpperCase(); if(!/^[A-Z]{2}$/.test(iso)) return '—';
+  if(NOMS === null){ NOMS = false; try{ NOMS = new Intl.DisplayNames([LOC, 'fr'], {type:'region'}); }catch(e){ NOMS = false; } }
+  var n = null; try{ n = NOMS ? NOMS.of(iso) : null; }catch(e){ n = null; }
+  return n && n !== iso ? n : iso;
+}
+function paysTexte(iso){ var f = drapeau(iso); return (f ? f + ' ' : '') + nomPays(iso); }
+
+/* ── où se trouve chaque pays (centre approché, le même tableau que le globe du Direct) ── */
+var PAYS_XY = {};
+('DZ:28,2;AO:-12.5,18.5;BJ:9.3,2.3;BW:-22,24;BF:12.3,-1.6;BI:-3.4,29.9;CV:16,-24;CM:6,12.5;CF:6.6,20.9;TD:15,19;KM:-11.8,43.3;CG:-0.7,15.2;CD:-2.9,23.6;CI:7.5,-5.5;DJ:11.8,42.6;EG:26.8,30.8;GQ:1.6,10.5;ER:15.2,39.8;SZ:-26.5,31.5;ET:9.1,40.5;GA:-0.8,11.6;GM:13.4,-15.3;GH:7.9,-1;GN:10.4,-10.9;GW:12,-15;KE:0.2,37.9;LS:-29.6,28.2;LR:6.4,-9.4;LY:26.3,17.2;MG:-18.8,46.9;MW:-13.3,34.3;ML:17.6,-4;MR:20.3,-10.9;MU:-20.3,57.6;MA:31.8,-7.1;MZ:-18.7,35.5;NA:-22.9,18.5;NE:17.6,8.1;NG:9.1,8.7;RW:-1.9,29.9;ST:0.2,6.6;SN:14.5,-14.5;SC:-4.7,55.5;SL:8.5,-11.8;SO:5.2,46.2;ZA:-30.6,22.9;SS:7.9,30;SD:12.9,30.2;TZ:-6.4,34.9;TG:8.6,0.8;TN:33.9,9.5;UG:1.4,32.3;ZM:-13.1,27.8;ZW:-19,29.2;' +
+ 'FR:46.6,2.4;BE:50.6,4.6;CH:46.8,8.2;DE:51.2,10.4;ES:40.4,-3.7;PT:39.6,-8;IT:42.8,12.6;GB:54,-2;IE:53.4,-8;NL:52.1,5.3;LU:49.8,6.1;AT:47.6,14.1;PL:52,19.4;SE:62,15;NO:61,9;DK:56,9.5;FI:64,26;RU:60,90;UA:49,31.4;GR:39.1,22;TR:39,35.2;RO:45.9,25;BG:42.7,25.5;CZ:49.8,15.5;HU:47.2,19.5;RS:44,20.9;' +
+ 'SA:23.9,45;AE:23.4,53.8;QA:25.3,51.2;KW:29.3,47.5;LB:33.9,35.9;JO:31,36.2;IL:31,34.9;PS:31.9,35.2;IQ:33.2,43.7;SY:35,38.5;IR:32.4,53.7;OM:21.5,55.9;YE:15.6,48.5;' +
+ 'IN:21,78;PK:30.4,69.3;BD:23.7,90.4;CN:35.9,104.2;JP:36.2,138.3;KR:36.5,127.9;ID:-2.5,118;MY:4.2,102;PH:12.9,121.8;TH:15.9,101;VN:14,108.3;SG:1.35,103.8;LK:7.9,80.8;NP:28.4,84.1;AF:33.9,67.7;KZ:48,67;' +
+ 'US:39.8,-98.6;CA:56,-106;MX:23.6,-102.5;BR:-14.2,-51.9;AR:-38.4,-63.6;CO:4.6,-74.3;PE:-9.2,-75;CL:-35.7,-71.5;VE:6.4,-66.6;HT:19,-72.3;CU:21.5,-79.5;DO:18.7,-70.2;JM:18.1,-77.3;EC:-1.8,-78.2;BO:-16.3,-63.6;PY:-23.4,-58.4;UY:-32.5,-55.8;AU:-25.3,133.8;NZ:-41,174')
+  .split(';').forEach(function(x){ var m = /^([A-Z]{2}):(-?[\d.]+),(-?[\d.]+)$/.exec(x); if(m) PAYS_XY[m[1]] = [+m[2], +m[3]]; });
+
+/* ── l'état ── */
+var ST = {motifs:{}, apercu:false, cap:null, tresses:[], id:null, t:null, etat:'', charge:false, lecture:null, prise:null, envoi:false, equipe:null, decisions:{}};
+
+/* ── le réseau ── */
+function appeler(methode, chemin, corps, form){
+  var h = {Accept:'application/json'}; if(jeton()) h.Authorization = 'Bearer ' + jeton();
+  var cle = corps && corps.__cle; if(cle) delete corps.__cle;
+  if(methode !== 'GET') h['Idempotency-Key'] = cle || ('tr-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8));
+  var o = {method:methode, headers:h, mode:'cors', cache:'no-cache'};
+  if(form) o.body = form; else if(corps){ h['Content-Type'] = 'application/json'; o.body = JSON.stringify(corps); }
+  return fetch(api() + chemin, o).then(function(r){
+    return r.text().then(function(t){ var j = null; try{ j = t ? JSON.parse(t) : null; }catch(e){ j = null; }
+      if(!r.ok){ var err = new Error('http ' + r.status); err.status = r.status; err.code = j && j.erreur; throw err; } return j; });
+  });
+}
+function emit(type, payload){
+  var msg = {source:'neuravid', module:MOI, type:type, payload:payload || {}};
+  if(window.NVemit && !window.NVemit.__nvLocal){ try{ window.NVemit(type, msg.payload); }catch(e){} }
+  try{ if(window.flutter_inappwebview) window.flutter_inappwebview.callHandler('nvEvent', msg); }catch(e){}
+  try{ window.dispatchEvent(new CustomEvent('nv:' + type, {detail:msg.payload})); }catch(e){}
+}
+function ouvrir(id, ctx){
+  var base = window.NV_MODULES_BASE ? String(window.NV_MODULES_BASE).replace(/\/?$/, '/') : '', url = base + 'NV_MODULE_' + id + '.html';
+  emit('open_module', {target:'NV' + id, url:url, contexte:ctx || null});
+  try{ if(ctx) sessionStorage.setItem('nv_ctx_' + id, JSON.stringify(ctx)); }catch(e){}
+  if(window.flutter_inappwebview) return;
+  if(window.NVLien && typeof window.NVLien.ouvrir === 'function'){ try{ window.NVLien.ouvrir('NV' + id, ctx); return; }catch(e){} }
+  try{ location.href = url; }catch(e){}
+}
+var toastT = 0;
+function toast(t){ var el = $('toast'); el.textContent = t; el.classList.add('on'); clearTimeout(toastT); toastT = setTimeout(function(){ el.classList.remove('on'); }, 3200); }
+function erreurTexte(e){
+  var c = e && e.code;
+  if(c === 'deja_envoye') return T('Vous avez déjà une maille dans cette tresse.');
+  if(c === 'trop_long') return T('Une maille de 5 secondes au plus.');
+  if(c === 'tresse_fermee') return T('Cette tresse est fermée.');
+  if(c === 'pays_requis') return T('Indiquez d’abord le pays de votre compte.');
+  if(c === 'trop_de_refus') return T('Deux mailles refusées : vous ne pouvez plus envoyer dans cette tresse.');
+  if(c === 'age_minimum') return T('La Tresse du monde est ouverte à partir de 13 ans.');
+  if(e && e.status === 401) return T('Connectez-vous pour tisser votre maille.');
+  return navigator.onLine === false ? T('Pas de connexion pour le moment.') : T('Impossible de joindre NEURAVID pour le moment.');
+}
+
+/* ════════ LE GLOBE ════════ */
+var G = {pts:null, lon0:0, lat0:12, cible:null, raf:0, dernier:0, w:0, dpr:1, ici:null, vu:true};
+function pointsTerre(){
+  if(G.pts) return G.pts;
+  var out = [];
+  try{ var b = atob(GLOBE_B64); for(var i = 0; i + 2 < b.length; i += 3){ var la = b.charCodeAt(i) / 1.8 - 60, lo = ((b.charCodeAt(i + 1) << 8) | b.charCodeAt(i + 2)) / 2 - 180; var p = la * Math.PI / 180, l = lo * Math.PI / 180; out.push([Math.sin(p), Math.cos(p), l]); } }catch(e){}
+  G.pts = out; return out;
+}
+function mouvementReduit(){ try{ return window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches; }catch(e){ return false; } }
+function vecteur(xy){ var p = xy[0] * Math.PI / 180, l = xy[1] * Math.PI / 180; return [Math.cos(p) * Math.cos(l), Math.cos(p) * Math.sin(l), Math.sin(p)]; }
+function projeter(v, cx, cy, R){
+  var l0 = G.lon0 * Math.PI / 180, p0 = G.lat0 * Math.PI / 180;
+  var la = Math.asin(Math.max(-1, Math.min(1, v[2]))), lo = Math.atan2(v[1], v[0]) - l0;
+  var z = Math.sin(p0) * Math.sin(la) + Math.cos(p0) * Math.cos(la) * Math.cos(lo);
+  return {x:cx + Math.cos(la) * Math.sin(lo) * R, y:cy - (Math.cos(p0) * Math.sin(la) - Math.sin(p0) * Math.cos(la) * Math.cos(lo)) * R, z:z};
+}
+function mailles(){ return ST.t && Array.isArray(ST.t.mailles) ? ST.t.mailles : []; }
+function dessinerGlobe(){
+  var c = $('globe'); if(!c) return; var g = c.getContext('2d'); if(!g) return;
+  var w = c.clientWidth || 300, d = Math.min(2, window.devicePixelRatio || 1);
+  if(w !== G.w || d !== G.dpr){ G.w = w; G.dpr = d; c.width = Math.round(w * d); c.height = Math.round(w * d); G.fond = null; }
+  var W = c.width, R = W * .44, cx = W / 2, cy = W / 2;
+  if(!G.fond){
+    var f = G.fond = document.createElement('canvas'); f.width = W; f.height = W; var gf = f.getContext('2d');
+    var at = gf.createRadialGradient(cx, cy, R * .96, cx, cy, R * 1.12); at.addColorStop(0, 'rgba(255,197,49,.25)'); at.addColorStop(1, 'rgba(255,197,49,0)');
+    gf.fillStyle = at; gf.beginPath(); gf.arc(cx, cy, R * 1.12, 0, Math.PI * 2); gf.fill();
+    var o = gf.createRadialGradient(cx - R * .35, cy - R * .4, R * .1, cx, cy, R); o.addColorStop(0, '#2a1a63'); o.addColorStop(1, '#0b0627');
+    gf.fillStyle = o; gf.beginPath(); gf.arc(cx, cy, R, 0, Math.PI * 2); gf.fill();
+  }
+  g.clearRect(0, 0, W, W); g.drawImage(G.fond, 0, 0);
+  var l0 = G.lon0 * Math.PI / 180, p0 = G.lat0 * Math.PI / 180, s0 = Math.sin(p0), c0 = Math.cos(p0), P = pointsTerre(), t = 1.6 * d;
+  g.fillStyle = 'rgba(206,196,255,.55)'; g.beginPath();
+  for(var i = 0; i < P.length; i++){ var q = P[i], la = q[2] - l0, cl = Math.cos(la), z = s0 * q[0] + c0 * q[1] * cl; if(z <= .05) continue;
+    g.rect(cx + q[1] * Math.sin(la) * R - t / 2, cy - (c0 * q[0] - s0 * q[1] * cl) * R - t / 2, t, t); }
+  g.fill();
+  /* le fil d'or : de pays en pays, dans l'ordre de la tresse (arcs de grand cercle) */
+  var m = mailles().filter(function(x){ return PAYS_XY[x.pays]; });
+  g.lineWidth = 2.2 * d; g.strokeStyle = 'rgba(255,197,49,.9)'; g.shadowColor = 'rgba(255,214,120,.8)'; g.shadowBlur = 8 * d;
+  for(var k = 1; k < m.length; k++){
+    var a = vecteur(PAYS_XY[m[k - 1].pays]), b = vecteur(PAYS_XY[m[k].pays]), dot = Math.max(-1, Math.min(1, a[0] * b[0] + a[1] * b[1] + a[2] * b[2])), om = Math.acos(dot), so = Math.sin(om) || 1;
+    g.beginPath(); var dedans = false;
+    for(var s = 0; s <= 24; s++){ var f2 = s / 24, ka = om ? Math.sin((1 - f2) * om) / so : 1 - f2, kb = om ? Math.sin(f2 * om) / so : f2;
+      var v = [a[0] * ka + b[0] * kb, a[1] * ka + b[1] * kb, a[2] * ka + b[2] * kb], n = Math.hypot(v[0], v[1], v[2]) || 1; v = [v[0] / n, v[1] / n, v[2] / n];
+      var pr = projeter(v, cx, cy, R * (1 + .04 * Math.sin(f2 * Math.PI)));
+      if(pr.z > 0){ if(dedans) g.lineTo(pr.x, pr.y); else g.moveTo(pr.x, pr.y); dedans = true; } else dedans = false; }
+    g.stroke();
+  }
+  g.shadowBlur = 0;
+  m.forEach(function(x){ var pr = projeter(vecteur(PAYS_XY[x.pays]), cx, cy, R); if(pr.z <= 0) return; var ici = G.ici === x.pays;
+    g.fillStyle = ici ? '#16e0d4' : '#ffc531'; var r = (ici ? 7 : 4.5) * d; g.beginPath();
+    for(var j = 0; j < 6; j++){ var an = Math.PI / 6 + j * Math.PI / 3; g[j ? 'lineTo' : 'moveTo'](pr.x + r * Math.cos(an), pr.y + r * Math.sin(an)); }
+    g.closePath(); g.fill(); });
+}
+function boucleGlobe(ts){
+  G.raf = 0;
+  if(!G.vu || document.hidden) return;
+  if(G.dernier && ts - G.dernier < 50){ G.raf = requestAnimationFrame(boucleGlobe); return; }
+  var dt = G.dernier ? Math.min(100, ts - G.dernier) : 16; G.dernier = ts;
+  if(G.cible){ var dl = ((G.cible[1] - G.lon0 + 540) % 360) - 180, dp = G.cible[0] * .6 - G.lat0;
+    G.lon0 += dl * Math.min(1, dt / 350); G.lat0 += dp * Math.min(1, dt / 350);
+    if(Math.abs(dl) < .2 && Math.abs(dp) < .2) G.cible = null; }
+  else if(!mouvementReduit()) G.lon0 = ((G.lon0 + 4 * dt / 1000) + 540) % 360 - 180;
+  dessinerGlobe();
+  if(G.cible || !mouvementReduit()) G.raf = requestAnimationFrame(boucleGlobe);
+}
+function relancerGlobe(){ if(!G.raf && G.vu && !document.hidden){ G.dernier = 0; G.raf = requestAnimationFrame(boucleGlobe); } }
+function versPays(iso){ G.ici = iso; if(PAYS_XY[iso]){ G.cible = PAYS_XY[iso]; relancerGlobe(); } }
+
+/* ════════ LES DONNÉES ════════ */
+function charger(){
+  if(ST.apercu){ ST.cap = true; ST.tresses = demoTresses(); ST.id = ST.id || ST.tresses[0].id; ST.t = demoTresse(ST.id); ST.etat = 'ok'; rendre(); return Promise.resolve(); }
+  if(!api()){ ST.cap = false; ST.etat = 'sansserveur'; rendre(); return Promise.resolve(); }
+  ST.etat = 'charge'; rendreEtat();
+  return appeler('GET', '/v1/tresse/capacites').then(function(c){
+    ST.cap = !!(c && c.tresses === true);
+    if(!ST.cap){ ST.etat = 'indisponible'; return; }
+    return appeler('GET', '/v1/tresses').then(function(o){
+      ST.tresses = o && Array.isArray(o.tresses) ? o.tresses : [];
+      if(ST.prise) ST.id = ST.prise.tresse;           /* une prise en attente garde SA tresse, même si elle n'est plus listée */
+      else if(!ST.tresses.length){ ST.t = null; ST.etat = 'aucune'; return; }
+      else if(!ST.id || !ST.tresses.some(function(x){ return x.id === ST.id; })) ST.id = ST.tresses[0].id;
+      return chargerTresse();
+    });
+  }).catch(function(e){ ST.etat = navigator.onLine === false ? 'horsligne' : 'erreur'; ST.err = e; })
+    .then(function(){ rendre(); chargerEquipe(); });
+}
+function chargerTresse(){
+  return appeler('GET', '/v1/tresses/' + encodeURIComponent(ST.id)).then(function(t){ ST.t = t; ST.etat = 'ok'; });
+}
+
+/* ════════ L'AFFICHAGE ════════ */
+var RAISONS = {connexion:'Connectez-vous pour tisser votre maille.', age:'La Tresse du monde est ouverte à partir de 13 ans.', fermee:'Cette tresse est fermée.',
+  pays:'Indiquez d’abord le pays de votre compte.', deja:'Vous avez déjà une maille dans cette tresse.', refus:'Deux mailles refusées : vous ne pouvez plus envoyer dans cette tresse.',
+  indisponible:'Impossible de joindre NEURAVID pour le moment.'};
+var MOTIFS = {hors_sujet:'Hors du thème de la tresse', trop_long:'Plus de 5 secondes', contenu:'Contenu non accepté', qualite:'Image ou son illisible', autre:'Autre raison'};
+function rendreEtat(){
+  var el = $('etat'), t = '';
+  if(ST.apercu) t = T('Aperçu : une tresse d’exemple, pour découvrir la page.');
+  else if(ST.etat === 'charge') t = T('Chargement…');
+  else if(ST.etat === 'sansserveur' || ST.etat === 'indisponible') t = T('La Tresse du monde n’est pas encore ouverte.');
+  else if(ST.etat === 'aucune') t = T('Aucune tresse en cours pour le moment.');
+  else if(ST.etat === 'horsligne') t = T('Pas de connexion pour le moment.');
+  else if(ST.etat === 'erreur') t = T('Impossible de joindre NEURAVID pour le moment.');
+  el.textContent = t; el.hidden = !t;
+}
+function rendreChoix(){
+  if(ST.tresses.length < 2) return '';
+  return '<div class="chips" role="group" aria-label="' + esc(T('Les tresses')) + '">' + ST.tresses.map(function(x){
+    return '<button data-tresse="' + esc(x.id) + '" aria-pressed="' + (x.id === ST.id) + '">' + esc(x.titre) + (x.ouverte ? '' : ' · ' + esc(T('Fermée'))) + '</button>'; }).join('') + '</div>';
+}
+function rendreTresse(){
+  var t = ST.t; if(!t) return '';
+  var h = '<section aria-labelledby="hTresse"><h2 id="hTresse">' + esc(t.titre) + (ST.apercu ? '<span class="apercu">' + esc(T('Aperçu')) + '</span>' : '') + '</h2>' +
+    '<p class="d">' + esc(t.consigne) + '</p>' + (t.geste ? '<p class="geste"><b>' + esc(T('Le geste à passer :')) + '</b> ' + esc(t.geste) + '</p>' : '') +
+    '<p class="d">' + esc(t.ouverte ? T('Ouverte jusqu’au {0}.', dateTexte(t.finMs)) : t.avenir ? T('Ouvre le {0}.', dateTexte(t.debutMs)) : T('Fermée depuis le {0}.', dateTexte(t.finMs))) + '</p>' +
+    '<div class="globe-cadre"><canvas id="globe" role="img" aria-label="' + esc(t.nbPays === 1 ? T('Le globe de la tresse : un pays tissé.') : T('Le globe de la tresse : {0} pays tissés.', n0(t.nbPays))) + '"></canvas>' +
+    '<p class="compte"><b>' + n0(t.nbPays) + '</b> ' + esc(t.nbPays === 1 ? T('pays tissé') : T('pays tissés')) + '</p></div>';
+  if(aRole('organisateur') && !ST.apercu && !t.annulee) h += '<button class="lien" id="bAnnulerTresse">' + esc(T('Annuler cette tresse')) + '</button>';
+  h += '<div class="actions">' + (mailles().length ? '<button class="btn-or" id="bRegarder">' + esc(T('Regarder la tresse')) + '</button>' : '') + '</div>';
+  if(!mailles().length) h += '<p class="vide">' + esc(T('Aucune maille pour l’instant : la première ouvre la tresse.')) + '</p>';
+  h += '<div id="lecteurZone"></div></section>';
+  return h;
+}
+function rendreListe(){
+  var m = mailles(); if(!m.length) return '';
+  return '<section aria-labelledby="hListe"><h2 id="hListe">' + esc(T('De pays en pays')) + '</h2><ul class="liste">' + m.map(function(x){
+    return '<li><span class="hexn">' + x.rang + '</span><span><b>' + esc(paysTexte(x.pays)) + '</b>' + (x.auteur ? ' <span class="etiq">@' + esc(x.auteur.handle) + '</span>' : '') +
+      (x.moi ? ' <span class="puce co">' + esc(T('Ma maille')) + '</span>' : '') + '</span></li>'; }).join('') + '</ul></section>';
+}
+function rendreMaMaille(){
+  var t = ST.t; if(!t) return '';
+  var moi = t.moi || {}, mm = moi.maille, h = '<section aria-labelledby="hMoi"><h2 id="hMoi">' + esc(T('Ma maille')) + '</h2>';
+  if(ST.prise){
+    h += '<div class="maille"><video id="vPrise" playsinline controls muted></video><div><p>' + esc(T('Votre maille est prête. Elle sera relue par l’équipe avant d’entrer dans la tresse.')) + '</p>' +
+      '<div class="actions"><button class="btn-or" id="bEnvoyer"' + (ST.envoi ? ' disabled' : '') + '>' + esc(ST.envoi ? T('Envoi…') : T('Envoyer ma maille')) + '</button>' +
+      '<button id="bRefaire"' + (ST.envoi ? ' disabled' : '') + '>' + esc(T('Refaire')) + '</button></div></div></div>';
+    return h + '</section>';
+  }
+  if(mm && (mm.etat === 'verification' || mm.etat === 'tissee')){
+    h += '<p><span class="puce ' + (mm.etat === 'tissee' ? 'co' : 're') + '">' + esc(mm.etat === 'tissee' ? T('Tissée dans la tresse') : T('En relecture par l’équipe')) + '</span> ' + esc(paysTexte(mm.pays)) + '</p>' +
+      '<button class="lien" id="bRetirer" data-maille="' + esc(mm.id) + '">' + esc(T('Retirer ma maille')) + '</button>';
+    return h + '</section>';
+  }
+  if(mm && mm.etat === 'refusee') h += '<p><span class="puce an">' + esc(T('Maille refusée')) + '</span> ' + esc(MOTIFS[mm.motif] ? T(MOTIFS[mm.motif]) : '—') + '</p>';
+  if(!moi.peut){
+    h += '<p class="vide">' + esc(T(RAISONS[moi.raison] || 'Impossible de joindre NEURAVID pour le moment.')) + '</p>';
+    if(moi.raison === 'connexion') h += '<div class="actions"><button id="bConnexion">' + esc(T('Se connecter')) + '</button></div>';
+    if(moi.raison === 'pays') h += '<div class="actions"><button id="bPays">' + esc(T('Indiquer mon pays')) + '</button></div>';
+    return h + '</section>';
+  }
+  var r = t.relais;
+  h += '<p>' + esc(T('Filmez 5 secondes depuis {0} : reprenez le geste du pays précédent et passez-le au suivant.', paysTexte(moi.pays))) + '</p>';
+  if(r) h += '<div class="maille">' + (r.url ? '<video id="vRelais" playsinline muted ' + (mouvementReduit() ? 'controls preload="metadata"' : 'loop autoplay') + ' crossorigin="anonymous" src="' + esc(r.url) + '"></video>' : '<canvas id="vRelaisDemo" width="96" height="170"></canvas>') +
+    '<p>' + esc(T('La maille à reprendre : {0}', paysTexte(r.pays))) + '</p></div>';
+  else h += '<p class="d">' + esc(T('Vous ouvrez la tresse : votre geste sera repris par le pays suivant.')) + '</p>';
+  h += '<div class="actions"><button class="btn-or" id="bFilmer">' + esc(T('Filmer ma maille (5 s)')) + '</button></div>';
+  return h + '</section>';
+}
+function rendreEquipe(){
+  var h = '';
+  if(aRole('organisateur', 'redacteur') && !ST.apercu && ST.cap){
+    h += '<section aria-labelledby="hOuvrir"><h2 id="hOuvrir">' + esc(T('Ouvrir une tresse')) + '</h2><form class="form" id="fOuvrir">' +
+      '<label>' + esc(T('Thème')) + '<input name="titre" maxlength="80" required></label>' +
+      '<label>' + esc(T('Consigne')) + '<textarea name="consigne" maxlength="300" rows="2" required></textarea></label>' +
+      '<label>' + esc(T('Le geste à passer :')) + '<input name="geste" maxlength="120"></label>' +
+      '<label>' + esc(T('Durée en jours (3 à 60)')) + '<input name="jours" type="number" min="3" max="60" value="14"></label>' +
+      '<button class="btn-or" type="submit">' + esc(T('Ouvrir la tresse')) + '</button></form></section>';
+  }
+  if(aRole('moderateur', 'verificateur', 'organisateur') && ST.equipe){
+    h += '<section class="equipe" aria-labelledby="hFile"><h2 id="hFile">' + esc(T('Les mailles à relire')) + '</h2>';
+    if(!ST.equipe.length) h += '<p class="vide">' + esc(T('Aucune maille à relire.')) + '</p>';
+    ST.equipe.forEach(function(x){
+      h += '<div class="item">' + (x.url ? '<video playsinline controls muted preload="metadata" src="' + esc(x.url) + '"></video>' : '') +
+        '<p><b>' + esc(paysTexte(x.pays)) + '</b> · ' + esc(x.tresse.titre) + '</p><p class="d">' + esc(x.tresse.consigne) + '</p>' +
+        '<p class="d">' + esc(T('Durée : {0} s', x.duree != null ? (Math.round(x.duree * 10) / 10).toLocaleString(LOC) : null)) + '</p>' +
+        '<div class="acts"><button class="btn-or" data-tisser="' + esc(x.id) + '">' + esc(T('Tisser')) + '</button>' +
+        '<select data-motif="' + esc(x.id) + '" aria-label="' + esc(T('Motif du refus')) + '">' + Object.keys(MOTIFS).map(function(k){ return '<option value="' + k + '"' + (ST.motifs[x.id] === k ? ' selected' : '') + '>' + esc(T(MOTIFS[k])) + '</option>'; }).join('') + '</select>' +
+        '<button data-refuser="' + esc(x.id) + '">' + esc(T('Refuser')) + '</button></div></div>';
+    });
+    h += '</section>';
+  }
+  return h;
+}
+function rendrePied(){
+  var h = '<label>' + esc(T('Langue')) + ' <select id="langue">' + Object.keys(LANGUES_UI).map(function(k){ return '<option value="' + k + '"' + (k === L ? ' selected' : '') + '>' + esc(LANGUES_UI[k].nom) + '</option>'; }).join('') + '</select></label>';
+  if(LANGUES_UI[L].relire) h += '<span>' + esc(T('Traduction en cours de relecture.')) + '</span>';
+  h += '<span>' + esc(T('Une maille de 5 secondes par pays. Chaque maille est relue par l’équipe avant d’entrer dans la tresse ; le pseudo d’un mineur n’y est jamais montré.')) + '</span>';
+  $('pied').innerHTML = h;
+}
+function rendre(){
+  document.title = T('La Tresse du monde') + ' · NEURAVID';
+  $('titre').textContent = T('La Tresse du monde');
+  $('soustitre').textContent = T('Une maille de 5 secondes par pays, de pays en pays, autour du monde.');
+  rendreEtat();
+  var h = '';
+  if(ST.cap && ST.t) h = rendreChoix() + rendreTresse() + rendreMaMaille() + rendreListe();
+  h += rendreEquipe();
+  var focus = document.activeElement && document.activeElement.id && $('contenu').contains(document.activeElement) ? document.activeElement.id : null;
+  var garde = ST.lecture ? $('lecteurZone') : null;        /* la tresse en cours de lecture n'est jamais coupée par un nouvel affichage */
+  $('contenu').innerHTML = h;
+  if(garde && $('lecteurZone')) $('lecteurZone').replaceWith(garde);
+  if(focus && $(focus)) try{ $(focus).focus({preventScroll:true}); }catch(e){}
+  if($('globe')){ dessinerGlobe(); relancerGlobe(); try{ if(G.io){ G.io.disconnect(); G.io.observe($('globe')); } }catch(e){} }
+  var vr = $('vRelais');
+  /* une vidéo servie sans autorisation de lecture croisée : elle reste visible, mais sans fantôme pour La Forge */
+  if(vr) vr.onerror = function(){ if(vr.getAttribute('crossorigin') !== null){ vr.removeAttribute('crossorigin'); vr.src = vr.getAttribute('src'); vr.load(); } };
+  if(ST.prise && $('vPrise')){ try{ $('vPrise').src = ST.prise.url; }catch(e){} }
+  if($('vRelaisDemo')) demoDessiner($('vRelaisDemo'), ST.t.relais, 4.9);
+  rendrePied();
+  if(ST.lecture) rendreLecteur();
+}
+
+/* ════════ REGARDER LA TRESSE ════════ */
+function regarder(){
+  var m = mailles(); if(!m.length) return;
+  ST.lecture = {i:0, n:m.length, pause:false};
+  emit('tresse_regarder', {tresse:ST.id, pays:m.length});
+  rendreLecteur(); jouer(0);
+  try{ var z = $('lecteurZone'); if(z && z.scrollIntoView) z.scrollIntoView({behavior:mouvementReduit() ? 'auto' : 'smooth', block:'center'}); }catch(e){}
+}
+function rendreLecteur(){
+  var z = $('lecteurZone'), l = ST.lecture; if(!z) return;
+  if(!l){ z.innerHTML = ''; return; }
+  var m = mailles(), x = m[l.i] || m[m.length - 1];
+  if(!z.querySelector('.lecteur')){
+    z.innerHTML = '<div class="lecteur"><video id="vTresse" playsinline></video><canvas id="cTresse" hidden></canvas><div class="bande"><b id="lPays" aria-live="polite"></b><span id="lQui" class="etiq"></span></div><div class="fil" id="lFil"></div></div>' +
+      '<div class="actions"><button id="bPause">' + esc(T('Pause')) + '</button><button id="bArret">' + esc(T('Arrêter')) + '</button></div>';
+  }
+  $('lPays').textContent = (l.i + 1) + ' / ' + l.n + ' · ' + paysTexte(x.pays);
+  $('lQui').textContent = x.auteur ? '@' + x.auteur.handle : '';
+  $('lFil').innerHTML = m.map(function(y, j){ return '<i class="' + (j < l.i ? 'fait' : j === l.i ? 'ici' : '') + '"></i>'; }).join('');
+  $('bPause').textContent = l.pause ? T('Reprendre') : T('Pause');
+}
+function jouer(i){
+  var l = ST.lecture; if(!l) return;
+  var m = mailles();
+  if(i >= m.length){ arreter(); toast(m.length === 1 ? T('La tresse est finie : un pays.') : T('La tresse est finie : {0} pays.', n0(m.length))); return; }
+  l.i = i; var x = m[i]; versPays(x.pays); rendreLecteur(); dessinerGlobe();
+  clearTimeout(l.garde); cancelAnimationFrame(l.anim);
+  var v = $('vTresse'), cv = $('cTresse');
+  var suite = function(){ if(ST.lecture === l && l.i === i) jouer(i + 1); };
+  if(x.url){
+    cv.hidden = true; v.hidden = false; v.src = x.url;
+    v.onended = suite; v.onerror = function(){ setTimeout(suite, 400); };
+    var p = v.play(); if(p && p.catch) p.catch(function(){ v.muted = true; v.play().catch(function(){}); });
+    l.garde = setTimeout(suite, 8000);                       /* une maille ne bloque jamais la tresse */
+  } else {
+    v.hidden = true; cv.hidden = false; var t0 = performance.now();
+    var pas = function(ts){ if(ST.lecture !== l || l.i !== i) return; if(!l.pause) demoDessiner(cv, x, (ts - t0) / 1000); else t0 = ts - (l.t || 0) * 1000;
+      l.t = (ts - t0) / 1000; if(l.t >= 5) return suite(); l.anim = requestAnimationFrame(pas); };
+    l.anim = requestAnimationFrame(pas);
+  }
+}
+function pause(){
+  var l = ST.lecture; if(!l) return; l.pause = !l.pause; var v = $('vTresse');
+  if(v && !v.hidden){ if(l.pause){ v.pause(); clearTimeout(l.garde); } else { v.play().catch(function(){}); l.garde = setTimeout(function(){ if(ST.lecture === l) jouer(l.i + 1); }, 8000); } }
+  rendreLecteur();
+}
+function arreter(){
+  var l = ST.lecture; if(l){ clearTimeout(l.garde); cancelAnimationFrame(l.anim); }
+  var v = $('vTresse'); if(v){ try{ v.pause(); v.removeAttribute('src'); v.load(); }catch(e){} }
+  ST.lecture = null; G.ici = null; rendreLecteur();
+}
+
+/* ════════ FILMER MA MAILLE (avec La Forge) ════════ */
+function imageRelais(){
+  /* la DERNIÈRE image de la maille précédente, réduite : le fantôme que La Forge montre. La vidéo est d'abord placée sur sa
+     fin. Une vidéo servie sans autorisation de lecture croisée ne se lit pas : il n'y a alors pas de fantôme (jamais d'image
+     inventée). Rend une promesse. */
+  var capturer = function(src){
+    try{
+      var w = src.videoWidth || src.width, hh = src.videoHeight || src.height; if(!w || !hh) return '';
+      var k = Math.min(1, 360 / Math.max(w, hh)), c = document.createElement('canvas'); c.width = Math.round(w * k); c.height = Math.round(hh * k);
+      c.getContext('2d').drawImage(src, 0, 0, c.width, c.height);
+      return c.toDataURL('image/jpeg', .7);
+    }catch(e){ return ''; }
+  };
+  var d = $('vRelaisDemo'); if(d){ demoDessiner(d, ST.t && ST.t.relais, 4.95); return Promise.resolve(capturer(d)); }
+  var v = $('vRelais'); if(!v) return Promise.resolve('');
+  return new Promise(function(res){
+    var fini = false, fin = function(){ if(fini) return; fini = true; res(capturer(v)); };
+    try{
+      v.pause();
+      var du = v.duration;
+      if(!isFinite(du) || du <= 0){ fin(); return; }
+      v.addEventListener('seeked', fin, {once:true}); setTimeout(fin, 1500);
+      v.currentTime = Math.max(0, du - .05);
+    }catch(e){ fin(); }
+  });
+}
+var CLE_FILM_L = 'nv_tresse_film';
+function noterFilm(o){ var t = JSON.stringify(o); try{ sessionStorage.setItem(CLE_FILM, t); }catch(e){} try{ localStorage.setItem(CLE_FILM_L, t); }catch(e){} }
+function lireFilm(){ var f = null; try{ f = JSON.parse(sessionStorage.getItem(CLE_FILM) || 'null'); }catch(e){} if(!f){ try{ f = JSON.parse(localStorage.getItem(CLE_FILM_L) || 'null'); }catch(e){} } return f; }
+function oublierFilm(){ try{ sessionStorage.removeItem(CLE_FILM); }catch(e){} try{ localStorage.removeItem(CLE_FILM_L); }catch(e){} }
+function filmer(){
+  var t = ST.t; if(!t || !window.NVCamera) { toast(T('La Forge n’est pas joignable ici.')); return; }
+  if(!NVCamera.studioJoignable()){ toast(T('La Forge n’est pas joignable ici.')); return; }
+  var b = $('bFilmer'); if(b) b.disabled = true;
+  imageRelais().then(function(relais){
+    noterFilm({tresse:t.id, quand:Date.now()});
+    emit('tresse_filmer', {tresse:t.id, relais:!!relais});
+    NVCamera.filmer({module:MOI, defi:t.id, titre:t.titre, mode:'video', minSeconds:1, maxSeconds:5, relais:relais || undefined,
+      regles:[T('Une maille de 5 secondes au plus.'), t.geste ? T('Le geste à passer :') + ' ' + t.geste : T('Reprenez le geste du pays précédent.')]});
+    setTimeout(function(){ var b2 = $('bFilmer'); if(b2) b2.disabled = false; }, 1500);
+  });
+}
+/* au retour de La Forge : la tresse vient du contexte rendu (ctx.defi), sinon de la note gardée (sessionStorage, puis
+   localStorage si l'application a ouvert une autre vue) ; la prise reste liée à SA tresse */
+function reprendrePrise(retour){
+  var f = lireFilm(), tid = retour || (f && f.tresse);
+  if(!tid || !window.NVCamera || (!retour && Date.now() - ((f && f.quand) || 0) > 3600000)) return Promise.resolve();
+  return NVCamera.recuperer(MOI, tid).then(function(p){
+    if(!p || !p.blob) return;
+    oublierFilm();
+    ST.id = tid; ST.prise = {tresse:tid, blob:p.blob, url:URL.createObjectURL(p.blob), secondes:nombre(p.meta && (p.meta.seconds || p.meta.secondes)), meta:p.meta || {}};
+  });
+}
+/* la durée réelle de la prise : un enregistrement webm annonce souvent une durée « infinie » ; on la force en allant très
+   loin dans la vidéo. Inconnue malgré tout : rien n'est inventé (la publication la lira). */
+function dureeBlob(prise){
+  if(prise.secondes) return Promise.resolve(prise.secondes);
+  return new Promise(function(res){ var v = document.createElement('video'), fait = false; v.preload = 'metadata'; v.muted = true;
+    var fin = function(x){ if(fait) return; fait = true; res(x); try{ v.removeAttribute('src'); v.load(); }catch(e){} };
+    v.onloadedmetadata = function(){ if(isFinite(v.duration) && v.duration > 0) return fin(v.duration);
+      v.ondurationchange = function(){ if(isFinite(v.duration) && v.duration > 0) fin(v.duration); }; try{ v.currentTime = 1e7; }catch(e){ fin(null); } };
+    v.onerror = function(){ fin(null); }; v.src = prise.url; setTimeout(function(){ fin(null); }, 4000); });
+}
+function envoyer(){
+  var pr = ST.prise; if(!pr || ST.envoi) return;
+  var tid = pr.tresse || (ST.t && ST.t.id); if(!tid) return;
+  ST.envoi = true; rendre();
+  var envoyee = false;
+  dureeBlob(pr).then(function(s){
+    if(s != null && s > 6){ throw {code:'trop_long'}; }
+    if(ST.apercu){ var t = ST.t; t.moi.maille = {id:'tm_apercu', etat:'verification', pays:t.moi.pays}; t.moi.peut = false; t.moi.raison = 'deja'; envoyee = true; return; }
+    var fd = new FormData();
+    if(s != null) fd.append('seconds', String(Math.round(s * 100) / 100));     /* inconnue : non envoyée, jamais inventée */
+    if(pr.meta && pr.meta.provenance) try{ fd.append('meta', JSON.stringify({provenance:pr.meta.provenance})); }catch(e){}
+    fd.append('video', pr.blob, 'maille.' + (/mp4/.test(pr.blob.type) ? 'mp4' : 'webm'));
+    if(!pr.cle) pr.cle = 'tr-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+    var h = {Accept:'application/json', 'Idempotency-Key':pr.cle}; if(jeton()) h.Authorization = 'Bearer ' + jeton();
+    return fetch(api() + '/v1/tresses/' + encodeURIComponent(tid) + '/mailles', {method:'POST', headers:h, body:fd, mode:'cors'}).then(function(r){
+      return r.text().then(function(x){ var j = null; try{ j = JSON.parse(x); }catch(e){} if(!r.ok){ var err = new Error('http'); err.status = r.status; err.code = j && j.erreur; throw err; } return j; });
+    }).then(function(){ envoyee = true; ST.id = tid; return chargerTresse().catch(function(){}); });   /* un échec de relecture n'annule pas l'envoi */
+  }).then(function(){
+    emit('tresse_envoyer', {tresse:tid});
+    try{ URL.revokeObjectURL(pr.url); }catch(e){}
+    ST.prise = null; toast(T('Maille envoyée : elle sera relue avant d’entrer dans la tresse.'));
+  }, function(e){
+    /* une clé déjà servie (le premier envoi est arrivé, sa réponse s'est perdue) vaut « déjà envoyée » : on relit la tresse */
+    if(e && (e.code === 'cle_reutilisee' || e.code === 'en_cours')) e = {code:'deja_envoye'};
+    toast(erreurTexte(e));
+    if(e && (e.code === 'deja_envoye' || e.code === 'tresse_fermee' || e.code === 'trop_de_refus' || e.code === 'trop_long')){
+      try{ URL.revokeObjectURL(pr.url); }catch(x){} ST.prise = null; if(!ST.apercu) chargerTresse().then(rendre, function(){}); }
+  }).then(function(){ ST.envoi = false; rendre(); });
+}
+function retirer(id){
+  var b = $('bRetirer');
+  if(b && !b.getAttribute('data-sur')){ b.setAttribute('data-sur', '1'); b.textContent = T('Toucher encore pour retirer'); return; }
+  if(ST.apercu){ ST.t.moi.maille = null; ST.t.moi.peut = true; ST.t.moi.raison = null; rendre(); return; }
+  appeler('POST', '/v1/tresses/mailles/' + encodeURIComponent(id) + '/retirer', {}).then(function(){ toast(T('Maille retirée.')); return chargerTresse(); })
+    .then(rendre, function(e){ toast(erreurTexte(e)); });
+}
+
+/* ════════ L'ÉQUIPE ════════ */
+function chargerEquipe(){
+  if(ST.apercu || !api() || !ST.cap || !aRole('moderateur', 'verificateur', 'organisateur')) return;
+  appeler('GET', '/v1/tresses/equipe/file').then(function(o){ ST.equipe = o && Array.isArray(o.items) ? o.items : []; rendre(); }, function(){ ST.equipe = null; });
+}
+function decider(id, tisser){
+  if(ST.decisions[id]) return; ST.decisions[id] = true;
+  var c = {tisser:tisser, __cle:'trd-' + id}; if(!tisser){ var s = document.querySelector('[data-motif="' + id + '"]'); c.motif = s ? s.value : 'autre'; }
+  appeler('POST', '/v1/tresses/mailles/' + encodeURIComponent(id) + '/decider', c).then(function(){
+    toast(tisser ? T('Maille tissée.') : T('Maille refusée')); ST.equipe = (ST.equipe || []).filter(function(x){ return x.id !== id; }); return chargerTresse();
+  }).then(rendre, function(e){ toast(erreurTexte(e)); }).then(function(){ delete ST.decisions[id]; });
+}
+function annulerTresse(b){
+  if(!b.getAttribute('data-sur')){ b.setAttribute('data-sur', '1'); b.textContent = T('Toucher encore pour annuler la tresse'); return; }
+  appeler('POST', '/v1/tresses/' + encodeURIComponent(ST.id) + '/annuler', {__cle:'tra-' + ST.id}).then(function(){ toast(T('Tresse annulée.')); ST.id = null; return charger(); }, function(e){ toast(erreurTexte(e)); });
+}
+function ouvrirTresse(f){
+  var c = {titre:f.titre.value, consigne:f.consigne.value, geste:f.geste.value, jours:parseInt(f.jours.value, 10) || 14};
+  appeler('POST', '/v1/tresses', c).then(function(x){ toast(T('Tresse ouverte.')); ST.id = x.id; return charger(); }, function(e){ toast(erreurTexte(e)); });
+}
+
+/* ════════ L'APERÇU (démonstration seulement) ════════ */
+var DEMO_PAYS = ['SN', 'GN', 'CI', 'NG', 'BR', 'FR', 'MA', 'KE', 'IN', 'JP'];
+function demoTresses(){
+  var t = Date.now();
+  return [{id:'tr_apercu_1', titre:'La main tendue', consigne:'Reprenez le geste du pays précédent, puis tendez la main vers le pays suivant.', geste:'La main tendue vers la droite',
+    debutMs:t - 5 * 864e5, finMs:t + 9 * 864e5, ouverte:true, avenir:false, annulee:false}];
+}
+function demoTresse(id){
+  var b = demoTresses()[0];
+  var m = DEMO_PAYS.map(function(p, i){ return {id:'tm_ap' + i, rang:i + 1, pays:p, url:null, auteur:i % 3 === 1 ? null : {id:'u' + i, handle:['awa', 'moussa', 'kofi', 'ada', 'lucas', 'ines', 'yasmine', 'wanjiru', 'priya', 'aiko'][i]}, duree:5}; });
+  return Object.assign({}, b, {secondes:5, nbPays:m.length, mailles:m, relais:m[m.length - 1], moi:{maille:null, peut:true, raison:null, pays:(utilisateur() && utilisateur().iso) || 'GN'}});
+}
+function demoDessiner(c, x, s){
+  var g = c.getContext('2d'); if(!g || !x) return; var W = c.width, H = c.height, k = (x.pays.charCodeAt(0) * 7 + x.pays.charCodeAt(1)) % 360;
+  var gr = g.createLinearGradient(0, 0, W, H); gr.addColorStop(0, 'hsl(' + k + ',70%,35%)'); gr.addColorStop(1, 'hsl(' + ((k + 60) % 360) + ',70%,18%)');
+  g.fillStyle = gr; g.fillRect(0, 0, W, H);
+  /* la main qui passe le geste : un hexagone qui traverse l'image de gauche à droite */
+  var p = (s % 5) / 5, r = Math.min(W, H) * .16, cx = W * (.15 + .7 * p), cy = H * .55;
+  g.fillStyle = 'rgba(255,197,49,.9)'; g.beginPath(); for(var j = 0; j < 6; j++){ var a = Math.PI / 6 + j * Math.PI / 3; g[j ? 'lineTo' : 'moveTo'](cx + r * Math.cos(a), cy + r * Math.sin(a)); } g.closePath(); g.fill();
+  g.fillStyle = '#fff'; g.textAlign = 'center'; g.font = Math.round(H * .12) + 'px sans-serif'; g.fillText(drapeau(x.pays), W / 2, H * .3);
+  g.font = 'bold ' + Math.round(H * .05) + 'px sans-serif'; g.fillText(T('Aperçu'), W / 2, H * .9);
+}
+
+/* ════════ LE DÉMARRAGE ════════ */
+function demarrer(){
+  poserLangue(langueDetectee());
+  ST.apercu = !!window.NV_DEMO && !api();
+  var retour = null;
+  try{ var c = JSON.parse(sessionStorage.getItem('nv_ctx_' + MOI) || 'null'); if(c && typeof c.tresse === 'string') ST.id = c.tresse; if(c && c.module === MOI && typeof c.defi === 'string') retour = c.defi; sessionStorage.removeItem('nv_ctx_' + MOI); }catch(e){}
+  rendre();
+  reprendrePrise(retour).then(charger, charger);
+  document.addEventListener('click', function(ev){
+    var b = ev.target && ev.target.closest ? ev.target.closest('button') : null; if(!b) return;
+    if(b.id === 'bRegarder') regarder();
+    else if(b.id === 'bPause') pause();
+    else if(b.id === 'bArret') arreter();
+    else if(b.id === 'bFilmer') filmer();
+    else if(b.id === 'bEnvoyer') envoyer();
+    else if(b.id === 'bRefaire'){ try{ URL.revokeObjectURL(ST.prise.url); }catch(e){} ST.prise = null; filmer(); }
+    else if(b.id === 'bRetirer') retirer(b.getAttribute('data-maille'));
+    else if(b.id === 'bAnnulerTresse') annulerTresse(b);
+    else if(b.id === 'bConnexion') ouvrir('Entree', {depuis:'tresse'});
+    else if(b.id === 'bPays') ouvrir('Reglages', {depuis:'tresse'});
+    else if(b.getAttribute('data-tresse')){ if(ST.prise){ toast(T('Envoyez ou refaites d’abord votre maille.')); return; } arreter(); ST.id = b.getAttribute('data-tresse'); if(ST.apercu){ ST.t = demoTresse(ST.id); rendre(); } else chargerTresse().then(rendre, function(e){ toast(erreurTexte(e)); }); }
+    else if(b.getAttribute('data-tisser')) decider(b.getAttribute('data-tisser'), true);
+    else if(b.getAttribute('data-refuser')) decider(b.getAttribute('data-refuser'), false);
+  });
+  document.addEventListener('submit', function(ev){ if(ev.target && ev.target.id === 'fOuvrir'){ ev.preventDefault(); ouvrirTresse(ev.target); } });
+  document.addEventListener('change', function(ev){
+    if(ev.target && ev.target.getAttribute && ev.target.getAttribute('data-motif')) ST.motifs[ev.target.getAttribute('data-motif')] = ev.target.value;
+    if(ev.target && ev.target.id === 'langue'){ var l = ev.target.value; if(!LANGUES_UI[l]) return; ecrire('nv_ui_langue', l); NOMS = null; poserLangue(l); rendre(); var s = $('langue'); if(s) s.focus(); }
+  });
+  document.addEventListener('visibilitychange', function(){ if(document.hidden){ if(ST.lecture && !ST.lecture.pause) pause(); } else relancerGlobe(); });
+  try{ G.io = new IntersectionObserver(function(e){ G.vu = e[e.length - 1].isIntersecting; if(G.vu) relancerGlobe(); }); if($('globe')) G.io.observe($('globe')); }catch(e){}
+  window.NVTresse = {etat:function(){ return {etat:ST.etat, id:ST.id, apercu:ST.apercu, mailles:mailles().length, lecture:ST.lecture ? ST.lecture.i : null, prise:!!ST.prise, langue:L}; }};
+}
+
+demarrer();
+})();
+
+</script>
+</body>
+</html>
