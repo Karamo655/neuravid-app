@@ -4662,12 +4662,13 @@ function groupesParAuteur(l){
   return ordre.map(function(k){ par[k].stories.sort(function(a, b){ return (a.at || 0) - (b.at || 0); }); return par[k]; });
 }
 /* le tour du monde en 24 stories : une par fuseau, d'est en ouest, en suivant le soleil */
-function tourDuMonde(){
+function tourDuMonde(debut){   /* debut : l'identifiant de la story touchée sur l'accueil (16 nov. 2026) */
   if(!api()){ toast('Le tour du monde s\'ouvre dans l\'application NEURAVID.'); return; }
   lireS('/v1/stories/tour', function(d, panne){
     var l = d && Array.isArray(d.items) ? d.items.map(normStory).filter(function(s){ return s && enVie(s) && !scellee(s); }).slice(0, 24) : [];
     if(!l.length){ toast(panne ? 'Le tour du monde n\'arrive pas pour l\'instant.' : 'Le tour du monde se prépare. Revenez dans un instant.'); return; }
-    ouvrirLecteur(groupesDeListe(l), 0, 0, {nom:'tour'});
+    var i0 = typeof debut === 'string' ? l.map(function(s){ return s.id; }).indexOf(debut) : -1;
+    ouvrirLecteur(groupesDeListe(l), Math.max(0, i0), 0, {nom:'tour'});
     emit('story_world_tour', {n:l.length});
   }, 60000);
 }
@@ -6359,6 +6360,7 @@ function demarrer(){
     if(ctx.creer) ouvrirStudio(ctx.son && typeof ctx.son === 'object' ? {son:ctx.son} : {});   /* « Utiliser ce son » depuis Le Griot */
     if(ctx.pays && /^[A-Z]{2}$/.test(ctx.pays)) ouvrirPays(ctx.pays);
     if(ctx.chaine) voirChaine(String(ctx.chaine).slice(0, 60));
+    if(ctx.tour) tourDuMonde(typeof ctx.debut === 'string' ? ctx.debut.slice(0, 80) : null);   /* « Le tour du monde en stories » de l'accueil */
   }
   try{ entreesPlus(ctx && typeof ctx === 'object' ? ctx : null); }catch(e){ dbg(e); }
   reprendreStudio();
