@@ -626,6 +626,10 @@ body.feuille-ouverte .boussole{opacity:0;pointer-events:none}
 .col-pays{display:flex;flex-wrap:wrap;gap:6px}.col-pays>span{display:inline-flex;align-items:center;gap:4px;padding:4px 8px;border-radius:12px;background:rgba(255,255,255,.07);font-size:12.5px}.col-pays i{font-style:normal}
 /* le conseil du ciel : les défis de ce soir */
 .conseil .co-defi{width:auto;height:auto;opacity:1;padding:7px 10px;border-radius:12px;background:rgba(255,201,61,.18);color:var(--or);font-size:12.5px;font-weight:800;white-space:nowrap}
+/* 16 nov. 2026 : le texte du conseil prend toute la largeur ; le bouton « Les défis de ce soir » passe dessous (le texte n'est plus coincé dans une colonne étroite) */
+.conseil:not([hidden]){display:grid;grid-template-columns:30px minmax(0,1fr) 34px;grid-template-areas:"i t x" ". d .";align-items:center;column-gap:10px;row-gap:8px}
+.conseil .co-i{grid-area:i;align-self:start}.conseil > span:nth-child(2){grid-area:t;min-width:0;overflow-wrap:anywhere}
+.conseil .co-defi{grid-area:d;justify-self:start;white-space:normal;text-align:start}.conseil > button:last-child{grid-area:x;align-self:start}
 /* la galaxie : chercher, la carte, le radar, la coupe */
 .gal-outils{position:relative;z-index:4;display:flex;gap:7px;flex-wrap:wrap;padding:8px 18px 0;max-width:680px;margin:0 auto}
 .go-cherche{flex:1 1 150px;display:flex;align-items:center;gap:6px;min-height:38px;padding:0 10px;border-radius:19px;background:rgba(255,255,255,.07);box-shadow:inset 0 0 0 1px var(--fil)}
