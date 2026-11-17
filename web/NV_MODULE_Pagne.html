@@ -619,12 +619,20 @@ section{background:linear-gradient(180deg,color-mix(in srgb,var(--id1) 8%,transp
     try{ (SCENES[f.scene] || SCENES.savoir)(g, w, h, t, f.couleurs); }catch(e){ /* rien */ } oeil(g, w, h); }
   var calme = false; try{ calme = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches; }catch(e){ calme = false; }
   var t0 = performance.now(), dernier = 0, roule = false;
-  function boucle(now){ roule = false; var vus = FILMS.filter(function(f){ return f.vu && document.body.contains(f.c); }); FILMS = FILMS.filter(function(f){ return document.body.contains(f.c); });
+  /* 17 nov. 2026 (étape 7, la vitesse) : un film joue 12 s quand il paraît, puis s'arrête sur son image ; toucher le film le rejoue.
+     Au repos, la page ne dessine plus rien (le film coûtait de 18 à 44 % du processeur d'un téléphone modeste). */
+  var DUREE_JEU = 12000;
+  function jouer(f){ f.fin = performance.now() + DUREE_JEU; relancer(); }
+  function boucle(now){ roule = false; var vus = FILMS.filter(function(f){ return f.vu && now < (f.fin || 0) && document.body.contains(f.c); }); FILMS = FILMS.filter(function(f){ return document.body.contains(f.c); });
     if(!vus.length || calme || document.hidden) return; if(now - dernier >= 33){ dernier = now; vus.forEach(function(f){ dessiner(f, (now - t0) / 1000); }); } roule = true; requestAnimationFrame(boucle); }
   function relancer(){ if(!roule && !calme){ roule = true; requestAnimationFrame(boucle); } }
   document.addEventListener('visibilitychange', relancer);
-  var io = window.IntersectionObserver ? new IntersectionObserver(function(es){ es.forEach(function(e){ FILMS.forEach(function(f){ if(f.c === e.target) f.vu = e.isIntersecting; }); }); relancer(); }) : null;
-  function film(c, scene, couleurs){ var f = {c:c, scene:scene, couleurs:couleurs || ['#ffc531', '#16e0d4'], vu:!io}; FILMS.push(f); dessiner(f, calme ? 2.2 : 0); if(io) io.observe(c); relancer(); }
+  var io = window.IntersectionObserver ? new IntersectionObserver(function(es){ es.forEach(function(e){ FILMS.forEach(function(f){ if(f.c === e.target){ var avant = f.vu; f.vu = e.isIntersecting; if(f.vu && !avant && !f.joue){ f.joue = 1; jouer(f); } } }); }); relancer(); }) : null;
+  function film(c, scene, couleurs){ var f = {c:c, scene:scene, couleurs:couleurs || ['#ffc531', '#16e0d4'], vu:!io, fin:0}; FILMS.push(f); dessiner(f, calme ? 2.2 : 0); if(io) io.observe(c); else jouer(f);
+    c.addEventListener('click', function(){ if(!calme) jouer(f); });
+    var d = c.parentNode && c.parentNode.querySelector && c.parentNode.querySelector('details'); if(d) d.addEventListener('toggle', function(){ if(d.open && !calme) jouer(f); });
+    relancer(); }
+  function rejouer(){ FILMS.forEach(function(f){ if(f.vu) jouer(f); }); }
   function html(o){ return '<section class="nvp" style="--nvp-c1:' + esc(o.couleurs[0]) + ';--nvp-c2:' + esc(o.couleurs[1]) + '" aria-label="' + esc(o.titreFilm || o.comment) + '">' +
     '<canvas aria-hidden="true" data-nvp-scene="' + esc(o.scene) + '" data-nvp-c="' + esc(o.couleurs.join(',')) + '"></canvas>' + (o.intro ? '<p class="nvp-intro">' + esc(o.intro) + '</p>' : '') +
     '<details' + (o.ouvert ? ' open' : '') + (o.cle ? ' data-nvp-cle="' + esc(o.cle) + '"' : '') + '><summary>' + esc(o.comment) + '</summary><ol>' +
@@ -651,7 +659,7 @@ section{background:linear-gradient(180deg,color-mix(in srgb,var(--id1) 8%,transp
     var d = el.querySelector('details'); d.addEventListener('toggle', function(){ el._ouvertUtilisateur = d.open; });
     if(o.apres && el.previousElementSibling !== o.apres) o.apres.parentNode.insertBefore(el, o.apres.nextSibling);
     film(el.querySelector('canvas'), o.scene, o.couleurs); }
-  window.NVPresente = {poser:poser, html:html, animer:animer, style:style, scenes:Object.keys(SCENES)};
+  window.NVPresente = {poser:poser, html:html, animer:animer, style:style, scenes:Object.keys(SCENES), dessins:SCENES, hex:hex, rejouer:rejouer, dureeJeu:DUREE_JEU};   /* dessins, hex : pour les films (defis/films) */
 })();
 
 /* ════════════════════════════════════════════════════════════════════
