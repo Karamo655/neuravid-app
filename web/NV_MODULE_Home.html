@@ -159,8 +159,7 @@
     return r.json().then(function(o){ if(!S.cle) return {absent:false}; var v = o && o[S.cle]; return {absent:!(v === true || (v && typeof v === 'object'))}; }, function(){ return {absent:true}; });
   }).then(function(x){ clearTimeout(t); noter(x.absent); }, function(){ clearTimeout(t); noter(true); });   /* le serveur ne répond pas : l'aperçu aussi */
 }catch(e){ /* rien */ } })();
-</script><!--/NV_REPLI-->
-<meta charset="utf-8">
+</script><!--/NV_REPLI--><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#0B0720">
 <link rel="manifest" href="nv-accueil.webmanifest">

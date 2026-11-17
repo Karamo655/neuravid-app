@@ -1109,7 +1109,9 @@ function filmer(){
   if(ST.apercu){ ST.prise = {url:'', blob:null, apercu:true}; rendre(); return; }
   if(!window.NVCamera || !NVCamera.studioJoignable()){ toast(T('La Forge n’est pas joignable ici.')); return; }
   noterFilm({form:ST.form}); emit('savoir_filmer', {});
-  NVCamera.filmer({module:MOI, defi:'tuto', titre:T('Mon tutoriel'), mode:'video', minSeconds:3, maxSeconds:600, regles:[T('Un tutoriel de 10 minutes au plus.')]});
+  /* 17 nov. 2026 : La Forge propose Studio Lite pour le talent du tutoriel (rien n'est appliqué sans accord) */
+  var lite = {coiffure:'coiffure', couture:'mode', cuisine:'cuisine', beaute:'beaute', artisanat:'artisanat', musique:'musique', danse:'sport'}[ST.form && ST.form.categorie] || 'autre';
+  NVCamera.filmer({module:MOI, defi:'tuto', titre:T('Mon tutoriel'), mode:'video', minSeconds:3, maxSeconds:600, regles:[T('Un tutoriel de 10 minutes au plus.')], studioLite:lite});
 }
 function reprendrePrise(retour){
   var f = lireFilm();

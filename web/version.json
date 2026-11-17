@@ -1,6 +1,6 @@
 {
- "version": "2026.11.17-595c02b3aef1",
- "date": "2026-11-17T16:43:52Z",
+ "version": "2026.11.17-b66baf4fd0cf",
+ "date": "2026-11-17T20:44:02Z",
  "entree": "index.html",
  "modules": [
   "NV_MODULE_Aines.html",
@@ -106,8 +106,8 @@
    "taille": 164186
   },
   "NV_MODULE_Create.html": {
-   "sha256": "77bc2fe4da373bc7d5c9ec02a70a7c522fdadf458e298463e55a25a40cc4dc48",
-   "taille": 2102196
+   "sha256": "4f606d0bc9e425e3f755bee5999397e4f1a4adf0cf2377abb1bccf78d8789cdd",
+   "taille": 2174095
   },
   "NV_MODULE_Dashboard.html": {
    "sha256": "a7a192ec21fbc508b340ee55593199869f19866d6c9a917e2e17e87facb1303e",
@@ -134,8 +134,8 @@
    "taille": 305261
   },
   "NV_MODULE_Home.html": {
-   "sha256": "67dd9229a0338abcf8dce735c687638849a541e522f09bb86b33c4ad0bfeb55d",
-   "taille": 2028588
+   "sha256": "132b2c64fdb4a40bb1a45d300a756149faccbf031f240604932d0b28ca90579d",
+   "taille": 2028587
   },
   "NV_MODULE_Iris.html": {
    "sha256": "c392cc513d21cc68fd09bae96337334011e8254dd122e665ecf05b6a42995f6f",
@@ -214,8 +214,8 @@
    "taille": 112359
   },
   "NV_MODULE_Savoir.html": {
-   "sha256": "4f6c6a412d4303f352504893ce1ebdd659a15857beb86fde1b5f72a6a4054162",
-   "taille": 217672
+   "sha256": "14c6d8467ff5523378cf5d561c9eda91f5282b341497eb2d91d364d7c88f18c6",
+   "taille": 217989
   },
   "NV_MODULE_Search.html": {
    "sha256": "514582c9722aa8008b074d584b135bc51d1c233668b16bf2837e4f7997bc0d05",
@@ -226,12 +226,12 @@
    "taille": 1069247
   },
   "NV_MODULE_Studio.html": {
-   "sha256": "3937e9b40eca8b7574478dbf24d8bc976b78835f510d4f88626eea1ff825bddc",
-   "taille": 1318736
+   "sha256": "26a9e1e04bca9b2c983e7f7659e84ce951c57d7bb0577976fe213e0823303b0b",
+   "taille": 1318818
   },
   "NV_MODULE_TalentJour.html": {
-   "sha256": "a5e9e51a422c1f9070935b583d2d2eb8014460f9b59ea19f05ff0a32792e71bd",
-   "taille": 176991
+   "sha256": "8e0d9ed2949fd85a9e2f47cc913ef0753d9c35440b9753c7126933e380aa7f5e",
+   "taille": 177188
   },
   "NV_MODULE_Tresse.html": {
    "sha256": "766e17caf81e4c66d6270376750bef9d74997021fe2ee16e28efdc3c6c0fa924",

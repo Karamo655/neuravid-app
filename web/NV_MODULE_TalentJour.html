@@ -982,7 +982,8 @@ function filmer(){
   if(ST.apercu){ ST.prise = {url:'', blob:null, apercu:true, defi:d.id}; rendre(); return; }
   if(!window.NVCamera || !NVCamera.studioJoignable()){ toast(T('La Forge n’est pas joignable ici.')); return; }
   noterFilm({defi:d.id, legende:ST.legende, compte:compte()}); emit('talentjour_filmer', {defi:d.id});
-  NVCamera.filmer({module:MOI, defi:d.id, titre:T('Talent du Jour'), mode:'video', minSeconds:15, maxSeconds:60, regles:[T('Filmez votre talent en 15 à 60 secondes.')]});
+  var lite = {cuisine:'cuisine', chant:'musique', sport:'sport', danse:'sport', art:'artisanat'}[d.categorie] || 'autre';   /* 17 nov. 2026 : Studio Lite proposé dans La Forge */
+  NVCamera.filmer({module:MOI, defi:d.id, titre:T('Talent du Jour'), mode:'video', minSeconds:15, maxSeconds:60, regles:[T('Filmez votre talent en 15 à 60 secondes.')], studioLite:lite});
 }
 function reprendrePrise(){
   var f = lireFilm();
