@@ -1,0 +1,1141 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<!--NV_VITESSE--><script>/* NEURAVID — la vitesse commune (14 novembre 2026). Injectée en tête de chaque module par injecter_vitesse.py.
+   Rien n'est retiré : chaque animation reste, elle travaille seulement quand on la voit, et au rythme que le téléphone peut tenir.
+   1. La cadence des images (requestAnimationFrame) suit le téléphone et la personne :
+      - téléphone modeste (≤ 4 cœurs, ≤ 2 Go, ou économie de données) : 30 images/s au plus ;
+      - personne qui ne touche à rien depuis 15 s : 30 images/s (20 sur un téléphone modeste) ; tout geste rend la pleine cadence ;
+      - jamais pendant une capture (caméra, micro ou enregistrement en cours) : pleine cadence, rien n'est touché.
+   2. Les animations CSS sans fin s'arrêtent quand elles sortent de l'écran, et reprennent dès qu'elles reviennent.
+   3. (deuxième vague) Quand la cadence est réduite, les animations CSS sans fin et les animations SVG à l'écran avancent AU MÊME
+      rythme que le reste (elles sont « pilotées » : même mouvement, même vitesse, mais une image calculée 30 ou 20 fois par seconde
+      au lieu de 60). Sans cela, une seule petite animation obligeait le téléphone à recomposer tout l'écran 60 fois par seconde.
+      Tout geste les rend à elles-mêmes. Une animation mise en pause par le module n'est jamais relancée.
+   window.NVVitesse = {faible, cadence(), cran(), repos(), capture(), pilotees()} pour les essais. */
+(function(){ 'use strict';
+  if(window.NVVitesse || typeof window.requestAnimationFrame !== 'function') return;
+  var N = navigator, cx = N.connection || {}, coeurs = N.hardwareConcurrency || 8, mem = N.deviceMemory || 8;
+  var faible = coeurs <= 4 || mem <= 2 || !!cx.saveData;
+  var REPOS_MS = 15000, IV_FAIBLE = 1000 / 30, IV_REPOS = 1000 / (faible ? 20 : 30);
+  var natRAF = window.requestAnimationFrame.bind(window), natCAF = window.cancelAnimationFrame.bind(window);
+  var maintenant = function(){ return (window.performance && performance.now) ? performance.now() : Date.now(); };
+  var file = new Map(), suivant = 1, demande = 0, dernier = -1e9, geste = maintenant();
+
+  /* ── la capture : flux de la caméra ou du micro encore vivants, ou enregistrement en cours ── */
+  var flux = [], enregistreurs = [], capCache = {t:0, v:false}, md = null;
+  function enCapture(){ var t = maintenant(); if(t - capCache.t < 400) return capCache.v; capCache.t = t; var v = false;
+    try{
+      flux = flux.filter(function(s){ return s.getTracks().some(function(k){ return k.readyState === 'live'; }); }); if(flux.length) v = true;
+      enregistreurs = enregistreurs.filter(function(r){ return r.state !== 'inactive'; }); if(enregistreurs.length) v = true;
+    }catch(e){ v = true; }
+    return (capCache.v = v); }
+  try{ md = N.mediaDevices; if(md && md.getUserMedia){ var gum = md.getUserMedia.bind(md);
+    md.getUserMedia = function(){ return gum.apply(null, arguments).then(function(s){ flux.push(s); capCache.t = 0; return s; }); }; } }catch(e){}
+  try{ if(md && md.getDisplayMedia){ var gdm = md.getDisplayMedia.bind(md);
+    md.getDisplayMedia = function(){ return gdm.apply(null, arguments).then(function(s){ flux.push(s); capCache.t = 0; return s; }); }; } }catch(e){}
+  try{ if(window.MediaRecorder && MediaRecorder.prototype.start){ var dem = MediaRecorder.prototype.start;
+    MediaRecorder.prototype.start = function(){ enregistreurs.push(this); capCache.t = 0; return dem.apply(this, arguments); }; } }catch(e){}
+
+  function repos(){ return maintenant() - geste > REPOS_MS; }
+  /* 4. la cadence qui s'adapte : si le téléphone n'arrive pas à tenir la cadence voulue (les images arrivent 1,6 fois trop tard
+     pendant 2 s), on descend d'un cran (60 → 30 → 20, ou 30 → 20 → 15 sur un téléphone modeste) ; quand il respire de nouveau
+     pendant 8 s, on remonte. Une cadence tenue est plus fluide, et les touchers sont servis plus vite, qu'une cadence ratée. */
+  var CRANS = faible ? [30, 20, 15] : [60, 30, 20], cran = 0, ema = 0, lent = 0, aise = 0, derniereImage = 0;
+  function voulue(){ var c = CRANS[cran]; if(repos()) c = Math.min(c, faible ? 20 : 30); return c; }
+  function intervalle(){ if(enCapture()) return 0; var c = voulue(); return c >= 60 ? 0 : 1000 / c; }
+  function mesurer(ts){ var d = ts - derniereImage; derniereImage = ts; if(d <= 0 || d > 250){ ema = 0; return; }
+    ema = ema ? ema * .9 + d * .1 : d; var cible = 1000 / voulue();
+    if(ema > cible * 1.6){ lent += d; aise = 0; if(lent > 2000 && cran < CRANS.length - 1){ cran++; lent = 0; ema = 0; } }
+    else if(ema < cible * 1.15){ aise += d; lent = 0; if(aise > 8000 && cran > 0){ cran--; aise = 0; ema = 0; } }
+    else { lent = 0; aise = 0; } }
+
+  /* ── les animations pilotées (CSS sans fin et SVG à l'écran, seulement quand la cadence est réduite) ── */
+  var pilotes = [], svgs = [], gouverne = false;
+  function piloter(ts){
+    for(var i = 0; i < pilotes.length; i++){ var p = pilotes[i]; try{ p.a.currentTime = p.base + (ts - p.t0) * (p.a.playbackRate || 1); }catch(e){} }
+    for(i = 0; i < svgs.length; i++){ var q = svgs[i]; try{ q.s.setCurrentTime(q.base + (ts - q.t0) / 1000); }catch(e){} } }
+  function relancer(){ if(!demande && (file.size || pilotes.length || svgs.length)) demande = natRAF(tour); }
+  function prendre(a){ for(var i = 0; i < pilotes.length; i++) if(pilotes[i].a === a) return;
+    try{ var ct = a.currentTime || 0; a.pause(); a.currentTime = ct; pilotes.push({a:a, base:ct, t0:maintenant()}); relancer(); }catch(e){} }
+  function prendreSvg(s){ for(var i = 0; i < svgs.length; i++) if(svgs[i].s === s) return;
+    try{ if(s.animationsPaused()) return; var ct = s.getCurrentTime(); s.pauseAnimations(); svgs.push({s:s, base:ct, t0:maintenant()}); relancer(); }catch(e){} }
+  function lacher(){ var l = pilotes; pilotes = [];
+    l.forEach(function(p){ try{ var t = p.a.effect && p.a.effect.target; if(p.a.playState === 'paused' && t && t.isConnected) p.a.play(); }catch(e){} });
+    var m = svgs; svgs = []; m.forEach(function(q){ try{ q.s.unpauseAnimations(); }catch(e){} }); }
+  function lacherA(a){ pilotes = pilotes.filter(function(p){ return p.a !== a; }); }
+
+  function tour(ts){ demande = 0; if(!file.size && !pilotes.length && !svgs.length) return;
+    var iv = intervalle(); if(iv && ts - dernier < iv - 3){ demande = natRAF(tour); return; }
+    if(!iv && (pilotes.length || svgs.length)) lacher();
+    dernier = ts; if(!enCapture()) mesurer(ts); if(iv) piloter(ts);
+    var lot = file; file = new Map();
+    lot.forEach(function(cb){ try{ cb(ts); }catch(e){ setTimeout(function(){ throw e; }, 0); } });
+    relancer(); }
+  window.requestAnimationFrame = function(cb){ if(typeof cb !== 'function') return natRAF(cb); var id = suivant++; file.set(id, cb); if(!demande) demande = natRAF(tour); return id; };
+  window.cancelAnimationFrame = function(id){ file.delete(id); if(!file.size && !pilotes.length && !svgs.length && demande){ natCAF(demande); demande = 0; } };
+  function bouge(){ var r = repos(); geste = maintenant(); if(r) dernier = -1e9; if(gouverne && !intervalle()){ gouverne = false; lacher(); } }
+  ['pointerdown', 'touchstart', 'keydown', 'wheel', 'scroll'].forEach(function(n){ window.addEventListener(n, bouge, {capture:true, passive:true}); });
+
+  /* ── les animations CSS sans fin hors de l'écran ── */
+  var suivis = typeof WeakMap === 'function' ? new WeakMap() : null, arretees = [], io = null;
+  function sansFin(a){ try{ return a.effect && a.effect.getTiming && a.effect.getTiming().iterations === Infinity; }catch(e){ return false; } }
+  function voulueEnPause(el){ try{ return /paused/.test(getComputedStyle(el).animationPlayState || ''); }catch(e){ return false; } }
+  function estCSS(a){ return !!(window.CSSAnimation && a instanceof CSSAnimation); }
+  if(suivis && 'IntersectionObserver' in window && document.getAnimations){
+    io = new IntersectionObserver(function(es){ es.forEach(function(e){ var el = e.target, s = suivis.get(el); if(!s) return; s.vu = e.isIntersecting;
+      if(s.vu){ var reste = []; arretees.forEach(function(a){ var t = a.effect && a.effect.target;
+          if(t === el){ if(a.playState === 'paused' && !voulueEnPause(el)){ if(gouverne) prendre(a); else try{ a.play(); }catch(x){} } } else reste.push(a); }); arretees = reste; }
+      else { try{ el.getAnimations().forEach(function(a){ if(!estCSS(a) || !sansFin(a)) return; var pil = pilotes.some(function(p){ return p.a === a; });
+          if(pil){ lacherA(a); arretees.push(a); } else if(a.playState === 'running'){ try{ a.pause(); arretees.push(a); }catch(x){} } }); }catch(x){} } }); }, {rootMargin:'120px'});
+    var balayer = function(){ if(document.hidden) return;
+      arretees = arretees.filter(function(a){ var t = a.effect && a.effect.target; return t && t.isConnected; });
+      pilotes = pilotes.filter(function(p){ var t = p.a.effect && p.a.effect.target; return t && t.isConnected && p.a.playState !== 'idle'; });
+      gouverne = intervalle() > 0; if(!gouverne && (pilotes.length || svgs.length)) lacher();
+      try{ document.getAnimations().forEach(function(a){ if(!estCSS(a) || !sansFin(a)) return; var t = a.effect && a.effect.target; if(!t || t.nodeType !== 1) return;
+        var s = suivis.get(t); if(!s){ suivis.set(t, {vu:true}); io.observe(t); return; }
+        if(!s.vu){ if(a.playState === 'running'){ try{ a.pause(); arretees.push(a); }catch(x){} } return; }
+        if(gouverne && a.playState === 'running' && !voulueEnPause(t)) prendre(a); }); }catch(e){}
+      /* les SVG animés : endormis hors de l'écran, pilotés à l'écran quand la cadence est réduite */
+      try{ [].forEach.call(document.querySelectorAll('svg'), function(s){ if(s.ownerSVGElement || !s.pauseAnimations) return;
+          if(!s.querySelector('animate,animateTransform,animateMotion,set')) return; var r = s.getBoundingClientRect(), vu = !!(r.width && r.bottom > -120 && r.top < innerHeight + 120);
+          if(!vu){ var pil = svgs.some(function(q){ return q.s === s; });
+            if(pil){ svgs = svgs.filter(function(q){ return q.s !== s; }); s.__nvDort = true; }
+            else if(!s.animationsPaused()){ try{ s.pauseAnimations(); s.__nvDort = true; }catch(e){} } return; }
+          if(s.__nvDort){ s.__nvDort = false; try{ s.unpauseAnimations(); }catch(e){} }
+          if(gouverne) prendreSvg(s); }); }catch(e){}
+      svgs = svgs.filter(function(q){ return q.s.isConnected; }); };
+    var lancer = function(){ balayer(); setInterval(balayer, 2000); };
+    if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', function(){ setTimeout(lancer, 1500); }); else setTimeout(lancer, 1500);
+  }
+  window.NVVitesse = {faible:faible, repos:repos, capture:enCapture, cadence:function(){ var iv = intervalle(); return iv ? Math.round(1000 / iv) : 60; }, cran:function(){ return cran; },
+    pilotees:function(){ return {css:pilotes.length, svg:svgs.length}; }};
+})();</script><!--/NV_VITESSE-->
+<!--NV_CONFIG--><script src="nv-config.js"></script><!--/NV_CONFIG-->
+<!--NV_DEMO--><script id="nv-demo">
+/* NEURAVID — LA DÉMONSTRATION dans chaque module (injectée en tête de page, avant le module).
+   Jamais dans l'application ni avec un serveur (NV_API_BASE). Allumée si l'accueil l'a allumée pour la session
+   (sessionStorage « nv_demo » = 1), ou « #demo » dans l'adresse, ou une page ouverte comme fichier (file:, content:).
+   Elle permet seulement d'ouvrir les autres modules à côté (NV_MODULES_BASE) avec le même visiteur de démonstration ;
+   chaque module garde ses propres règles (rien d'inventé hors de la démonstration).
+   Seule exception à « jamais dans l'application » : l'APK « NEURAVID Aperçu » pose window.NV_APERCU = true (3 nov. 2026) ;
+   l'application de production ne le pose jamais. */
+(function(){ try{ var dansApp = !window.NV_APERCU && !!(window.flutter_inappwebview || window.NVLien || window.ReactNativeWebView), h = location.hash || '', s = null; try{ s = sessionStorage.getItem('nv_demo'); }catch(e){ s = null; }
+  if(dansApp || (typeof window.NV_API_BASE === 'string' && window.NV_API_BASE) || s === '0' || /(^#|&)demo=0(&|$)/.test(h)) return;
+  if(!(s === '1' || /(^#|&)demo(=1)?(&|$)/.test(h) || /^(file|content):$/.test(location.protocol))) return;
+  window.NV_DEMO = true; try{ sessionStorage.setItem('nv_demo', '1'); }catch(e){ /* rien */ }
+  if(!window.NV_MODULES_BASE) window.NV_MODULES_BASE = './';
+  if(!window.NV_USER) window.NV_USER = {id:'demo', handle:'visiteur', prenom:'Aya', age:25, majeur:true, iso:'GN'};
+}catch(e){ /* rien */ } })();
+</script><!--/NV_DEMO-->
+
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#140b33">
+<title>Le Savoir-faire · NEURAVID</title>
+<style>
+/* Le Savoir-faire qui paie : tutoriels, fiche pratique, mercis (17 novembre 2026).
+   Aucune ressource extérieure : les vidéos viennent des serveurs (univers et publication). */
+:root{
+  --nuit:#140b33; --nuit2:#1c1147; --alv:#241657; --craie:#f6f1ff; --brume:rgba(236,228,255,.74); --trait:rgba(255,255,255,.16);
+  --or:#ffc531; --argent:#d7dbe6; --bronze:#e0995a; --cyan:#16e0d4; --rose:#ff4f9e; --rouge:#ff7a7a;
+  --hex:polygon(25% 0,75% 0,100% 50%,75% 100%,25% 100%,0 50%);
+  --sans:system-ui,-apple-system,"Segoe UI",Roboto,"Noto Sans",sans-serif;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%;text-size-adjust:100%}
+body{margin:0;background:var(--nuit);color:var(--craie);font:16px/1.45 var(--sans);min-height:100vh}
+main{max-width:768px;margin:0 auto;padding:12px 16px calc(32px + env(safe-area-inset-bottom,0px))}
+header{display:flex;align-items:center;gap:10px;padding:6px 0 10px}
+.hex{width:34px;height:30px;flex:0 0 auto;clip-path:var(--hex);background:linear-gradient(135deg,var(--cyan),#6c2bd9);display:grid;place-items:center}
+.hex i{width:14px;height:14px;border-radius:50%;background:var(--nuit);box-shadow:inset 0 0 0 4px var(--craie)}
+h1{font-size:1.2rem;margin:0;line-height:1.2}
+h2{font-size:1rem;margin:0 0 8px;display:flex;align-items:center;gap:8px}
+h2::before{content:"";width:12px;height:11px;clip-path:var(--hex);background:var(--cyan);flex:0 0 auto}
+.sous{margin:0;color:var(--brume);font-size:.88rem}
+.apercu{display:inline-block;margin-inline-start:6px;padding:1px 8px;border-radius:999px;background:var(--or);color:#2a1a00;font-size:.75rem;font-weight:800;vertical-align:middle}
+#etat{margin:0 0 12px;padding:8px 12px;border-radius:10px;background:var(--nuit2);border:1px solid var(--trait);font-size:.9rem}
+#etat.hl{border-color:var(--or)}
+#etat.ok{border-color:rgba(22,224,212,.5)}
+section{background:var(--nuit2);border:1px solid var(--trait);border-radius:14px;padding:12px 14px;margin:0 0 12px}
+ul{list-style:none;margin:0;padding:0}
+li{padding:7px 0;border-top:1px solid var(--trait)}
+li:first-child{border-top:0}
+.l1{display:flex;justify-content:space-between;gap:10px;align-items:baseline;flex-wrap:wrap}
+.d{color:var(--brume);font-size:.86rem}
+.puce{display:inline-block;padding:0 7px;border-radius:999px;font-size:.75rem;font-weight:700;border:1px solid var(--trait);white-space:nowrap}
+.puce.an{color:var(--rouge);border-color:var(--rouge)}
+.puce.re{color:var(--or);border-color:var(--or)}
+.puce.co{color:var(--cyan);border-color:var(--cyan)}
+.chiffres{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;text-align:center}
+.chiffres b{display:block;font-size:1.25rem}
+.chiffres span{font-size:.75rem;color:var(--brume)}
+.med{display:inline-flex;align-items:center;gap:3px;margin-inline-end:8px;white-space:nowrap}
+.med i{width:12px;height:11px;clip-path:var(--hex);display:inline-block}
+.or i{background:var(--or)} .ar i{background:var(--argent)} .br i{background:var(--bronze)}
+table{width:100%;border-collapse:collapse;font-size:.92rem}
+td,th{padding:5px 4px;text-align:center;border-top:1px solid var(--trait)}
+td:first-child,th:first-child{text-align:start}
+th{font-size:.75rem;color:var(--brume);font-weight:600;border-top:0}
+button,select,.lien{font:inherit;color:inherit}
+button{min-height:44px;padding:8px 14px;border-radius:12px;border:1px solid var(--trait);background:var(--alv);cursor:pointer}
+button:focus-visible,select:focus-visible,.lien:focus-visible{outline:2px solid var(--or);outline-offset:2px}
+button[disabled]{opacity:.55;cursor:default}
+.actions{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 12px}
+.actions button{flex:1 1 140px}
+.lien{background:none;border:0;padding:6px 0;min-height:36px;color:var(--cyan);text-decoration:underline;cursor:pointer;font-size:.88rem}
+.jours button{min-height:40px;margin-block:4px 0;margin-inline:0 6px;padding:6px 10px;font-size:.88rem}
+.jours button[aria-current="true"]{border-color:var(--or)}
+footer{color:var(--brume);font-size:.8rem;display:grid;gap:8px;margin-top:4px}
+footer label{display:flex;gap:8px;align-items:center}
+select{min-height:40px;border-radius:10px;background:var(--alv);border:1px solid var(--trait);padding:4px 8px}
+#toast{position:fixed;left:50%;bottom:calc(16px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--craie);color:var(--nuit);padding:8px 14px;border-radius:10px;font-weight:700;opacity:0;pointer-events:none;max-width:calc(100% - 32px)}
+#toast.on{opacity:1}
+.vide{color:var(--brume);margin:0}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+[dir="rtl"] .l1{direction:rtl}
+@media (prefers-reduced-motion:no-preference){#toast{transition:opacity .2s}}
+@media (min-width:560px){h1{font-size:1.35rem}}
+
+.chips{display:flex;gap:6px;flex-wrap:wrap;margin:0 0 10px}
+.chips button{min-height:40px;padding:4px 12px;font-size:.88rem;border-radius:999px}
+.chips button[aria-pressed="true"]{border-color:var(--or);color:var(--or)}
+.form{display:grid;gap:10px}
+.form label{display:grid;gap:4px;font-size:.88rem;color:var(--brume)}
+input,textarea{font:inherit;color:var(--craie);background:var(--alv);border:1px solid var(--trait);border-radius:10px;padding:8px 10px;min-height:44px;width:100%}
+input:focus-visible,textarea:focus-visible{outline:2px solid var(--or);outline-offset:2px}
+.btn-or{background:linear-gradient(135deg,var(--or),#ff9f1c);color:#2a1a00;border:0;font-weight:800}
+
+
+select.plein{width:100%;min-height:44px}
+.barre{display:grid;gap:8px;margin:0 0 12px}
+.barre .ligne{display:flex;gap:8px;flex-wrap:wrap}
+.barre input{flex:1 1 160px}
+.cats{display:flex;gap:6px;overflow-x:auto;padding-bottom:4px;scrollbar-width:thin}
+.cats button{flex:0 0 auto;min-height:40px;padding:4px 14px;font-size:.86rem;clip-path:var(--hex);border-radius:0;padding-inline:18px}
+.cats button[aria-pressed="true"]{background:var(--or);color:#2a1a00;font-weight:800}
+.carte{display:grid;grid-template-columns:104px 1fr;gap:10px;align-items:start;padding:10px 0;border-top:1px solid var(--trait)}
+.carte:first-of-type{border-top:0}
+.affiche{width:104px;aspect-ratio:9/16;clip-path:var(--hex);background:#000;object-fit:cover;display:block;border:0;padding:0;min-height:0}
+canvas.affiche{background:var(--alv)}
+.carte h3{margin:0 0 4px;font-size:1rem}
+.carte h3 button{all:unset;cursor:pointer;color:var(--craie);font-weight:700}
+.carte h3 button:focus-visible{outline:2px solid var(--or);outline-offset:2px}
+.compteurs{display:flex;gap:10px;flex-wrap:wrap;font-size:.8rem;color:var(--brume);margin-top:4px}
+.compteurs b{color:var(--craie)}
+.lecteur{width:100%;max-width:340px;aspect-ratio:9/16;border-radius:14px;background:#000;display:block;margin:0 auto 10px}
+.materiel label{display:flex;gap:10px;align-items:center;padding:6px 0;border-top:1px solid var(--trait);min-height:44px}
+.materiel label:first-child{border-top:0}
+.materiel input{width:22px;min-height:22px;height:22px;flex:0 0 auto;accent-color:var(--cyan)}
+.materiel .q{color:var(--brume);font-size:.85rem;margin-inline-start:auto}
+ol.etapes{margin:0;padding-inline-start:0;list-style:none;counter-reset:e}
+ol.etapes li{display:grid;grid-template-columns:30px 1fr auto;gap:8px;align-items:start;counter-increment:e}
+ol.etapes li::before{content:counter(e);width:26px;height:23px;clip-path:var(--hex);background:var(--cyan);color:var(--nuit);font-weight:800;font-size:.8rem;display:grid;place-items:center}
+ol.etapes button{min-height:36px;padding:2px 10px;font-size:.8rem}
+.astuce{margin:0;padding:8px 10px;border-radius:10px;background:rgba(255,197,49,.1);border:1px solid rgba(255,197,49,.35)}
+.merci{border-color:rgba(255,197,49,.45)}
+.montants{display:flex;gap:6px;flex-wrap:wrap;margin:0 0 8px}
+.montants button{min-height:44px;min-width:64px;clip-path:var(--hex);border-radius:0;padding-inline:18px}
+.montants button[aria-pressed="true"]{background:var(--or);color:#2a1a00;font-weight:800}
+.liste-ed{display:grid;gap:6px}
+.liste-ed .r{display:flex;gap:6px;align-items:center}
+.liste-ed .r input{min-height:40px}
+.liste-ed .r button{min-height:40px;padding:4px 10px;flex:0 0 auto}
+.liste-ed .r .t{flex:0 0 76px}
+.case{display:flex !important;grid-template-columns:none;flex-direction:row;gap:10px;align-items:center;color:var(--craie) !important}
+.case input{width:22px;min-height:22px;height:22px}
+.prise{width:100%;max-width:220px;aspect-ratio:9/16;border-radius:12px;background:#000;display:block;margin:0 auto 10px}
+.retour{margin:0 0 10px}
+.nv-cree{display:inline-flex;align-items:center;gap:4px;font-size:.75rem;color:var(--or)}
+.nv-cree i{width:11px;height:10px;clip-path:var(--hex);background:var(--or);display:inline-block}
+.vise{outline:2px solid var(--or);outline-offset:4px;border-radius:12px}
+</style>
+</head>
+<body>
+<main id="app">
+<header><div class="hex" aria-hidden="true"><i></i></div><div><h1 id="titre">Le Savoir-faire</h1><p class="sous" id="soustitre"></p></div></header>
+<p id="etat" role="status" aria-live="polite"></p>
+<div id="contenu"></div>
+<footer id="pied"></footer>
+</main>
+<div id="toast" role="status" aria-live="polite"></div>
+<script type="application/json" id="nvI18n-en">{"Pas de connexion pour le moment.":"No connection right now.","Impossible de joindre NEURAVID pour le moment.":"Unable to reach NEURAVID right now.","Chargement…":"Loading…","Aperçu":"Preview","Le service est momentanément indisponible. Réessayez dans un instant.":"The service is temporarily unavailable. Try again in a moment.","Envoi…":"Sending…","Toucher encore pour retirer":"Tap again to remove","Langue":"Language","Traduction en cours de relecture.":"Translation being reviewed.","La Forge n’est pas joignable ici.":"La Forge cannot be reached here.","Déjà envoyé.":"Already sent.","Envoi déjà en cours : patientez un instant.":"Already sending: please wait a moment.","Cette vidéo est trop lourde.":"This video is too large.","Publié":"Published","Le Savoir-faire":"Know-How","Apprenez d’une personne qui sait faire. Partagez ce que vous savez.":"Learn from someone who knows how. Share what you know.","Vérifiez la fiche : un champ n’est pas rempli comme il faut.":"Check the sheet: a field is not filled in correctly.","Connectez-vous pour continuer.":"Sign in to continue.","Aperçu : des tutoriels d’exemple, pour découvrir la page.":"Preview: example tutorials, to discover the page.","Le Savoir-faire n’est pas encore ouvert.":"Know-How is not open yet.","Pas de connexion : vos fiches gardées restent lisibles.":"No connection: your saved sheets can still be read.","Apprendre":"Learn","Partager mon savoir-faire":"Share my know-how","Mes savoir-faire":"My know-how","Créé sur NEURAVID":"Created on NEURAVID","{0} min":"{0} min","{0} ont réussi":"{0} did it","{0} mercis":"{0} thanks","Chercher un savoir-faire":"Search for a know-how","Trier":"Sort","Les plus récents":"Most recent","Les plus réussis":"Most achieved","Catégories":"Categories","Tout":"All","Mes fiches, même sans connexion":"My sheets, even offline","Aucune fiche gardée sur ce téléphone.":"No sheet saved on this phone.","Apprendre d’une personne qui sait faire":"Learn from someone who knows how","Aucun tutoriel ici pour l’instant : partagez le premier.":"No tutorial here yet: share the first one.","Voir plus":"See more","← Retour":"← Back","Sans connexion : la fiche est là, la vidéo reviendra avec le réseau.":"Offline: the sheet is here, the video will come back with the network.","Le matériel":"What you need","Aucun matériel particulier.":"Nothing special needed.","Les étapes":"The steps","Voir l’étape {0} dans la vidéo, à {1}":"See step {0} in the video, at {1}","Les astuces":"Tips","✓ J’ai réussi":"✓ I did it","J’ai réussi":"I did it","Fiche gardée sur ce téléphone":"Sheet saved on this phone","Garder la fiche":"Save the sheet","Télécharger la fiche":"Download the sheet","Partager":"Share","Dire merci en NVCoins":"Say thanks in NVCoins","Ce tutoriel vous a servi ? Un merci va directement à {0}. Ce n’est jamais un vote.":"Did this tutorial help you? A thank-you goes straight to {0}. It is never a vote.","Combien ?":"How much?","Un mot pour l’auteur (facultatif)":"A word for the author (optional)","Choisissez un montant":"Choose an amount","Toucher encore pour envoyer {0} NVCoins":"Tap again to send {0} NVCoins","Dire merci : {0} NVCoins":"Say thanks: {0} NVCoins","Signaler ce tutoriel":"Report this tutorial","L’équipe":"The team","Masquer ce tutoriel : pourquoi ?":"Hide this tutorial: why?","Toucher encore pour masquer":"Tap again to hide","Masquer":"Hide","Ce qu’il faut":"What is needed","Matériel {0}":"Item {0}","Combien":"How much","Quantité {0}":"Quantity {0}","Enlever":"Remove","Étape {0}":"Step {0}","Moment dans la vidéo (minutes:secondes)":"Time in the video (minutes:seconds)","Modifier la fiche":"Edit the sheet","Filmez ce que vous savez faire (10 minutes au plus), puis remplissez la fiche pratique : ceux qui apprennent la gardent sur leur téléphone.":"Film what you know how to do (10 minutes at most), then fill in the how-to sheet: learners keep it on their phone.","Toucher encore pour filmer à nouveau":"Tap again to film again","Filmer à nouveau":"Film again","Filmer avec La Forge":"Film with La Forge","Titre":"Title","Catégorie":"Category","Niveau":"Level","Langue du tutoriel":"Tutorial language","Temps pour le faire (minutes, facultatif)":"Time to do it (minutes, optional)","+ Ajouter du matériel":"+ Add an item","+ Ajouter une étape":"+ Add a step","Les astuces (facultatif)":"Tips (optional)","Accepter les mercis en NVCoins":"Accept thanks in NVCoins","Enregistrer":"Save","Publier le tutoriel":"Publish the tutorial","Annuler":"Cancel","Mes tutoriels":"My tutorials","Mercis reçus ici : {0} NVCoins.":"Thanks received here: {0} NVCoins.","Voir dans La Récolte":"See in La Récolte","Vous n’avez pas encore partagé de savoir-faire.":"You have not shared any know-how yet.","Retirer":"Remove","Les mots de merci":"Thank-you notes","Mes fiches gardées":"My saved sheets","Publier : à partir de 13 ans. Les mercis en NVCoins : à partir de 18 ans, des deux côtés ; un merci n’est jamais un vote ni un classement.":"Publishing: from 13 years of age. Thanks in NVCoins: from 18, on both sides; a thank-you is never a vote or a ranking.","Bravo ! L’auteur en sera content.":"Well done! The author will be glad.","Fiche retirée de ce téléphone.":"Sheet removed from this phone.","Fiche gardée : vous pourrez la lire sans connexion.":"Sheet saved: you can read it offline.","Impossible de télécharger ici.":"Unable to download here.","{0} : un tutoriel du Savoir-faire sur NEURAVID.":"{0}: a Know-How tutorial on NEURAVID.","Copié.":"Copied.","Merci envoyé : {0} NVCoins.":"Thanks sent: {0} NVCoins.","Tutoriel masqué.":"Tutorial hidden.","Mon tutoriel":"My tutorial","Un tutoriel de 10 minutes au plus.":"A tutorial of 10 minutes at most.","Donnez un titre à votre tutoriel.":"Give your tutorial a title.","Choisissez une catégorie.":"Choose a category.","Écrivez au moins une étape.":"Write at least one step.","Le moment d’une étape s’écrit minutes:secondes, par exemple 1:30.":"A step’s time is written minutes:seconds, for example 1:30.","Le temps pour le faire s’écrit en minutes.":"The time to do it is written in minutes.","Fiche enregistrée.":"Sheet saved.","Filmez d’abord votre tutoriel avec La Forge.":"First film your tutorial with La Forge.","Votre tutoriel est publié.":"Your tutorial is published.","Tutoriel retiré.":"Tutorial removed.","Coiffure et tresses":"Hair and braids","Couture et pagne":"Sewing and wax print","Cuisine":"Cooking","Beauté":"Beauty","Artisanat":"Crafts","Agriculture":"Farming","Maison":"Home","Réparation":"Repair","Numérique":"Digital","Musique":"Music","Danse":"Dance","Langues":"Languages","Autre":"Other","Débutant":"Beginner","Moyen":"Intermediate","Avancé":"Advanced","Dangereux":"Dangerous","Trompeur":"Misleading","Contenu inapproprié":"Inappropriate content","Hors sujet":"Off topic","Cette action n’est pas ouverte à votre âge.":"This action is not open at your age.","Un texte n’a pas été accepté. Changez-le.":"A text was not accepted. Change it.","Ce tutoriel n’est plus disponible.":"This tutorial is no longer available.","Ce tutoriel ne reçoit pas de merci.":"This tutorial does not receive thanks.","Il vous manque des NVCoins.":"You do not have enough NVCoins.","On ne se remercie pas soi-même.":"You cannot thank yourself.","Pas pour votre propre tutoriel.":"Not for your own tutorial.","Vous gardez déjà 500 fiches.":"You already keep 500 sheets.","Les mercis ne sont pas encore ouverts.":"Thanks are not open yet.","Un autre modérateur doit le rétablir.":"Another moderator must restore it.","1 personne a réussi":"1 person did it","1 merci":"1 thanks","Cet envoi a changé : touchez « Publier le tutoriel » encore une fois.":"This upload changed: tap “Publish the tutorial” once more.","La fiche la plus ancienne gardée sur ce téléphone a été retirée.":"The oldest sheet saved on this phone was removed.","Masqué par vous : un autre modérateur doit le rétablir.":"Hidden by you: another moderator must restore it.","Rétablir":"Restore","Toucher encore pour rétablir":"Tap again to restore","Tutoriel rétabli.":"Tutorial restored.","Tutoriels masqués":"Hidden tutorials","Un merci est déjà en route : renvoyez-le avant d’en choisir un autre.":"A thank-you is already on its way: send it again before choosing another.","Masqué par l’équipe":"Hidden by the team"}</script>
+<script type="application/json" id="nvI18n-es">{"Pas de connexion pour le moment.":"Sin conexión por ahora.","Impossible de joindre NEURAVID pour le moment.":"No se puede contactar con NEURAVID por ahora.","Chargement…":"Cargando…","Aperçu":"Vista previa","Le service est momentanément indisponible. Réessayez dans un instant.":"El servicio no está disponible por el momento. Inténtalo de nuevo en un instante.","Envoi…":"Enviando…","Toucher encore pour retirer":"Toca de nuevo para retirar","Langue":"Idioma","Traduction en cours de relecture.":"Traducción en revisión.","La Forge n’est pas joignable ici.":"La Forge no está disponible aquí.","Déjà envoyé.":"Ya enviado.","Envoi déjà en cours : patientez un instant.":"Ya se está enviando: espera un instante.","Cette vidéo est trop lourde.":"Este vídeo es demasiado pesado.","Publié":"Publicado","Le Savoir-faire":"El Saber Hacer","Apprenez d’une personne qui sait faire. Partagez ce que vous savez.":"Aprende de alguien que sabe hacerlo. Comparte lo que sabes.","Vérifiez la fiche : un champ n’est pas rempli comme il faut.":"Revisa la ficha: un campo no está bien rellenado.","Connectez-vous pour continuer.":"Inicia sesión para continuar.","Aperçu : des tutoriels d’exemple, pour découvrir la page.":"Vista previa: tutoriales de ejemplo, para descubrir la página.","Le Savoir-faire n’est pas encore ouvert.":"El Saber Hacer aún no está abierto.","Pas de connexion : vos fiches gardées restent lisibles.":"Sin conexión: tus fichas guardadas siguen legibles.","Apprendre":"Aprender","Partager mon savoir-faire":"Compartir mi saber hacer","Mes savoir-faire":"Mis saberes","Créé sur NEURAVID":"Creado en NEURAVID","{0} min":"{0} min","{0} ont réussi":"{0} lo lograron","{0} mercis":"{0} gracias","Chercher un savoir-faire":"Buscar un saber hacer","Trier":"Ordenar","Les plus récents":"Los más recientes","Les plus réussis":"Los más logrados","Catégories":"Categorías","Tout":"Todo","Mes fiches, même sans connexion":"Mis fichas, incluso sin conexión","Aucune fiche gardée sur ce téléphone.":"Ninguna ficha guardada en este teléfono.","Apprendre d’une personne qui sait faire":"Aprender de alguien que sabe hacerlo","Aucun tutoriel ici pour l’instant : partagez le premier.":"Aún no hay tutoriales aquí: comparte el primero.","Voir plus":"Ver más","← Retour":"← Volver","Sans connexion : la fiche est là, la vidéo reviendra avec le réseau.":"Sin conexión: la ficha está aquí, el vídeo volverá con la red.","Le matériel":"El material","Aucun matériel particulier.":"Ningún material especial.","Les étapes":"Los pasos","Voir l’étape {0} dans la vidéo, à {1}":"Ver el paso {0} en el vídeo, en {1}","Les astuces":"Los consejos","✓ J’ai réussi":"✓ Lo logré","J’ai réussi":"Lo logré","Fiche gardée sur ce téléphone":"Ficha guardada en este teléfono","Garder la fiche":"Guardar la ficha","Télécharger la fiche":"Descargar la ficha","Partager":"Compartir","Dire merci en NVCoins":"Dar las gracias en NVCoins","Ce tutoriel vous a servi ? Un merci va directement à {0}. Ce n’est jamais un vote.":"¿Te sirvió este tutorial? Un agradecimiento va directamente a {0}. Nunca es un voto.","Combien ?":"¿Cuánto?","Un mot pour l’auteur (facultatif)":"Unas palabras para el autor (opcional)","Choisissez un montant":"Elige un importe","Toucher encore pour envoyer {0} NVCoins":"Toca de nuevo para enviar {0} NVCoins","Dire merci : {0} NVCoins":"Dar las gracias: {0} NVCoins","Signaler ce tutoriel":"Denunciar este tutorial","L’équipe":"El equipo","Masquer ce tutoriel : pourquoi ?":"Ocultar este tutorial: ¿por qué?","Toucher encore pour masquer":"Toca de nuevo para ocultar","Masquer":"Ocultar","Ce qu’il faut":"Lo que hace falta","Matériel {0}":"Material {0}","Combien":"Cuánto","Quantité {0}":"Cantidad {0}","Enlever":"Quitar","Étape {0}":"Paso {0}","Moment dans la vidéo (minutes:secondes)":"Momento en el vídeo (minutos:segundos)","Modifier la fiche":"Editar la ficha","Filmez ce que vous savez faire (10 minutes au plus), puis remplissez la fiche pratique : ceux qui apprennent la gardent sur leur téléphone.":"Graba lo que sabes hacer (10 minutos como máximo) y rellena la ficha práctica: quienes aprenden la guardan en su teléfono.","Toucher encore pour filmer à nouveau":"Toca de nuevo para grabar otra vez","Filmer à nouveau":"Grabar otra vez","Filmer avec La Forge":"Grabar con La Forge","Titre":"Título","Catégorie":"Categoría","Niveau":"Nivel","Langue du tutoriel":"Idioma del tutorial","Temps pour le faire (minutes, facultatif)":"Tiempo para hacerlo (minutos, opcional)","+ Ajouter du matériel":"+ Añadir material","+ Ajouter une étape":"+ Añadir un paso","Les astuces (facultatif)":"Los consejos (opcional)","Accepter les mercis en NVCoins":"Aceptar agradecimientos en NVCoins","Enregistrer":"Guardar","Publier le tutoriel":"Publicar el tutorial","Annuler":"Cancelar","Mes tutoriels":"Mis tutoriales","Mercis reçus ici : {0} NVCoins.":"Agradecimientos recibidos aquí: {0} NVCoins.","Voir dans La Récolte":"Ver en La Récolte","Vous n’avez pas encore partagé de savoir-faire.":"Aún no has compartido ningún saber hacer.","Retirer":"Retirar","Les mots de merci":"Las palabras de agradecimiento","Mes fiches gardées":"Mis fichas guardadas","Publier : à partir de 13 ans. Les mercis en NVCoins : à partir de 18 ans, des deux côtés ; un merci n’est jamais un vote ni un classement.":"Publicar: a partir de los 13 años. Los agradecimientos en NVCoins: a partir de los 18, por ambas partes; un agradecimiento nunca es un voto ni una clasificación.","Bravo ! L’auteur en sera content.":"¡Bravo! Al autor le alegrará.","Fiche retirée de ce téléphone.":"Ficha quitada de este teléfono.","Fiche gardée : vous pourrez la lire sans connexion.":"Ficha guardada: podrás leerla sin conexión.","Impossible de télécharger ici.":"No se puede descargar aquí.","{0} : un tutoriel du Savoir-faire sur NEURAVID.":"{0}: un tutorial de El Saber Hacer en NEURAVID.","Copié.":"Copiado.","Merci envoyé : {0} NVCoins.":"Agradecimiento enviado: {0} NVCoins.","Tutoriel masqué.":"Tutorial oculto.","Mon tutoriel":"Mi tutorial","Un tutoriel de 10 minutes au plus.":"Un tutorial de 10 minutos como máximo.","Donnez un titre à votre tutoriel.":"Ponle un título a tu tutorial.","Choisissez une catégorie.":"Elige una categoría.","Écrivez au moins une étape.":"Escribe al menos un paso.","Le moment d’une étape s’écrit minutes:secondes, par exemple 1:30.":"El momento de un paso se escribe minutos:segundos, por ejemplo 1:30.","Le temps pour le faire s’écrit en minutes.":"El tiempo para hacerlo se escribe en minutos.","Fiche enregistrée.":"Ficha guardada.","Filmez d’abord votre tutoriel avec La Forge.":"Primero graba tu tutorial con La Forge.","Votre tutoriel est publié.":"Tu tutorial está publicado.","Tutoriel retiré.":"Tutorial retirado.","Coiffure et tresses":"Peinado y trenzas","Couture et pagne":"Costura y tela africana","Cuisine":"Cocina","Beauté":"Belleza","Artisanat":"Artesanía","Agriculture":"Agricultura","Maison":"Hogar","Réparation":"Reparación","Numérique":"Digital","Musique":"Música","Danse":"Danza","Langues":"Idiomas","Autre":"Otro","Débutant":"Principiante","Moyen":"Intermedio","Avancé":"Avanzado","Dangereux":"Peligroso","Trompeur":"Engañoso","Contenu inapproprié":"Contenido inapropiado","Hors sujet":"Fuera de tema","Cette action n’est pas ouverte à votre âge.":"Esta acción no está disponible para tu edad.","Un texte n’a pas été accepté. Changez-le.":"Un texto no fue aceptado. Cámbialo.","Ce tutoriel n’est plus disponible.":"Este tutorial ya no está disponible.","Ce tutoriel ne reçoit pas de merci.":"Este tutorial no recibe agradecimientos.","Il vous manque des NVCoins.":"Te faltan NVCoins.","On ne se remercie pas soi-même.":"Uno no se agradece a sí mismo.","Pas pour votre propre tutoriel.":"No para tu propio tutorial.","Vous gardez déjà 500 fiches.":"Ya guardas 500 fichas.","Les mercis ne sont pas encore ouverts.":"Los agradecimientos aún no están abiertos.","Un autre modérateur doit le rétablir.":"Otro moderador debe restablecerlo.","1 personne a réussi":"1 persona lo logró","1 merci":"1 agradecimiento","Cet envoi a changé : touchez « Publier le tutoriel » encore une fois.":"Este envío cambió: toca «Publicar el tutorial» una vez más.","La fiche la plus ancienne gardée sur ce téléphone a été retirée.":"Se quitó la ficha más antigua guardada en este teléfono.","Masqué par vous : un autre modérateur doit le rétablir.":"Ocultado por ti: otro moderador debe restablecerlo.","Rétablir":"Restablecer","Toucher encore pour rétablir":"Toca de nuevo para restablecer","Tutoriel rétabli.":"Tutorial restablecido.","Tutoriels masqués":"Tutoriales ocultos","Un merci est déjà en route : renvoyez-le avant d’en choisir un autre.":"Ya hay un agradecimiento en camino: vuelve a enviarlo antes de elegir otro.","Masqué par l’équipe":"Ocultado por el equipo"}</script>
+<script type="application/json" id="nvI18n-pt">{"Pas de connexion pour le moment.":"Sem conexão no momento.","Impossible de joindre NEURAVID pour le moment.":"Não é possível contactar a NEURAVID no momento.","Chargement…":"Carregando…","Aperçu":"Pré-visualização","Le service est momentanément indisponible. Réessayez dans un instant.":"O serviço está temporariamente indisponível. Tente novamente daqui a pouco.","Envoi…":"Enviando…","Toucher encore pour retirer":"Toque novamente para retirar","Langue":"Idioma","Traduction en cours de relecture.":"Tradução em revisão.","La Forge n’est pas joignable ici.":"La Forge não está acessível aqui.","Déjà envoyé.":"Já enviado.","Envoi déjà en cours : patientez un instant.":"Já está sendo enviado: aguarde um instante.","Cette vidéo est trop lourde.":"Este vídeo é pesado demais.","Publié":"Publicado","Le Savoir-faire":"O Saber-Fazer","Apprenez d’une personne qui sait faire. Partagez ce que vous savez.":"Aprenda com alguém que sabe fazer. Compartilhe o que você sabe.","Vérifiez la fiche : un champ n’est pas rempli comme il faut.":"Verifique a ficha: um campo não está preenchido corretamente.","Connectez-vous pour continuer.":"Entre na sua conta para continuar.","Aperçu : des tutoriels d’exemple, pour découvrir la page.":"Pré-visualização: tutoriais de exemplo, para conhecer a página.","Le Savoir-faire n’est pas encore ouvert.":"O Saber-Fazer ainda não está aberto.","Pas de connexion : vos fiches gardées restent lisibles.":"Sem conexão: suas fichas guardadas continuam legíveis.","Apprendre":"Aprender","Partager mon savoir-faire":"Compartilhar meu saber-fazer","Mes savoir-faire":"Meus saberes","Créé sur NEURAVID":"Criado na NEURAVID","{0} min":"{0} min","{0} ont réussi":"{0} conseguiram","{0} mercis":"{0} agradecimentos","Chercher un savoir-faire":"Procurar um saber-fazer","Trier":"Ordenar","Les plus récents":"Os mais recentes","Les plus réussis":"Os mais conseguidos","Catégories":"Categorias","Tout":"Tudo","Mes fiches, même sans connexion":"Minhas fichas, mesmo sem conexão","Aucune fiche gardée sur ce téléphone.":"Nenhuma ficha guardada neste telefone.","Apprendre d’une personne qui sait faire":"Aprender com alguém que sabe fazer","Aucun tutoriel ici pour l’instant : partagez le premier.":"Nenhum tutorial aqui ainda: compartilhe o primeiro.","Voir plus":"Ver mais","← Retour":"← Voltar","Sans connexion : la fiche est là, la vidéo reviendra avec le réseau.":"Sem conexão: a ficha está aqui, o vídeo volta com a rede.","Le matériel":"O material","Aucun matériel particulier.":"Nenhum material especial.","Les étapes":"As etapas","Voir l’étape {0} dans la vidéo, à {1}":"Ver a etapa {0} no vídeo, em {1}","Les astuces":"As dicas","✓ J’ai réussi":"✓ Consegui","J’ai réussi":"Consegui","Fiche gardée sur ce téléphone":"Ficha guardada neste telefone","Garder la fiche":"Guardar a ficha","Télécharger la fiche":"Baixar a ficha","Partager":"Compartilhar","Dire merci en NVCoins":"Agradecer em NVCoins","Ce tutoriel vous a servi ? Un merci va directement à {0}. Ce n’est jamais un vote.":"Este tutorial ajudou você? Um agradecimento vai direto para {0}. Nunca é um voto.","Combien ?":"Quanto?","Un mot pour l’auteur (facultatif)":"Uma palavra para o autor (opcional)","Choisissez un montant":"Escolha um valor","Toucher encore pour envoyer {0} NVCoins":"Toque novamente para enviar {0} NVCoins","Dire merci : {0} NVCoins":"Agradecer: {0} NVCoins","Signaler ce tutoriel":"Denunciar este tutorial","L’équipe":"A equipe","Masquer ce tutoriel : pourquoi ?":"Ocultar este tutorial: por quê?","Toucher encore pour masquer":"Toque novamente para ocultar","Masquer":"Ocultar","Ce qu’il faut":"O que é preciso","Matériel {0}":"Material {0}","Combien":"Quanto","Quantité {0}":"Quantidade {0}","Enlever":"Remover","Étape {0}":"Etapa {0}","Moment dans la vidéo (minutes:secondes)":"Momento no vídeo (minutos:segundos)","Modifier la fiche":"Editar a ficha","Filmez ce que vous savez faire (10 minutes au plus), puis remplissez la fiche pratique : ceux qui apprennent la gardent sur leur téléphone.":"Filme o que você sabe fazer (no máximo 10 minutos) e preencha a ficha prática: quem aprende a guarda no telefone.","Toucher encore pour filmer à nouveau":"Toque novamente para filmar de novo","Filmer à nouveau":"Filmar de novo","Filmer avec La Forge":"Filmar com La Forge","Titre":"Título","Catégorie":"Categoria","Niveau":"Nível","Langue du tutoriel":"Idioma do tutorial","Temps pour le faire (minutes, facultatif)":"Tempo para fazer (minutos, opcional)","+ Ajouter du matériel":"+ Adicionar material","+ Ajouter une étape":"+ Adicionar uma etapa","Les astuces (facultatif)":"As dicas (opcional)","Accepter les mercis en NVCoins":"Aceitar agradecimentos em NVCoins","Enregistrer":"Salvar","Publier le tutoriel":"Publicar o tutorial","Annuler":"Cancelar","Mes tutoriels":"Meus tutoriais","Mercis reçus ici : {0} NVCoins.":"Agradecimentos recebidos aqui: {0} NVCoins.","Voir dans La Récolte":"Ver em La Récolte","Vous n’avez pas encore partagé de savoir-faire.":"Você ainda não compartilhou nenhum saber-fazer.","Retirer":"Retirar","Les mots de merci":"As palavras de agradecimento","Mes fiches gardées":"Minhas fichas guardadas","Publier : à partir de 13 ans. Les mercis en NVCoins : à partir de 18 ans, des deux côtés ; un merci n’est jamais un vote ni un classement.":"Publicar: a partir dos 13 anos. Agradecimentos em NVCoins: a partir dos 18, dos dois lados; um agradecimento nunca é voto nem classificação.","Bravo ! L’auteur en sera content.":"Parabéns! O autor vai ficar contente.","Fiche retirée de ce téléphone.":"Ficha removida deste telefone.","Fiche gardée : vous pourrez la lire sans connexion.":"Ficha guardada: você poderá lê-la sem conexão.","Impossible de télécharger ici.":"Não é possível baixar aqui.","{0} : un tutoriel du Savoir-faire sur NEURAVID.":"{0}: um tutorial do Saber-Fazer na NEURAVID.","Copié.":"Copiado.","Merci envoyé : {0} NVCoins.":"Agradecimento enviado: {0} NVCoins.","Tutoriel masqué.":"Tutorial ocultado.","Mon tutoriel":"Meu tutorial","Un tutoriel de 10 minutes au plus.":"Um tutorial de no máximo 10 minutos.","Donnez un titre à votre tutoriel.":"Dê um título ao seu tutorial.","Choisissez une catégorie.":"Escolha uma categoria.","Écrivez au moins une étape.":"Escreva pelo menos uma etapa.","Le moment d’une étape s’écrit minutes:secondes, par exemple 1:30.":"O momento de uma etapa se escreve minutos:segundos, por exemplo 1:30.","Le temps pour le faire s’écrit en minutes.":"O tempo para fazer se escreve em minutos.","Fiche enregistrée.":"Ficha salva.","Filmez d’abord votre tutoriel avec La Forge.":"Primeiro filme seu tutorial com La Forge.","Votre tutoriel est publié.":"Seu tutorial está publicado.","Tutoriel retiré.":"Tutorial retirado.","Coiffure et tresses":"Cabelo e tranças","Couture et pagne":"Costura e tecido africano","Cuisine":"Culinária","Beauté":"Beleza","Artisanat":"Artesanato","Agriculture":"Agricultura","Maison":"Casa","Réparation":"Conserto","Numérique":"Digital","Musique":"Música","Danse":"Dança","Langues":"Idiomas","Autre":"Outro","Débutant":"Iniciante","Moyen":"Intermediário","Avancé":"Avançado","Dangereux":"Perigoso","Trompeur":"Enganoso","Contenu inapproprié":"Conteúdo impróprio","Hors sujet":"Fora do assunto","Cette action n’est pas ouverte à votre âge.":"Esta ação não está disponível para a sua idade.","Un texte n’a pas été accepté. Changez-le.":"Um texto não foi aceito. Altere-o.","Ce tutoriel n’est plus disponible.":"Este tutorial não está mais disponível.","Ce tutoriel ne reçoit pas de merci.":"Este tutorial não recebe agradecimentos.","Il vous manque des NVCoins.":"Faltam NVCoins para você.","On ne se remercie pas soi-même.":"Ninguém agradece a si mesmo.","Pas pour votre propre tutoriel.":"Não para o seu próprio tutorial.","Vous gardez déjà 500 fiches.":"Você já guarda 500 fichas.","Les mercis ne sont pas encore ouverts.":"Os agradecimentos ainda não estão abertos.","Un autre modérateur doit le rétablir.":"Outro moderador deve restaurá-lo.","1 personne a réussi":"1 pessoa conseguiu","1 merci":"1 agradecimento","Cet envoi a changé : touchez « Publier le tutoriel » encore une fois.":"Este envio mudou: toque em “Publicar o tutorial” mais uma vez.","La fiche la plus ancienne gardée sur ce téléphone a été retirée.":"A ficha mais antiga guardada neste telefone foi removida.","Masqué par vous : un autre modérateur doit le rétablir.":"Ocultado por você: outro moderador deve restaurá-lo.","Rétablir":"Restaurar","Toucher encore pour rétablir":"Toque novamente para restaurar","Tutoriel rétabli.":"Tutorial restaurado.","Tutoriels masqués":"Tutoriais ocultados","Un merci est déjà en route : renvoyez-le avant d’en choisir un autre.":"Já há um agradecimento a caminho: envie-o de novo antes de escolher outro.","Masqué par l’équipe":"Ocultado pela equipe"}</script>
+<script type="application/json" id="nvI18n-ar">{"Pas de connexion pour le moment.":"لا يوجد اتصال حاليًا.","Impossible de joindre NEURAVID pour le moment.":"تعذّر الوصول إلى NEURAVID حاليًا.","Chargement…":"جارٍ التحميل…","Aperçu":"معاينة","Le service est momentanément indisponible. Réessayez dans un instant.":"الخدمة غير متاحة مؤقتًا. أعد المحاولة بعد قليل.","Envoi…":"جارٍ الإرسال…","Toucher encore pour retirer":"المس مرة أخرى للسحب","Langue":"اللغة","Traduction en cours de relecture.":"الترجمة قيد المراجعة.","La Forge n’est pas joignable ici.":"لا يمكن الوصول إلى La Forge هنا.","Déjà envoyé.":"أُرسل بالفعل.","Envoi déjà en cours : patientez un instant.":"الإرسال جارٍ بالفعل: انتظر قليلًا.","Cette vidéo est trop lourde.":"هذا الفيديو كبير جدًا.","Publié":"منشور","Le Savoir-faire":"الدراية","Apprenez d’une personne qui sait faire. Partagez ce que vous savez.":"تعلّم من شخص يعرف كيف يفعلها. شارك ما تعرفه.","Vérifiez la fiche : un champ n’est pas rempli comme il faut.":"تحقّق من البطاقة: أحد الحقول غير مملوء كما ينبغي.","Connectez-vous pour continuer.":"سجّل الدخول للمتابعة.","Aperçu : des tutoriels d’exemple, pour découvrir la page.":"معاينة: دروس على سبيل المثال لاكتشاف الصفحة.","Le Savoir-faire n’est pas encore ouvert.":"الدراية غير متاحة بعد.","Pas de connexion : vos fiches gardées restent lisibles.":"لا اتصال: تبقى بطاقاتك المحفوظة قابلة للقراءة.","Apprendre":"تعلّم","Partager mon savoir-faire":"شارك درايتي","Mes savoir-faire":"دراياتي","Créé sur NEURAVID":"أُنشئ على NEURAVID","{0} min":"{0} د","{0} ont réussi":"نجح {0}","{0} mercis":"{0} شكر","Chercher un savoir-faire":"ابحث عن دراية","Trier":"ترتيب","Les plus récents":"الأحدث","Les plus réussis":"الأكثر نجاحًا","Catégories":"الفئات","Tout":"الكل","Mes fiches, même sans connexion":"بطاقاتي، حتى دون اتصال","Aucune fiche gardée sur ce téléphone.":"لا توجد بطاقة محفوظة على هذا الهاتف.","Apprendre d’une personne qui sait faire":"تعلّم من شخص يعرف كيف يفعلها","Aucun tutoriel ici pour l’instant : partagez le premier.":"لا توجد دروس هنا بعد: شارك أول درس.","Voir plus":"عرض المزيد","← Retour":"→ رجوع","Sans connexion : la fiche est là, la vidéo reviendra avec le réseau.":"دون اتصال: البطاقة هنا، وسيعود الفيديو مع الشبكة.","Le matériel":"الأدوات","Aucun matériel particulier.":"لا حاجة إلى أدوات خاصة.","Les étapes":"الخطوات","Voir l’étape {0} dans la vidéo, à {1}":"شاهد الخطوة {0} في الفيديو، عند {1}","Les astuces":"النصائح","✓ J’ai réussi":"✓ نجحتُ","J’ai réussi":"نجحتُ","Fiche gardée sur ce téléphone":"البطاقة محفوظة على هذا الهاتف","Garder la fiche":"احفظ البطاقة","Télécharger la fiche":"نزّل البطاقة","Partager":"مشاركة","Dire merci en NVCoins":"قل شكرًا بعملات NVCoins","Ce tutoriel vous a servi ? Un merci va directement à {0}. Ce n’est jamais un vote.":"هل أفادك هذا الدرس؟ يذهب الشكر مباشرة إلى {0}. وهو ليس تصويتًا أبدًا.","Combien ?":"كم؟","Un mot pour l’auteur (facultatif)":"كلمة للمؤلف (اختياري)","Choisissez un montant":"اختر مبلغًا","Toucher encore pour envoyer {0} NVCoins":"المس مرة أخرى لإرسال {0} NVCoins","Dire merci : {0} NVCoins":"قل شكرًا: {0} NVCoins","Signaler ce tutoriel":"أبلغ عن هذا الدرس","L’équipe":"الفريق","Masquer ce tutoriel : pourquoi ?":"إخفاء هذا الدرس: لماذا؟","Toucher encore pour masquer":"المس مرة أخرى للإخفاء","Masquer":"إخفاء","Ce qu’il faut":"ما يلزم","Matériel {0}":"الأداة {0}","Combien":"الكمية","Quantité {0}":"الكمية {0}","Enlever":"إزالة","Étape {0}":"الخطوة {0}","Moment dans la vidéo (minutes:secondes)":"الوقت في الفيديو (دقائق:ثوانٍ)","Modifier la fiche":"عدّل البطاقة","Filmez ce que vous savez faire (10 minutes au plus), puis remplissez la fiche pratique : ceux qui apprennent la gardent sur leur téléphone.":"صوّر ما تعرف فعله (10 دقائق على الأكثر)، ثم املأ البطاقة العملية: يحفظها المتعلمون على هواتفهم.","Toucher encore pour filmer à nouveau":"المس مرة أخرى لإعادة التصوير","Filmer à nouveau":"صوّر من جديد","Filmer avec La Forge":"صوّر باستخدام La Forge","Titre":"العنوان","Catégorie":"الفئة","Niveau":"المستوى","Langue du tutoriel":"لغة الدرس","Temps pour le faire (minutes, facultatif)":"الوقت اللازم (بالدقائق، اختياري)","+ Ajouter du matériel":"+ أضف أداة","+ Ajouter une étape":"+ أضف خطوة","Les astuces (facultatif)":"النصائح (اختياري)","Accepter les mercis en NVCoins":"اقبل الشكر بعملات NVCoins","Enregistrer":"حفظ","Publier le tutoriel":"انشر الدرس","Annuler":"إلغاء","Mes tutoriels":"دروسي","Mercis reçus ici : {0} NVCoins.":"الشكر المستلم هنا: {0} NVCoins.","Voir dans La Récolte":"اعرض في La Récolte","Vous n’avez pas encore partagé de savoir-faire.":"لم تشارك أي دراية بعد.","Retirer":"سحب","Les mots de merci":"كلمات الشكر","Mes fiches gardées":"بطاقاتي المحفوظة","Publier : à partir de 13 ans. Les mercis en NVCoins : à partir de 18 ans, des deux côtés ; un merci n’est jamais un vote ni un classement.":"النشر: ابتداءً من 13 سنة. الشكر بعملات NVCoins: ابتداءً من 18 سنة للطرفين؛ والشكر ليس تصويتًا ولا ترتيبًا أبدًا.","Bravo ! L’auteur en sera content.":"أحسنت! سيسعد المؤلف بذلك.","Fiche retirée de ce téléphone.":"أُزيلت البطاقة من هذا الهاتف.","Fiche gardée : vous pourrez la lire sans connexion.":"حُفظت البطاقة: يمكنك قراءتها دون اتصال.","Impossible de télécharger ici.":"تعذّر التنزيل هنا.","{0} : un tutoriel du Savoir-faire sur NEURAVID.":"{0}: درس من الدراية على NEURAVID.","Copié.":"تم النسخ.","Merci envoyé : {0} NVCoins.":"أُرسل الشكر: {0} NVCoins.","Tutoriel masqué.":"أُخفي الدرس.","Mon tutoriel":"درسي","Un tutoriel de 10 minutes au plus.":"درس مدته 10 دقائق على الأكثر.","Donnez un titre à votre tutoriel.":"أعطِ درسك عنوانًا.","Choisissez une catégorie.":"اختر فئة.","Écrivez au moins une étape.":"اكتب خطوة واحدة على الأقل.","Le moment d’une étape s’écrit minutes:secondes, par exemple 1:30.":"يُكتب وقت الخطوة دقائق:ثوانٍ، مثل 1:30.","Le temps pour le faire s’écrit en minutes.":"يُكتب الوقت اللازم بالدقائق.","Fiche enregistrée.":"حُفظت البطاقة.","Filmez d’abord votre tutoriel avec La Forge.":"صوّر درسك أولًا باستخدام La Forge.","Votre tutoriel est publié.":"نُشر درسك.","Tutoriel retiré.":"سُحب الدرس.","Coiffure et tresses":"تصفيف الشعر والضفائر","Couture et pagne":"الخياطة والقماش الإفريقي","Cuisine":"الطبخ","Beauté":"التجميل","Artisanat":"الحِرف اليدوية","Agriculture":"الزراعة","Maison":"المنزل","Réparation":"التصليح","Numérique":"الرقمي","Musique":"الموسيقى","Danse":"الرقص","Langues":"اللغات","Autre":"أخرى","Débutant":"مبتدئ","Moyen":"متوسط","Avancé":"متقدم","Dangereux":"خطير","Trompeur":"مضلل","Contenu inapproprié":"محتوى غير لائق","Hors sujet":"خارج الموضوع","Cette action n’est pas ouverte à votre âge.":"هذا الإجراء غير متاح لعمرك.","Un texte n’a pas été accepté. Changez-le.":"لم يُقبل أحد النصوص. غيّره.","Ce tutoriel n’est plus disponible.":"هذا الدرس لم يعد متاحًا.","Ce tutoriel ne reçoit pas de merci.":"هذا الدرس لا يستقبل الشكر.","Il vous manque des NVCoins.":"لا تملك ما يكفي من NVCoins.","On ne se remercie pas soi-même.":"لا يمكنك شكر نفسك.","Pas pour votre propre tutoriel.":"ليس لدرسك أنت.","Vous gardez déjà 500 fiches.":"تحتفظ بالفعل بـ 500 بطاقة.","Les mercis ne sont pas encore ouverts.":"الشكر غير متاح بعد.","Un autre modérateur doit le rétablir.":"يجب أن يعيده مشرف آخر.","1 personne a réussi":"نجح شخص واحد","1 merci":"شكر واحد","Cet envoi a changé : touchez « Publier le tutoriel » encore une fois.":"تغيّر هذا الإرسال: المس «انشر الدرس» مرة أخرى.","La fiche la plus ancienne gardée sur ce téléphone a été retirée.":"أُزيلت أقدم بطاقة محفوظة على هذا الهاتف.","Masqué par vous : un autre modérateur doit le rétablir.":"أخفيتَه أنت: يجب أن يعيده مشرف آخر.","Rétablir":"استعادة","Toucher encore pour rétablir":"المس مرة أخرى للاستعادة","Tutoriel rétabli.":"أُعيد الدرس.","Tutoriels masqués":"الدروس المخفية","Un merci est déjà en route : renvoyez-le avant d’en choisir un autre.":"هناك شكر في الطريق بالفعل: أعد إرساله قبل اختيار غيره.","Masqué par l’équipe":"أخفاه الفريق"}</script>
+<script type="application/json" id="nvI18n-sw">{"Pas de connexion pour le moment.":"Hakuna muunganisho kwa sasa.","Impossible de joindre NEURAVID pour le moment.":"Haiwezekani kufikia NEURAVID kwa sasa.","Chargement…":"Inapakia…","Aperçu":"Onyesho","Le service est momentanément indisponible. Réessayez dans un instant.":"Huduma haipatikani kwa muda. Jaribu tena baada ya muda mfupi.","Envoi…":"Inatuma…","Toucher encore pour retirer":"Gusa tena ili kuondoa","Langue":"Lugha","Traduction en cours de relecture.":"Tafsiri inakaguliwa.","La Forge n’est pas joignable ici.":"La Forge haipatikani hapa.","Déjà envoyé.":"Tayari imetumwa.","Envoi déjà en cours : patientez un instant.":"Tayari inatumwa: subiri kidogo.","Cette vidéo est trop lourde.":"Video hii ni nzito mno.","Publié":"Imechapishwa","Le Savoir-faire":"Ujuzi","Apprenez d’une personne qui sait faire. Partagez ce que vous savez.":"Jifunze kutoka kwa mtu anayejua. Shiriki unachojua.","Vérifiez la fiche : un champ n’est pas rempli comme il faut.":"Kagua karatasi: sehemu moja haijajazwa ipasavyo.","Connectez-vous pour continuer.":"Ingia ili kuendelea.","Aperçu : des tutoriels d’exemple, pour découvrir la page.":"Onyesho: mafunzo ya mfano, ili kugundua ukurasa.","Le Savoir-faire n’est pas encore ouvert.":"Ujuzi bado haijafunguliwa.","Pas de connexion : vos fiches gardées restent lisibles.":"Hakuna muunganisho: karatasi ulizohifadhi bado zinasomeka.","Apprendre":"Jifunze","Partager mon savoir-faire":"Shiriki ujuzi wangu","Mes savoir-faire":"Ujuzi wangu","Créé sur NEURAVID":"Imeundwa kwenye NEURAVID","{0} min":"dak. {0}","{0} ont réussi":"{0} wamefaulu","{0} mercis":"shukrani {0}","Chercher un savoir-faire":"Tafuta ujuzi","Trier":"Panga","Les plus récents":"Za karibuni","Les plus réussis":"Yaliyofaulu zaidi","Catégories":"Makundi","Tout":"Zote","Mes fiches, même sans connexion":"Karatasi zangu, hata bila muunganisho","Aucune fiche gardée sur ce téléphone.":"Hakuna karatasi iliyohifadhiwa kwenye simu hii.","Apprendre d’une personne qui sait faire":"Jifunze kutoka kwa mtu anayejua","Aucun tutoriel ici pour l’instant : partagez le premier.":"Hakuna mafunzo hapa bado: shiriki ya kwanza.","Voir plus":"Ona zaidi","← Retour":"← Rudi","Sans connexion : la fiche est là, la vidéo reviendra avec le réseau.":"Bila muunganisho: karatasi iko hapa, video itarudi mtandao ukirudi.","Le matériel":"Vifaa","Aucun matériel particulier.":"Hakuna vifaa maalum.","Les étapes":"Hatua","Voir l’étape {0} dans la vidéo, à {1}":"Ona hatua ya {0} kwenye video, saa {1}","Les astuces":"Vidokezo","✓ J’ai réussi":"✓ Nimefaulu","J’ai réussi":"Nimefaulu","Fiche gardée sur ce téléphone":"Karatasi imehifadhiwa kwenye simu hii","Garder la fiche":"Hifadhi karatasi","Télécharger la fiche":"Pakua karatasi","Partager":"Shiriki","Dire merci en NVCoins":"Sema asante kwa NVCoins","Ce tutoriel vous a servi ? Un merci va directement à {0}. Ce n’est jamais un vote.":"Mafunzo haya yamekusaidia? Asante inaenda moja kwa moja kwa {0}. Si kura kamwe.","Combien ?":"Kiasi gani?","Un mot pour l’auteur (facultatif)":"Neno kwa mwandishi (si lazima)","Choisissez un montant":"Chagua kiasi","Toucher encore pour envoyer {0} NVCoins":"Gusa tena kutuma NVCoins {0}","Dire merci : {0} NVCoins":"Sema asante: NVCoins {0}","Signaler ce tutoriel":"Ripoti mafunzo haya","L’équipe":"Timu","Masquer ce tutoriel : pourquoi ?":"Ficha mafunzo haya: kwa nini?","Toucher encore pour masquer":"Gusa tena kuficha","Masquer":"Ficha","Ce qu’il faut":"Kinachohitajika","Matériel {0}":"Kifaa {0}","Combien":"Kiasi","Quantité {0}":"Kiasi {0}","Enlever":"Ondoa","Étape {0}":"Hatua {0}","Moment dans la vidéo (minutes:secondes)":"Muda kwenye video (dakika:sekunde)","Modifier la fiche":"Hariri karatasi","Filmez ce que vous savez faire (10 minutes au plus), puis remplissez la fiche pratique : ceux qui apprennent la gardent sur leur téléphone.":"Rekodi unachojua kufanya (dakika 10 zaidi), kisha jaza karatasi ya maelekezo: wanaojifunza huihifadhi kwenye simu zao.","Toucher encore pour filmer à nouveau":"Gusa tena kurekodi upya","Filmer à nouveau":"Rekodi upya","Filmer avec La Forge":"Rekodi kwa La Forge","Titre":"Kichwa","Catégorie":"Kundi","Niveau":"Kiwango","Langue du tutoriel":"Lugha ya mafunzo","Temps pour le faire (minutes, facultatif)":"Muda wa kuifanya (dakika, si lazima)","+ Ajouter du matériel":"+ Ongeza kifaa","+ Ajouter une étape":"+ Ongeza hatua","Les astuces (facultatif)":"Vidokezo (si lazima)","Accepter les mercis en NVCoins":"Kubali shukrani kwa NVCoins","Enregistrer":"Hifadhi","Publier le tutoriel":"Chapisha mafunzo","Annuler":"Ghairi","Mes tutoriels":"Mafunzo yangu","Mercis reçus ici : {0} NVCoins.":"Shukrani zilizopokelewa hapa: NVCoins {0}.","Voir dans La Récolte":"Ona kwenye La Récolte","Vous n’avez pas encore partagé de savoir-faire.":"Bado hujashiriki ujuzi wowote.","Retirer":"Ondoa","Les mots de merci":"Maneno ya shukrani","Mes fiches gardées":"Karatasi nilizohifadhi","Publier : à partir de 13 ans. Les mercis en NVCoins : à partir de 18 ans, des deux côtés ; un merci n’est jamais un vote ni un classement.":"Kuchapisha: kuanzia miaka 13. Shukrani kwa NVCoins: kuanzia miaka 18, pande zote mbili; asante si kura wala orodha kamwe.","Bravo ! L’auteur en sera content.":"Hongera! Mwandishi atafurahi.","Fiche retirée de ce téléphone.":"Karatasi imeondolewa kwenye simu hii.","Fiche gardée : vous pourrez la lire sans connexion.":"Karatasi imehifadhiwa: utaweza kuisoma bila muunganisho.","Impossible de télécharger ici.":"Haiwezekani kupakua hapa.","{0} : un tutoriel du Savoir-faire sur NEURAVID.":"{0}: mafunzo ya Ujuzi kwenye NEURAVID.","Copié.":"Imenakiliwa.","Merci envoyé : {0} NVCoins.":"Asante imetumwa: NVCoins {0}.","Tutoriel masqué.":"Mafunzo yamefichwa.","Mon tutoriel":"Mafunzo yangu","Un tutoriel de 10 minutes au plus.":"Mafunzo ya dakika 10 zaidi.","Donnez un titre à votre tutoriel.":"Yape mafunzo yako kichwa.","Choisissez une catégorie.":"Chagua kundi.","Écrivez au moins une étape.":"Andika angalau hatua moja.","Le moment d’une étape s’écrit minutes:secondes, par exemple 1:30.":"Muda wa hatua huandikwa dakika:sekunde, kwa mfano 1:30.","Le temps pour le faire s’écrit en minutes.":"Muda wa kuifanya huandikwa kwa dakika.","Fiche enregistrée.":"Karatasi imehifadhiwa.","Filmez d’abord votre tutoriel avec La Forge.":"Kwanza rekodi mafunzo yako kwa La Forge.","Votre tutoriel est publié.":"Mafunzo yako yamechapishwa.","Tutoriel retiré.":"Mafunzo yameondolewa.","Coiffure et tresses":"Nywele na misuko","Couture et pagne":"Ushonaji na kitenge","Cuisine":"Upishi","Beauté":"Urembo","Artisanat":"Ufundi","Agriculture":"Kilimo","Maison":"Nyumbani","Réparation":"Ukarabati","Numérique":"Kidijitali","Musique":"Muziki","Danse":"Ngoma","Langues":"Lugha","Autre":"Nyingine","Débutant":"Mwanzo","Moyen":"Kati","Avancé":"Juu","Dangereux":"Hatari","Trompeur":"Unapotosha","Contenu inapproprié":"Maudhui yasiyofaa","Hors sujet":"Nje ya mada","Cette action n’est pas ouverte à votre âge.":"Kitendo hiki hakipatikani kwa umri wako.","Un texte n’a pas été accepté. Changez-le.":"Maandishi fulani hayakukubaliwa. Yabadilishe.","Ce tutoriel n’est plus disponible.":"Mafunzo haya hayapatikani tena.","Ce tutoriel ne reçoit pas de merci.":"Mafunzo haya hayapokei shukrani.","Il vous manque des NVCoins.":"Huna NVCoins za kutosha.","On ne se remercie pas soi-même.":"Huwezi kujishukuru mwenyewe.","Pas pour votre propre tutoriel.":"Si kwa mafunzo yako mwenyewe.","Vous gardez déjà 500 fiches.":"Tayari umehifadhi karatasi 500.","Les mercis ne sont pas encore ouverts.":"Shukrani bado hazijafunguliwa.","Un autre modérateur doit le rétablir.":"Msimamizi mwingine lazima airudishe.","1 personne a réussi":"Mtu 1 amefaulu","1 merci":"Shukrani 1","Cet envoi a changé : touchez « Publier le tutoriel » encore une fois.":"Utumaji huu umebadilika: gusa « Chapisha mafunzo » tena.","La fiche la plus ancienne gardée sur ce téléphone a été retirée.":"Karatasi ya zamani zaidi iliyohifadhiwa kwenye simu hii imeondolewa.","Masqué par vous : un autre modérateur doit le rétablir.":"Umeuficha wewe: msimamizi mwingine lazima auurudishe.","Rétablir":"Rudisha","Toucher encore pour rétablir":"Gusa tena kurudisha","Tutoriel rétabli.":"Mafunzo yamerudishwa.","Tutoriels masqués":"Mafunzo yaliyofichwa","Un merci est déjà en route : renvoyez-le avant d’en choisir un autre.":"Asante moja tayari iko njiani: ituma tena kabla ya kuchagua nyingine.","Masqué par l’équipe":"Imefichwa na timu"}</script>
+<script type="application/json" id="nvI18n-ha">{"Pas de connexion pour le moment.":"Babu haɗi a yanzu.","Impossible de joindre NEURAVID pour le moment.":"Ba za a iya isa ga NEURAVID a yanzu ba.","Chargement…":"Ana lodawa…","Aperçu":"Samfoti","Le service est momentanément indisponible. Réessayez dans un instant.":"Sabis ɗin ba ya samuwa na ɗan lokaci. Sake gwadawa nan da ɗan lokaci.","Envoi…":"Ana aikawa…","Toucher encore pour retirer":"Sake taɓawa don cirewa","Langue":"Harshe","Traduction en cours de relecture.":"Ana duba fassarar.","La Forge n’est pas joignable ici.":"Ba a iya isa ga La Forge a nan.","Déjà envoyé.":"An riga an aika.","Envoi déjà en cours : patientez un instant.":"Ana aikawa tuni: jira ɗan lokaci.","Cette vidéo est trop lourde.":"Wannan bidiyon ya yi nauyi sosai.","Publié":"An wallafa","Le Savoir-faire":"Ƙwarewa","Apprenez d’une personne qui sait faire. Partagez ce que vous savez.":"Koyi daga wanda ya iya. Raba abin da ka sani.","Vérifiez la fiche : un champ n’est pas rempli comme il faut.":"Duba takardar: wani wuri ba a cike shi yadda ya kamata ba.","Connectez-vous pour continuer.":"Shiga don ci gaba.","Aperçu : des tutoriels d’exemple, pour découvrir la page.":"Samfoti: koyarwa na misali, don gano shafin.","Le Savoir-faire n’est pas encore ouvert.":"Ƙwarewa bai buɗe ba tukuna.","Pas de connexion : vos fiches gardées restent lisibles.":"Babu haɗi: takardunka da ka ajiye suna nan ana iya karantawa.","Apprendre":"Koyo","Partager mon savoir-faire":"Raba ƙwarewata","Mes savoir-faire":"Ƙwarewata","Créé sur NEURAVID":"An ƙirƙira a NEURAVID","{0} min":"minti {0}","{0} ont réussi":"{0} sun yi nasara","{0} mercis":"godiya {0}","Chercher un savoir-faire":"Nemi ƙwarewa","Trier":"Tsara","Les plus récents":"Mafiya sabo","Les plus réussis":"Mafiya nasara","Catégories":"Rukunoni","Tout":"Duka","Mes fiches, même sans connexion":"Takarduna, ko babu haɗi","Aucune fiche gardée sur ce téléphone.":"Babu takardar da aka ajiye a wannan wayar.","Apprendre d’une personne qui sait faire":"Koyo daga wanda ya iya","Aucun tutoriel ici pour l’instant : partagez le premier.":"Babu koyarwa a nan tukuna: raba ta farko.","Voir plus":"Duba ƙari","← Retour":"← Koma","Sans connexion : la fiche est là, la vidéo reviendra avec le réseau.":"Babu haɗi: takardar tana nan, bidiyon zai dawo idan an sami hanyar sadarwa.","Le matériel":"Kayan aiki","Aucun matériel particulier.":"Babu kayan aiki na musamman.","Les étapes":"Matakai","Voir l’étape {0} dans la vidéo, à {1}":"Duba mataki na {0} a bidiyon, a {1}","Les astuces":"Dabaru","✓ J’ai réussi":"✓ Na yi nasara","J’ai réussi":"Na yi nasara","Fiche gardée sur ce téléphone":"An ajiye takardar a wannan wayar","Garder la fiche":"Ajiye takardar","Télécharger la fiche":"Sauke takardar","Partager":"Raba","Dire merci en NVCoins":"Yi godiya da NVCoins","Ce tutoriel vous a servi ? Un merci va directement à {0}. Ce n’est jamais un vote.":"Wannan koyarwar ta taimaka maka? Godiya tana zuwa kai tsaye ga {0}. Ba ƙuri’a ba ce ko kaɗan.","Combien ?":"Nawa?","Un mot pour l’auteur (facultatif)":"Kalma ga marubucin (ba dole ba)","Choisissez un montant":"Zaɓi adadi","Toucher encore pour envoyer {0} NVCoins":"Taɓa kuma don aika NVCoins {0}","Dire merci : {0} NVCoins":"Yi godiya: NVCoins {0}","Signaler ce tutoriel":"Kai rahoton wannan koyarwa","L’équipe":"Ƙungiya","Masquer ce tutoriel : pourquoi ?":"Ɓoye wannan koyarwa: me ya sa?","Toucher encore pour masquer":"Taɓa kuma don ɓoyewa","Masquer":"Ɓoye","Ce qu’il faut":"Abin da ake bukata","Matériel {0}":"Kaya {0}","Combien":"Nawa","Quantité {0}":"Yawa {0}","Enlever":"Cire","Étape {0}":"Mataki {0}","Moment dans la vidéo (minutes:secondes)":"Lokaci a bidiyon (minti:daƙiƙa)","Modifier la fiche":"Gyara takardar","Filmez ce que vous savez faire (10 minutes au plus), puis remplissez la fiche pratique : ceux qui apprennent la gardent sur leur téléphone.":"Ɗauki bidiyon abin da ka iya yi (minti 10 a mafi yawa), sannan ka cike takardar aiki: masu koyo suna ajiye ta a wayarsu.","Toucher encore pour filmer à nouveau":"Taɓa kuma don sake ɗauka","Filmer à nouveau":"Sake ɗauka","Filmer avec La Forge":"Ɗauka da La Forge","Titre":"Take","Catégorie":"Rukuni","Niveau":"Mataki","Langue du tutoriel":"Harshen koyarwa","Temps pour le faire (minutes, facultatif)":"Lokacin yi (minti, ba dole ba)","+ Ajouter du matériel":"+ Ƙara kaya","+ Ajouter une étape":"+ Ƙara mataki","Les astuces (facultatif)":"Dabaru (ba dole ba)","Accepter les mercis en NVCoins":"Karɓi godiya da NVCoins","Enregistrer":"Ajiye","Publier le tutoriel":"Wallafa koyarwar","Annuler":"Soke","Mes tutoriels":"Koyarwata","Mercis reçus ici : {0} NVCoins.":"Godiyar da aka karɓa a nan: NVCoins {0}.","Voir dans La Récolte":"Duba a La Récolte","Vous n’avez pas encore partagé de savoir-faire.":"Ba ka raba wata ƙwarewa ba tukuna.","Retirer":"Janye","Les mots de merci":"Kalmomin godiya","Mes fiches gardées":"Takardun da na ajiye","Publier : à partir de 13 ans. Les mercis en NVCoins : à partir de 18 ans, des deux côtés ; un merci n’est jamais un vote ni un classement.":"Wallafawa: daga shekara 13. Godiya da NVCoins: daga shekara 18, a ɓangarorin biyu; godiya ba ƙuri’a ko matsayi ba ce ko kaɗan.","Bravo ! L’auteur en sera content.":"Madalla! Marubucin zai yi farin ciki.","Fiche retirée de ce téléphone.":"An cire takardar daga wannan wayar.","Fiche gardée : vous pourrez la lire sans connexion.":"An ajiye takardar: za ka iya karanta ta ba tare da haɗi ba.","Impossible de télécharger ici.":"Ba za a iya saukewa a nan ba.","{0} : un tutoriel du Savoir-faire sur NEURAVID.":"{0}: koyarwar Ƙwarewa a NEURAVID.","Copié.":"An kwafa.","Merci envoyé : {0} NVCoins.":"An aika godiya: NVCoins {0}.","Tutoriel masqué.":"An ɓoye koyarwar.","Mon tutoriel":"Koyarwata","Un tutoriel de 10 minutes au plus.":"Koyarwa ta minti 10 a mafi yawa.","Donnez un titre à votre tutoriel.":"Ba koyarwarka take.","Choisissez une catégorie.":"Zaɓi rukuni.","Écrivez au moins une étape.":"Rubuta aƙalla mataki ɗaya.","Le moment d’une étape s’écrit minutes:secondes, par exemple 1:30.":"Ana rubuta lokacin mataki minti:daƙiƙa, misali 1:30.","Le temps pour le faire s’écrit en minutes.":"Ana rubuta lokacin yi a cikin minti.","Fiche enregistrée.":"An adana takardar.","Filmez d’abord votre tutoriel avec La Forge.":"Da farko ka ɗauki koyarwarka da La Forge.","Votre tutoriel est publié.":"An wallafa koyarwarka.","Tutoriel retiré.":"An janye koyarwar.","Coiffure et tresses":"Gyaran gashi da kitso","Couture et pagne":"Ɗinki da atamfa","Cuisine":"Girki","Beauté":"Kwalliya","Artisanat":"Sana’a","Agriculture":"Noma","Maison":"Gida","Réparation":"Gyara","Numérique":"Fasahar zamani","Musique":"Waƙa","Danse":"Rawa","Langues":"Harsuna","Autre":"Wani","Débutant":"Mafari","Moyen":"Matsakaici","Avancé":"Ci gaba","Dangereux":"Mai haɗari","Trompeur":"Na yaudara","Contenu inapproprié":"Abun da bai dace ba","Hors sujet":"Ba a kan magana ba","Cette action n’est pas ouverte à votre âge.":"Wannan aikin ba a buɗe yake ga shekarunka ba.","Un texte n’a pas été accepté. Changez-le.":"Ba a karɓi wani rubutu ba. Canza shi.","Ce tutoriel n’est plus disponible.":"Wannan koyarwar ba ta samuwa kuma.","Ce tutoriel ne reçoit pas de merci.":"Wannan koyarwar ba ta karɓar godiya.","Il vous manque des NVCoins.":"Ba ka da isassun NVCoins.","On ne se remercie pas soi-même.":"Ba a gode wa kai da kanka.","Pas pour votre propre tutoriel.":"Ba don koyarwarka ba.","Vous gardez déjà 500 fiches.":"Ka riga ka ajiye takardu 500.","Les mercis ne sont pas encore ouverts.":"Godiya bai buɗe ba tukuna.","Un autre modérateur doit le rétablir.":"Wani mai daidaitawa ne zai dawo da shi.","1 personne a réussi":"Mutum 1 ya yi nasara","1 merci":"Godiya 1","Cet envoi a changé : touchez « Publier le tutoriel » encore une fois.":"Wannan aikawar ta canza: taɓa « Wallafa koyarwar » sau ɗaya kuma.","La fiche la plus ancienne gardée sur ce téléphone a été retirée.":"An cire mafi tsufan takarda da aka ajiye a wannan wayar.","Masqué par vous : un autre modérateur doit le rétablir.":"Kai ka ɓoye shi: wani mai daidaitawa ne zai dawo da shi.","Rétablir":"Dawo da shi","Toucher encore pour rétablir":"Taɓa kuma don dawo da shi","Tutoriel rétabli.":"An dawo da koyarwar.","Tutoriels masqués":"Koyarwar da aka ɓoye","Un merci est déjà en route : renvoyez-le avant d’en choisir un autre.":"Akwai godiya da ke kan hanya: sake aika ta kafin ka zaɓi wata.","Masqué par l’équipe":"Ƙungiya ta ɓoye shi"}</script>
+<script type="application/json" id="nvI18n-yo">{"Pas de connexion pour le moment.":"Kò sí ìsopọ̀ báyìí.","Impossible de joindre NEURAVID pour le moment.":"Kò ṣeé ṣe láti dé NEURAVID báyìí.","Chargement…":"Ń gbé e wọlé…","Aperçu":"Àyẹ̀wò","Le service est momentanément indisponible. Réessayez dans un instant.":"Iṣẹ́ náà kò sí fún ìgbà díẹ̀. Tún gbìyànjú láìpẹ́.","Envoi…":"Ń fi ránṣẹ́…","Toucher encore pour retirer":"Fọwọ́ kàn án lẹ́ẹ̀kan sí i láti yọ ọ́","Langue":"Èdè","Traduction en cours de relecture.":"A ń yẹ ìtumọ̀ wò.","La Forge n’est pas joignable ici.":"A kò lè dé La Forge níbí.","Déjà envoyé.":"A ti fi ránṣẹ́ tẹ́lẹ̀.","Envoi déjà en cours : patientez un instant.":"Ó ti ń fi ránṣẹ́: dúró díẹ̀.","Cette vidéo est trop lourde.":"Fídíò yìí wúwo jù.","Publié":"A ti tẹ̀jáde","Le Savoir-faire":"Ìmọ̀-ọwọ́","Apprenez d’une personne qui sait faire. Partagez ce que vous savez.":"Kọ́ láti ọ̀dọ̀ ẹni tó mọ̀ ọ́n ṣe. Pín ohun tí o mọ̀.","Vérifiez la fiche : un champ n’est pas rempli comme il faut.":"Ṣàyẹ̀wò ìwé náà: àyè kan kò kún bó ṣe yẹ.","Connectez-vous pour continuer.":"Wọlé láti tẹ̀síwájú.","Aperçu : des tutoriels d’exemple, pour découvrir la page.":"Àyẹ̀wò: àwọn ẹ̀kọ́ àpẹẹrẹ, láti mọ ojú-ìwé náà.","Le Savoir-faire n’est pas encore ouvert.":"Ìmọ̀-ọwọ́ kò tíì ṣí.","Pas de connexion : vos fiches gardées restent lisibles.":"Kò sí ìsopọ̀: àwọn ìwé tí o fi pamọ́ ṣì ṣeé kà.","Apprendre":"Kọ́ ẹ̀kọ́","Partager mon savoir-faire":"Pín ìmọ̀-ọwọ́ mi","Mes savoir-faire":"Ìmọ̀-ọwọ́ mi","Créé sur NEURAVID":"A ṣẹ̀dá rẹ̀ lórí NEURAVID","{0} min":"ìṣẹ́jú {0}","{0} ont réussi":"{0} ti ṣe é yọrí","{0} mercis":"ọpẹ́ {0}","Chercher un savoir-faire":"Wá ìmọ̀-ọwọ́ kan","Trier":"Tò","Les plus récents":"Èyí tó ṣẹ̀ṣẹ̀ dé","Les plus réussis":"Èyí tí ọ̀pọ̀ ti ṣe yọrí","Catégories":"Àwọn ẹ̀ka","Tout":"Gbogbo","Mes fiches, même sans connexion":"Àwọn ìwé mi, kódà láìsí ìsopọ̀","Aucune fiche gardée sur ce téléphone.":"Kò sí ìwé tí a fi pamọ́ sórí fóònù yìí.","Apprendre d’une personne qui sait faire":"Kọ́ láti ọ̀dọ̀ ẹni tó mọ̀ ọ́n ṣe","Aucun tutoriel ici pour l’instant : partagez le premier.":"Kò sí ẹ̀kọ́ kankan níbí síbẹ̀: pín àkọ́kọ́.","Voir plus":"Wo síi","← Retour":"← Padà","Sans connexion : la fiche est là, la vidéo reviendra avec le réseau.":"Láìsí ìsopọ̀: ìwé náà wà níbí, fídíò yóò padà dé pẹ̀lú nẹ́tíwọ́ọ̀kì.","Le matériel":"Àwọn ohun èlò","Aucun matériel particulier.":"Kò sí ohun èlò pàtàkì kankan.","Les étapes":"Àwọn ìgbésẹ̀","Voir l’étape {0} dans la vidéo, à {1}":"Wo ìgbésẹ̀ {0} nínú fídíò, ní {1}","Les astuces":"Àwọn ìmọ̀ràn","✓ J’ai réussi":"✓ Mo ṣe é yọrí","J’ai réussi":"Mo ṣe é yọrí","Fiche gardée sur ce téléphone":"A ti fi ìwé náà pamọ́ sórí fóònù yìí","Garder la fiche":"Fi ìwé náà pamọ́","Télécharger la fiche":"Ṣe ìgbàsílẹ̀ ìwé náà","Partager":"Pín","Dire merci en NVCoins":"Dúpẹ́ pẹ̀lú NVCoins","Ce tutoriel vous a servi ? Un merci va directement à {0}. Ce n’est jamais un vote.":"Ṣé ẹ̀kọ́ yìí ràn ọ́ lọ́wọ́? Ọpẹ́ ń lọ tààrà sọ́dọ̀ {0}. Kì í ṣe ìbò láéláé.","Combien ?":"Èló?","Un mot pour l’auteur (facultatif)":"Ọ̀rọ̀ kan fún olùkọ̀wé (kò pọn dandan)","Choisissez un montant":"Yan iye kan","Toucher encore pour envoyer {0} NVCoins":"Fọwọ́ kàn án lẹ́ẹ̀kan sí i láti fi NVCoins {0} ránṣẹ́","Dire merci : {0} NVCoins":"Dúpẹ́: NVCoins {0}","Signaler ce tutoriel":"Fi ẹ̀kọ́ yìí sùn","L’équipe":"Ẹgbẹ́ náà","Masquer ce tutoriel : pourquoi ?":"Fi ẹ̀kọ́ yìí pamọ́: kí ló dé?","Toucher encore pour masquer":"Fọwọ́ kàn án lẹ́ẹ̀kan sí i láti fi pamọ́","Masquer":"Fi pamọ́","Ce qu’il faut":"Ohun tí a nílò","Matériel {0}":"Ohun èlò {0}","Combien":"Èló","Quantité {0}":"Iye {0}","Enlever":"Yọ kúrò","Étape {0}":"Ìgbésẹ̀ {0}","Moment dans la vidéo (minutes:secondes)":"Àkókò nínú fídíò (ìṣẹ́jú:ìṣẹ́jú-àáyá)","Modifier la fiche":"Ṣàtúnṣe ìwé náà","Filmez ce que vous savez faire (10 minutes au plus), puis remplissez la fiche pratique : ceux qui apprennent la gardent sur leur téléphone.":"Ya ohun tí o mọ̀ ọ́n ṣe (ìṣẹ́jú 10 ní púpọ̀ jùlọ), lẹ́yìn náà kún ìwé ìlò: àwọn tó ń kọ́ ẹ̀kọ́ ń fi pamọ́ sórí fóònù wọn.","Toucher encore pour filmer à nouveau":"Fọwọ́ kàn án lẹ́ẹ̀kan sí i láti tún ya","Filmer à nouveau":"Tún ya","Filmer avec La Forge":"Ya pẹ̀lú La Forge","Titre":"Àkọlé","Catégorie":"Ẹ̀ka","Niveau":"Ìpele","Langue du tutoriel":"Èdè ẹ̀kọ́ náà","Temps pour le faire (minutes, facultatif)":"Àkókò láti ṣe é (ìṣẹ́jú, kò pọn dandan)","+ Ajouter du matériel":"+ Fi ohun èlò kún un","+ Ajouter une étape":"+ Fi ìgbésẹ̀ kún un","Les astuces (facultatif)":"Àwọn ìmọ̀ràn (kò pọn dandan)","Accepter les mercis en NVCoins":"Gba ọpẹ́ pẹ̀lú NVCoins","Enregistrer":"Fi pamọ́","Publier le tutoriel":"Tẹ ẹ̀kọ́ náà jáde","Annuler":"Fagilé","Mes tutoriels":"Àwọn ẹ̀kọ́ mi","Mercis reçus ici : {0} NVCoins.":"Ọpẹ́ tí a gbà níbí: NVCoins {0}.","Voir dans La Récolte":"Wo nínú La Récolte","Vous n’avez pas encore partagé de savoir-faire.":"O kò tíì pín ìmọ̀-ọwọ́ kankan.","Retirer":"Yọ kúrò","Les mots de merci":"Àwọn ọ̀rọ̀ ọpẹ́","Mes fiches gardées":"Àwọn ìwé tí mo fi pamọ́","Publier : à partir de 13 ans. Les mercis en NVCoins : à partir de 18 ans, des deux côtés ; un merci n’est jamais un vote ni un classement.":"Títẹ̀ jáde: láti ọmọ ọdún 13. Ọpẹ́ pẹ̀lú NVCoins: láti ọdún 18, ní ẹ̀gbẹ́ méjèèjì; ọpẹ́ kì í ṣe ìbò tàbí ipò láéláé.","Bravo ! L’auteur en sera content.":"Kú iṣẹ́! Inú olùkọ̀wé yóò dùn.","Fiche retirée de ce téléphone.":"A ti yọ ìwé náà kúrò lórí fóònù yìí.","Fiche gardée : vous pourrez la lire sans connexion.":"A ti fi ìwé náà pamọ́: o lè kà á láìsí ìsopọ̀.","Impossible de télécharger ici.":"Kò ṣeé ṣe láti gbà á sílẹ̀ níbí.","{0} : un tutoriel du Savoir-faire sur NEURAVID.":"{0}: ẹ̀kọ́ Ìmọ̀-ọwọ́ lórí NEURAVID.","Copié.":"A ti ṣe àdàkọ.","Merci envoyé : {0} NVCoins.":"A ti fi ọpẹ́ ránṣẹ́: NVCoins {0}.","Tutoriel masqué.":"A ti fi ẹ̀kọ́ náà pamọ́.","Mon tutoriel":"Ẹ̀kọ́ mi","Un tutoriel de 10 minutes au plus.":"Ẹ̀kọ́ tí kò ju ìṣẹ́jú 10 lọ.","Donnez un titre à votre tutoriel.":"Fún ẹ̀kọ́ rẹ ní àkọlé.","Choisissez une catégorie.":"Yan ẹ̀ka kan.","Écrivez au moins une étape.":"Kọ ìgbésẹ̀ kan ó kéré tán.","Le moment d’une étape s’écrit minutes:secondes, par exemple 1:30.":"Àkókò ìgbésẹ̀ ni a ń kọ ní ìṣẹ́jú:ìṣẹ́jú-àáyá, fún àpẹẹrẹ 1:30.","Le temps pour le faire s’écrit en minutes.":"Àkókò láti ṣe é ni a ń kọ ní ìṣẹ́jú.","Fiche enregistrée.":"A ti fi ìwé náà pamọ́.","Filmez d’abord votre tutoriel avec La Forge.":"Kọ́kọ́ ya ẹ̀kọ́ rẹ pẹ̀lú La Forge.","Votre tutoriel est publié.":"A ti tẹ ẹ̀kọ́ rẹ jáde.","Tutoriel retiré.":"A ti yọ ẹ̀kọ́ náà kúrò.","Coiffure et tresses":"Ìṣerun àti ìdìrun","Couture et pagne":"Ìránṣọ àti aṣọ àdìrẹ","Cuisine":"Oúnjẹ sísè","Beauté":"Ẹwà","Artisanat":"Iṣẹ́ ọnà","Agriculture":"Iṣẹ́ àgbẹ̀","Maison":"Ilé","Réparation":"Àtúnṣe","Numérique":"Ẹ̀rọ ayárabíàṣá","Musique":"Orin","Danse":"Ijó","Langues":"Àwọn èdè","Autre":"Òmíràn","Débutant":"Olùbẹ̀rẹ̀","Moyen":"Àárín","Avancé":"Ìlọsíwájú","Dangereux":"Eléwu","Trompeur":"Ẹ̀tàn","Contenu inapproprié":"Àkóónú tí kò bójú mu","Hors sujet":"Kò bá kókó mu","Cette action n’est pas ouverte à votre âge.":"Ìgbésẹ̀ yìí kò ṣí sílẹ̀ fún ọjọ́-orí rẹ.","Un texte n’a pas été accepté. Changez-le.":"A kò gba ọ̀rọ̀ kan. Yí i padà.","Ce tutoriel n’est plus disponible.":"Ẹ̀kọ́ yìí kò sí mọ́.","Ce tutoriel ne reçoit pas de merci.":"Ẹ̀kọ́ yìí kì í gba ọpẹ́.","Il vous manque des NVCoins.":"NVCoins rẹ kò tó.","On ne se remercie pas soi-même.":"A kì í dúpẹ́ lọ́wọ́ ara ẹni.","Pas pour votre propre tutoriel.":"Kì í ṣe fún ẹ̀kọ́ tìrẹ.","Vous gardez déjà 500 fiches.":"O ti fi ìwé 500 pamọ́ tẹ́lẹ̀.","Les mercis ne sont pas encore ouverts.":"Ọpẹ́ kò tíì ṣí sílẹ̀.","Un autre modérateur doit le rétablir.":"Alábòójútó mìíràn ló gbọ́dọ̀ dá a padà.","1 personne a réussi":"Ènìyàn 1 ti ṣe é yọrí","1 merci":"Ọpẹ́ 1","Cet envoi a changé : touchez « Publier le tutoriel » encore une fois.":"Ìfiránṣẹ́ yìí ti yí padà: fọwọ́ kan « Tẹ ẹ̀kọ́ náà jáde » lẹ́ẹ̀kan sí i.","La fiche la plus ancienne gardée sur ce téléphone a été retirée.":"A ti yọ ìwé tó ti pẹ́ jùlọ lórí fóònù yìí kúrò.","Masqué par vous : un autre modérateur doit le rétablir.":"Ìwọ lo fi pamọ́: alábòójútó mìíràn ló gbọ́dọ̀ dá a padà.","Rétablir":"Dá padà","Toucher encore pour rétablir":"Fọwọ́ kàn án lẹ́ẹ̀kan sí i láti dá a padà","Tutoriel rétabli.":"A ti dá ẹ̀kọ́ náà padà.","Tutoriels masqués":"Àwọn ẹ̀kọ́ tí a fi pamọ́","Un merci est déjà en route : renvoyez-le avant d’en choisir un autre.":"Ọpẹ́ kan ti wà lójú ọ̀nà: tún un fi ránṣẹ́ kí o tó yan òmíràn.","Masqué par l’équipe":"Ẹgbẹ́ ti fi pamọ́"}</script>
+<script type="application/json" id="nvI18n-wo">{"Pas de connexion pour le moment.":"Amul connexion léegi.","Impossible de joindre NEURAVID pour le moment.":"Mënuñu jot NEURAVID léegi.","Chargement…":"Mi ngi yeb…","Aperçu":"Wone","Le service est momentanément indisponible. Réessayez dans un instant.":"Liggéey bi amul fi ab diir. Jéemaatal ci kanam tuuti.","Envoi…":"Mi ngi yónne…","Toucher encore pour retirer":"Bësaatal ngir dindi","Langue":"Làkk","Traduction en cours de relecture.":"Tekki gi, ñu ngi koy xool.","La Forge n’est pas joignable ici.":"Mënuñu jot La Forge fii.","Déjà envoyé.":"Yónnee nañu ko ba noppi.","Envoi déjà en cours : patientez un instant.":"Ñu ngi koy yónne ba noppi: xaaral tuuti.","Cette vidéo est trop lourde.":"Wideyo bii dafa diis lool.","Publié":"Siiwal nañu ko","Le Savoir-faire":"Xam-def","Apprenez d’une personne qui sait faire. Partagez ce que vous savez.":"Jàngal ci ku xam def. Séddoo li nga xam.","Vérifiez la fiche : un champ n’est pas rempli comme il faut.":"Seetal kayit bi: am na bérab bu ñu fesalul bu baax.","Connectez-vous pour continuer.":"Duggal ngir wéy.","Aperçu : des tutoriels d’exemple, pour découvrir la page.":"Wone: ay njàngale yu misaal, ngir xam xët wi.","Le Savoir-faire n’est pas encore ouvert.":"Xam-def ubbeeguñu ko ba léegi.","Pas de connexion : vos fiches gardées restent lisibles.":"Amul connexion: sa kayit yi nga denc mën nañu leen jàng.","Apprendre":"Jàng","Partager mon savoir-faire":"Séddoo sama xam-def","Mes savoir-faire":"Sama xam-def","Créé sur NEURAVID":"Sàkk nañu ko ci NEURAVID","{0} min":"{0} simili","{0} ont réussi":"{0} def nañu ko","{0} mercis":"{0} jërëjëf","Chercher un savoir-faire":"Seet ab xam-def","Trier":"Toftal","Les plus récents":"Yi gën a bees","Les plus réussis":"Yi ñu gën a def","Catégories":"Xeet yi","Tout":"Lépp","Mes fiches, même sans connexion":"Sama kayit yi, bu amul connexion sax","Aucune fiche gardée sur ce téléphone.":"Amul kayit bu ñu denc ci telefon bii.","Apprendre d’une personne qui sait faire":"Jàng ci ku xam def","Aucun tutoriel ici pour l’instant : partagez le premier.":"Amul njàngale fii ba léegi: séddoo bu jëkk bi.","Voir plus":"Gis yeneen","← Retour":"← Dellu","Sans connexion : la fiche est là, la vidéo reviendra avec le réseau.":"Amul connexion: kayit bi mu ngi fi, wideyo bi dina dellusi ak réseau bi.","Le matériel":"Jumtukaay yi","Aucun matériel particulier.":"Amul jumtukaay bu wuute.","Les étapes":"Tappe yi","Voir l’étape {0} dans la vidéo, à {1}":"Gis tappe {0} ci wideyo bi, ci {1}","Les astuces":"Pexe yi","✓ J’ai réussi":"✓ Def naa ko","J’ai réussi":"Def naa ko","Fiche gardée sur ce téléphone":"Kayit bi denc nañu ko ci telefon bii","Garder la fiche":"Denc kayit bi","Télécharger la fiche":"Yebb kayit bi","Partager":"Séddoo","Dire merci en NVCoins":"Sant ak NVCoins","Ce tutoriel vous a servi ? Un merci va directement à {0}. Ce n’est jamais un vote.":"Njàngale bii jariñ na la? Jërëjëf dafay dem ci {0} ci saa si. Du benn yoon baat.","Combien ?":"Ñaata?","Un mot pour l’auteur (facultatif)":"Benn baat ngir ki ko def (du lu war)","Choisissez un montant":"Tànnal benn limu","Toucher encore pour envoyer {0} NVCoins":"Bësal ci kaw ngir yónne {0} NVCoins","Dire merci : {0} NVCoins":"Sant: {0} NVCoins","Signaler ce tutoriel":"Yégle njàngale bii","L’équipe":"Ekip bi","Masquer ce tutoriel : pourquoi ?":"Nëbb njàngale bii: lu tax?","Toucher encore pour masquer":"Bësal ci kaw ngir nëbb","Masquer":"Nëbb","Ce qu’il faut":"Li war","Matériel {0}":"Jumtukaay {0}","Combien":"Ñaata","Quantité {0}":"Limu {0}","Enlever":"Dindi","Étape {0}":"Tappe {0}","Moment dans la vidéo (minutes:secondes)":"Waxtu ci wideyo bi (simili:saa)","Modifier la fiche":"Soppi kayit bi","Filmez ce que vous savez faire (10 minutes au plus), puis remplissez la fiche pratique : ceux qui apprennent la gardent sur leur téléphone.":"Filmal li nga xam def (10 simili lu ëpp), te fees kayit bi: ñiy jàng dañuy denc ko ci seen telefon.","Toucher encore pour filmer à nouveau":"Bësal ci kaw ngir filmaat","Filmer à nouveau":"Filmaat","Filmer avec La Forge":"Filmal ak La Forge","Titre":"Tur","Catégorie":"Xeet","Niveau":"Tolluwaay","Langue du tutoriel":"Làkku njàngale bi","Temps pour le faire (minutes, facultatif)":"Waxtu ngir def ko (simili, du lu war)","+ Ajouter du matériel":"+ Yokk jumtukaay","+ Ajouter une étape":"+ Yokk benn tappe","Les astuces (facultatif)":"Pexe yi (du lu war)","Accepter les mercis en NVCoins":"Nangu jërëjëf yu NVCoins","Enregistrer":"Denc","Publier le tutoriel":"Siiwal njàngale bi","Annuler":"Neenal","Mes tutoriels":"Sama njàngale yi","Mercis reçus ici : {0} NVCoins.":"Jërëjëf yi ñu jot fii: {0} NVCoins.","Voir dans La Récolte":"Gis ko ci La Récolte","Vous n’avez pas encore partagé de savoir-faire.":"Séddoogoo benn xam-def ba léegi.","Retirer":"Dindi","Les mots de merci":"Kàddu jërëjëf yi","Mes fiches gardées":"Sama kayit yi ma denc","Publier : à partir de 13 ans. Les mercis en NVCoins : à partir de 18 ans, des deux côtés ; un merci n’est jamais un vote ni un classement.":"Siiwal: ci ñi am 13 at ak lu ko ëpp. Jërëjëf yu NVCoins: 18 at, ci ñaari wet yi; jërëjëf du baat walla tolluwaay.","Bravo ! L’auteur en sera content.":"Bravo! Ki ko def dina bég.","Fiche retirée de ce téléphone.":"Kayit bi dindi nañu ko ci telefon bii.","Fiche gardée : vous pourrez la lire sans connexion.":"Kayit bi denc nañu ko: dinga ko mën a jàng bu amul connexion.","Impossible de télécharger ici.":"Mënuñu ko yebb fii.","{0} : un tutoriel du Savoir-faire sur NEURAVID.":"{0}: njàngale Xam-def ci NEURAVID.","Copié.":"Duppi nañu ko.","Merci envoyé : {0} NVCoins.":"Jërëjëf bi yónnee nañu ko: {0} NVCoins.","Tutoriel masqué.":"Njàngale bi nëbb nañu ko.","Mon tutoriel":"Sama njàngale","Un tutoriel de 10 minutes au plus.":"Njàngale bu weesul 10 simili.","Donnez un titre à votre tutoriel.":"Joxal sa njàngale benn tur.","Choisissez une catégorie.":"Tànnal benn xeet.","Écrivez au moins une étape.":"Bindal benn tappe lu mu néew néew.","Le moment d’une étape s’écrit minutes:secondes, par exemple 1:30.":"Waxtu benn tappe dañuy bind simili:saa, misaal 1:30.","Le temps pour le faire s’écrit en minutes.":"Waxtu def ko dañuy ko bind ci simili.","Fiche enregistrée.":"Kayit bi denc nañu ko.","Filmez d’abord votre tutoriel avec La Forge.":"Filmal jëkk sa njàngale ak La Forge.","Votre tutoriel est publié.":"Sa njàngale siiwal nañu ko.","Tutoriel retiré.":"Njàngale bi dindi nañu ko.","Coiffure et tresses":"Laxas ak létt","Couture et pagne":"Ñaw ak sër","Cuisine":"Togg","Beauté":"Rafetaay","Artisanat":"Liggéeyu loxo","Agriculture":"Mbay","Maison":"Kër","Réparation":"Defar","Numérique":"Nimerik","Musique":"Musig","Danse":"Fecc","Langues":"Làkk yi","Autre":"Leneen","Débutant":"Kuy tàmbali","Moyen":"Diggante","Avancé":"Kawe","Dangereux":"Dafa wóor","Trompeur":"Dafay nax","Contenu inapproprié":"Lu jaarul","Hors sujet":"Bokkul ci mbir mi","Cette action n’est pas ouverte à votre âge.":"Jëf jii ubbeeku ci sa at.","Un texte n’a pas été accepté. Changez-le.":"Am na mbind mu ñu nanguwul. Soppil ko.","Ce tutoriel n’est plus disponible.":"Njàngale bii amatul.","Ce tutoriel ne reçoit pas de merci.":"Njàngale bii du jot jërëjëf.","Il vous manque des NVCoins.":"Sa NVCoins doyul.","On ne se remercie pas soi-même.":"Kenn du sant boppam.","Pas pour votre propre tutoriel.":"Du ci sa njàngale bopp.","Vous gardez déjà 500 fiches.":"Denc nga ba noppi 500 kayit.","Les mercis ne sont pas encore ouverts.":"Jërëjëf yi ubbeeguñu leen ba léegi.","Un autre modérateur doit le rétablir.":"Beneen modératëer moo ko war a delloo.","1 personne a réussi":"1 nit def na ko","1 merci":"1 jërëjëf","Cet envoi a changé : touchez « Publier le tutoriel » encore une fois.":"Yónnee bii soppiku na: bësal « Siiwal njàngale bi » beneen yoon.","La fiche la plus ancienne gardée sur ce téléphone a été retirée.":"Kayit bi gën a yàgg ci telefon bii dindi nañu ko.","Masqué par vous : un autre modérateur doit le rétablir.":"Yow nga ko nëbb: beneen modératëer moo ko war a delloo.","Rétablir":"Delloo","Toucher encore pour rétablir":"Bësal ci kaw ngir delloo","Tutoriel rétabli.":"Njàngale bi delloo nañu ko.","Tutoriels masqués":"Njàngale yi ñu nëbb","Un merci est déjà en route : renvoyez-le avant d’en choisir un autre.":"Am na jërëjëf bu ngi ci yoon: yónneewaatal ko balaa ngay tànn beneen.","Masqué par l’équipe":"Ekip bi nëbb na ko"}</script>
+<script type="application/json" id="nvI18n-bm">{"Pas de connexion pour le moment.":"Ɲɔgɔnsira tɛ yen sisan.","Impossible de joindre NEURAVID pour le moment.":"A tɛ se ka NEURAVID sɔrɔ sisan.","Chargement…":"A bɛ ka doni…","Aperçu":"Jirali","Le service est momentanément indisponible. Réessayez dans un instant.":"Baara in tɛ sɔrɔ sisan. A lajɛ tugun waati dɔɔnin kɔ.","Envoi…":"A bɛ ka ci…","Toucher encore pour retirer":"A digi tugun walasa k'a bɔ","Langue":"Kan","Traduction en cours de relecture.":"Bayɛlɛmali bɛ lajɛ la.","La Forge n’est pas joignable ici.":"La Forge tɛ sɔrɔ yan.","Déjà envoyé.":"A cira kaban.","Envoi déjà en cours : patientez un instant.":"A bɛ ka ci kaban: makɔnɔ dɔɔnin.","Cette vidéo est trop lourde.":"Nin widewo ka girin kojugu.","Publié":"A bɔra kɛnɛ kan","Le Savoir-faire":"Dɔnniya","Apprenez d’une personne qui sait faire. Partagez ce que vous savez.":"Kalan sɔrɔ mɔgɔ fɛ min b’a kɛcogo dɔn. I ka dɔnniya tila.","Vérifiez la fiche : un champ n’est pas rempli comme il faut.":"Sɛbɛn lajɛ: yɔrɔ dɔ ma fa ka ɲɛ.","Connectez-vous pour continuer.":"Don walasa k’a taa a fɛ.","Aperçu : des tutoriels d’exemple, pour découvrir la page.":"Jirali: kalan misaliw, walasa ka ɲɛ in dɔn.","Le Savoir-faire n’est pas encore ouvert.":"Dɔnniya ma yɛlɛ fɔlɔ.","Pas de connexion : vos fiches gardées restent lisibles.":"Ɲɔgɔnsira tɛ: i ka sɛbɛn maralenw bɛ se ka kalan hali bi.","Apprendre":"Kalan","Partager mon savoir-faire":"N ka dɔnniya tila","Mes savoir-faire":"N ka dɔnniya","Créé sur NEURAVID":"A dilanna NEURAVID kan","{0} min":"miniti {0}","{0} ont réussi":"{0} y’a kɛ","{0} mercis":"barika {0}","Chercher un savoir-faire":"Dɔnniya dɔ ɲini","Trier":"Labɛn","Les plus récents":"Kuraw","Les plus réussis":"Minnu kɛra ka caya","Catégories":"Suguyaw","Tout":"Bɛɛ","Mes fiches, même sans connexion":"N ka sɛbɛnw, hali ɲɔgɔnsira tɛ","Aucune fiche gardée sur ce téléphone.":"Sɛbɛn si ma mara nin telefɔni in kan.","Apprendre d’une personne qui sait faire":"Kalan sɔrɔ mɔgɔ fɛ min b’a dɔn","Aucun tutoriel ici pour l’instant : partagez le premier.":"Kalan si tɛ yan fɔlɔ: fɔlɔ tila.","Voir plus":"Wɛrɛw lajɛ","← Retour":"← Segin","Sans connexion : la fiche est là, la vidéo reviendra avec le réseau.":"Ɲɔgɔnsira tɛ: sɛbɛn bɛ yan, widewo bɛna segin ni rezo ye.","Le matériel":"Baarakɛminɛnw","Aucun matériel particulier.":"Baarakɛminɛn kɛrɛnkɛrɛnnen si tɛ.","Les étapes":"Taabolow","Voir l’étape {0} dans la vidéo, à {1}":"Taabolo {0} lajɛ widewo kɔnɔ, {1} la","Les astuces":"Ladilikanw","✓ J’ai réussi":"✓ N y’a kɛ","J’ai réussi":"N y’a kɛ","Fiche gardée sur ce téléphone":"Sɛbɛn marala nin telefɔni in kan","Garder la fiche":"Sɛbɛn mara","Télécharger la fiche":"Sɛbɛn jigin","Partager":"Tila","Dire merci en NVCoins":"Barika da ni NVCoins ye","Ce tutoriel vous a servi ? Un merci va directement à {0}. Ce n’est jamais un vote.":"Nin kalan nafa sɔrɔla i ye wa? Barika bɛ taa {0} ma tigitigi. A tɛ kalata ye abada.","Combien ?":"Joli?","Un mot pour l’auteur (facultatif)":"Kuma dɔ dilanbaga ye (a man wajibi)","Choisissez un montant":"Hakɛ dɔ sugandi","Toucher encore pour envoyer {0} NVCoins":"A digi tugun walasa ka NVCoins {0} ci","Dire merci : {0} NVCoins":"Barika da: NVCoins {0}","Signaler ce tutoriel":"Nin kalan jira","L’équipe":"Ekipu","Masquer ce tutoriel : pourquoi ?":"Nin kalan dogo: mun na?","Toucher encore pour masquer":"A digi tugun walasa k’a dogo","Masquer":"Dogo","Ce qu’il faut":"Min bɛ mako","Matériel {0}":"Minɛn {0}","Combien":"Joli","Quantité {0}":"Hakɛ {0}","Enlever":"Bɔ a la","Étape {0}":"Taabolo {0}","Moment dans la vidéo (minutes:secondes)":"Waati widewo kɔnɔ (miniti:segɔn)","Modifier la fiche":"Sɛbɛn yɛlɛma","Filmez ce que vous savez faire (10 minutes au plus), puis remplissez la fiche pratique : ceux qui apprennent la gardent sur leur téléphone.":"I bɛ min kɛcogo dɔn, o ja ta (miniti 10 ka a dan), o kɔ sɛbɛn fa: kalandenw b’a mara u ka telefɔni kan.","Toucher encore pour filmer à nouveau":"A digi tugun walasa k’a ja ta kokura","Filmer à nouveau":"A ja ta kokura","Filmer avec La Forge":"Ja ta ni La Forge ye","Titre":"Tɔgɔ","Catégorie":"Suguya","Niveau":"Hakɛ","Langue du tutoriel":"Kalan kan","Temps pour le faire (minutes, facultatif)":"A kɛwaati (miniti, a man wajibi)","+ Ajouter du matériel":"+ Minɛn fara a kan","+ Ajouter une étape":"+ Taabolo fara a kan","Les astuces (facultatif)":"Ladilikanw (a man wajibi)","Accepter les mercis en NVCoins":"Barika sɔn NVCoins la","Enregistrer":"A mara","Publier le tutoriel":"Kalan bɔ kɛnɛ kan","Annuler":"A dabila","Mes tutoriels":"N ka kalanw","Mercis reçus ici : {0} NVCoins.":"Barika minnu sɔrɔla yan: NVCoins {0}.","Voir dans La Récolte":"A lajɛ La Récolte la","Vous n’avez pas encore partagé de savoir-faire.":"I ma dɔnniya si tila fɔlɔ.","Retirer":"A bɔ","Les mots de merci":"Barika kumaw","Mes fiches gardées":"N ka sɛbɛn maralenw","Publier : à partir de 13 ans. Les mercis en NVCoins : à partir de 18 ans, des deux côtés ; un merci n’est jamais un vote ni un classement.":"Ka bɔ kɛnɛ kan: ka bɔ san 13 la. Barika NVCoins la: ka bɔ san 18 la, fan fila bɛɛ; barika tɛ kalata ye wala jɔyɔrɔ.","Bravo ! L’auteur en sera content.":"I ni ce! Dilanbaga nisɔn bɛna diya.","Fiche retirée de ce téléphone.":"Sɛbɛn bɔra nin telefɔni in kan.","Fiche gardée : vous pourrez la lire sans connexion.":"Sɛbɛn marala: i bɛna se k’a kalan hali ɲɔgɔnsira tɛ.","Impossible de télécharger ici.":"A tɛ se ka jigin yan.","{0} : un tutoriel du Savoir-faire sur NEURAVID.":"{0}: Dɔnniya kalan NEURAVID kan.","Copié.":"A dabɔra.","Merci envoyé : {0} NVCoins.":"Barika cira: NVCoins {0}.","Tutoriel masqué.":"Kalan dogora.","Mon tutoriel":"N ka kalan","Un tutoriel de 10 minutes au plus.":"Kalan min tɛ tɛmɛ miniti 10 kan.","Donnez un titre à votre tutoriel.":"Tɔgɔ di i ka kalan ma.","Choisissez une catégorie.":"Suguya dɔ sugandi.","Écrivez au moins une étape.":"Taabolo kelen sɛbɛn a dɔgɔya la.","Le moment d’une étape s’écrit minutes:secondes, par exemple 1:30.":"Taabolo waati bɛ sɛbɛn miniti:segɔn, misali la 1:30.","Le temps pour le faire s’écrit en minutes.":"A kɛwaati bɛ sɛbɛn miniti la.","Fiche enregistrée.":"Sɛbɛn marala.","Filmez d’abord votre tutoriel avec La Forge.":"I ka kalan ja ta fɔlɔ ni La Forge ye.","Votre tutoriel est publié.":"I ka kalan bɔra kɛnɛ kan.","Tutoriel retiré.":"Kalan bɔra.","Coiffure et tresses":"Kunsigi ni tilen","Couture et pagne":"Karali ni tafe","Cuisine":"Tobili","Beauté":"Cɛɲi","Artisanat":"Bololabaara","Agriculture":"Sɛnɛ","Maison":"So","Réparation":"Labɛnni","Numérique":"Nimeriki","Musique":"Fɔli","Danse":"Dɔn","Langues":"Kanw","Autre":"Wɛrɛ","Débutant":"Daminɛbaga","Moyen":"Cɛmancɛ","Avancé":"Ɲɛtaara","Dangereux":"Farati","Trompeur":"Nanbara","Contenu inapproprié":"Kɔnɔkow minnu man ɲi","Hors sujet":"A tɛ barokun na","Cette action n’est pas ouverte à votre âge.":"Nin kɛwale ma yɛlɛ i ka si ma.","Un texte n’a pas été accepté. Changez-le.":"Sɛbɛn dɔ ma sɔn. A yɛlɛma.","Ce tutoriel n’est plus disponible.":"Nin kalan tɛ sɔrɔ tugun.","Ce tutoriel ne reçoit pas de merci.":"Nin kalan tɛ barika sɔrɔ.","Il vous manque des NVCoins.":"I ka NVCoins ma se.","On ne se remercie pas soi-même.":"Mɔgɔ tɛ barika da a yɛrɛ ye.","Pas pour votre propre tutoriel.":"I yɛrɛ ka kalan tɛ.","Vous gardez déjà 500 fiches.":"I ye sɛbɛn 500 mara kaban.","Les mercis ne sont pas encore ouverts.":"Barika ma yɛlɛ fɔlɔ.","Un autre modérateur doit le rétablir.":"Kɔlɔsibaga wɛrɛ ka kan k’a segin.","1 personne a réussi":"Mɔgɔ 1 y’a kɛ","1 merci":"Barika 1","Cet envoi a changé : touchez « Publier le tutoriel » encore une fois.":"Nin cili yɛlɛmana: « Kalan bɔ kɛnɛ kan » digi tugun.","La fiche la plus ancienne gardée sur ce téléphone a été retirée.":"Sɛbɛn kɔrɔba bɛɛ la min marala nin telefɔni in kan, o bɔra.","Masqué par vous : un autre modérateur doit le rétablir.":"E de y’a dogo: kɔlɔsibaga wɛrɛ ka kan k’a segin.","Rétablir":"A segin","Toucher encore pour rétablir":"A digi tugun walasa k’a segin","Tutoriel rétabli.":"Kalan seginna.","Tutoriels masqués":"Kalan dogolenw","Un merci est déjà en route : renvoyez-le avant d’en choisir un autre.":"Barika dɔ bɛ sira kan kaban: a ci tugun sani i ka dɔ wɛrɛ sugandi.","Masqué par l’équipe":"Ekipu y’a dogo"}</script>
+<script type="application/json" id="nvI18n-ln">{"Pas de connexion pour le moment.":"Boyokani ezali te sikoyo.","Impossible de joindre NEURAVID pour le moment.":"Ekoki te kokutana na NEURAVID sikoyo.","Chargement…":"Ezali kofungola…","Aperçu":"Emoniseli","Le service est momentanément indisponible. Réessayez dans un instant.":"Mosala oyo ezali te mpo na mwa ntango. Meka lisusu mwa moke.","Envoi…":"Ezali kotinda…","Toucher encore pour retirer":"Finá lisusu mpo na kolongola","Langue":"Lokota","Traduction en cours de relecture.":"Libongoli ezali kotalama.","La Forge n’est pas joignable ici.":"La Forge ezwami awa te.","Déjà envoyé.":"Esili kotindama.","Envoi déjà en cours : patientez un instant.":"Ezali kotindama kala: zela mwa moke.","Cette vidéo est trop lourde.":"Video oyo ezali na kilo mingi.","Publié":"Ebimisami","Le Savoir-faire":"Mayele ya Misala","Apprenez d’une personne qui sait faire. Partagez ce que vous savez.":"Yekola epai ya moto oyo ayebi kosala. Kabola oyo oyebi.","Vérifiez la fiche : un champ n’est pas rempli comme il faut.":"Tala lokasa: esika moko etondisami malamu te.","Connectez-vous pour continuer.":"Kota mpo na kokoba.","Aperçu : des tutoriels d’exemple, pour découvrir la page.":"Emoniseli: mateya ya ndakisa, mpo na koyeba lokasa oyo.","Le Savoir-faire n’est pas encore ouvert.":"Mayele ya Misala efungwami naino te.","Pas de connexion : vos fiches gardées restent lisibles.":"Boyokani ezali te: mikanda oyo obombi ekoki kotangama.","Apprendre":"Koyekola","Partager mon savoir-faire":"Kabola mayele na ngai","Mes savoir-faire":"Mayele na ngai","Créé sur NEURAVID":"Esalemi na NEURAVID","{0} min":"miniti {0}","{0} ont réussi":"{0} balongi","{0} mercis":"matondi {0}","Chercher un savoir-faire":"Luka mayele moko","Trier":"Kobongisa","Les plus récents":"Ya sika","Les plus réussis":"Oyo balongi mingi","Catégories":"Biteni","Tout":"Nyonso","Mes fiches, même sans connexion":"Mikanda na ngai, ata boyokani ezali te","Aucune fiche gardée sur ce téléphone.":"Lokasa moko te ebombami na telefone oyo.","Apprendre d’une personne qui sait faire":"Koyekola epai ya moto oyo ayebi","Aucun tutoriel ici pour l’instant : partagez le premier.":"Liteya moko te awa naino: kabola ya liboso.","Voir plus":"Tala mingi","← Retour":"← Kozonga","Sans connexion : la fiche est là, la vidéo reviendra avec le réseau.":"Boyokani te: lokasa ezali awa, video ekozonga na réseau.","Le matériel":"Bisaleli","Aucun matériel particulier.":"Esaleli ya sipesiale ezali te.","Les étapes":"Matambe","Voir l’étape {0} dans la vidéo, à {1}":"Tala etambe {0} na video, na {1}","Les astuces":"Mayele","✓ J’ai réussi":"✓ Nalongi","J’ai réussi":"Nalongi","Fiche gardée sur ce téléphone":"Lokasa ebombami na telefone oyo","Garder la fiche":"Bomba lokasa","Télécharger la fiche":"Kitisa lokasa","Partager":"Kabola","Dire merci en NVCoins":"Pesa matondi na NVCoins","Ce tutoriel vous a servi ? Un merci va directement à {0}. Ce n’est jamais un vote.":"Liteya oyo esalisi yo? Matondi ekendaka mbala moko epai ya {0}. Ezali soki moke vote te.","Combien ?":"Boni?","Un mot pour l’auteur (facultatif)":"Liloba moko mpo na mokomi (ezali na ntina te)","Choisissez un montant":"Pona motango","Toucher encore pour envoyer {0} NVCoins":"Finá lisusu mpo na kotinda NVCoins {0}","Dire merci : {0} NVCoins":"Pesa matondi: NVCoins {0}","Signaler ce tutoriel":"Yebisa liteya oyo","L’équipe":"Ekipe","Masquer ce tutoriel : pourquoi ?":"Bomba liteya oyo: mpo na nini?","Toucher encore pour masquer":"Finá lisusu mpo na kobomba","Masquer":"Bomba","Ce qu’il faut":"Oyo esengeli","Matériel {0}":"Esaleli {0}","Combien":"Boni","Quantité {0}":"Motango {0}","Enlever":"Longola","Étape {0}":"Etambe {0}","Moment dans la vidéo (minutes:secondes)":"Ntango na video (miniti:sekonde)","Modifier la fiche":"Bongola lokasa","Filmez ce que vous savez faire (10 minutes au plus), puis remplissez la fiche pratique : ceux qui apprennent la gardent sur leur téléphone.":"Filma oyo oyebi kosala (miniti 10 kaka), sima tondisa lokasa: baoyo bazali koyekola babombaka yango na telefone na bango.","Toucher encore pour filmer à nouveau":"Finá lisusu mpo na kofilma lisusu","Filmer à nouveau":"Filma lisusu","Filmer avec La Forge":"Filma na La Forge","Titre":"Motó","Catégorie":"Eteni","Niveau":"Molongo","Langue du tutoriel":"Monoko ya liteya","Temps pour le faire (minutes, facultatif)":"Ntango ya kosala yango (miniti, ezali na ntina te)","+ Ajouter du matériel":"+ Bakisa esaleli","+ Ajouter une étape":"+ Bakisa etambe","Les astuces (facultatif)":"Mayele (ezali na ntina te)","Accepter les mercis en NVCoins":"Ndima matondi na NVCoins","Enregistrer":"Bomba","Publier le tutoriel":"Bimisa liteya","Annuler":"Tika","Mes tutoriels":"Mateya na ngai","Mercis reçus ici : {0} NVCoins.":"Matondi oyo ezwami awa: NVCoins {0}.","Voir dans La Récolte":"Tala na La Récolte","Vous n’avez pas encore partagé de savoir-faire.":"Okabolaki naino mayele moko te.","Retirer":"Longola","Les mots de merci":"Maloba ya matondi","Mes fiches gardées":"Mikanda na ngai oyo ebombami","Publier : à partir de 13 ans. Les mercis en NVCoins : à partir de 18 ans, des deux côtés ; un merci n’est jamais un vote ni un classement.":"Kobimisa: banda mibu 13. Matondi na NVCoins: banda mibu 18, na ngambo nyonso mibale; matondi ezali soki moke vote to molongo te.","Bravo ! L’auteur en sera content.":"Malamu! Mokomi akosepela.","Fiche retirée de ce téléphone.":"Lokasa elongolami na telefone oyo.","Fiche gardée : vous pourrez la lire sans connexion.":"Lokasa ebombami: okoki kotanga yango ata boyokani ezali te.","Impossible de télécharger ici.":"Ekoki te kokitisa awa.","{0} : un tutoriel du Savoir-faire sur NEURAVID.":"{0}: liteya ya Mayele ya Misala na NEURAVID.","Copié.":"Ekopiami.","Merci envoyé : {0} NVCoins.":"Matondi etindami: NVCoins {0}.","Tutoriel masqué.":"Liteya ebombami.","Mon tutoriel":"Liteya na ngai","Un tutoriel de 10 minutes au plus.":"Liteya ya miniti 10 kaka.","Donnez un titre à votre tutoriel.":"Pesa liteya na yo motó.","Choisissez une catégorie.":"Pona eteni moko.","Écrivez au moins une étape.":"Koma ata etambe moko.","Le moment d’une étape s’écrit minutes:secondes, par exemple 1:30.":"Ntango ya etambe ekomamaka miniti:sekonde, ndakisa 1:30.","Le temps pour le faire s’écrit en minutes.":"Ntango ya kosala ekomamaka na miniti.","Fiche enregistrée.":"Lokasa ebombami.","Filmez d’abord votre tutoriel avec La Forge.":"Liboso filma liteya na yo na La Forge.","Votre tutoriel est publié.":"Liteya na yo ebimisami.","Tutoriel retiré.":"Liteya elongolami.","Coiffure et tresses":"Kokanga suki","Couture et pagne":"Kotonga na liputa","Cuisine":"Kolamba","Beauté":"Kitoko","Artisanat":"Misala ya maboko","Agriculture":"Bilanga","Maison":"Ndako","Réparation":"Kobongisa","Numérique":"Nimeriki","Musique":"Miziki","Danse":"Bobina","Langues":"Minoko","Autre":"Mosusu","Débutant":"Mobandi","Moyen":"Ya katikati","Avancé":"Ya likolo","Dangereux":"Likama","Trompeur":"Ya lokuta","Contenu inapproprié":"Makambo oyo ebongi te","Hors sujet":"Libanda ya likambo","Cette action n’est pas ouverte à votre âge.":"Likambo oyo efungwami te mpo na mbula na yo.","Un texte n’a pas été accepté. Changez-le.":"Makomi moko endimami te. Bongola yango.","Ce tutoriel n’est plus disponible.":"Liteya oyo ezali lisusu te.","Ce tutoriel ne reçoit pas de merci.":"Liteya oyo ezwaka matondi te.","Il vous manque des NVCoins.":"Ozali na NVCoins ekoki te.","On ne se remercie pas soi-même.":"Moto apesaka ye moko matondi te.","Pas pour votre propre tutoriel.":"Te mpo na liteya na yo moko.","Vous gardez déjà 500 fiches.":"Obombi kala mikanda 500.","Les mercis ne sont pas encore ouverts.":"Matondi efungwami naino te.","Un autre modérateur doit le rétablir.":"Mokengeli mosusu asengeli kozongisa yango.","1 personne a réussi":"Moto 1 alongi","1 merci":"Matondi 1","Cet envoi a changé : touchez « Publier le tutoriel » encore une fois.":"Kotinda oyo ebongwani: finá « Bimisa liteya » mbala moko lisusu.","La fiche la plus ancienne gardée sur ce téléphone a été retirée.":"Lokasa ya kala koleka oyo ebombamaki na telefone oyo elongolami.","Masqué par vous : un autre modérateur doit le rétablir.":"Yo nde obombaki yango: mokengeli mosusu asengeli kozongisa yango.","Rétablir":"Kozongisa","Toucher encore pour rétablir":"Finá lisusu mpo na kozongisa","Tutoriel rétabli.":"Liteya ezongisami.","Tutoriels masqués":"Mateya oyo ebombami","Un merci est déjà en route : renvoyez-le avant d’en choisir un autre.":"Matondi moko ezali kala na nzela: tinda yango lisusu liboso ya kopona mosusu.","Masqué par l’équipe":"Ekipe ebombi yango"}</script>
+
+<script>
+/* ══ NV_CAMERA — EMBARQUÉ ════════════════════════════════════
+   Embarqué, pas référencé : un module NEURAVID doit s'ouvrir
+   seul depuis une URL file://, avec rien à côté. */
+/* ═══════════════════════════════════════════════════════════════════
+   NEURAVID — NV_CAMERA.js
+   Le bouton « Filmer » d'un défi ouvre la caméra du Studio créatif.
+
+   À embarquer dans les 16 modules de défi ET dans NV_MODULE_Create.html.
+
+   ── POURQUOI ─────────────────────────────────────────────────────────
+   Chaque défi a son propre enregistreur. Il fonctionne, il grave les
+   filtres et le logo dans l'image — mais il s'arrête là. La caméra du
+   Studio sait faire beaucoup plus, et elle existe déjà :
+
+       double caméra (médaillon, haut/bas, gauche/droite)
+       masques qui suivent le visage
+       effets pluie, neige, étincelles
+       filtres gravés dans l'image enregistrée
+       photo, montage, galerie
+
+   Une personne qui veut participer à un défi n'a aucune raison d'avoir
+   moins d'outils que quelqu'un qui filme pour rien.
+
+   ── LA DIFFICULTÉ RÉELLE ─────────────────────────────────────────────
+   Le Studio est un AUTRE fichier. Changer de page perd tout : le
+   contexte du défi, et surtout la vidéo elle-même — un Blob ne
+   traverse pas une navigation.
+
+   IndexedDB, si. C'est la seule voie, et Create s'en sert déjà pour
+   son relais. On l'emprunte :
+
+       1. le défi range son contexte et ouvre le Studio
+       2. la personne filme avec tous les outils
+       3. le Studio range la vidéo dans IndexedDB et revient au défi
+       4. le défi la reprend et la présente comme sa propre prise
+
+   ── CE QU'ON NE FAIT PAS ─────────────────────────────────────────────
+   On ne copie pas la caméra du Studio dans les seize défis. Elle pèse
+   plus de trois cents kilo-octets, et seize copies divergeraient au
+   premier correctif — c'est exactement ce qui est arrivé à IA et Coach,
+   qui affichaient deux scores différents pour la même vidéo.
+
+   Et on ne supprime pas l'enregistreur existant : si le Studio est
+   injoignable, il reprend la main. Une passerelle ne doit jamais
+   devenir un point de rupture.
+   ═══════════════════════════════════════════════════════════════════ */
+(function (racine) {
+  'use strict';
+  if (racine.NVCamera) return;
+
+  var BASE_DEFAUT = 'file:///android_asset/flutter_assets/assets/modules/';
+  var CLE_CTX = 'nv_cam_ctx';
+  var DB = 'nvcamera';
+  var MAG = 'prises';
+
+  function emit(type, charge) {
+    try { if (typeof racine.NVemit === 'function') racine.NVemit(type, charge || {}); }
+    catch (e) {}
+  }
+  function base() {
+    var b = racine.NV_MODULES_BASE || BASE_DEFAUT;
+    return b.slice(-1) === '/' ? b : b + '/';
+  }
+
+  /* ── LE COFFRE ────────────────────────────────────────────────────
+     Une vidéo de quelques mégaoctets ne tient pas dans localStorage et
+     ne survit pas à une navigation autrement. IndexedDB est le seul
+     endroit où elle peut attendre. */
+  function ouvrirBase() {
+    return new Promise(function (res) {
+      try { if (!racine.indexedDB) return res(null); } catch (e) { return res(null); }   /* stockage bloqué : l'accès lui-même peut lever une erreur */
+      var r;
+      try { r = racine.indexedDB.open(DB, 1); } catch (e) { return res(null); }
+      r.onupgradeneeded = function () {
+        try { r.result.createObjectStore(MAG); } catch (e) {}
+      };
+      r.onsuccess = function () { res(r.result); };
+      r.onerror = function () { res(null); };
+      /* certains navigateurs ne répondent jamais (fichier ouvert en content://) */
+      setTimeout(function () { res(null); }, 2000);
+    });
+  }
+  function ranger(cle, valeur) {
+    return ouvrirBase().then(function (db) {
+      if (!db) return false;
+      return new Promise(function (res) {
+        try {
+          var t = db.transaction(MAG, 'readwrite');
+          t.objectStore(MAG).put(valeur, cle);
+          t.oncomplete = function () { res(true); };
+          t.onerror = function () { res(false); };
+        } catch (e) { res(false); }
+      });
+    });
+  }
+  function reprendre(cle) {
+    return ouvrirBase().then(function (db) {
+      if (!db) return null;
+      return new Promise(function (res) {
+        try {
+          var t = db.transaction(MAG, 'readonly');
+          var q = t.objectStore(MAG).get(cle);
+          q.onsuccess = function () { res(q.result || null); };
+          q.onerror = function () { res(null); };
+        } catch (e) { res(null); }
+      });
+    });
+  }
+  function oublier(cle) {
+    return ouvrirBase().then(function (db) {
+      if (!db) return;
+      try {
+        var t = db.transaction(MAG, 'readwrite');
+        t.objectStore(MAG).delete(cle);
+      } catch (e) {}
+    });
+  }
+
+  /* ── CÔTÉ DÉFI : partir vers le Studio ────────────────────────────── */
+  function filmer(ctx) {
+    ctx = ctx || {};
+    ctx.module = ctx.module || racine.NV_MODULE_NAME || 'defi';
+    ctx.quand = Date.now();
+    /* La contrainte du défi voyage avec : le Studio doit savoir qu'une
+       story flash s'arrête à sept secondes. Sans ça, la personne filme
+       trente secondes et se fait refuser au retour. */
+    try { racine.sessionStorage.setItem(CLE_CTX, JSON.stringify(ctx)); } catch (e) {}
+    try { racine.localStorage.setItem(CLE_CTX, JSON.stringify(ctx)); } catch (e) {}
+    emit('camera_open', ctx);
+
+    /* Si le Studio est déjà dans cette page, on l'ouvre sans changer
+       d'écran : c'est plus rapide et rien ne peut se perdre. */
+    try {
+      if (racine.NVStudio && typeof racine.NVStudio.open === 'function' &&
+          typeof racine.NVStudio.tab === 'function') {
+        racine.NVStudio.open(); racine.NVStudio.tab('video');
+        return 'local';
+      }
+    } catch (e) {}
+    try {
+      if (racine.NVLien && typeof racine.NVLien.ouvrir === 'function') {
+        racine.NVLien.ouvrir('NVCreate', ctx);
+        return 'lien';
+      }
+    } catch (e) {}
+    try {
+      racine.location.href = base() + 'NV_MODULE_Create.html';
+      return 'fichier';
+    } catch (e) {}
+    return 'aucun';   /* l'appelant reprend la main avec son propre enregistreur */
+  }
+
+  /* ── CÔTÉ STUDIO : d'où vient-on, et comment y retourner ──────────── */
+  function contexte() {
+    var t = null;
+    try { t = racine.sessionStorage.getItem(CLE_CTX); } catch (e) {}
+    if (!t) { try { t = racine.localStorage.getItem(CLE_CTX); } catch (e) {} }
+    if (!t) return null;
+    try {
+      var c = JSON.parse(t);
+      /* Un contexte vieux de plus d'une heure n'a plus de sens : la
+         personne est passée à autre chose. On ne la renvoie pas dans un
+         défi qu'elle a quitté. */
+      if (!c || !c.quand || Date.now() - c.quand > 3600000) return null;
+      return c;
+    } catch (e) { return null; }
+  }
+
+  /* Le Studio appelle ceci quand la prise est terminée. */
+  function rendre(blob, meta) {
+    var c = contexte();
+    if (!c) return Promise.resolve(false);
+    var cle = 'prise_' + (c.module || 'defi') + '_' + (c.defi || 'x');
+    return ranger(cle, {blob: blob, meta: meta || {}, ctx: c, at: Date.now()})
+      .then(function (ok) {
+        if (!ok) return false;
+        emit('camera_done', {module: c.module, defi: c.defi || null,
+                             secondes: (meta && meta.seconds) || null});
+        try {
+          if (racine.NVLien && typeof racine.NVLien.ouvrir === 'function') {
+            racine.NVLien.ouvrir('NV' + c.module, c);
+            return true;
+          }
+        } catch (e) {}
+        try { racine.location.href = base() + 'NV_MODULE_' + c.module + '.html'; }
+        catch (e) {}
+        return true;
+      });
+  }
+
+  /* ── CÔTÉ DÉFI : récupérer la prise au retour ─────────────────────── */
+  function recuperer(module, defi) {
+    var cle = 'prise_' + (module || racine.NV_MODULE_NAME || 'defi') + '_' + (defi || 'x');
+    return reprendre(cle).then(function (p) {
+      if (!p) return null;
+      /* On efface tout de suite : une prise reprise deux fois se
+         retrouverait envoyée deux fois. */
+      oublier(cle);
+      if (!p.at || Date.now() - p.at > 3600000) return null;
+      return p;
+    });
+  }
+
+  /* ══ LE MÉNAGE ════════════════════════════════════════════════════
+     Une prise n'est effacée qu'à sa reprise. Si la personne filme puis
+     ne revient jamais dans le défi, l'entrée reste — une vidéo de
+     plusieurs mégaoctets par tentative abandonnée, sur un téléphone
+     d'entrée de gamme.
+
+     On balaie donc au chargement ce qui a plus d'une heure : c'est la
+     même limite que le contexte, et au-delà la personne est passée à
+     autre chose de toute façon. */
+  function balayer() {
+    return ouvrirBase().then(function (db) {
+      if (!db) return 0;
+      return new Promise(function (res) {
+        var n = 0;
+        try {
+          var t = db.transaction(MAG, 'readwrite');
+          var st = t.objectStore(MAG);
+          var q = st.openCursor();
+          q.onsuccess = function () {
+            var c = q.result;
+            if (!c) { res(n); return; }
+            var v = c.value;
+            if (!v || !v.at || Date.now() - v.at > 3600000) { c.delete(); n++; }
+            c.continue();
+          };
+          q.onerror = function () { res(n); };
+        } catch (e) { res(0); }
+      });
+    });
+  }
+  /* au chargement, sans bloquer quoi que ce soit */
+  try { setTimeout(balayer, 3000); } catch (e) {}
+
+  racine.NVCamera = {
+    balayer: balayer,
+    filmer: filmer,
+    contexte: contexte,
+    rendre: rendre,
+    recuperer: recuperer,
+    /* Pour savoir s'il faut proposer le Studio ou rester sur
+       l'enregistreur local. On ne propose jamais une porte qui ne
+       s'ouvre pas. */
+    studioJoignable: function () {
+      try {
+        if (racine.NVStudio && typeof racine.NVStudio.open === 'function') return true;
+        if (racine.NVLien && typeof racine.NVLien.ouvrir === 'function') return true;
+        return !!racine.NV_MODULES_BASE;
+      } catch (e) { return false; }
+    }
+  };
+})(window);
+
+</script>
+<script>
+(function(){
+/* ════════════════════════════════════════════════════════════════════
+ LE SAVOIR-FAIRE QUI PAIE (17 novembre 2026, recommandation 6 acceptée par Karamo)
+ Une personne montre ce qu'elle sait faire dans un tutoriel vidéo filmé avec La Forge, avec une FICHE PRATIQUE (matériel,
+ étapes reliées au moment de la vidéo, astuces) que l'on garde sur le téléphone, même sans connexion. Ceux qui ont appris
+ disent « J'ai réussi » (gratuit) et, s'ils le veulent, merci en NVCoins (18 ans des deux côtés, montants fixes).
+ Serveur : /v1/savoir (univers), capacité /v1/savoir/capacites.
+ Rien n'est inventé : une valeur inconnue s'écrit « — » ; les exemples n'existent que dans l'aperçu, marqués « Aperçu ».
+ ════════════════════════════════════════════════════════════════════ */
+'use strict';
+var MOI = 'Savoir';
+var AGE_MERCI = 18;
+var LANGUES_UI = {fr:{nom:'Français', loc:'fr-FR'}, en:{nom:'English', loc:'en-GB'}, es:{nom:'Español', loc:'es-ES'}, pt:{nom:'Português', loc:'pt-BR'},
+  ar:{nom:'العربية', loc:'ar-u-nu-latn', rtl:true}, sw:{nom:'Kiswahili', loc:'sw-KE', relire:true}, ha:{nom:'Hausa', loc:'ha-NG', relire:true},
+  yo:{nom:'Yorùbá', loc:'yo-NG', relire:true}, wo:{nom:'Wolof', loc:'fr-SN', relire:true}, bm:{nom:'Bamanankan', loc:'fr-ML', relire:true},
+  ln:{nom:'Lingála', loc:'fr-CD', relire:true}};
+var MONTANTS_OK = [10, 25, 50, 100, 250];
+function compte(){ var u = window.NV_USER && typeof window.NV_USER === 'object' ? window.NV_USER : null; return u && u.id ? String(u.id) : '—'; }
+/* tout ce qui est gardé sur le téléphone l'est PAR COMPTE (deux comptes sur un même téléphone ne voient rien l'un de l'autre) */
+function cleFilm(){ return 'nv_savoir_film|' + compte(); }
+function cleFiches(){ return 'nv_savoir_fiches|' + compte(); }
+function cleCoche(id){ return 'nv_savoir_coche|' + compte() + '|' + id; }
+var FICHES_MAX = 200;
+function N(s){ return s; }                       /* une phrase traduite plus loin (le constructeur la vérifie) */
+var CATS = {coiffure:N('Coiffure et tresses'), couture:N('Couture et pagne'), cuisine:N('Cuisine'), beaute:N('Beauté'), artisanat:N('Artisanat'),
+  agriculture:N('Agriculture'), maison:N('Maison'), reparation:N('Réparation'), numerique:N('Numérique'), musique:N('Musique'), danse:N('Danse'),
+  langues:N('Langues'), autre:N('Autre')};
+var NIVS = {debutant:N('Débutant'), moyen:N('Moyen'), avance:N('Avancé')};
+var MOTIFS = {dangereux:N('Dangereux'), trompeur:N('Trompeur'), contenu:N('Contenu inapproprié'), hors_sujet:N('Hors sujet'), autre:N('Autre')};
+
+function $(id){ return document.getElementById(id); }
+function esc(s){ return String(s == null ? '' : s).replace(/[&<>"']/g, function(c){ return {'&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;'}[c]; }); }
+function brut(k){ try{ return localStorage.getItem(k); }catch(e){ return null; } }
+function lireJ(k, d){ try{ var v = JSON.parse(brut(k) || 'null'); return v == null ? d : v; }catch(e){ return d; } }
+function ecrire(k, v){ try{ localStorage.setItem(k, JSON.stringify(v)); return true; }catch(e){ return false; } }
+function api(){ return window.NV_API_BASE ? String(window.NV_API_BASE).replace(/\/$/, '') : null; }
+function jeton(){ return window.NV_TOKEN ? String(window.NV_TOKEN) : ''; }
+function utilisateur(){ return window.NV_USER && typeof window.NV_USER === 'object' ? window.NV_USER : null; }
+function nombre(x){ return typeof x === 'number' && isFinite(x) && x >= 0 ? x : null; }
+function age(){ var u = utilisateur(); return u && typeof u.age === 'number' ? u.age : null; }
+function roles(){ var u = utilisateur(); return u && Array.isArray(u.roles) ? u.roles : []; }
+function moderateur(){ var r = roles(); return r.indexOf('moderateur') >= 0 || r.indexOf('verificateur') >= 0 || r.indexOf('organisateur') >= 0; }
+
+/* ── la langue : la même que le reste de NEURAVID (« nv_ui_langue »), sinon l'application, sinon le téléphone ── */
+function langueDetectee(){
+  try{ var hl = /(?:^#|&)lang=([a-z]{2})/.exec(location.hash || ''); if(hl && LANGUES_UI[hl[1]]) return hl[1]; }catch(e){}
+  var c = brut('nv_ui_langue'); if(c){ try{ c = JSON.parse(c); }catch(e){} if(typeof c === 'string' && LANGUES_UI[c]) return c; }
+  try{ if(window.NV_LANG){ var n = String(window.NV_LANG).slice(0, 2).toLowerCase(); if(LANGUES_UI[n]) return n; } }catch(e){}
+  var l = []; try{ l = navigator.languages && navigator.languages.length ? navigator.languages : [navigator.language || 'fr']; }catch(e){}
+  for(var i = 0; i < l.length; i++){ var k = String(l[i] || '').slice(0, 2).toLowerCase(); if(LANGUES_UI[k]) return k; }
+  return 'fr';
+}
+var L = 'fr', LOC = 'fr-FR', DICO = {};
+function poserLangue(l){
+  L = LANGUES_UI[l] ? l : 'fr'; DICO = {};
+  if(L !== 'fr'){ try{ DICO = JSON.parse($('nvI18n-' + L).textContent) || {}; }catch(e){ L = 'fr'; DICO = {}; } }
+  LOC = LANGUES_UI[L].loc;
+  document.documentElement.lang = L; document.documentElement.dir = LANGUES_UI[L].rtl ? 'rtl' : 'ltr';
+}
+function T(s){ var t = DICO[s] || s, a = arguments; return t.replace(/\{(\d)\}/g, function(m, i){ var v = a[+i + 1]; return v == null ? '—' : String(v); }); }
+function nb(x){ var n = nombre(x); if(n == null) return '—'; try{ return n.toLocaleString(LOC); }catch(e){ return String(n); } }
+function mmss(s){ s = nombre(s); if(s == null) return '—'; s = Math.round(s); return Math.floor(s / 60) + ':' + ('0' + (s % 60)).slice(-2); }
+function lireMmss(t){ t = String(t || '').trim(); if(!t) return null; var m = /^(\d{1,2}):([0-5]\d)$/.exec(t); if(m) return (+m[1]) * 60 + (+m[2]); if(/^\d{1,3}$/.test(t)) return +t; return NaN; }
+function drapeau(iso){ iso = String(iso || '').toUpperCase(); if(!/^[A-Z]{2}$/.test(iso)) return ''; return String.fromCodePoint(127397 + iso.charCodeAt(0), 127397 + iso.charCodeAt(1)); }
+function nbReussis(n){ return n === 1 ? T('1 personne a réussi') : T('{0} ont réussi', nb(n)); }
+function nbMercis(n){ return n === 1 ? T('1 merci') : T('{0} mercis', nb(n)); }
+function quiTexte(p){ if(!p || !p.handle) return '—'; var f = drapeau(p.pays); return (f ? f + ' ' : '') + '@' + p.handle; }
+
+/* ── l'état ── */
+var ST = {apercu:false, cap:null, etat:'', vue:'liste', items:[], suivant:null, filtre:{categorie:'', q:'', tri:'recent'}, tuto:null, moi:null,
+  gains:null, prise:null, envoi:false, form:null, sur:{}, occupe:{}, montant:null, mot:'', edition:null, horsLigne:false};
+function formVide(){ return {titre:'', categorie:'', niveau:'debutant', langue:L, dureeMin:'', materiel:[{nom:'', quantite:''}], etapes:[{texte:'', t:''}], astuces:'', mercis:false}; }
+
+/* ── le réseau ── */
+function appeler(methode, chemin, corps, cle){
+  var h = {Accept:'application/json'}; if(jeton()) h.Authorization = 'Bearer ' + jeton();
+  if(methode !== 'GET') h['Idempotency-Key'] = cle || ('sv-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8));
+  var o = {method:methode, headers:h, mode:'cors', cache:'no-cache'};
+  if(corps instanceof FormData) o.body = corps; else if(corps){ h['Content-Type'] = 'application/json'; o.body = JSON.stringify(corps); }
+  return fetch(api() + chemin, o).then(function(r){
+    return r.text().then(function(t){ var j = null; try{ j = t ? JSON.parse(t) : null; }catch(e){ j = null; }
+      if(!r.ok){ var err = new Error('http ' + r.status); err.status = r.status; err.code = j && (j.erreur || j.code); err.champ = j && j.params && j.params.champ || j && j.champ; throw err; } return j; });
+  });
+}
+function emit(type, payload){
+  var msg = {source:'neuravid', module:MOI, type:type, payload:payload || {}};
+  if(window.NVemit && !window.NVemit.__nvLocal){ try{ window.NVemit(type, msg.payload); }catch(e){} }
+  try{ if(window.flutter_inappwebview) window.flutter_inappwebview.callHandler('nvEvent', msg); }catch(e){}
+  try{ window.dispatchEvent(new CustomEvent('nv:' + type, {detail:msg.payload})); }catch(e){}
+}
+function ouvrir(id, ctx){
+  var base = window.NV_MODULES_BASE ? String(window.NV_MODULES_BASE).replace(/\/?$/, '/') : '', url = base + 'NV_MODULE_' + id + '.html';
+  emit('open_module', {target:'NV' + id, url:url, contexte:ctx || null});
+  try{ if(ctx) sessionStorage.setItem('nv_ctx_' + id, JSON.stringify(ctx)); }catch(e){}
+  if(window.flutter_inappwebview) return;
+  if(window.NVLien && typeof window.NVLien.ouvrir === 'function'){ try{ window.NVLien.ouvrir('NV' + id, ctx); return; }catch(e){} }
+  try{ location.href = url; }catch(e){}
+}
+var toastT = 0;
+function toast(t){ var el = $('toast'); el.textContent = t; el.classList.add('on'); clearTimeout(toastT); toastT = setTimeout(function(){ el.classList.remove('on'); }, 3400); }
+var ERREURS = {age_minimum:N('Cette action n’est pas ouverte à votre âge.'), moderation:N('Un texte n’a pas été accepté. Changez-le.'),
+  trop_long:N('Un tutoriel de 10 minutes au plus.'), video_trop_longue:N('Un tutoriel de 10 minutes au plus.'), fichier_trop_grand:N('Cette vidéo est trop lourde.'),
+  video_manquante:N('Filmez d’abord votre tutoriel avec La Forge.'), type_refuse:N('Filmez d’abord votre tutoriel avec La Forge.'),
+  tuto_inconnu:N('Ce tutoriel n’est plus disponible.'), mercis_fermes:N('Ce tutoriel ne reçoit pas de merci.'), solde_insuffisant:N('Il vous manque des NVCoins.'),
+  soi_meme:N('On ne se remercie pas soi-même.'), jamais_pour_soi:N('Pas pour votre propre tutoriel.'), trop_de_fiches:N('Vous gardez déjà 500 fiches.'),
+  argent_indisponible:N('Les mercis ne sont pas encore ouverts.'), argent_injoignable:N('Le service est momentanément indisponible. Réessayez dans un instant.'),
+  publication_indisponible:N('Le service est momentanément indisponible. Réessayez dans un instant.'), publication_injoignable:N('Le service est momentanément indisponible. Réessayez dans un instant.'),
+  un_autre_moderateur:N('Un autre modérateur doit le rétablir.')};
+function erreurTexte(e){
+  var c = e && e.code;
+  if(c === 'champ_invalide') return T('Vérifiez la fiche : un champ n’est pas rempli comme il faut.');
+  if(c && ERREURS[c]) return T(ERREURS[c]);
+  if(e && e.status === 401) return T('Connectez-vous pour continuer.');
+  return navigator.onLine === false ? T('Pas de connexion pour le moment.') : T('Impossible de joindre NEURAVID pour le moment.');
+}
+
+/* ── les fiches gardées sur le téléphone (lisibles sans connexion) ── */
+function fichesLocales(){ var f = lireJ(cleFiches(), []); return Array.isArray(f) ? f : []; }
+function garderLocale(x){
+  var l = fichesLocales().filter(function(f){ return f.id !== x.id; });
+  l.unshift({id:x.id, titre:x.titre, categorie:x.categorie, niveau:x.niveau, dureeMin:x.dureeMin, auteur:x.auteur, materiel:x.materiel || [], etapes:x.etapes || [],
+    astuces:x.astuces || '', apercu:!!ST.apercu, quand:Date.now()});
+  if(l.length > FICHES_MAX) toast(T('La fiche la plus ancienne gardée sur ce téléphone a été retirée.'));
+  ecrire(cleFiches(), l.slice(0, FICHES_MAX));
+}
+function oublierLocale(id){ ecrire(cleFiches(), fichesLocales().filter(function(f){ return f.id !== id; })); }
+function estLocale(id){ return fichesLocales().some(function(f){ return f.id === id; }); }
+function coches(id){ var c = lireJ(cleCoche(id), []); return Array.isArray(c) ? c : []; }
+
+/* ════════ LES DONNÉES ════════ */
+function chargerCap(){
+  if(ST.apercu){ ST.cap = {savoir:true, publier:true, mercis:true, montants:[10, 25, 50, 100, 250], ageMercis:18}; return Promise.resolve(); }
+  if(!api()){ ST.cap = null; ST.etat = 'sansserveur'; return Promise.resolve(); }
+  return appeler('GET', '/v1/savoir/capacites').then(function(c){ ST.cap = c && c.savoir === true ? c : null; if(!ST.cap) ST.etat = 'indisponible'; });
+}
+function requete(){
+  var f = ST.filtre, q = [];
+  if(f.categorie) q.push('categorie=' + encodeURIComponent(f.categorie));
+  if(f.q) q.push('q=' + encodeURIComponent(f.q));
+  if(f.tri !== 'recent') q.push('tri=' + f.tri);
+  return '/v1/savoir' + (q.length ? '?' + q.join('&') : '');
+}
+function chargerListe(plus){
+  if(ST.apercu){ ST.items = demoTutos().filter(function(x){ return (!ST.filtre.categorie || x.categorie === ST.filtre.categorie) && (!ST.filtre.q || x.titre.toLowerCase().indexOf(ST.filtre.q.toLowerCase()) >= 0); });
+    if(ST.filtre.tri === 'reussis') ST.items.sort(function(a, b){ return b.reussis - a.reussis; }); ST.etat = 'ok'; rendre(); return Promise.resolve(); }
+  if(!ST.cap) { rendre(); return Promise.resolve(); }
+  ST.etat = plus ? ST.etat : 'charge'; rendreEtat();
+  var ch = requete(); if(plus && ST.suivant) ch += (ch.indexOf('?') >= 0 ? '&' : '?') + 'avant=' + encodeURIComponent(ST.suivant);
+  return appeler('GET', ch).then(function(o){
+    var it = o && Array.isArray(o.items) ? o.items : [];
+    ST.items = plus ? ST.items.concat(it) : it; ST.suivant = o && o.suivant || null; ST.etat = 'ok'; ST.horsLigne = false;
+    if(moderateur() && !plus) return appeler('GET', '/v1/savoir/equipe/masques').then(function(m){ ST.masques = m && Array.isArray(m.items) ? m.items : []; }, function(){ ST.masques = []; });
+  }).catch(function(e){ ST.etat = navigator.onLine === false ? 'horsligne' : 'erreur'; ST.horsLigne = navigator.onLine === false; }).then(rendre);
+}
+function chargerTuto(id){
+  ST.vue = 'tuto'; ST.tuto = null; ST.mot = ''; ST.sur = {};
+  ST.montant = ST.cleMerci && ST.cleMerci.attente && ST.cleMerci.tuto === id ? ST.cleMerci.montant : null;
+  if(ST.apercu){ ST.tuto = demoTutos().filter(function(x){ return x.id === id; })[0] || null; ST.focusVers = 'hTuto'; rendre(); return Promise.resolve(); }
+  var loc = fichesLocales().filter(function(f){ return f.id === id; })[0];
+  ST.etat = 'charge'; rendre();
+  return appeler('GET', '/v1/savoir/' + encodeURIComponent(id)).then(function(x){ ST.tuto = x; ST.etat = 'ok'; if(estLocale(id)) garderLocale(x); emit('savoir_voir', {tuto:id}); },
+    function(e){ if(loc && (navigator.onLine === false || !e.status)){ ST.tuto = loc; ST.tuto.horsLigne = true; ST.etat = 'ok'; } else { ST.etat = 'ok'; ST.tuto = null; toast(erreurTexte(e)); ST.vue = 'liste'; } })
+    .then(function(){ ST.focusVers = ST.tuto ? 'hTuto' : 'hListe'; rendre(); });
+}
+function chargerMoi(){
+  ST.vue = 'moi';
+  if(ST.apercu){ if(!ST.moi) ST.moi = demoMoi(); rendre(); return Promise.resolve(); }
+  if(!jeton()){ rendre(); return Promise.resolve(); }
+  ST.etat = 'charge'; rendre();
+  var a = age();
+  return Promise.all([appeler('GET', '/v1/savoir/moi'), a != null && a >= AGE_MERCI && ST.cap && ST.cap.mercis ? appeler('GET', '/v1/savoir/gains').catch(function(){ return null; }) : Promise.resolve(null)])
+    .then(function(r){ ST.moi = r[0] || {tutos:[], gardes:[], mots:[]}; ST.gains = r[1]; ST.etat = 'ok'; },
+      function(e){ ST.moi = null; ST.etat = navigator.onLine === false ? 'horsligne' : 'erreur'; })
+    .then(rendre);
+}
+
+/* ════════ L'AFFICHAGE ════════ */
+function rendreEtat(){
+  var el = $('etat'), t = '';
+  if(ST.apercu) t = T('Aperçu : des tutoriels d’exemple, pour découvrir la page.');
+  else if(ST.etat === 'charge') t = T('Chargement…');
+  else if(ST.etat === 'sansserveur' || ST.etat === 'indisponible') t = T('Le Savoir-faire n’est pas encore ouvert.');
+  else if(ST.etat === 'horsligne') t = T('Pas de connexion : vos fiches gardées restent lisibles.');
+  else if(ST.etat === 'erreur') t = T('Impossible de joindre NEURAVID pour le moment.');
+  el.textContent = t; el.hidden = !t;
+}
+function onglets(){
+  var o = [['liste', T('Apprendre')], ['creer', T('Partager mon savoir-faire')], ['moi', T('Mes savoir-faire')]];
+  return '<nav class="chips" aria-label="' + esc(T('Le Savoir-faire')) + '">' + o.map(function(x){
+    return '<button type="button" data-vue="' + x[0] + '" aria-pressed="' + (ST.vue === x[0] || (ST.vue === 'tuto' && x[0] === 'liste')) + '">' + esc(x[1]) + '</button>'; }).join('') + '</nav>';
+}
+function affiche(x, grand){
+  if(x.video && x.video.affiche) return '<video class="affiche" muted playsinline preload="none" aria-hidden="true" tabindex="-1" poster="' + esc(x.video.affiche) + '"></video>';
+  return '<canvas class="affiche" width="104" height="185" data-demo="' + esc(x.id) + '" aria-hidden="true"></canvas>';
+}
+function sceau(x){ return x.creeSurNeuravid === true ? ' <span class="nv-cree"><i></i>' + esc(T('Créé sur NEURAVID')) + '</span>' : ''; }
+function carte(x){
+  return '<div class="carte" data-carte="' + esc(x.id) + '">' + affiche(x) + '<div><h3><button type="button" data-ouvrir="' + esc(x.id) + '">' + esc(x.titre) + '</button></h3>' +
+    '<p class="d">' + esc(quiTexte(x.auteur)) + ' · ' + esc(T(CATS[x.categorie] || 'Autre')) + ' · ' + esc(T(NIVS[x.niveau] || 'Débutant')) +
+    (nombre(x.dureeMin) ? ' · ' + esc(T('{0} min', x.dureeMin)) : '') + sceau(x) + '</p>' +
+    '<p class="compteurs"><span>' + esc(nbReussis(x.reussis)) + '</span><span>' + esc(nbMercis(x.mercisPersonnes)) + '</span></p></div></div>';
+}
+function rendreListe(){
+  var f = ST.filtre, h = '<div class="barre"><form class="ligne" id="fCherche" role="search"><input id="iCherche" type="search" maxlength="60" placeholder="' + esc(T('Chercher un savoir-faire')) +
+    '" value="' + esc(f.q) + '" aria-label="' + esc(T('Chercher un savoir-faire')) + '"><select id="sTri" aria-label="' + esc(T('Trier')) + '"><option value="recent"' + (f.tri === 'recent' ? ' selected' : '') + '>' + esc(T('Les plus récents')) +
+    '</option><option value="reussis"' + (f.tri === 'reussis' ? ' selected' : '') + '>' + esc(T('Les plus réussis')) + '</option></select></form>' +
+    '<div class="cats" role="group" aria-label="' + esc(T('Catégories')) + '"><button type="button" data-cat="" aria-pressed="' + (!f.categorie) + '">' + esc(T('Tout')) + '</button>' +
+    Object.keys(CATS).map(function(k){ return '<button type="button" data-cat="' + k + '" aria-pressed="' + (f.categorie === k) + '">' + esc(T(CATS[k])) + '</button>'; }).join('') + '</div></div>';
+  if(ST.horsLigne || ST.etat === 'horsligne'){ var lf = fichesLocales(); h += '<section><h2>' + esc(T('Mes fiches, même sans connexion')) + '</h2>' +
+    (lf.length ? lf.map(function(x){ return carte({id:x.id, titre:x.titre, auteur:x.auteur, categorie:x.categorie, niveau:x.niveau, dureeMin:x.dureeMin}); }).join('') : '<p class="vide">' + esc(T('Aucune fiche gardée sur ce téléphone.')) + '</p>') + '</section>'; return h; }
+  h += '<section aria-labelledby="hListe"><h2 id="hListe" tabindex="-1">' + esc(T('Apprendre d’une personne qui sait faire')) + (ST.apercu ? '<span class="apercu">' + esc(T('Aperçu')) + '</span>' : '') + '</h2>';
+  if(!ST.items.length && ST.etat === 'ok') h += '<p class="vide">' + esc(T('Aucun tutoriel ici pour l’instant : partagez le premier.')) + '</p>';
+  h += ST.items.map(carte).join('');
+  if(ST.suivant) h += '<button type="button" id="bPlus">' + esc(T('Voir plus')) + '</button>';
+  h += '</section>';
+  if(moderateur() && !ST.apercu && ST.masques && ST.masques.length) h += '<section aria-labelledby="hMasques"><h2 id="hMasques">' + esc(T('Tutoriels masqués')) + '</h2><ul>' + ST.masques.map(function(m){
+    return '<li><div class="l1"><span><b>' + esc(m.titre) + '</b> · ' + esc(quiTexte(m.auteur)) + '</span><span class="puce an">' + esc(T(MOTIFS[m.motif] || 'Autre')) + '</span></div>' +
+      (m.parMoi ? '<p class="d">' + esc(T('Masqué par vous : un autre modérateur doit le rétablir.')) + '</p>' : '<div class="actions"><button type="button" data-retablir="' + esc(m.id) + '">' + esc(ST.sur['retablir' + m.id] ? T('Toucher encore pour rétablir') : T('Rétablir')) + '</button></div>') + '</li>'; }).join('') + '</ul></section>';
+  return h;
+}
+function rendreTuto(){
+  var x = ST.tuto; if(!x) return '<button class="lien retour" data-vue="liste">' + esc(T('← Retour')) + '</button>';
+  var h = '<button class="lien retour" data-vue="liste">' + esc(T('← Retour')) + '</button><section aria-labelledby="hTuto"><h2 id="hTuto" tabindex="-1">' + esc(x.titre) + (ST.apercu || x.apercu ? '<span class="apercu">' + esc(T('Aperçu')) + '</span>' : '') + '</h2>';
+  if(x.video && x.video.url && !x.horsLigne) h += '<video class="lecteur" id="vTuto" playsinline controls preload="metadata"' + (x.video.affiche ? ' poster="' + esc(x.video.affiche) + '"' : '') + ' src="' + esc(x.video.url) + '"></video>';
+  else if(ST.apercu) h += '<canvas class="lecteur" width="340" height="604" data-demo="' + esc(x.id) + '" aria-hidden="true"></canvas>';
+  else if(x.horsLigne) h += '<p class="d">' + esc(T('Sans connexion : la fiche est là, la vidéo reviendra avec le réseau.')) + '</p>';
+  h += '<p class="d">' + esc(quiTexte(x.auteur)) + ' · ' + esc(T(CATS[x.categorie] || 'Autre')) + ' · ' + esc(T(NIVS[x.niveau] || 'Débutant')) + (nombre(x.dureeMin) ? ' · ' + esc(T('{0} min', x.dureeMin)) : '') + sceau(x) + '</p>';
+  if(!x.horsLigne) h += '<p class="compteurs"><span>' + esc(nbReussis(x.reussis)) + '</span><span>' + esc(nbMercis(x.mercisPersonnes)) + '</span></p>';
+  h += '</section>';
+  /* la fiche pratique */
+  var mat = Array.isArray(x.materiel) ? x.materiel : [], c = coches(x.id);
+  h += '<section aria-labelledby="hMat"><h2 id="hMat">' + esc(T('Le matériel')) + '</h2>' + (mat.length ? '<div class="materiel">' + mat.map(function(m, i){
+    return '<label><input type="checkbox" data-coche="' + i + '"' + (c.indexOf(i) >= 0 ? ' checked' : '') + '><span>' + esc(m.nom) + '</span><span class="q">' + esc(m.quantite || '') + '</span></label>'; }).join('') + '</div>'
+    : '<p class="vide">' + esc(T('Aucun matériel particulier.')) + '</p>') + '</section>';
+  var et = Array.isArray(x.etapes) ? x.etapes : [];
+  h += '<section aria-labelledby="hEt"><h2 id="hEt">' + esc(T('Les étapes')) + '</h2><ol class="etapes">' + et.map(function(e, i){
+    return '<li><span>' + esc(e.texte) + '</span>' + (nombre(e.t) != null && !x.horsLigne && (x.video && x.video.url) ? '<button type="button" data-aller="' + e.t + '" aria-label="' + esc(T('Voir l’étape {0} dans la vidéo, à {1}', i + 1, mmss(e.t))) + '">▶ ' + esc(mmss(e.t)) + '</button>' : '<span></span>') + '</li>'; }).join('') + '</ol></section>';
+  if(x.astuces) h += '<section aria-labelledby="hAst"><h2 id="hAst">' + esc(T('Les astuces')) + '</h2><p class="astuce">' + esc(x.astuces) + '</p></section>';
+  /* les gestes */
+  var loc = estLocale(x.id);
+  h += '<div class="actions">';
+  if(!x.horsLigne && !x.moi) h += '<button type="button" id="bReussi" aria-pressed="' + !!x.jaiReussi + '"' + (ST.occupe.reussi ? ' disabled' : '') + '>' + esc(x.jaiReussi ? T('✓ J’ai réussi') : T('J’ai réussi')) + '</button>';
+  h += '<button type="button" id="bGarder" aria-pressed="' + loc + '">' + esc(loc ? T('Fiche gardée sur ce téléphone') : T('Garder la fiche')) + '</button>' +
+    '<button type="button" id="bTelecharger">' + esc(T('Télécharger la fiche')) + '</button><button type="button" id="bPartager">' + esc(T('Partager')) + '</button></div>';
+  /* dire merci */
+  var a = age();
+  if(!x.horsLigne && x.merciPossible === true && (ST.apercu || (a != null && a >= AGE_MERCI))){
+    var mts = (Array.isArray(x.montants) && x.montants.length ? x.montants : (ST.cap && ST.cap.montants) || []).filter(function(n){ return MONTANTS_OK.indexOf(n) >= 0; });
+    h += '<section class="merci" aria-labelledby="hMerci"><h2 id="hMerci">' + esc(T('Dire merci en NVCoins')) + '</h2><p class="d">' + esc(T('Ce tutoriel vous a servi ? Un merci va directement à {0}. Ce n’est jamais un vote.', quiTexte(x.auteur))) + '</p>' +
+      '<div class="montants" role="radiogroup" aria-label="' + esc(T('Combien ?')) + '">' + mts.map(function(n, i){ var sel = ST.montant === n || (!ST.montant && i === 0); return '<button type="button" role="radio" data-montant="' + n + '" aria-checked="' + (ST.montant === n) + '" tabindex="' + (sel ? 0 : -1) + '">' + esc(nb(n)) + '</button>'; }).join('') + '</div>' +
+      '<div class="form"><label>' + esc(T('Un mot pour l’auteur (facultatif)')) + '<input id="iMot" maxlength="80" value="' + esc(ST.mot) + '"></label>' +
+      '<button type="button" class="btn-or" id="bMerci"' + (!ST.montant || ST.occupe.merci ? ' disabled' : '') + '>' + esc(!ST.montant ? T('Choisissez un montant') : ST.sur.merci ? T('Toucher encore pour envoyer {0} NVCoins', nb(ST.montant)) : T('Dire merci : {0} NVCoins', nb(ST.montant))) + '</button></div></section>';
+  }
+  if(!x.horsLigne && !x.moi) h += '<p><button type="button" class="lien" id="bSignaler">' + esc(T('Signaler ce tutoriel')) + '</button></p>';
+  if(!x.horsLigne && !x.moi && moderateur() && !ST.apercu) h += '<section aria-labelledby="hEq"><h2 id="hEq">' + esc(T('L’équipe')) + '</h2><div class="form"><label>' + esc(T('Masquer ce tutoriel : pourquoi ?')) +
+    '<select class="plein" id="sMotif">' + Object.keys(MOTIFS).map(function(k){ return '<option value="' + k + '">' + esc(T(MOTIFS[k])) + '</option>'; }).join('') + '</select></label>' +
+    '<button type="button" id="bMasquer">' + esc(ST.sur.masquer ? T('Toucher encore pour masquer') : T('Masquer')) + '</button></div></section>';
+  return h;
+}
+function ligneEd(genre, i, a, b){
+  if(genre === 'materiel') return '<div class="r"><input data-ed="materiel" data-i="' + i + '" data-k="nom" maxlength="60" placeholder="' + esc(T('Ce qu’il faut')) + '" value="' + esc(a) + '" aria-label="' + esc(T('Matériel {0}', i + 1)) + '">' +
+    '<input class="t" data-ed="materiel" data-i="' + i + '" data-k="quantite" maxlength="30" placeholder="' + esc(T('Combien')) + '" value="' + esc(b) + '" aria-label="' + esc(T('Quantité {0}', i + 1)) + '">' +
+    '<button type="button" data-enlever="materiel" data-i="' + i + '" aria-label="' + esc(T('Enlever')) + '">✕</button></div>';
+  return '<div class="r"><input data-ed="etapes" data-i="' + i + '" data-k="texte" maxlength="300" placeholder="' + esc(T('Étape {0}', i + 1)) + '" value="' + esc(a) + '" aria-label="' + esc(T('Étape {0}', i + 1)) + '">' +
+    '<input class="t" data-ed="etapes" data-i="' + i + '" data-k="t" maxlength="5" inputmode="numeric" placeholder="0:00" value="' + esc(b) + '" aria-label="' + esc(T('Moment dans la vidéo (minutes:secondes)')) + '">' +
+    '<button type="button" data-enlever="etapes" data-i="' + i + '" aria-label="' + esc(T('Enlever')) + '">✕</button></div>';
+}
+function rendreForm(){
+  var f = ST.form || (ST.form = formVide()), ed = !!ST.edition, a = age();
+  var h = '<section aria-labelledby="hCreer"><h2 id="hCreer">' + esc(ed ? T('Modifier la fiche') : T('Partager mon savoir-faire')) + '</h2>';
+  if(!ed){
+    if(ST.cap && ST.cap.publier === false && !ST.apercu) return h + '<p class="vide">' + esc(T('Le service est momentanément indisponible. Réessayez dans un instant.')) + '</p></section>';
+    if(!jeton() && !ST.apercu) return h + '<p class="vide">' + esc(T('Connectez-vous pour continuer.')) + '</p></section>';
+    h += '<p class="d">' + esc(T('Filmez ce que vous savez faire (10 minutes au plus), puis remplissez la fiche pratique : ceux qui apprennent la gardent sur leur téléphone.')) + '</p>';
+    if(ST.prise) h += '<video class="prise" id="vPrise" playsinline controls muted></video><div class="actions"><button type="button" id="bRefilmer">' + esc(ST.sur.refilmer ? T('Toucher encore pour filmer à nouveau') : T('Filmer à nouveau')) + '</button></div>';
+    else h += '<div class="actions"><button type="button" class="btn-or" id="bFilmer">' + esc(T('Filmer avec La Forge')) + '</button></div>';
+  }
+  h += '<form class="form" id="fFiche"><label>' + esc(T('Titre')) + '<input id="fTitre" data-champ="titre" maxlength="80" required value="' + esc(f.titre) + '"></label>' +
+    '<label>' + esc(T('Catégorie')) + '<select class="plein" data-champ="categorie"><option value="">—</option>' + Object.keys(CATS).map(function(k){ return '<option value="' + k + '"' + (f.categorie === k ? ' selected' : '') + '>' + esc(T(CATS[k])) + '</option>'; }).join('') + '</select></label>' +
+    '<label>' + esc(T('Niveau')) + '<select class="plein" data-champ="niveau">' + Object.keys(NIVS).map(function(k){ return '<option value="' + k + '"' + (f.niveau === k ? ' selected' : '') + '>' + esc(T(NIVS[k])) + '</option>'; }).join('') + '</select></label>' +
+    '<label>' + esc(T('Langue du tutoriel')) + '<select class="plein" data-champ="langue">' + Object.keys(LANGUES_UI).map(function(k){ return '<option value="' + k + '"' + (f.langue === k ? ' selected' : '') + '>' + esc(LANGUES_UI[k].nom) + '</option>'; }).join('') + '</select></label>' +
+    '<label>' + esc(T('Temps pour le faire (minutes, facultatif)')) + '<input data-champ="dureeMin" inputmode="numeric" maxlength="4" value="' + esc(f.dureeMin) + '"></label>' +
+    '<fieldset class="liste-ed"><legend>' + esc(T('Le matériel')) + '</legend>' + f.materiel.map(function(m, i){ return ligneEd('materiel', i, m.nom, m.quantite); }).join('') +
+    (f.materiel.length < 20 ? '<button type="button" data-ajouter="materiel">' + esc(T('+ Ajouter du matériel')) + '</button>' : '') + '</fieldset>' +
+    '<fieldset class="liste-ed"><legend>' + esc(T('Les étapes')) + '</legend>' + f.etapes.map(function(e, i){ return ligneEd('etapes', i, e.texte, e.t); }).join('') +
+    (f.etapes.length < 20 ? '<button type="button" data-ajouter="etapes">' + esc(T('+ Ajouter une étape')) + '</button>' : '') + '</fieldset>' +
+    '<label>' + esc(T('Les astuces (facultatif)')) + '<textarea data-champ="astuces" maxlength="500" rows="3">' + esc(f.astuces) + '</textarea></label>';
+  if(ST.apercu || (a != null && a >= AGE_MERCI)) h += '<label class="case"><input type="checkbox" data-champ="mercis"' + (f.mercis ? ' checked' : '') + '> ' + esc(T('Accepter les mercis en NVCoins')) + '</label>';
+  h += '<button type="submit" class="btn-or" id="bPublier"' + (ST.envoi || (!ed && !ST.prise) ? ' disabled' : '') + '>' + esc(ST.envoi ? T('Envoi…') : ed ? T('Enregistrer') : T('Publier le tutoriel')) + '</button>';
+  if(ed) h += '<button type="button" id="bAnnulerEd">' + esc(T('Annuler')) + '</button>';
+  return h + '</form></section>';
+}
+var ETATS = {publie:N('Publié'), masque:N('Masqué par l’équipe')};
+function rendreMoi(){
+  if(!jeton() && !ST.apercu) return '<section><p class="vide">' + esc(T('Connectez-vous pour continuer.')) + '</p></section>';
+  var m = ST.moi; if(!m) return '';
+  var h = '<section aria-labelledby="hMes"><h2 id="hMes">' + esc(T('Mes tutoriels')) + (ST.apercu ? '<span class="apercu">' + esc(T('Aperçu')) + '</span>' : '') + '</h2>';
+  if(ST.gains && nombre(ST.gains.totalNVC) != null) h += '<p class="d">' + esc(T('Mercis reçus ici : {0} NVCoins.', nb(ST.gains.totalNVC))) + ' <button type="button" class="lien" id="bRecolte">' + esc(T('Voir dans La Récolte')) + '</button></p>';
+  if(!m.tutos.length) h += '<p class="vide">' + esc(T('Vous n’avez pas encore partagé de savoir-faire.')) + '</p>';
+  h += m.tutos.map(function(x){
+    return '<div class="carte" data-carte="' + esc(x.id) + '">' + affiche(x) + '<div><h3>' + esc(x.titre) + '</h3><p class="d"><span class="puce' + (x.etat === 'masque' ? ' an' : ' co') + '">' + esc(T(ETATS[x.etat] || 'Publié')) + '</span>' +
+      (x.etat === 'masque' && x.motif ? ' ' + esc(T(MOTIFS[x.motif] || 'Autre')) : '') + '</p><p class="compteurs"><span>' + esc(nbReussis(x.reussis)) + '</span><span>' + esc(nbMercis(x.mercisPersonnes)) + '</span></p>' +
+      '<div class="actions"><button type="button" data-modifier="' + esc(x.id) + '">' + esc(T('Modifier la fiche')) + '</button><button type="button" data-retirer="' + esc(x.id) + '">' +
+      esc(ST.sur['retirer' + x.id] ? T('Toucher encore pour retirer') : T('Retirer')) + '</button></div></div></div>'; }).join('');
+  h += '</section>';
+  if(m.mots && m.mots.length) h += '<section aria-labelledby="hMots"><h2 id="hMots">' + esc(T('Les mots de merci')) + '</h2><ul>' + m.mots.map(function(o){ return '<li><b>' + esc(quiTexte(o.de)) + '</b> « ' + esc(o.mot) + ' »</li>'; }).join('') + '</ul></section>';
+  var lf = fichesLocales();
+  h += '<section aria-labelledby="hGardes"><h2 id="hGardes">' + esc(T('Mes fiches gardées')) + '</h2>' + (lf.length ? lf.map(function(x){ return carte({id:x.id, titre:x.titre, auteur:x.auteur, categorie:x.categorie, niveau:x.niveau, dureeMin:x.dureeMin}); }).join('')
+    : '<p class="vide">' + esc(T('Aucune fiche gardée sur ce téléphone.')) + '</p>') + '</section>';
+  return h;
+}
+function rendrePied(){
+  var h = '<label>' + esc(T('Langue')) + ' <select id="langue">' + Object.keys(LANGUES_UI).map(function(k){ return '<option value="' + k + '"' + (k === L ? ' selected' : '') + '>' + esc(LANGUES_UI[k].nom) + '</option>'; }).join('') + '</select></label>';
+  if(LANGUES_UI[L].relire) h += '<span>' + esc(T('Traduction en cours de relecture.')) + '</span>';
+  h += '<span>' + esc(T('Publier : à partir de 13 ans. Les mercis en NVCoins : à partir de 18 ans, des deux côtés ; un merci n’est jamais un vote ni un classement.')) + '</span>';
+  $('pied').innerHTML = h;
+}
+function rendre(){
+  document.title = T('Le Savoir-faire') + ' · NEURAVID';
+  $('titre').textContent = T('Le Savoir-faire');
+  $('soustitre').textContent = T('Apprenez d’une personne qui sait faire. Partagez ce que vous savez.');
+  rendreEtat();
+  var h = '';
+  if(ST.cap || ST.horsLigne || ST.etat === 'horsligne'){
+    h = onglets();
+    if(ST.vue === 'tuto') h += rendreTuto(); else if(ST.vue === 'creer') h += rendreForm(); else if(ST.vue === 'moi') h += rendreMoi(); else h += rendreListe();
+  }
+  var ae = document.activeElement, focus = null;
+  if(ae && $('contenu').contains(ae)){ if(ae.id) focus = '#' + ae.id; else { var at = ['data-ed', 'data-vue', 'data-cat', 'data-montant', 'data-ouvrir', 'data-ajouter', 'data-champ', 'data-modifier', 'data-retirer'];
+    for(var k = 0; k < at.length; k++){ if(ae.hasAttribute(at[k])){ focus = '[' + at[k] + '="' + String(ae.getAttribute(at[k])).replace(/["\\]/g, '') + '"]' + (ae.hasAttribute('data-i') ? '[data-i="' + ae.getAttribute('data-i') + '"][data-k="' + ae.getAttribute('data-k') + '"]' : ''); break; } } } }
+  $('contenu').innerHTML = h;
+  if(focus){ try{ var fe = document.querySelector(focus); if(fe){ fe.focus({preventScroll:true}); if(fe.setSelectionRange && typeof fe.value === 'string' && fe.type !== 'checkbox'){ try{ fe.setSelectionRange(fe.value.length, fe.value.length); }catch(e){} } } }catch(e){} }
+  if(ST.prise && $('vPrise')){ try{ $('vPrise').src = ST.prise.url; }catch(e){} }
+  Array.prototype.forEach.call(document.querySelectorAll('canvas[data-demo]'), function(c){ demoDessiner(c, c.getAttribute('data-demo')); });
+  if(ST.focusVers){ var fv = $(ST.focusVers); if(fv){ try{ fv.focus({preventScroll:false}); }catch(e){} ST.focusVers = null; } }
+  if(ST.vers){ var dv = document.querySelector('[data-carte="' + String(ST.vers).replace(/["\\]/g, '') + '"]'); if(dv){ dv.classList.add('vise'); try{ dv.scrollIntoView({block:'center'}); }catch(e){} } ST.vers = null; }
+  rendrePied();
+}
+
+/* ════════ LES GESTES ════════ */
+function deuxTouchers(cle){ if(ST.sur[cle]){ delete ST.sur[cle]; return true; } ST.sur[cle] = true; rendre(); setTimeout(function(){ if(ST.sur[cle]){ delete ST.sur[cle]; rendre(); } }, 5000); return false; }
+function reussi(){
+  var x = ST.tuto; if(!x || ST.occupe.reussi) return;
+  if(!jeton() && !ST.apercu){ toast(T('Connectez-vous pour continuer.')); return; }
+  var oui = !x.jaiReussi; ST.occupe.reussi = true; rendre();
+  (ST.apercu ? Promise.resolve({reussis:(x.reussis || 0) + (oui ? 1 : -1), jaiReussi:oui}) : appeler('POST', '/v1/savoir/' + encodeURIComponent(x.id) + '/reussi', {oui:oui}, 'svr-' + x.id + '-' + oui + '-' + Date.now().toString(36)))
+    .then(function(o){ x.jaiReussi = !!o.jaiReussi; x.reussis = nombre(o.reussis); if(oui) toast(T('Bravo ! L’auteur en sera content.')); emit('savoir_reussi', {tuto:x.id, oui:oui}); }, function(e){ toast(erreurTexte(e)); })
+    .then(function(){ delete ST.occupe.reussi; rendre(); });
+}
+function garder(){
+  var x = ST.tuto; if(!x) return;
+  if(estLocale(x.id)){ oublierLocale(x.id); toast(T('Fiche retirée de ce téléphone.')); if(jeton() && !ST.apercu) appeler('POST', '/v1/savoir/' + encodeURIComponent(x.id) + '/garder', {oui:false}).catch(function(){}); rendre(); return; }
+  garderLocale(x); toast(T('Fiche gardée : vous pourrez la lire sans connexion.'));
+  if(jeton() && !ST.apercu) appeler('POST', '/v1/savoir/' + encodeURIComponent(x.id) + '/garder', {oui:true}).catch(function(){});
+  emit('savoir_garder', {tuto:x.id}); rendre();
+}
+function ficheTexte(x){
+  var l = [x.titre, quiTexte(x.auteur) + ' · ' + T(CATS[x.categorie] || 'Autre') + ' · ' + T(NIVS[x.niveau] || 'Débutant') + (nombre(x.dureeMin) ? ' · ' + T('{0} min', x.dureeMin) : ''), ''];
+  l.push(T('Le matériel')); (x.materiel || []).forEach(function(m){ l.push('- ' + m.nom + (m.quantite ? ' (' + m.quantite + ')' : '')); }); if(!(x.materiel || []).length) l.push('—');
+  l.push('', T('Les étapes')); (x.etapes || []).forEach(function(e, i){ l.push((i + 1) + '. ' + e.texte + (nombre(e.t) != null ? ' [' + mmss(e.t) + ']' : '')); });
+  if(x.astuces){ l.push('', T('Les astuces'), x.astuces); }
+  l.push('', 'NEURAVID — ' + T('Le Savoir-faire'));
+  return (ST.apercu ? T('Aperçu') + '\n' : '') + l.join('\n');
+}
+function telecharger(){
+  var x = ST.tuto; if(!x) return; var t = ficheTexte(x), nom = (String(x.titre).replace(/[^\p{L}\p{N}]+/gu, '_').slice(0, 40) || 'fiche') + '.txt';
+  if(window.NVTelecharger && typeof window.NVTelecharger === 'function'){ try{ window.NVTelecharger(new Blob([t], {type:'text/plain;charset=utf-8'}), nom); return; }catch(e){} }
+  try{ var u = URL.createObjectURL(new Blob([t], {type:'text/plain;charset=utf-8'})), a = document.createElement('a'); a.href = u; a.download = nom; document.body.appendChild(a); a.click(); a.remove(); setTimeout(function(){ URL.revokeObjectURL(u); }, 4000); }catch(e){ toast(T('Impossible de télécharger ici.')); }
+}
+function partager(){
+  var x = ST.tuto; if(!x) return; var t = (ST.apercu ? T('Aperçu') + ' — ' : '') + T('{0} : un tutoriel du Savoir-faire sur NEURAVID.', x.titre);
+  if(navigator.share){ navigator.share({title:x.titre, text:t}).catch(function(){}); return; }
+  try{ navigator.clipboard.writeText(t).then(function(){ toast(T('Copié.')); }, function(){ toast(t); }); }catch(e){ toast(t); }
+}
+function merci(){
+  var x = ST.tuto; if(!x || !ST.montant || ST.occupe.merci) return;
+  if(!deuxTouchers('merci')) return;
+  ST.occupe.merci = true; rendre();
+  if(!ST.cleMerci || ST.cleMerci.tuto !== x.id || (!ST.cleMerci.attente && ST.cleMerci.montant !== ST.montant)) ST.cleMerci = {montant:ST.montant, tuto:x.id, cle:'svm-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8), attente:false};
+  ST.montant = ST.cleMerci.montant; ST.cleMerci.attente = true; garderCleMerci();
+  var n = ST.montant;
+  (ST.apercu ? Promise.resolve({success:true}) : appeler('POST', '/v1/savoir/' + encodeURIComponent(x.id) + '/merci', ST.mot ? {montant:n, mot:ST.mot} : {montant:n}, ST.cleMerci.cle))
+    .then(function(){ toast(T('Merci envoyé : {0} NVCoins.', nb(n))); emit('savoir_merci', {tuto:x.id, montant:n}); ST.cleMerci = null; garderCleMerci(); ST.montant = null; ST.mot = '';
+      if(ST.apercu) x.mercisPersonnes = (x.mercisPersonnes || 0) + 1; else return chargerTuto(x.id); },
+      function(e){ /* sans réponse : la même clé sera réutilisée (jamais deux débits) ; refus clair : nouvelle clé */
+        if(e && e.status && e.status < 500 && e.status !== 408 && e.status !== 429){ ST.cleMerci = null; garderCleMerci(); } toast(erreurTexte(e)); })
+    .then(function(){ delete ST.occupe.merci; rendre(); });
+}
+/* la clé d'un merci sans réponse sûre est gardée (par compte, un jour) : même après un rechargement, il repart avec elle */
+function garderCleMerci(){ if(ST.apercu) return; try{ if(ST.cleMerci) localStorage.setItem('nv_savoir_merci|' + compte(), JSON.stringify(Object.assign({quand:Date.now()}, ST.cleMerci))); else localStorage.removeItem('nv_savoir_merci|' + compte()); }catch(e){} }
+function reprendreCleMerci(){ var c = lireJ('nv_savoir_merci|' + compte(), null); if(c && c.cle && c.attente && Date.now() - (c.quand || 0) < 864e5 && MONTANTS_OK.indexOf(c.montant) >= 0) ST.cleMerci = c; }
+function choisirMontant(n){
+  /* un merci parti sans réponse sûre : le même montant et la même clé, jusqu'à une réponse claire (jamais deux débits) */
+  if(ST.cleMerci && ST.cleMerci.attente && ST.tuto && ST.cleMerci.tuto === ST.tuto.id && n !== ST.cleMerci.montant){ toast(T('Un merci est déjà en route : renvoyez-le avant d’en choisir un autre.')); return; }
+  ST.montant = n; delete ST.sur.merci; rendre(); var b = document.querySelector('[data-montant="' + n + '"]'); if(b) b.focus();
+}
+function retablir(id){
+  if(!deuxTouchers('retablir' + id)) return;
+  appeler('POST', '/v1/savoir/' + encodeURIComponent(id) + '/retablir', {}, 'svt-' + id).then(function(){ toast(T('Tutoriel rétabli.')); return chargerListe(); }, function(e){ toast(erreurTexte(e)); return chargerListe(); });
+}
+function masquer(){
+  var x = ST.tuto; if(!x) return; if(!deuxTouchers('masquer')) return;
+  var m = $('sMotif') ? $('sMotif').value : 'autre';
+  appeler('POST', '/v1/savoir/' + encodeURIComponent(x.id) + '/masquer', {motif:m}).then(function(){ toast(T('Tutoriel masqué.')); ST.vue = 'liste'; return chargerListe(); }, function(e){ toast(erreurTexte(e)); rendre(); });
+}
+
+/* ════════ FILMER ET PUBLIER ════════ */
+function noterFilm(o){ o.quand = Date.now(); var t = JSON.stringify(o); try{ sessionStorage.setItem(cleFilm(), t); }catch(e){} try{ localStorage.setItem(cleFilm(), t); }catch(e){} }
+function lireFilm(){ var f = null; try{ f = JSON.parse(sessionStorage.getItem(cleFilm()) || 'null'); }catch(e){} if(!f){ try{ f = JSON.parse(localStorage.getItem(cleFilm()) || 'null'); }catch(e){} } return f; }
+function oublierFilm(){ try{ sessionStorage.removeItem(cleFilm()); }catch(e){} try{ localStorage.removeItem(cleFilm()); }catch(e){} }
+function filmer(){
+  if(ST.apercu){ ST.prise = {url:'', blob:null, apercu:true}; rendre(); return; }
+  if(!window.NVCamera || !NVCamera.studioJoignable()){ toast(T('La Forge n’est pas joignable ici.')); return; }
+  noterFilm({form:ST.form}); emit('savoir_filmer', {});
+  NVCamera.filmer({module:MOI, defi:'tuto', titre:T('Mon tutoriel'), mode:'video', minSeconds:3, maxSeconds:600, regles:[T('Un tutoriel de 10 minutes au plus.')]});
+}
+function reprendrePrise(retour){
+  var f = lireFilm();
+  if(!window.NVCamera || (!retour && (!f || Date.now() - (f.quand || 0) > 3600000))) return Promise.resolve();
+  return NVCamera.recuperer(MOI, 'tuto').then(function(p){
+    if(!p || !p.blob) return;
+    if(f && f.form) ST.form = f.form;
+    oublierFilm(); ST.vue = 'creer';
+    ST.prise = {blob:p.blob, url:URL.createObjectURL(p.blob), meta:p.meta || {}};
+    return garderPrise(ST.prise);
+  });
+}
+function baseLocale(){ return new Promise(function(res){ try{ var r = indexedDB.open('nv_savoir', 1); r.onupgradeneeded = function(){ r.result.createObjectStore('prises'); };
+  r.onsuccess = function(){ res(r.result); }; r.onerror = function(){ res(null); }; }catch(e){ res(null); } setTimeout(function(){ res(null); }, 2000); }); }
+function cleLocale(){ var u = utilisateur(); return 'prise|' + (u && u.id ? u.id : '—'); }
+function garderPrise(pr){
+  if(ST.apercu) return Promise.resolve();
+  return baseLocale().then(function(db){ if(!db) return; return new Promise(function(res){ try{ var t = db.transaction('prises', 'readwrite'), st = t.objectStore('prises');
+    if(pr && pr.blob) st.put({blob:pr.blob, meta:pr.meta || {}, form:ST.form, cle:pr.cle || null, quand:Date.now()}, cleLocale()); else st.delete(cleLocale());
+    t.oncomplete = function(){ res(); }; t.onerror = function(){ res(); }; }catch(e){ res(); } }); });
+}
+function reprendrePriseLocale(){
+  if(ST.prise || ST.apercu) return Promise.resolve();
+  return baseLocale().then(function(db){ if(!db) return; return new Promise(function(res){ try{ var q = db.transaction('prises', 'readonly').objectStore('prises').get(cleLocale());
+    q.onsuccess = function(){ var o = q.result; if(o && o.blob && Date.now() - (o.quand || 0) < 7 * 864e5){ if(o.form) ST.form = o.form; ST.prise = {blob:o.blob, url:URL.createObjectURL(o.blob), meta:o.meta || {}, cle:o.cle || null}; } res(); };
+    q.onerror = function(){ res(); }; }catch(e){ res(); } }); });
+}
+function oublierPrise(){ if(ST.prise){ try{ if(ST.prise.url) URL.revokeObjectURL(ST.prise.url); }catch(e){} } ST.prise = null; garderPrise(null); }
+function ficheEnvoyee(){
+  var f = ST.form, t = String(f.titre || '').trim();
+  if(t.length < 3){ toast(T('Donnez un titre à votre tutoriel.')); return null; }
+  if(!f.categorie){ toast(T('Choisissez une catégorie.')); return null; }
+  var et = f.etapes.filter(function(e){ return String(e.texte || '').trim(); });
+  if(!et.length){ toast(T('Écrivez au moins une étape.')); return null; }
+  var etapes = [];
+  for(var i = 0; i < et.length; i++){ var s = lireMmss(et[i].t); if(s !== null && (isNaN(s) || s > 600)){ toast(T('Le moment d’une étape s’écrit minutes:secondes, par exemple 1:30.')); return null; } etapes.push({texte:String(et[i].texte).trim(), t:s}); }
+  var d = String(f.dureeMin || '').trim(), dm = null;
+  if(d){ dm = parseInt(d, 10); if(!(dm >= 1 && dm <= 1440) || String(dm) !== d){ toast(T('Le temps pour le faire s’écrit en minutes.')); return null; } }
+  var a = age();
+  return {titre:t, categorie:f.categorie, niveau:f.niveau, langue:f.langue, dureeMin:dm, astuces:String(f.astuces || '').trim() || null,
+    materiel:f.materiel.filter(function(m){ return String(m.nom || '').trim(); }).map(function(m){ return {nom:String(m.nom).trim(), quantite:String(m.quantite || '').trim() || null}; }),
+    etapes:etapes, mercis:(ST.apercu || (a != null && a >= AGE_MERCI)) ? !!f.mercis : false};
+}
+function publier(){
+  if(ST.envoi) return; var fi = ficheEnvoyee(); if(!fi) return;
+  if(ST.edition){ var id = ST.edition; ST.envoi = true; rendre();
+    (ST.apercu ? Promise.resolve() : appeler('POST', '/v1/savoir/' + encodeURIComponent(id) + '/modifier', fi))
+      .then(function(){ toast(T('Fiche enregistrée.')); if(ST.apercu){ var x = (ST.moi.tutos || []).filter(function(y){ return y.id === id; })[0]; if(x) Object.assign(x, fi); } ST.edition = null; ST.form = null; ST.envoi = false; return chargerMoi(); },
+        function(e){ ST.envoi = false; toast(erreurTexte(e)); rendre(); });
+    return;
+  }
+  var pr = ST.prise; if(!pr){ toast(T('Filmez d’abord votre tutoriel avec La Forge.')); return; }
+  ST.envoi = true; rendre();
+  if(!pr.cle){ pr.cle = 'svp-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8); garderPrise(pr); }
+  var p;
+  if(ST.apercu){ var d = demoMoi(); ST.moi = ST.moi || d; ST.moi.tutos.unshift(Object.assign({id:'sv_ap' + Date.now(), etat:'publie', reussis:0, mercisPersonnes:0, auteur:{handle:'vous', pays:'GN'}}, fi)); p = Promise.resolve(); }
+  else { var fd = new FormData(); fd.append('fiche', JSON.stringify(fi)); if(pr.meta && pr.meta.provenance) try{ fd.append('meta', JSON.stringify({provenance:pr.meta.provenance})); }catch(e){}
+    fd.append('video', pr.blob, 'tuto.' + (/mp4/.test(pr.blob.type) ? 'mp4' : 'webm')); p = appeler('POST', '/v1/savoir', fd, pr.cle); }
+  p.then(function(o){ emit('savoir_publier', {tuto:o && o.id || null}); toast(T('Votre tutoriel est publié.')); oublierPrise(); ST.form = null; ST.envoi = false; return chargerMoi(); },
+    function(e){ ST.envoi = false;
+      if(e && e.code === 'cle_reutilisee'){
+        /* la clé a déjà servi pour un AUTRE envoi : on regarde si le tutoriel est bien là avant de lâcher la vidéo */
+        return appeler('GET', '/v1/savoir/moi').then(function(m){
+          var la = m && Array.isArray(m.tutos) && m.tutos.some(function(y){ return y.titre === fi.titre; });
+          if(la){ oublierPrise(); ST.form = null; toast(T('Déjà envoyé.')); return chargerMoi(); }
+          pr.cle = null; garderPrise(pr); toast(T('Cet envoi a changé : touchez « Publier le tutoriel » encore une fois.')); rendre();
+        }, function(){ pr.cle = null; garderPrise(pr); toast(T('Cet envoi a changé : touchez « Publier le tutoriel » encore une fois.')); rendre(); });
+      }
+      if(e && e.code === 'en_cours'){ toast(T('Envoi déjà en cours : patientez un instant.')); rendre(); return; }
+      toast(erreurTexte(e)); rendre(); });
+}
+function retirer(id){
+  if(!deuxTouchers('retirer' + id)) return;
+  (ST.apercu ? Promise.resolve() : appeler('POST', '/v1/savoir/' + encodeURIComponent(id) + '/retirer', {}, 'svx-' + id))
+    .then(function(){ toast(T('Tutoriel retiré.')); if(ST.apercu) ST.moi.tutos = ST.moi.tutos.filter(function(y){ return y.id !== id; }); return ST.apercu ? rendre() : chargerMoi(); }, function(e){ toast(erreurTexte(e)); rendre(); });
+}
+function modifier(id){
+  var x = ST.moi && (ST.moi.tutos || []).filter(function(y){ return y.id === id; })[0]; if(!x) return;
+  ST.edition = id; ST.vue = 'creer';
+  ST.form = {titre:x.titre, categorie:x.categorie, niveau:x.niveau, langue:x.langue || L, dureeMin:x.dureeMin ? String(x.dureeMin) : '',
+    materiel:(x.materiel || []).map(function(m){ return {nom:m.nom, quantite:m.quantite || ''}; }), etapes:(x.etapes || []).map(function(e){ return {texte:e.texte, t:nombre(e.t) != null ? mmss(e.t) : ''}; }),
+    astuces:x.astuces || '', mercis:x.acceptaMercis === true};
+  if(!ST.form.materiel.length) ST.form.materiel.push({nom:'', quantite:''}); if(!ST.form.etapes.length) ST.form.etapes.push({texte:'', t:''});
+  rendre();
+}
+
+/* ════════ L'APERÇU (démonstration seulement) ════════ */
+function demoTutos(){
+  var j = Date.now();
+  return [
+    {id:'sv_ap1', titre:'Tresser des nattes collées', categorie:'coiffure', niveau:'debutant', langue:'fr', dureeMin:45, auteur:{handle:'mariama', pays:'GN'}, video:null, creeSurNeuravid:true,
+      reussis:128, mercisPersonnes:34, merciPossible:true, montants:[10, 25, 50, 100, 250], at:new Date(j - 2 * 864e5).toISOString(),
+      materiel:[{nom:'Peigne à queue', quantite:'1'}, {nom:'Mèches', quantite:'2 paquets'}, {nom:'Pinces', quantite:'4'}],
+      etapes:[{texte:'Démêler et séparer les cheveux en sections.', t:5}, {texte:'Tresser au plus près du cuir chevelu, sans tirer.', t:42}, {texte:'Finir en scellant les pointes.', t:180}],
+      astuces:'Humidifiez légèrement les cheveux : la tresse tient mieux.'},
+    {id:'sv_ap2', titre:'Coudre un foulard en pagne', categorie:'couture', niveau:'moyen', langue:'fr', dureeMin:60, auteur:{handle:'adjoa', pays:'GH'}, video:null, creeSurNeuravid:true,
+      reussis:57, mercisPersonnes:12, merciPossible:true, montants:[10, 25, 50, 100, 250], at:new Date(j - 5 * 864e5).toISOString(),
+      materiel:[{nom:'Pagne', quantite:'1 m'}, {nom:'Fil', quantite:null}, {nom:'Aiguille', quantite:'1'}],
+      etapes:[{texte:'Couper un carré de 90 cm.', t:10}, {texte:'Faire un ourlet roulé tout autour.', t:95}], astuces:''},
+    {id:'sv_ap3', titre:'Le thiéboudienne en famille', categorie:'cuisine', niveau:'avance', langue:'wo', dureeMin:120, auteur:{handle:'aminata', pays:'SN'}, video:null, creeSurNeuravid:false,
+      reussis:203, mercisPersonnes:61, merciPossible:true, montants:[10, 25, 50, 100, 250], at:new Date(j - 9 * 864e5).toISOString(),
+      materiel:[{nom:'Riz brisé', quantite:'1 kg'}, {nom:'Poisson', quantite:'1,5 kg'}, {nom:'Légumes', quantite:null}],
+      etapes:[{texte:'Farcir le poisson au rof.', t:20}, {texte:'Cuire les légumes dans la sauce.', t:240}, {texte:'Cuire le riz dans le bouillon.', t:420}], astuces:'Gardez le xoon au fond de la marmite.'}];
+}
+function demoMoi(){ return {tutos:[{id:'sv_ap9', titre:'Réparer une chambre à air de vélo', categorie:'reparation', niveau:'debutant', langue:L, dureeMin:20, etat:'publie', reussis:9, mercisPersonnes:3, acceptaMercis:true,
+  auteur:{handle:'vous', pays:'GN'}, materiel:[{nom:'Rustines', quantite:'2'}], etapes:[{texte:'Trouver le trou dans l’eau.', t:8}]}], gardes:[], mots:[{de:{handle:'kofi', pays:'GH'}, mot:'Grâce à vous, je roule de nouveau !'}]}; }
+function demoDessiner(c, id){
+  var x = demoTutos().filter(function(y){ return y.id === id; })[0] || (ST.moi && (ST.moi.tutos || []).filter(function(y){ return y.id === id; })[0]) || {categorie:'autre'};
+  var g = c.getContext('2d'); if(!g) return; var W = c.width, H = c.height, k = (String(x.categorie).charCodeAt(0) * 37) % 360;
+  var gr = g.createLinearGradient(0, 0, W, H); gr.addColorStop(0, 'hsl(' + k + ',65%,40%)'); gr.addColorStop(1, 'hsl(' + ((k + 70) % 360) + ',70%,16%)'); g.fillStyle = gr; g.fillRect(0, 0, W, H);
+  g.strokeStyle = 'rgba(255,255,255,.18)'; g.lineWidth = 1;
+  for(var i = 0; i < 9; i++){ var cx = (i % 3 + .5) * W / 3, cy = (Math.floor(i / 3) + .7) * H / 3.4, r = W / 9; g.beginPath(); for(var a = 0; a < 6; a++){ var t = Math.PI / 3 * a; g.lineTo(cx + r * Math.cos(t), cy + r * Math.sin(t)); } g.closePath(); g.stroke(); }
+  if(ST.apercu){ g.fillStyle = 'rgba(0,0,0,.55)'; g.fillRect(0, H - 22, W, 22); g.fillStyle = '#ffc531'; g.textAlign = 'center'; g.font = 'bold 12px sans-serif'; g.fillText(T('Aperçu'), W / 2, H - 7); }
+}
+
+/* ════════ LE DÉMARRAGE ════════ */
+function changerVue(v){
+  ST.sur = {};
+  if(v === 'moi') return chargerMoi();
+  ST.vue = v === 'creer' ? 'creer' : 'liste';
+  if(v !== 'creer'){ ST.edition = null; if(!ST.items.length) return chargerListe(); }
+  rendre(); var b = v === 'liste' ? $('hListe') : document.querySelector('[data-vue="' + v + '"]'); if(b) b.focus();
+}
+function demarrer(){
+  poserLangue(langueDetectee());
+  ST.apercu = !!window.NV_DEMO && !api();
+  reprendreCleMerci();
+  var retour = null, ctx = null;
+  try{ ctx = JSON.parse(sessionStorage.getItem('nv_ctx_' + MOI) || 'null'); if(ctx && ctx.module === MOI && ctx.defi === 'tuto') retour = 'tuto'; sessionStorage.removeItem('nv_ctx_' + MOI); }catch(e){}
+  if(ctx && typeof ctx.categorie === 'string' && CATS[ctx.categorie]) ST.filtre.categorie = ctx.categorie;
+  rendre();
+  chargerCap().catch(function(e){ ST.cap = null; ST.etat = e && e.status && e.status < 500 ? 'indisponible' : navigator.onLine === false ? 'horsligne' : 'erreur'; ST.horsLigne = navigator.onLine === false; })
+    .then(function(){ return reprendrePrise(retour).then(reprendrePriseLocale, reprendrePriseLocale); })
+    .then(function(){ if(ctx && typeof ctx.tuto === 'string') return chargerTuto(ctx.tuto); if(ctx && ctx.vue === 'moi') return chargerMoi(); if(ST.prise){ ST.vue = 'creer'; rendre(); return; } return chargerListe(); });
+  document.addEventListener('click', function(ev){
+    var b = ev.target && ev.target.closest ? ev.target.closest('button') : null; if(!b) return;
+    var a = function(k){ return b.getAttribute(k); };
+    if(a('data-vue')) changerVue(a('data-vue'));
+    else if(a('data-cat') !== null){ ST.filtre.categorie = a('data-cat'); chargerListe(); }
+    else if(a('data-ouvrir')) chargerTuto(a('data-ouvrir'));
+    else if(b.id === 'bPlus') chargerListe(true);
+    else if(b.id === 'bReussi') reussi();
+    else if(b.id === 'bGarder') garder();
+    else if(b.id === 'bTelecharger') telecharger();
+    else if(b.id === 'bPartager') partager();
+    else if(b.id === 'bSignaler' && ST.tuto) ouvrir('Report', ST.tuto.video && ST.tuto.video.id ? {video:ST.tuto.video.id, clip:ST.tuto.video.id, auteur:ST.tuto.auteur, module:MOI} : {type:'general', module:MOI});
+    else if(a('data-montant')){ choisirMontant(+a('data-montant')); }
+    else if(b.id === 'bMerci') merci();
+    else if(b.id === 'bMasquer') masquer();
+    else if(a('data-retablir')) retablir(a('data-retablir'));
+    else if(a('data-aller')){ var v = $('vTuto'); if(v){ try{ v.currentTime = +a('data-aller'); v.play().catch(function(){}); v.focus(); }catch(e){} } }
+    else if(b.id === 'bFilmer') filmer();
+    else if(b.id === 'bRefilmer'){ if(deuxTouchers('refilmer')){ oublierPrise(); filmer(); } }
+    else if(a('data-ajouter')){ var g = a('data-ajouter'); ST.form[g].push(g === 'materiel' ? {nom:'', quantite:''} : {texte:'', t:''}); rendre();
+      var ins = document.querySelectorAll('[data-ed="' + g + '"]'); if(ins.length) ins[ins.length - (g === 'materiel' ? 2 : 2)].focus(); }
+    else if(a('data-enlever')){ var g2 = a('data-enlever'); ST.form[g2].splice(+a('data-i'), 1); if(!ST.form[g2].length) ST.form[g2].push(g2 === 'materiel' ? {nom:'', quantite:''} : {texte:'', t:''}); rendre(); }
+    else if(a('data-modifier')) modifier(a('data-modifier'));
+    else if(a('data-retirer')) retirer(a('data-retirer'));
+    else if(b.id === 'bAnnulerEd'){ ST.edition = null; ST.form = null; chargerMoi(); }
+    else if(b.id === 'bRecolte') ouvrir('Recolte', {depuis:'savoir'});
+  });
+  document.addEventListener('keydown', function(ev){
+    var t = ev.target; if(!t || !t.getAttribute || !t.getAttribute('data-montant')) return;
+    var l = Array.prototype.slice.call(document.querySelectorAll('[data-montant]')), i = l.indexOf(t), d = {ArrowRight:1, ArrowDown:1, ArrowLeft:-1, ArrowUp:-1}[ev.key];
+    if(!d || i < 0) return; ev.preventDefault(); if(document.documentElement.dir === 'rtl' && /Left|Right/.test(ev.key)) d = -d;
+    choisirMontant(+l[(i + d + l.length) % l.length].getAttribute('data-montant'));
+  });
+  document.addEventListener('input', function(ev){
+    var t = ev.target; if(!t) return;
+    if(t.id === 'iMot') ST.mot = t.value;
+    else if(t.id === 'iCherche') ST.filtre.q = t.value;
+    else if(t.getAttribute('data-ed') && ST.form){ var l = ST.form[t.getAttribute('data-ed')][+t.getAttribute('data-i')]; if(l) l[t.getAttribute('data-k')] = t.value; }
+    else if(t.getAttribute('data-champ') && ST.form && t.type !== 'checkbox' && t.tagName !== 'SELECT') ST.form[t.getAttribute('data-champ')] = t.value;
+  });
+  document.addEventListener('change', function(ev){
+    var t = ev.target; if(!t) return;
+    if(t.id === 'langue'){ var l = t.value; if(!LANGUES_UI[l]) return; ecrire('nv_ui_langue', l); poserLangue(l); rendre(); var s = $('langue'); if(s) s.focus(); }
+    else if(t.id === 'sTri'){ ST.filtre.tri = t.value === 'reussis' ? 'reussis' : 'recent'; chargerListe(); }
+    else if(t.getAttribute('data-coche') !== null && ST.tuto){ var i = +t.getAttribute('data-coche'), c = coches(ST.tuto.id).filter(function(k){ return k !== i; }); if(t.checked) c.push(i); ecrire(cleCoche(ST.tuto.id), c); }
+    else if(t.getAttribute('data-champ') && ST.form){ ST.form[t.getAttribute('data-champ')] = t.type === 'checkbox' ? t.checked : t.value; }
+  });
+  document.addEventListener('submit', function(ev){
+    var f = ev.target; if(!f) return; ev.preventDefault();
+    if(f.id === 'fCherche') chargerListe();
+    else if(f.id === 'fFiche') publier();
+  });
+  window.NVSavoir = {etat:function(){ return {etat:ST.etat, vue:ST.vue, apercu:ST.apercu, items:ST.items.length, prise:!!ST.prise, langue:L}; }};
+}
+
+demarrer();
+})();
+
+</script>
+</body>
+</html>
