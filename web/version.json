@@ -1,6 +1,6 @@
 {
- "version": "2026.11.17-cc3a7af483b4",
- "date": "2026-11-17T05:50:33Z",
+ "version": "2026.11.17-0b99b7c6657f",
+ "date": "2026-11-17T06:12:13Z",
  "entree": "index.html",
  "modules": [
   "NV_MODULE_Aines.html",
@@ -53,8 +53,8 @@
  "config": "nv-config.js (exclu de l'empreinte : il change selon le déploiement)",
  "fichiers": {
   "NV_MODULE_Aines.html": {
-   "sha256": "a7c6a25d005fe560a8eff885377b9d0fa5c4454680a90ba52aea4fa7e804d831",
-   "taille": 212534
+   "sha256": "bfd4745aa3285cf223969a5e404d0d03ef990fcf740ee8864b75d0fdeef91e57",
+   "taille": 222441
   },
   "NV_MODULE_Arena.html": {
    "sha256": "51386af55a8989ce71554dcfc57804c08c66ca5f25f6658408fb825506c29d4d",
@@ -101,12 +101,12 @@
    "taille": 1444374
   },
   "NV_MODULE_Cote.html": {
-   "sha256": "bbf3abe13273dcc6c48b4f55d36db86fe2842a05ed6ce2ff3a80a6e75fcc2be8",
-   "taille": 153536
+   "sha256": "a458b87bd51b80d218621c1e68a6bfb774f16a59faeab56d2e7e215081004678",
+   "taille": 159924
   },
   "NV_MODULE_Create.html": {
-   "sha256": "c3ccc85bd5ad8193e3fcde9985ee2d9588dc659ee22ae3c2740217050b1fa10a",
-   "taille": 2099618
+   "sha256": "ce6de300168301ac4c557f8ad14b86f66f5a0cbf5ff6c5a520ef6a72434d101e",
+   "taille": 2099932
   },
   "NV_MODULE_Dashboard.html": {
    "sha256": "50b4c7bc3b903e1bb3ef6ddc142d36b5525eb2e7bdfd93e973c9e055314b4c19",
@@ -165,8 +165,8 @@
    "taille": 1443176
   },
   "NV_MODULE_Pagne.html": {
-   "sha256": "30f49290a4874949b7a2d1082f6f75c833d794edfe1c1e78688a35fb7f953b90",
-   "taille": 166155
+   "sha256": "fe98ea5f9fb795894c50d5803e457e767b426a1689f1c7cf82534a4c15acb25a",
+   "taille": 174013
   },
   "NV_MODULE_Passeport.html": {
    "sha256": "d36230935dcfd193bcd7a6707de341d25ae411d1939ce201bb5003981bc1f01b",
@@ -201,8 +201,8 @@
    "taille": 448570
   },
   "NV_MODULE_Reglages.html": {
-   "sha256": "b90bd5695e8e9f9bfe7a11e9db60b1af713c690590993aee81e6e463a898f679",
-   "taille": 645424
+   "sha256": "7459fcfee68e9cd4fe1c353af93169da4257a39ebfbd129bd0a46d8acd0433d3",
+   "taille": 645738
   },
   "NV_MODULE_Report.html": {
    "sha256": "6464921f94c8ca054d64a3674993f5618cbba946c726496fad964fd8a623e8c4",
@@ -213,8 +213,8 @@
    "taille": 106317
   },
   "NV_MODULE_Savoir.html": {
-   "sha256": "33863291c1659f1b1b407d069c347dd9dede9a0957b4667c0d142f37cb6bd07f",
-   "taille": 206437
+   "sha256": "2c76b5b23a1782f0c5de1de50b4cb7960701baa7227978c02c9558b1130206b3",
+   "taille": 213385
   },
   "NV_MODULE_Search.html": {
    "sha256": "07d02622801c052087d8510b832a730d4a72568b1f003638ce2aec58812ee454",
@@ -229,8 +229,8 @@
    "taille": 1312691
   },
   "NV_MODULE_Tresse.html": {
-   "sha256": "d17af04587078e462a3c63172268036e1574ba9c98b8231f10f90de4c561ce25",
-   "taille": 158376
+   "sha256": "816aa9aa84e1879b91d747a3bc3c8d01efd133786ef19b0c83e7e88a8a793c37",
+   "taille": 164621
   },
   "NV_MODULE_ViralStorm.html": {
    "sha256": "2e53b9e9c85a7255707551e44f348feef6e365d6a7bc523cbdea39b9fedd7585",

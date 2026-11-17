@@ -234,6 +234,27 @@ select.plein{width:100%;min-height:44px}
 .prise{width:100%;max-width:220px;aspect-ratio:9/16;border-radius:12px;background:#000;display:block;margin:0 auto 10px}
 .nv-cree{display:inline-flex;align-items:center;gap:4px;font-size:.72rem;color:var(--or)}
 .nv-cree i{width:11px;height:10px;clip-path:var(--hex);background:var(--or);display:inline-block}
+
+/* ══ Identité de la nouveauté (17 nov. 2026, étape 3 du plan des 8 nouveautés) : ses couleurs, son bandeau, ses cartes ══ */
+:root{--id1:#ffc531;--id2:#ff4f9e}
+header{position:relative;padding-bottom:13px;margin-bottom:8px}
+header::after{content:"";position:absolute;inset-inline:0;bottom:0;height:3px;border-radius:3px;background:linear-gradient(90deg,var(--id1),var(--id2) 55%,transparent)}
+[dir=rtl] header::after{background:linear-gradient(270deg,var(--id1),var(--id2) 55%,transparent)}
+.hex{background:linear-gradient(135deg,var(--id1),var(--id2));box-shadow:0 0 18px color-mix(in srgb,var(--id1) 45%,transparent)}
+h2::before{background:linear-gradient(135deg,var(--id1),var(--id2))}
+section{background:linear-gradient(180deg,color-mix(in srgb,var(--id1) 8%,transparent),transparent 80px),var(--nuit2)}
+
+/* mon pagne : des motifs de tissus dessinés (aucune image), différents pour chaque défilé et chaque nation */
+.wax{background-color:var(--w1)}
+.wax.m0{background:radial-gradient(circle,var(--w3) 0 3px,var(--w1) 3.5px 6px,var(--w2) 6.5px 9px,var(--w1) 9.5px 12px,var(--w3) 12.5px 14px,transparent 14.5px) 0 0/30px 30px,var(--w1)}
+.wax.m1{background:linear-gradient(135deg,var(--w2) 25%,transparent 25%) -8px 0/16px 16px,linear-gradient(225deg,var(--w2) 25%,transparent 25%) -8px 0/16px 16px,linear-gradient(315deg,var(--w3) 25%,transparent 25%) 0 0/16px 16px,linear-gradient(45deg,var(--w3) 25%,transparent 25%) 0 0/16px 16px,var(--w1)}
+.wax.m2{background:radial-gradient(circle,var(--w2) 0 3px,transparent 3.5px) 0 0/14px 14px,radial-gradient(circle,var(--w3) 0 2px,transparent 2.5px) 7px 7px/14px 14px,var(--w1)}
+.wax.m3{background:conic-gradient(from 45deg,var(--w2) 25%,var(--w1) 0 50%,var(--w3) 0 75%,var(--w1) 0) 0 0/18px 18px}
+.defile{display:grid;grid-template-columns:58px 1fr;gap:12px;align-items:start}
+.waxhex{width:58px;height:51px;clip-path:var(--hex);display:block;box-shadow:inset 0 0 0 3px rgba(0,0,0,.2)}
+.waxbande{height:10px;border-radius:6px;margin:0 0 10px}
+.tissu .cadre{padding:4px;border-radius:13px;display:block}
+.tissu .cadre video,.tissu .cadre canvas,.tissu .cadre .vide-v{border-radius:9px}
 </style>
 </head>
 <body>
@@ -568,6 +589,22 @@ select.plein{width:100%;min-height:44px}
       for(var i = 0; i < 8; i++){ var a = i / 8 * Math.PI * 2 + t * .25, x = cx + Math.cos(a) * R * 1.35, y = cy + Math.sin(a) * R * .8;
         g.strokeStyle = 'rgba(255,255,255,' + (.12 + .1 * Math.sin(t * 2 + i)) + ')'; g.lineWidth = 1.5; g.beginPath(); g.moveTo(cx, cy); g.lineTo(x, y); g.stroke();
         g.fillStyle = i % 2 ? c[1] : '#f6f1ff'; hex(g, x, y, 9); g.fill(); } },
+    cercle: function(g, w, h, t, c){ var cx = w / 2, cy = h / 2, R = Math.min(w, h) * .34;
+      g.strokeStyle = c[0]; g.lineWidth = 3; g.globalAlpha = .9; hex(g, cx, cy, R * 1.25, t * .15); g.stroke(); g.globalAlpha = 1;
+      for(var i = 0; i < 6; i++){ var a = i / 6 * Math.PI * 2 + t * .15 + Math.PI / 6, x = cx + Math.cos(a) * R * 1.25, y = cy + Math.sin(a) * R * 1.25;
+        g.fillStyle = i % 2 ? c[1] : '#f6f1ff'; g.beginPath(); g.arc(x, y, 8, 0, Math.PI * 2); g.fill(); }
+      var p = 1 + Math.sin(t * 2.2) * .06; g.save(); g.translate(cx, cy); g.scale(p, p); g.fillStyle = c[0]; g.beginPath(); g.moveTo(0, 14);
+      g.bezierCurveTo(-26, -4, -14, -26, 0, -12); g.bezierCurveTo(14, -26, 26, -4, 0, 14); g.fill(); g.restore();
+      for(var k = 0; k < 4; k++){ var a2 = t * .9 + k * 1.6, r2 = R * 2.1, x2 = cx + Math.cos(a2) * r2, y2 = cy + Math.sin(a2) * r2 * .5; g.fillStyle = 'rgba(255,255,255,.25)'; g.beginPath(); g.arc(x2, y2, 4, 0, Math.PI * 2); g.fill(); } },
+    teint: function(g, w, h, t, c){ var T = ['#f3d2b8', '#e0b28f', '#c68a62', '#9c6440', '#74452a', '#4a2b1a'], n = T.length, e = w / (n + 1), k = Math.floor(t * .8) % n;
+      for(var i = 0; i < n; i++){ var x = e * (i + 1), y = h / 2 + (i === k ? -8 : 0), r = i === k ? 24 : 19; g.fillStyle = T[i]; hex(g, x, y, r); g.fill();
+        if(i === k){ g.strokeStyle = c[0]; g.lineWidth = 3; g.stroke(); g.fillStyle = c[0]; g.font = '700 12px system-ui,sans-serif'; g.textAlign = 'center'; g.fillText('✓', x, y + r + 16); } }
+      var lx = (t * 60) % (w + 120) - 60, gr = g.createLinearGradient(lx - 50, 0, lx + 50, 0); gr.addColorStop(0, 'rgba(255,255,255,0)'); gr.addColorStop(.5, 'rgba(255,255,255,.12)'); gr.addColorStop(1, 'rgba(255,255,255,0)'); g.fillStyle = gr; g.fillRect(0, 0, w, h); },
+    miroir: function(g, w, h, t, c){ var f = (Math.sin(t * .9) + 1) / 2, m = w * (.15 + .7 * f);
+      g.fillStyle = '#2b2448'; g.fillRect(0, 0, w, h); g.fillStyle = 'rgba(255,255,255,.05)'; for(var v = 0; v < w; v += 10) g.fillRect(v, 0, 1, h); g.fillStyle = '#a49cc0'; g.beginPath(); g.arc(w / 2, h / 2 - 8, 26, 0, Math.PI * 2); g.fill(); g.fillStyle = '#7d7699'; g.beginPath(); g.ellipse(w / 2, h / 2 + 44, 40, 20, 0, Math.PI, 0); g.fill();
+      g.save(); g.beginPath(); g.rect(m, 0, w - m, h); g.clip(); var gr = g.createLinearGradient(0, 0, w, h); gr.addColorStop(0, c[0]); gr.addColorStop(1, c[1]); g.fillStyle = gr; g.fillRect(0, 0, w, h);
+      g.fillStyle = '#fff'; g.beginPath(); g.arc(w / 2, h / 2 - 8, 26, 0, Math.PI * 2); g.fill(); g.fillStyle = 'rgba(255,255,255,.85)'; g.beginPath(); g.ellipse(w / 2, h / 2 + 44, 40, 20, 0, Math.PI, 0); g.fill(); for(var s2 = 0; s2 < 6; s2++){ var a = s2 + t * 2; g.fillStyle = 'rgba(255,255,255,.8)'; hex(g, w / 2 + Math.cos(a) * 46, h / 2 - 8 + Math.sin(a) * 30, 3); g.fill(); } g.restore();
+      g.strokeStyle = '#fff'; g.lineWidth = 2; g.beginPath(); g.moveTo(m, 0); g.lineTo(m, h); g.stroke(); g.fillStyle = '#140b33'; hex(g, m, h / 2, 14); g.fill(); g.strokeStyle = c[0]; g.stroke(); },
     pagne: function(g, w, h, t, c){ var pal = [c[0], c[1], '#ff4f9e', '#16e0d4', '#ffc531', '#7a5cff'], s = 34, dec = (t * 18) % (s * 2);
       for(var r = -1; r * s * .87 < h + s; r++) for(var q = -2; q * s < w + s * 2; q++){ var x = q * s + (r % 2 ? s / 2 : 0) - dec, y = r * s * .87, col = pal[(q + r * 2 + 60) % pal.length];
         g.fillStyle = col; g.globalAlpha = .85; hex(g, x, y, s * .5); g.fill(); g.globalAlpha = 1; g.fillStyle = '#140b33'; g.beginPath(); g.arc(x, y, s * .18, 0, Math.PI * 2); g.fill();
@@ -588,6 +625,16 @@ select.plein{width:100%;min-height:44px}
   document.addEventListener('visibilitychange', relancer);
   var io = window.IntersectionObserver ? new IntersectionObserver(function(es){ es.forEach(function(e){ FILMS.forEach(function(f){ if(f.c === e.target) f.vu = e.isIntersecting; }); }); relancer(); }) : null;
   function film(c, scene, couleurs){ var f = {c:c, scene:scene, couleurs:couleurs || ['#ffc531', '#16e0d4'], vu:!io}; FILMS.push(f); dessiner(f, calme ? 2.2 : 0); if(io) io.observe(c); relancer(); }
+  function html(o){ return '<section class="nvp" style="--nvp-c1:' + esc(o.couleurs[0]) + ';--nvp-c2:' + esc(o.couleurs[1]) + '" aria-label="' + esc(o.titreFilm || o.comment) + '">' +
+    '<canvas aria-hidden="true" data-nvp-scene="' + esc(o.scene) + '" data-nvp-c="' + esc(o.couleurs.join(',')) + '"></canvas>' + (o.intro ? '<p class="nvp-intro">' + esc(o.intro) + '</p>' : '') +
+    '<details' + (o.ouvert ? ' open' : '') + (o.cle ? ' data-nvp-cle="' + esc(o.cle) + '"' : '') + '><summary>' + esc(o.comment) + '</summary><ol>' +
+    o.etapes.map(function(s, i){ return '<li><b>' + (i + 1) + '</b><span>' + esc(s) + '</span></li>'; }).join('') + '</ol>' +
+    (o.protections && o.protections.length ? '<h3>' + esc(o.protege) + '</h3><ul>' + o.protections.map(function(s){ return '<li>' + esc(s) + '</li>'; }).join('') + '</ul>' : '') + '</details></section>'; }
+  /* toute toile « data-nvp-scene » posée dans la page (par html()) reçoit son film */
+  function animer(racine){ style(); Array.prototype.forEach.call((racine || document).querySelectorAll('canvas[data-nvp-scene]'), function(c){ if(c._nvp) return; c._nvp = 1;
+    film(c, c.getAttribute('data-nvp-scene'), (c.getAttribute('data-nvp-c') || '').split(',')); }); }
+  if(window.MutationObserver){ var mo = new MutationObserver(function(){ if(document.querySelector('canvas[data-nvp-scene]:not([data-nvp-vu])')){ Array.prototype.forEach.call(document.querySelectorAll('canvas[data-nvp-scene]:not([data-nvp-vu])'), function(c){ c.setAttribute('data-nvp-vu', '1'); }); animer(); } });
+    var go = function(){ if(document.body) mo.observe(document.body, {childList:true, subtree:true}); }; if(document.body) go(); else document.addEventListener('DOMContentLoaded', go); }
   /* o : {cle, scene, couleurs:[c1, c2], ouvert, intro, comment, protege, etapes:[3], protections:[3], titreFilm, apres:element} */
   function poser(o){ style(); var el = document.getElementById('nvPres');
     if(!o){ if(el) el.remove(); return; }
@@ -604,7 +651,7 @@ select.plein{width:100%;min-height:44px}
     var d = el.querySelector('details'); d.addEventListener('toggle', function(){ el._ouvertUtilisateur = d.open; });
     if(o.apres && el.previousElementSibling !== o.apres) o.apres.parentNode.insertBefore(el, o.apres.nextSibling);
     film(el.querySelector('canvas'), o.scene, o.couleurs); }
-  window.NVPresente = {poser:poser, scenes:Object.keys(SCENES)};
+  window.NVPresente = {poser:poser, html:html, animer:animer, style:style, scenes:Object.keys(SCENES)};
 })();
 
 /* ════════════════════════════════════════════════════════════════════
@@ -758,12 +805,20 @@ function rendreListe(){
   var h = '<section aria-labelledby="hListe"><h2 id="hListe" tabindex="-1">' + esc(T('Les défilés des tissus')) + (ST.apercu ? '<span class="apercu">' + esc(T('Aperçu')) + '</span>' : '') + '</h2>';
   if(!ST.defiles.length && ST.etat === 'ok') h += '<p class="vide">' + esc(T('Aucun défilé pour l’instant.')) + '</p>';
   h += ST.defiles.map(function(d){
-    return '<div class="defile"><h3><button type="button" data-ouvrir="' + esc(d.id) + '">' + esc(d.titre) + '</button> ' + puce(d.phase) + '</h3><p class="d">' + esc(d.theme) + '</p>' +
+    return '<div class="defile"><span' + waxAttr(d.id, 'waxhex') + '></span><div><h3><button type="button" data-ouvrir="' + esc(d.id) + '">' + esc(d.titre) + '</button> ' + puce(d.phase) + '</h3><p class="d">' + esc(d.theme) + '</p>' +
       '<p class="d">' + esc(tissusTexte(d.nbTissus)) + ' · ' + esc(nationsTexte(d.nbNations)) + ' · ' + esc(d.phase === 'depot' ? T('Présentation jusqu’au {0}', jour(d.depotFin)) :
-        d.phase === 'vote' ? T('Vote jusqu’au {0}', jour(d.voteFin)) : d.phase === 'avenir' ? T('À partir du {0}', jour(d.debut)) : T('Terminé le {0}', jour(d.voteFin))) + '</p></div>'; }).join('');
+        d.phase === 'vote' ? T('Vote jusqu’au {0}', jour(d.voteFin)) : d.phase === 'avenir' ? T('À partir du {0}', jour(d.debut)) : T('Terminé le {0}', jour(d.voteFin))) + '</p></div></div>'; }).join('');
   h += '</section><section><h2>' + esc(T('La Saison des Nations')) + '</h2><p>' + esc(T('Chaque défilé met les tissus des nations à l’honneur. Suivez aussi la Saison des Nations dans The Nations’ Arena.')) + '</p>' +
     '<div class="actions"><button type="button" id="bSaison">' + esc(T('Voir la Saison des Nations')) + '</button></div></section>';
   return h;
+}
+/* 17 nov. 2026 (étape 3) : un motif de tissu dessiné en CSS, toujours le même pour un même défilé ou une même nation */
+var WAX_PAL = [['#e8a317','#7a1f2b','#1c6e5a'], ['#d9480f','#1b3a6b','#f2c14e'], ['#2a7f62','#f4d35e','#9c2c2c'], ['#5b2a86','#f08a24','#2ec4b6'],
+  ['#b3202a','#f7e9c4','#1f1f1f'], ['#0b6e4f','#ffb400','#c1121f'], ['#1d3557','#e9c46a','#e76f51'], ['#6a040f','#ffba08','#3a86ff']];
+function waxAttr(graine, cls){
+  var g = String(graine || '?'), h = 7; for(var i = 0; i < g.length; i++) h = (h * 31 + g.charCodeAt(i)) >>> 0;
+  var p = WAX_PAL[h % WAX_PAL.length];
+  return ' class="' + cls + ' wax m' + ((h >>> 5) % 4) + '" style="--w1:' + p[0] + ';--w2:' + p[1] + ';--w3:' + p[2] + '" aria-hidden="true"';
 }
 function video(t){
   if(t.video && t.video.url) return '<video controls playsinline preload="none"' + (t.video.affiche ? ' poster="' + esc(t.video.affiche) + '"' : '') + ' src="' + esc(t.video.url) + '" aria-label="' + esc(t.nom) + '"></video>';
@@ -771,7 +826,7 @@ function video(t){
   return '<div class="vide-v">' + esc(t.videoRaison === 'retire' ? T('Tissu retiré') : t.videoRaison === 'abonnes' ? T('Vidéo visible seulement par les abonnés de la personne.') : T('Vidéo indisponible pour le moment.')) + '</div>';
 }
 function carteTissu(t, d){
-  var m = d.moi || {}, vote = (m.votes || []).indexOf(t.id) >= 0, h = '<div class="tissu" data-carte="' + esc(t.id) + '">' + video(t) +
+  var m = d.moi || {}, vote = (m.votes || []).indexOf(t.id) >= 0, h = '<div class="tissu" data-carte="' + esc(t.id) + '"><div' + waxAttr(t.pays, 'cadre').replace(' aria-hidden="true"', '') + '>' + video(t) + '</div>' +
     '<h3><span class="drap" aria-hidden="true">' + drapeau(t.pays) + '</span> ' + esc(t.nom || '—') + '</h3><p>' + esc(t.pays ? nomPays(t.pays) : '—') + (t.auteur && t.auteur.handle ? ' · @' + esc(t.auteur.handle) : '') + '</p>' +
     (t.histoire ? '<p>' + esc(t.histoire) + '</p>' : '') + (t.creeSurNeuravid ? '<span class="nv-cree"><i></i>' + esc(T('Créé sur NEURAVID')) + '</span>' : '');
   if(d.phase === 'termine') h += '<p><b>' + esc(voixTexte(t.votes)) + '</b></p>';
@@ -785,7 +840,7 @@ function carteTissu(t, d){
 function rendreDefile(){
   var d = ST.defile; if(!d) return '<p class="vide">' + esc(T('Ce défilé n’est plus disponible.')) + '</p>';
   var m = d.moi || {}, h = '<button type="button" class="lien retour" data-vue="liste">' + (LANGUES_UI[L].rtl ? '→ ' : '← ') + esc(T('Les défilés')) + '</button>';
-  h += '<section aria-labelledby="hDefile"><h2 id="hDefile" tabindex="-1">' + esc(d.titre) + ' ' + puce(d.phase) + (ST.apercu ? '<span class="apercu">' + esc(T('Aperçu')) + '</span>' : '') + '</h2><p>' + esc(d.theme) + '</p>' +
+  h += '<section aria-labelledby="hDefile"><div' + waxAttr(d.id, 'waxbande') + '></div><h2 id="hDefile" tabindex="-1">' + esc(d.titre) + ' ' + puce(d.phase) + (ST.apercu ? '<span class="apercu">' + esc(T('Aperçu')) + '</span>' : '') + '</h2><p>' + esc(d.theme) + '</p>' +
     '<p class="d">' + esc(T('Présentation jusqu’au {0}', jour(d.depotFin))) + ' · ' + esc(T('Vote jusqu’au {0}', jour(d.voteFin))) + '</p>';
   if(d.phase === 'vote' && m.peutVoter === false && jeton()) h += '<p class="astuce">' + esc(m.raisonVote === 'pays' ? T('Ajoutez le pays de votre compte dans les Réglages.') : m.raisonVote === 'nation' ? T('Votre nation est déjà fixée pour ce défilé : elle ne change pas.') : m.raisonVote === 'age' ? T('Cette action n’est pas ouverte à votre âge.') : T('Pour voter, un compte vérifié est demandé.')) + '</p>';
   else if(d.phase === 'vote') h += '<p class="astuce">' + esc(nombre(m.restantes) === 1 ? T('Il vous reste 1 voix.') : T('Il vous reste {0} voix.', nb(m.restantes))) + ' ' + esc(T('Jamais pour votre propre tissu ni pour votre nation. Les voix sont publiées à la fin.')) + '</p>';
