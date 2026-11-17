@@ -1,6 +1,6 @@
 {
- "version": "2026.11.17-3eb85d20ef04",
- "date": "2026-11-17T10:45:34Z",
+ "version": "2026.11.17-0d66163b8155",
+ "date": "2026-11-17T12:41:30Z",
  "entree": "index.html",
  "modules": [
   "NV_MODULE_Aines.html",
@@ -47,14 +47,15 @@
   "NV_MODULE_Search.html",
   "NV_MODULE_StoryUniverse.html",
   "NV_MODULE_Studio.html",
+  "NV_MODULE_TalentJour.html",
   "NV_MODULE_Tresse.html",
   "NV_MODULE_ViralStorm.html"
  ],
  "config": "nv-config.js (exclu de l'empreinte : il change selon le déploiement)",
  "fichiers": {
   "NV_MODULE_Aines.html": {
-   "sha256": "97f71d59fb388834a4f485929d73e71f9a79f8f437663f31e86729a9d874711a",
-   "taille": 280246
+   "sha256": "41098c40675c9f7f7dedf69d01b0bb0bb066f8bc0f355e762b020faa0b24fca0",
+   "taille": 283038
   },
   "NV_MODULE_Arena.html": {
    "sha256": "51386af55a8989ce71554dcfc57804c08c66ca5f25f6658408fb825506c29d4d",
@@ -101,8 +102,8 @@
    "taille": 1444374
   },
   "NV_MODULE_Cote.html": {
-   "sha256": "092342900d6c02e7e417e1852f91152adbe97e4d95e39a18a883643014f2d9d5",
-   "taille": 160840
+   "sha256": "af7d2116848f0e8293d7dc9787f6e389ad65df4c0419def3ea7a51d414d86da1",
+   "taille": 163607
   },
   "NV_MODULE_Create.html": {
    "sha256": "6324b0c3f80915a3ecf442b50ce88fec638644e496af1ff57e9ba1b35cd3e255",
@@ -133,8 +134,8 @@
    "taille": 299220
   },
   "NV_MODULE_Home.html": {
-   "sha256": "5abaef0c39227ba5147122fa26ee61a37d4ef542d8fe8baadffbfe306c651da5",
-   "taille": 1995867
+   "sha256": "015116d6ba017a7589b1bebbe7ef4bbef2b9343eb97df48f3264dd47c0837d91",
+   "taille": 2001470
   },
   "NV_MODULE_Iris.html": {
    "sha256": "2bf25330343430a2f39a0251896aaa0169327edbb0ccfb089c7c624bbb7c96e7",
@@ -157,16 +158,16 @@
    "taille": 946708
   },
   "NV_MODULE_Notifications.html": {
-   "sha256": "ac2ae4dcf6ade3da8eaa6f9ccad4f70a37fe880cf6e477c5459c02bb86b4e875",
-   "taille": 533499
+   "sha256": "53c79cf97195f43f7dc1cefb06e1cf5b52b60875302d4825ba300e8b3dae67ef",
+   "taille": 541789
   },
   "NV_MODULE_Orbite.html": {
    "sha256": "b7d81787dddffb71187049df8e6bfe0e8f6c602c266c8c3ed110c650ace6a660",
    "taille": 1443176
   },
   "NV_MODULE_Pagne.html": {
-   "sha256": "1e39589b40cfd95c0142f23c8c77aeb3e8be5d77b06f690093c79397df95ca21",
-   "taille": 174929
+   "sha256": "9852007f7c32909640bad092c6088db8fde241376a27ef974c0c060e67aeea70",
+   "taille": 177721
   },
   "NV_MODULE_Passeport.html": {
    "sha256": "d36230935dcfd193bcd7a6707de341d25ae411d1939ce201bb5003981bc1f01b",
@@ -201,8 +202,8 @@
    "taille": 448570
   },
   "NV_MODULE_Reglages.html": {
-   "sha256": "eab0dded0453c26bf3a67205c3bcf31e8a2e1c2ee896d01879c9ab2d790acc6d",
-   "taille": 676792
+   "sha256": "7d91fd29f1fdc0489404c02ccf76aef8c4f79743516361e12181daf8213a9668",
+   "taille": 682020
   },
   "NV_MODULE_Report.html": {
    "sha256": "6464921f94c8ca054d64a3674993f5618cbba946c726496fad964fd8a623e8c4",
@@ -213,8 +214,8 @@
    "taille": 106317
   },
   "NV_MODULE_Savoir.html": {
-   "sha256": "5b8fe790d47079e328231bf51c89a5d9d25365b426bd032de09c1735dd22e988",
-   "taille": 214301
+   "sha256": "28c9ceff651c8739dec835417b40a8452df64f9c17d9a37a8ae5c37b859b968e",
+   "taille": 217093
   },
   "NV_MODULE_Search.html": {
    "sha256": "07d02622801c052087d8510b832a730d4a72568b1f003638ce2aec58812ee454",
@@ -228,9 +229,13 @@
    "sha256": "ecb060283feeaecabcc46965e37e7d8fe3f28ab9a5445eee7bd2b8f9f58f80ae",
    "taille": 1312691
   },
+  "NV_MODULE_TalentJour.html": {
+   "sha256": "682b8518d97f8283bbcce34a256c82516880bf33e4f0cbd289310a9e3396a051",
+   "taille": 176412
+  },
   "NV_MODULE_Tresse.html": {
-   "sha256": "608f2ced4db6d56e7883e9b33c42a50a48b78a18ee41c6dd4a1106f9f6e01e4c",
-   "taille": 166454
+   "sha256": "b7148f88c44e335be5bd2bb127dcb4b0f31291e9fcd9c21b03172a06d70335c6",
+   "taille": 169221
   },
   "NV_MODULE_ViralStorm.html": {
    "sha256": "2e53b9e9c85a7255707551e44f348feef6e365d6a7bc523cbdea39b9fedd7585",

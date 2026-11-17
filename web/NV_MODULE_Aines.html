@@ -614,7 +614,18 @@ section{background:linear-gradient(180deg,color-mix(in srgb,var(--id1) 8%,transp
         g.fillStyle = col; g.globalAlpha = .85; hex(g, x, y, s * .5); g.fill(); g.globalAlpha = 1; g.fillStyle = '#140b33'; g.beginPath(); g.arc(x, y, s * .18, 0, Math.PI * 2); g.fill();
         g.strokeStyle = 'rgba(255,255,255,.55)'; g.lineWidth = 1.2; g.beginPath(); g.arc(x, y, s * .3, 0, Math.PI * 2); g.stroke(); }
       var lx = ((t * 80) % (w * 1.6)) - w * .3, gr = g.createLinearGradient(lx - 60, 0, lx + 60, 0); gr.addColorStop(0, 'rgba(255,255,255,0)'); gr.addColorStop(.5, 'rgba(255,255,255,.35)'); gr.addColorStop(1, 'rgba(255,255,255,0)');
-      g.fillStyle = gr; g.fillRect(0, 0, w, h); var v = g.createLinearGradient(0, 0, 0, h); v.addColorStop(0, 'rgba(20,11,51,.15)'); v.addColorStop(1, 'rgba(20,11,51,.55)'); g.fillStyle = v; g.fillRect(0, 0, w, h); }
+      g.fillStyle = gr; g.fillRect(0, 0, w, h); var v = g.createLinearGradient(0, 0, 0, h); v.addColorStop(0, 'rgba(20,11,51,.15)'); v.addColorStop(1, 'rgba(20,11,51,.55)'); g.fillStyle = v; g.fillRect(0, 0, w, h); },
+    /* Talent du Jour (17 nov. 2026) : le soleil du jour, un projecteur, et le cadran des 15 à 60 secondes */
+    talent: function(g, w, h, t, c){ var cx = w / 2, cy = h / 2, R = Math.min(w, h) * .26;
+      var bg = g.createRadialGradient(cx, cy, 4, cx, cy, Math.max(w, h) * .7); bg.addColorStop(0, 'rgba(255,197,49,.18)'); bg.addColorStop(1, 'rgba(20,11,51,0)'); g.fillStyle = bg; g.fillRect(0, 0, w, h);
+      for(var k = 0; k < 12; k++){ var a = t * .25 + k * Math.PI / 6; g.strokeStyle = k % 2 ? 'rgba(22,224,212,.28)' : 'rgba(255,197,49,.32)'; g.lineWidth = 3; g.beginPath();
+        g.moveTo(cx + Math.cos(a) * R * 1.2, cy + Math.sin(a) * R * 1.2); g.lineTo(cx + Math.cos(a) * R * 1.75, cy + Math.sin(a) * R * 1.75); g.stroke(); }
+      var f = (t % 6) / 6; g.strokeStyle = 'rgba(255,255,255,.15)'; g.lineWidth = 7; g.beginPath(); g.arc(cx, cy, R * 1.05, 0, Math.PI * 2); g.stroke();
+      g.strokeStyle = c[1]; g.lineCap = 'round'; g.beginPath(); g.arc(cx, cy, R * 1.05, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * (.25 + .75 * f)); g.stroke(); g.lineCap = 'butt';
+      var gr = g.createLinearGradient(cx - R, cy - R, cx + R, cy + R); gr.addColorStop(0, c[0]); gr.addColorStop(1, c[1]); g.fillStyle = gr; hex(g, cx, cy, R * .9); g.fill();
+      g.fillStyle = '#140b33'; hex(g, cx, cy, R * .78); g.fill();
+      var e = 1 + Math.sin(t * 2.4) * .08; g.fillStyle = c[0]; g.beginPath(); for(var i = 0; i < 10; i++){ var r = (i % 2 ? R * .2 : R * .48) * e, b = -Math.PI / 2 + i * Math.PI / 5; g[i ? 'lineTo' : 'moveTo'](cx + Math.cos(b) * r, cy + Math.sin(b) * r); } g.closePath(); g.fill();
+      for(var m = 0; m < 5; m++){ var a2 = t * .7 + m * 1.26, x2 = cx + Math.cos(a2) * R * 2.05, y2 = cy + Math.sin(a2) * R * .95; g.globalAlpha = .75; g.fillStyle = m % 2 ? c[1] : '#ff4f9e'; hex(g, x2, y2, 7); g.fill(); g.globalAlpha = 1; } }
   };
   var FILMS = [];
   function dessiner(f, t){ var c = f.c, r = c.getBoundingClientRect(), d = Math.min(window.devicePixelRatio || 1, 2), w = Math.max(1, Math.round(r.width)), h = Math.max(1, Math.round(r.height));
@@ -1400,6 +1411,16 @@ function deciderMot(id, publier){
     .then(function(){ toast(publier ? T('Mot publié.') : T('Mot refusé.')); if(ST.mots) ST.mots.items = (ST.mots.items || []).filter(function(x){ return x.id !== id; }); ST.focusVers = 'hMots'; },
       function(e){ toast(erreurTexte(e)); }).then(rendre);
 }
+
+/* ════════ L'aperçu en repli (17 nov. 2026, rappel de Karamo : « ne plus dépendre l'affichage des contenus ou fonctionnalités
+   d'un module uniquement par la présence ou branchement d'un serveur ») ════════
+   Un serveur branché qui ne propose pas (encore) cette fonction, ou qui ne répond pas : la page ne reste jamais fermée,
+   elle montre son aperçu, toujours marqué « Aperçu » (rien n'est envoyé). Dès que le serveur l'annonce, seul le vrai contenu. */
+function repliApercu(){ if(ST.cap || ST.apercu) return false; ST.apercu = true; ST.repli = true;
+  if(!utilisateur()){ try{ window.NV_USER = {id:'demo', handle:'visiteur', prenom:'Aya', age:25, majeur:true, iso:'GN'}; }catch(e){} }
+  return true; }
+(function(){ var cc0 = chargerCap;
+  chargerCap = function(){ return cc0().then(function(){ if(repliApercu()) return cc0(); }, function(e){ if(repliApercu()) return cc0(); throw e; }); }; })();
 
 demarrer();
 })();

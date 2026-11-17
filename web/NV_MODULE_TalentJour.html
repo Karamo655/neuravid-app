@@ -1,0 +1,1167 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<!--NV_VITESSE--><script>/* NEURAVID — la vitesse commune (14 novembre 2026). Injectée en tête de chaque module par injecter_vitesse.py.
+   Rien n'est retiré : chaque animation reste, elle travaille seulement quand on la voit, et au rythme que le téléphone peut tenir.
+   1. La cadence des images (requestAnimationFrame) suit le téléphone et la personne :
+      - téléphone modeste (≤ 4 cœurs, ≤ 2 Go, ou économie de données) : 30 images/s au plus ;
+      - personne qui ne touche à rien depuis 15 s : 30 images/s (20 sur un téléphone modeste) ; tout geste rend la pleine cadence ;
+      - jamais pendant une capture (caméra, micro ou enregistrement en cours) : pleine cadence, rien n'est touché.
+   2. Les animations CSS sans fin s'arrêtent quand elles sortent de l'écran, et reprennent dès qu'elles reviennent.
+   3. (deuxième vague) Quand la cadence est réduite, les animations CSS sans fin et les animations SVG à l'écran avancent AU MÊME
+      rythme que le reste (elles sont « pilotées » : même mouvement, même vitesse, mais une image calculée 30 ou 20 fois par seconde
+      au lieu de 60). Sans cela, une seule petite animation obligeait le téléphone à recomposer tout l'écran 60 fois par seconde.
+      Tout geste les rend à elles-mêmes. Une animation mise en pause par le module n'est jamais relancée.
+   window.NVVitesse = {faible, cadence(), cran(), repos(), capture(), pilotees()} pour les essais. */
+(function(){ 'use strict';
+  if(window.NVVitesse || typeof window.requestAnimationFrame !== 'function') return;
+  var N = navigator, cx = N.connection || {}, coeurs = N.hardwareConcurrency || 8, mem = N.deviceMemory || 8;
+  var faible = coeurs <= 4 || mem <= 2 || !!cx.saveData;
+  var REPOS_MS = 15000, IV_FAIBLE = 1000 / 30, IV_REPOS = 1000 / (faible ? 20 : 30);
+  var natRAF = window.requestAnimationFrame.bind(window), natCAF = window.cancelAnimationFrame.bind(window);
+  var maintenant = function(){ return (window.performance && performance.now) ? performance.now() : Date.now(); };
+  var file = new Map(), suivant = 1, demande = 0, dernier = -1e9, geste = maintenant();
+
+  /* ── la capture : flux de la caméra ou du micro encore vivants, ou enregistrement en cours ── */
+  var flux = [], enregistreurs = [], capCache = {t:0, v:false}, md = null;
+  function enCapture(){ var t = maintenant(); if(t - capCache.t < 400) return capCache.v; capCache.t = t; var v = false;
+    try{
+      flux = flux.filter(function(s){ return s.getTracks().some(function(k){ return k.readyState === 'live'; }); }); if(flux.length) v = true;
+      enregistreurs = enregistreurs.filter(function(r){ return r.state !== 'inactive'; }); if(enregistreurs.length) v = true;
+    }catch(e){ v = true; }
+    return (capCache.v = v); }
+  try{ md = N.mediaDevices; if(md && md.getUserMedia){ var gum = md.getUserMedia.bind(md);
+    md.getUserMedia = function(){ return gum.apply(null, arguments).then(function(s){ flux.push(s); capCache.t = 0; return s; }); }; } }catch(e){}
+  try{ if(md && md.getDisplayMedia){ var gdm = md.getDisplayMedia.bind(md);
+    md.getDisplayMedia = function(){ return gdm.apply(null, arguments).then(function(s){ flux.push(s); capCache.t = 0; return s; }); }; } }catch(e){}
+  try{ if(window.MediaRecorder && MediaRecorder.prototype.start){ var dem = MediaRecorder.prototype.start;
+    MediaRecorder.prototype.start = function(){ enregistreurs.push(this); capCache.t = 0; return dem.apply(this, arguments); }; } }catch(e){}
+
+  function repos(){ return maintenant() - geste > REPOS_MS; }
+  /* 4. la cadence qui s'adapte : si le téléphone n'arrive pas à tenir la cadence voulue (les images arrivent 1,6 fois trop tard
+     pendant 2 s), on descend d'un cran (60 → 30 → 20, ou 30 → 20 → 15 sur un téléphone modeste) ; quand il respire de nouveau
+     pendant 8 s, on remonte. Une cadence tenue est plus fluide, et les touchers sont servis plus vite, qu'une cadence ratée. */
+  var CRANS = faible ? [30, 20, 15] : [60, 30, 20], cran = 0, ema = 0, lent = 0, aise = 0, derniereImage = 0;
+  function voulue(){ var c = CRANS[cran]; if(repos()) c = Math.min(c, faible ? 20 : 30); return c; }
+  function intervalle(){ if(enCapture()) return 0; var c = voulue(); return c >= 60 ? 0 : 1000 / c; }
+  function mesurer(ts){ var d = ts - derniereImage; derniereImage = ts; if(d <= 0 || d > 250){ ema = 0; return; }
+    ema = ema ? ema * .9 + d * .1 : d; var cible = 1000 / voulue();
+    if(ema > cible * 1.6){ lent += d; aise = 0; if(lent > 2000 && cran < CRANS.length - 1){ cran++; lent = 0; ema = 0; } }
+    else if(ema < cible * 1.15){ aise += d; lent = 0; if(aise > 8000 && cran > 0){ cran--; aise = 0; ema = 0; } }
+    else { lent = 0; aise = 0; } }
+
+  /* ── les animations pilotées (CSS sans fin et SVG à l'écran, seulement quand la cadence est réduite) ── */
+  var pilotes = [], svgs = [], gouverne = false;
+  function piloter(ts){
+    for(var i = 0; i < pilotes.length; i++){ var p = pilotes[i]; try{ p.a.currentTime = p.base + (ts - p.t0) * (p.a.playbackRate || 1); }catch(e){} }
+    for(i = 0; i < svgs.length; i++){ var q = svgs[i]; try{ q.s.setCurrentTime(q.base + (ts - q.t0) / 1000); }catch(e){} } }
+  function relancer(){ if(!demande && (file.size || pilotes.length || svgs.length)) demande = natRAF(tour); }
+  function prendre(a){ for(var i = 0; i < pilotes.length; i++) if(pilotes[i].a === a) return;
+    try{ var ct = a.currentTime || 0; a.pause(); a.currentTime = ct; pilotes.push({a:a, base:ct, t0:maintenant()}); relancer(); }catch(e){} }
+  function prendreSvg(s){ for(var i = 0; i < svgs.length; i++) if(svgs[i].s === s) return;
+    try{ if(s.animationsPaused()) return; var ct = s.getCurrentTime(); s.pauseAnimations(); svgs.push({s:s, base:ct, t0:maintenant()}); relancer(); }catch(e){} }
+  function lacher(){ var l = pilotes; pilotes = [];
+    l.forEach(function(p){ try{ var t = p.a.effect && p.a.effect.target; if(p.a.playState === 'paused' && t && t.isConnected) p.a.play(); }catch(e){} });
+    var m = svgs; svgs = []; m.forEach(function(q){ try{ q.s.unpauseAnimations(); }catch(e){} }); }
+  function lacherA(a){ pilotes = pilotes.filter(function(p){ return p.a !== a; }); }
+
+  function tour(ts){ demande = 0; if(!file.size && !pilotes.length && !svgs.length) return;
+    var iv = intervalle(); if(iv && ts - dernier < iv - 3){ demande = natRAF(tour); return; }
+    if(!iv && (pilotes.length || svgs.length)) lacher();
+    dernier = ts; if(!enCapture()) mesurer(ts); if(iv) piloter(ts);
+    var lot = file; file = new Map();
+    lot.forEach(function(cb){ try{ cb(ts); }catch(e){ setTimeout(function(){ throw e; }, 0); } });
+    relancer(); }
+  window.requestAnimationFrame = function(cb){ if(typeof cb !== 'function') return natRAF(cb); var id = suivant++; file.set(id, cb); if(!demande) demande = natRAF(tour); return id; };
+  window.cancelAnimationFrame = function(id){ file.delete(id); if(!file.size && !pilotes.length && !svgs.length && demande){ natCAF(demande); demande = 0; } };
+  function bouge(){ var r = repos(); geste = maintenant(); if(r) dernier = -1e9; if(gouverne && !intervalle()){ gouverne = false; lacher(); } }
+  ['pointerdown', 'touchstart', 'keydown', 'wheel', 'scroll'].forEach(function(n){ window.addEventListener(n, bouge, {capture:true, passive:true}); });
+
+  /* ── les animations CSS sans fin hors de l'écran ── */
+  var suivis = typeof WeakMap === 'function' ? new WeakMap() : null, arretees = [], io = null;
+  function sansFin(a){ try{ return a.effect && a.effect.getTiming && a.effect.getTiming().iterations === Infinity; }catch(e){ return false; } }
+  function voulueEnPause(el){ try{ return /paused/.test(getComputedStyle(el).animationPlayState || ''); }catch(e){ return false; } }
+  function estCSS(a){ return !!(window.CSSAnimation && a instanceof CSSAnimation); }
+  if(suivis && 'IntersectionObserver' in window && document.getAnimations){
+    io = new IntersectionObserver(function(es){ es.forEach(function(e){ var el = e.target, s = suivis.get(el); if(!s) return; s.vu = e.isIntersecting;
+      if(s.vu){ var reste = []; arretees.forEach(function(a){ var t = a.effect && a.effect.target;
+          if(t === el){ if(a.playState === 'paused' && !voulueEnPause(el)){ if(gouverne) prendre(a); else try{ a.play(); }catch(x){} } } else reste.push(a); }); arretees = reste; }
+      else { try{ el.getAnimations().forEach(function(a){ if(!estCSS(a) || !sansFin(a)) return; var pil = pilotes.some(function(p){ return p.a === a; });
+          if(pil){ lacherA(a); arretees.push(a); } else if(a.playState === 'running'){ try{ a.pause(); arretees.push(a); }catch(x){} } }); }catch(x){} } }); }, {rootMargin:'120px'});
+    var balayer = function(){ if(document.hidden) return;
+      arretees = arretees.filter(function(a){ var t = a.effect && a.effect.target; return t && t.isConnected; });
+      pilotes = pilotes.filter(function(p){ var t = p.a.effect && p.a.effect.target; return t && t.isConnected && p.a.playState !== 'idle'; });
+      gouverne = intervalle() > 0; if(!gouverne && (pilotes.length || svgs.length)) lacher();
+      try{ document.getAnimations().forEach(function(a){ if(!estCSS(a) || !sansFin(a)) return; var t = a.effect && a.effect.target; if(!t || t.nodeType !== 1) return;
+        var s = suivis.get(t); if(!s){ suivis.set(t, {vu:true}); io.observe(t); return; }
+        if(!s.vu){ if(a.playState === 'running'){ try{ a.pause(); arretees.push(a); }catch(x){} } return; }
+        if(gouverne && a.playState === 'running' && !voulueEnPause(t)) prendre(a); }); }catch(e){}
+      /* les SVG animés : endormis hors de l'écran, pilotés à l'écran quand la cadence est réduite */
+      try{ [].forEach.call(document.querySelectorAll('svg'), function(s){ if(s.ownerSVGElement || !s.pauseAnimations) return;
+          if(!s.querySelector('animate,animateTransform,animateMotion,set')) return; var r = s.getBoundingClientRect(), vu = !!(r.width && r.bottom > -120 && r.top < innerHeight + 120);
+          if(!vu){ var pil = svgs.some(function(q){ return q.s === s; });
+            if(pil){ svgs = svgs.filter(function(q){ return q.s !== s; }); s.__nvDort = true; }
+            else if(!s.animationsPaused()){ try{ s.pauseAnimations(); s.__nvDort = true; }catch(e){} } return; }
+          if(s.__nvDort){ s.__nvDort = false; try{ s.unpauseAnimations(); }catch(e){} }
+          if(gouverne) prendreSvg(s); }); }catch(e){}
+      svgs = svgs.filter(function(q){ return q.s.isConnected; }); };
+    var lancer = function(){ balayer(); setInterval(balayer, 2000); };
+    if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', function(){ setTimeout(lancer, 1500); }); else setTimeout(lancer, 1500);
+  }
+  window.NVVitesse = {faible:faible, repos:repos, capture:enCapture, cadence:function(){ var iv = intervalle(); return iv ? Math.round(1000 / iv) : 60; }, cran:function(){ return cran; },
+    pilotees:function(){ return {css:pilotes.length, svg:svgs.length}; }};
+})();</script><!--/NV_VITESSE-->
+<!--NV_CONFIG--><script src="nv-config.js"></script><!--/NV_CONFIG-->
+<!--NV_DEMO--><script id="nv-demo">
+/* NEURAVID — LA DÉMONSTRATION dans chaque module (injectée en tête de page, avant le module).
+   Jamais dans l'application ni avec un serveur (NV_API_BASE). Allumée si l'accueil l'a allumée pour la session
+   (sessionStorage « nv_demo » = 1), ou « #demo » dans l'adresse, ou une page ouverte comme fichier (file:, content:).
+   Elle permet seulement d'ouvrir les autres modules à côté (NV_MODULES_BASE) avec le même visiteur de démonstration ;
+   chaque module garde ses propres règles (rien d'inventé hors de la démonstration).
+   Seule exception à « jamais dans l'application » : l'APK « NEURAVID Aperçu » pose window.NV_APERCU = true (3 nov. 2026) ;
+   l'application de production ne le pose jamais. */
+(function(){ try{ var dansApp = !window.NV_APERCU && !!(window.flutter_inappwebview || window.NVLien || window.ReactNativeWebView), h = location.hash || '', s = null; try{ s = sessionStorage.getItem('nv_demo'); }catch(e){ s = null; }
+  if(dansApp || (typeof window.NV_API_BASE === 'string' && window.NV_API_BASE) || s === '0' || /(^#|&)demo=0(&|$)/.test(h)) return;
+  if(!(s === '1' || /(^#|&)demo(=1)?(&|$)/.test(h) || /^(file|content):$/.test(location.protocol))) return;
+  window.NV_DEMO = true; try{ sessionStorage.setItem('nv_demo', '1'); }catch(e){ /* rien */ }
+  if(!window.NV_MODULES_BASE) window.NV_MODULES_BASE = './';
+  if(!window.NV_USER) window.NV_USER = {id:'demo', handle:'visiteur', prenom:'Aya', age:25, majeur:true, iso:'GN'};
+}catch(e){ /* rien */ } })();
+</script><!--/NV_DEMO-->
+
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#140b33">
+<title>Talent du Jour · NEURAVID</title>
+<style>
+/* Talent du Jour : un défi par jour, ouvert au monde entier (17 novembre 2026).
+   Aucune ressource extérieure : les vidéos viennent des serveurs (univers et publication). */
+:root{
+  --nuit:#140b33; --nuit2:#1c1147; --alv:#241657; --craie:#f6f1ff; --brume:rgba(236,228,255,.74); --trait:rgba(255,255,255,.16);
+  --or:#ffc531; --argent:#d7dbe6; --bronze:#e0995a; --cyan:#16e0d4; --rose:#ff4f9e; --rouge:#ff7a7a;
+  --hex:polygon(25% 0,75% 0,100% 50%,75% 100%,25% 100%,0 50%);
+  --sans:system-ui,-apple-system,"Segoe UI",Roboto,"Noto Sans",sans-serif;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%;text-size-adjust:100%}
+body{margin:0;background:var(--nuit);color:var(--craie);font:16px/1.45 var(--sans);min-height:100vh}
+main{max-width:768px;margin:0 auto;padding:12px 16px calc(32px + env(safe-area-inset-bottom,0px))}
+header{display:flex;align-items:center;gap:10px;padding:6px 0 10px}
+.hex{width:34px;height:30px;flex:0 0 auto;clip-path:var(--hex);background:linear-gradient(135deg,var(--cyan),#6c2bd9);display:grid;place-items:center}
+.hex i{width:14px;height:14px;border-radius:50%;background:var(--nuit);box-shadow:inset 0 0 0 4px var(--craie)}
+h1{font-size:1.2rem;margin:0;line-height:1.2}
+h2{font-size:1rem;margin:0 0 8px;display:flex;align-items:center;gap:8px}
+h2::before{content:"";width:12px;height:11px;clip-path:var(--hex);background:var(--cyan);flex:0 0 auto}
+.sous{margin:0;color:var(--brume);font-size:.88rem}
+.apercu{display:inline-block;margin-inline-start:6px;padding:1px 8px;border-radius:999px;background:var(--or);color:#2a1a00;font-size:.75rem;font-weight:800;vertical-align:middle}
+#etat{margin:0 0 12px;padding:8px 12px;border-radius:10px;background:var(--nuit2);border:1px solid var(--trait);font-size:.9rem}
+#etat.hl{border-color:var(--or)}
+#etat.ok{border-color:rgba(22,224,212,.5)}
+section{background:var(--nuit2);border:1px solid var(--trait);border-radius:14px;padding:12px 14px;margin:0 0 12px}
+ul{list-style:none;margin:0;padding:0}
+li{padding:7px 0;border-top:1px solid var(--trait)}
+li:first-child{border-top:0}
+.l1{display:flex;justify-content:space-between;gap:10px;align-items:baseline;flex-wrap:wrap}
+.d{color:var(--brume);font-size:.86rem}
+.puce{display:inline-block;padding:0 7px;border-radius:999px;font-size:.75rem;font-weight:700;border:1px solid var(--trait);white-space:nowrap}
+.puce.an{color:var(--rouge);border-color:var(--rouge)}
+.puce.re{color:var(--or);border-color:var(--or)}
+.puce.co{color:var(--cyan);border-color:var(--cyan)}
+.chiffres{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;text-align:center}
+.chiffres b{display:block;font-size:1.25rem}
+.chiffres span{font-size:.75rem;color:var(--brume)}
+.med{display:inline-flex;align-items:center;gap:3px;margin-inline-end:8px;white-space:nowrap}
+.med i{width:12px;height:11px;clip-path:var(--hex);display:inline-block}
+.or i{background:var(--or)} .ar i{background:var(--argent)} .br i{background:var(--bronze)}
+table{width:100%;border-collapse:collapse;font-size:.92rem}
+td,th{padding:5px 4px;text-align:center;border-top:1px solid var(--trait)}
+td:first-child,th:first-child{text-align:start}
+th{font-size:.75rem;color:var(--brume);font-weight:600;border-top:0}
+button,select,.lien{font:inherit;color:inherit}
+button{min-height:44px;padding:8px 14px;border-radius:12px;border:1px solid var(--trait);background:var(--alv);cursor:pointer}
+button:focus-visible,select:focus-visible,.lien:focus-visible{outline:2px solid var(--or);outline-offset:2px}
+button[disabled]{opacity:.55;cursor:default}
+.actions{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 12px}
+.actions button{flex:1 1 140px}
+.lien{background:none;border:0;padding:6px 0;min-height:36px;color:var(--cyan);text-decoration:underline;cursor:pointer;font-size:.88rem}
+.jours button{min-height:40px;margin-block:4px 0;margin-inline:0 6px;padding:6px 10px;font-size:.88rem}
+.jours button[aria-current="true"]{border-color:var(--or)}
+footer{color:var(--brume);font-size:.8rem;display:grid;gap:8px;margin-top:4px}
+footer label{display:flex;gap:8px;align-items:center}
+select{min-height:40px;border-radius:10px;background:var(--alv);border:1px solid var(--trait);padding:4px 8px}
+#toast{position:fixed;left:50%;bottom:calc(16px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--craie);color:var(--nuit);padding:8px 14px;border-radius:10px;font-weight:700;opacity:0;pointer-events:none;max-width:calc(100% - 32px)}
+#toast.on{opacity:1}
+.vide{color:var(--brume);margin:0}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+[dir="rtl"] .l1{direction:rtl}
+@media (prefers-reduced-motion:no-preference){#toast{transition:opacity .2s}}
+@media (min-width:560px){h1{font-size:1.35rem}}
+
+.chips{display:flex;gap:6px;flex-wrap:wrap;margin:0 0 10px}
+.chips button{min-height:40px;padding:4px 12px;font-size:.88rem;border-radius:999px}
+.chips button[aria-pressed="true"]{border-color:var(--or);color:var(--or)}
+.form{display:grid;gap:10px}
+.form label{display:grid;gap:4px;font-size:.88rem;color:var(--brume)}
+input,textarea{font:inherit;color:var(--craie);background:var(--alv);border:1px solid var(--trait);border-radius:10px;padding:8px 10px;min-height:44px;width:100%}
+input:focus-visible,textarea:focus-visible{outline:2px solid var(--or);outline-offset:2px}
+.btn-or{background:linear-gradient(135deg,var(--or),#ff9f1c);color:#2a1a00;border:0;font-weight:800}
+
+
+.astuce{margin:0 0 8px;padding:8px 10px;border-radius:10px;background:rgba(255,197,49,.1);border:1px solid rgba(255,197,49,.35)}
+.retour{margin:0 0 10px}
+.regle{font-size:.82rem;color:var(--brume);margin:6px 0 0}
+select.plein{width:100%;min-height:44px}
+/* le défi du jour : un grand hexagone */
+.jour{display:grid;grid-template-columns:minmax(96px,130px) 1fr;gap:14px;align-items:center}
+.jour-hex{aspect-ratio:1/1.1;clip-path:var(--hex);background:linear-gradient(140deg,var(--id1),var(--id2));display:grid;place-items:center;position:relative}
+.jour-hex::after{content:"";position:absolute;inset:5px;clip-path:var(--hex);background:var(--nuit2)}
+.jour-hex span{position:relative;z-index:1;font-size:2.6rem;line-height:1}
+.jour h3{margin:0 0 4px;font-size:1.15rem;line-height:1.25}
+.jour .cons{margin:0 0 6px}
+@media (max-width:360px){.jour{grid-template-columns:84px 1fr;gap:10px}.jour-hex span{font-size:2rem}}
+.grille{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px}
+.part{background:var(--alv);border:1px solid var(--trait);border-radius:14px;padding:8px;display:grid;gap:6px;align-content:start;position:relative}
+.part.vedette{border-color:var(--or);box-shadow:0 0 0 1px var(--or) inset}
+.part video,.part canvas{width:100%;aspect-ratio:9/16;border-radius:10px;background:#000;display:block}
+.part .vide-v{width:100%;aspect-ratio:9/16;border-radius:10px;background:repeating-linear-gradient(45deg,var(--nuit2),var(--nuit2) 8px,var(--alv) 8px,var(--alv) 16px);display:grid;place-items:center;color:var(--brume);font-size:.8rem;text-align:center;padding:8px}
+.part p{margin:0;font-size:.82rem;color:var(--brume)}
+.part button{min-height:40px;padding:4px 10px;font-size:.86rem}
+.etoile{display:inline-flex;align-items:center;gap:5px;font-size:.78rem;font-weight:800;color:var(--or)}
+.etoile i{width:13px;height:12px;clip-path:var(--hex);background:var(--or);display:inline-block}
+.nv-cree{display:inline-flex;align-items:center;gap:5px;font-size:.75rem;color:var(--or)}
+.nv-cree i{width:11px;height:10px;clip-path:var(--hex);background:var(--or);display:inline-block}
+.passe{display:grid;grid-template-columns:44px 1fr;gap:10px;align-items:start;padding:10px 0;border-top:1px solid var(--trait)}
+.passe:first-of-type{border-top:0}
+.passe .mini{width:40px;height:44px;clip-path:var(--hex);background:var(--alv);display:grid;place-items:center;font-size:1.2rem}
+.passe h3{margin:0;font-size:.95rem}
+.passe h3 button{all:unset;cursor:pointer;color:var(--craie);font-weight:700}
+.passe h3 button:focus-visible{outline:2px solid var(--or);outline-offset:2px}
+.prise{width:100%;max-width:260px;aspect-ratio:9/16;border-radius:12px;background:#000;display:block;margin:0 0 10px}
+.interrupteur{display:flex;gap:10px;align-items:center;justify-content:space-between}
+.interrupteur button[aria-pressed="true"]{border-color:var(--cyan);color:var(--cyan)}
+/* Identité de la nouveauté : or et turquoise, le hexagone du jour */
+:root{--id1:#ffc531;--id2:#16e0d4}
+header{position:relative}
+header::after{content:"";position:absolute;inset-inline:0;bottom:0;height:3px;border-radius:3px;background:linear-gradient(90deg,var(--id1),var(--id2))}
+.hex{background:linear-gradient(135deg,var(--id1),var(--id2))}
+h2::before{background:linear-gradient(135deg,var(--id1),var(--id2))}
+</style>
+</head>
+<body>
+<main id="app">
+<header><div class="hex" aria-hidden="true"><i></i></div><div><h1 id="titre">Talent du Jour</h1><p class="sous" id="soustitre"></p></div></header>
+<p id="etat" role="status" aria-live="polite"></p>
+<div id="contenu"></div>
+<footer id="pied"></footer>
+</main>
+<div id="toast" role="status" aria-live="polite"></div>
+<script type="application/json" id="nvI18n-en">{"Aperçu":"Preview","Autre":"Other","Catégorie":"Category","Cette action n’est pas ouverte à votre âge.":"This action is not open at your age.","Cette vidéo est trop lourde.":"This video is too large.","Chargement…":"Loading…","Connectez-vous pour continuer.":"Sign in to continue.","Contenu inapproprié":"Inappropriate content","Créé sur NEURAVID":"Created on NEURAVID","Cuisine":"Cooking","Danse":"Dance","En cours de relecture par l’équipe":"Being reviewed by the team","Envoi…":"Sending…","Hors sujet":"Off topic","Impossible de joindre NEURAVID pour le moment.":"Unable to reach NEURAVID right now.","La Forge n’est pas joignable ici.":"La Forge cannot be reached here.","Langue":"Language","Le service est momentanément indisponible. Réessayez dans un instant.":"The service is temporarily unavailable. Try again in a moment.","L’équipe":"The team","Ma vidéo":"My video","Motif du refus":"Reason for declining","Pas de connexion pour le moment.":"No connection right now.","Qualité de la vidéo":"Video quality","Refilmer":"Film again","Refuser":"Decline","Sport":"Sport","Titre":"Title","Toucher encore pour annuler":"Tap again to cancel","Toucher encore pour publier":"Tap again to publish","Toucher encore pour refilmer":"Tap again to film again","Toucher encore pour refuser":"Tap again to decline","Toucher encore pour retirer":"Tap again to remove","Traduction en cours de relecture.":"Translation being reviewed.","Trop long":"Too long","Un texte n’a pas été accepté. Changez-le.":"A text was not accepted. Change it.","Une vidéo de 60 secondes au plus.":"A video of 60 seconds at most.","Vidéo indisponible pour le moment.":"Video unavailable for now.","Vérifiez le formulaire : un champ n’est pas rempli comme il faut.":"Check the form: a field is not filled in correctly.","Talent du Jour":"Talent of the Day","Talent du jour":"Talent of the day","Un défi par jour, ouvert au monde entier : montrez votre talent en 15 à 60 secondes.":"One challenge a day, open to the whole world: show your talent in 15 to 60 seconds.","Aperçu : des défis d’exemple, pour découvrir la page.":"Preview: example challenges, to discover the page.","Talent du Jour n’est pas encore ouvert.":"Talent of the Day is not open yet.","Aujourd’hui":"Today","Le défi du jour":"Today’s challenge","Aucun défi programmé aujourd’hui.":"No challenge scheduled today.","Jusqu’à {0}":"Until {0}","Aucune vidéo publiée pour l’instant.":"No video published yet.","1 vidéo publiée":"1 video published","{0} vidéos publiées":"{0} videos published","Demain : un défi « {0} ».":"Tomorrow: a “{0}” challenge.","Un rappel par jour quand le défi commence. Vous pouvez l’arrêter à tout moment.":"One reminder a day when the challenge starts. You can stop it at any time.","Me prévenir chaque jour":"Remind me every day","Rappel activé ✓":"Reminder on ✓","Rappel activé.":"Reminder turned on.","Rappel arrêté.":"Reminder turned off.","Les participations":"Entries","Les talents du jour sont choisis par l’équipe : ni vote, ni argent.":"The talents of the day are picked by the team: no vote, no money.","Certaines vidéos ne vous sont pas visibles pour le moment.":"Some videos are not visible to you for now.","La durée de la vidéo n’est pas encore connue. Réessayez dans un instant.":"The video’s length is not known yet. Try again in a moment.","Retirée du défi : {0}":"Withdrawn from the challenge: {0}","Non relue à temps":"Not reviewed in time","Les jours passés":"Past days","Aucun jour passé pour l’instant.":"No past day yet.","Ce défi n’est plus disponible.":"This challenge is no longer available.","Ma participation":"My entry","Choisie comme talent du jour":"Picked as talent of the day","Publiée":"Published","Refusée : {0}":"Refused: {0}","Retirer ma vidéo":"Withdraw my video","Filmez votre talent en 15 à 60 secondes.":"Film your talent in 15 to 60 seconds.","Participer avec La Forge":"Take part with La Forge","Une phrase pour présenter votre vidéo (facultatif)":"A sentence to introduce your video (optional)","Envoyer ma participation":"Send my entry","L’équipe relit chaque vidéo avant de la publier.":"The team reviews every video before publishing it.","Le défi de ce jour est terminé.":"This day’s challenge is over.","Deux vidéos refusées : ce défi est fermé pour vous.":"Two videos refused: this challenge is closed for you.","Vous avez déjà envoyé 3 vidéos pour ce défi.":"You have already sent 3 videos for this challenge.","Vous avez déjà participé à ce défi.":"You have already taken part in this challenge.","Une vidéo de 15 secondes au moins.":"A video of at least 15 seconds.","Trop court":"Too short","Ce jour a déjà un défi.":"This day already has a challenge.","Ce défi a déjà commencé : il ne change plus.":"This challenge has already started: it no longer changes.","Pas pour votre propre vidéo.":"Not for your own video.","La relecture de ce défi est terminée.":"The review for this challenge is over.","Trois talents du jour au plus.":"Three talents of the day at most.","Cette vidéo n’est plus dans le défi.":"This video is no longer in the challenge.","Choisir comme talent du jour":"Pick as talent of the day","Retirer de la mise en avant":"Remove from the spotlight","Retirée de la mise en avant.":"Removed from the spotlight.","Votre vidéo est envoyée : l’équipe la relit avant de la publier.":"Your video has been sent: the team reviews it before publishing it.","Vidéo retirée du défi.":"Video withdrawn from the challenge.","Programmer un défi":"Schedule a challenge","Le jour":"The day","La consigne":"The instructions","Programmer le défi":"Schedule the challenge","Les 14 prochains jours ont déjà un défi.":"The next 14 days already have a challenge.","Le programme":"The schedule","Annuler ce défi":"Cancel this challenge","Aucun défi programmé.":"No challenge scheduled.","Les vidéos à relire":"Videos to review","Publier":"Publish","Aucune vidéo à relire.":"No video to review.","Vidéo publiée.":"Video published.","Vidéo refusée.":"Video refused.","Défi annulé.":"Challenge cancelled.","Défi programmé.":"Challenge scheduled.","Participer : dès 13 ans. Ici, ni vote ni argent : les talents du jour sont choisis par l’équipe.":"Taking part: from 13. No votes and no money here: the talents of the day are picked by the team.","Chant":"Singing","Humour":"Comedy","Invention":"Invention","Parole":"Spoken word","Art":"Art","Comment ça marche":"How it works","Ce qui vous protège":"What protects you","Bientôt ouvert ici. Voici ce qui vous attend.":"Opening here soon. Here is what awaits you.","Chaque jour, un nouveau défi de 15 à 60 secondes.":"Every day, a new 15- to 60-second challenge.","Filmez votre talent avec La Forge.":"Film your talent with La Forge.","L’équipe relit chaque vidéo et choisit les talents du jour.":"The team reviews every video and picks the talents of the day.","Chaque vidéo est relue avant d’être publique.":"Every video is reviewed before it becomes public.","Le pseudo d’un mineur n’est jamais montré.":"A minor's username is never shown.","Vous pouvez retirer votre vidéo à tout moment.":"You can withdraw your video at any time."}</script>
+<script type="application/json" id="nvI18n-es">{"Aperçu":"Vista previa","Autre":"Otro","Catégorie":"Categoría","Cette action n’est pas ouverte à votre âge.":"Esta acción no está disponible para tu edad.","Cette vidéo est trop lourde.":"Este vídeo es demasiado pesado.","Chargement…":"Cargando…","Connectez-vous pour continuer.":"Inicia sesión para continuar.","Contenu inapproprié":"Contenido inapropiado","Créé sur NEURAVID":"Creado en NEURAVID","Cuisine":"Cocina","Danse":"Danza","En cours de relecture par l’équipe":"En revisión por el equipo","Envoi…":"Enviando…","Hors sujet":"Fuera de tema","Impossible de joindre NEURAVID pour le moment.":"No se puede contactar con NEURAVID por ahora.","La Forge n’est pas joignable ici.":"La Forge no está disponible aquí.","Langue":"Idioma","Le service est momentanément indisponible. Réessayez dans un instant.":"El servicio no está disponible por el momento. Inténtalo de nuevo en un instante.","L’équipe":"El equipo","Ma vidéo":"Mi vídeo","Motif du refus":"Motivo del rechazo","Pas de connexion pour le moment.":"Sin conexión por ahora.","Qualité de la vidéo":"Calidad del vídeo","Refilmer":"Volver a grabar","Refuser":"Rechazar","Sport":"Deporte","Titre":"Título","Toucher encore pour annuler":"Toca de nuevo para cancelar","Toucher encore pour publier":"Toca otra vez para publicar","Toucher encore pour refilmer":"Toca otra vez para volver a grabar","Toucher encore pour refuser":"Toca de nuevo para rechazar","Toucher encore pour retirer":"Toca de nuevo para retirar","Traduction en cours de relecture.":"Traducción en revisión.","Trop long":"Demasiado largo","Un texte n’a pas été accepté. Changez-le.":"Un texto no fue aceptado. Cámbialo.","Une vidéo de 60 secondes au plus.":"Un video de 60 segundos como máximo.","Vidéo indisponible pour le moment.":"Vídeo no disponible por ahora.","Vérifiez le formulaire : un champ n’est pas rempli comme il faut.":"Revisa el formulario: un campo no está bien rellenado.","Talent du Jour":"Talento del Día","Talent du jour":"Talento del día","Un défi par jour, ouvert au monde entier : montrez votre talent en 15 à 60 secondes.":"Un reto al día, abierto al mundo entero: muestra tu talento en 15 a 60 segundos.","Aperçu : des défis d’exemple, pour découvrir la page.":"Vista previa: retos de ejemplo, para descubrir la página.","Talent du Jour n’est pas encore ouvert.":"Talento del Día aún no está abierto.","Aujourd’hui":"Hoy","Le défi du jour":"El reto del día","Aucun défi programmé aujourd’hui.":"No hay ningún reto programado hoy.","Jusqu’à {0}":"Hasta {0}","Aucune vidéo publiée pour l’instant.":"Todavía no hay ningún vídeo publicado.","1 vidéo publiée":"1 vídeo publicado","{0} vidéos publiées":"{0} vídeos publicados","Demain : un défi « {0} ».":"Mañana: un reto de «{0}».","Un rappel par jour quand le défi commence. Vous pouvez l’arrêter à tout moment.":"Un recordatorio al día cuando empieza el reto. Puedes detenerlo en cualquier momento.","Me prévenir chaque jour":"Avisarme cada día","Rappel activé ✓":"Recordatorio activado ✓","Rappel activé.":"Recordatorio activado.","Rappel arrêté.":"Recordatorio desactivado.","Les participations":"Las participaciones","Les talents du jour sont choisis par l’équipe : ni vote, ni argent.":"Los talentos del día los elige el equipo: ni votos ni dinero.","Certaines vidéos ne vous sont pas visibles pour le moment.":"Algunos vídeos no son visibles para ti por ahora.","La durée de la vidéo n’est pas encore connue. Réessayez dans un instant.":"La duración del vídeo aún no se conoce. Vuelve a intentarlo en un momento.","Retirée du défi : {0}":"Retirado del reto: {0}","Non relue à temps":"No revisado a tiempo","Les jours passés":"Los días pasados","Aucun jour passé pour l’instant.":"Todavía no hay días pasados.","Ce défi n’est plus disponible.":"Este reto ya no está disponible.","Ma participation":"Mi participación","Choisie comme talent du jour":"Elegido como talento del día","Publiée":"Publicado","Refusée : {0}":"Rechazado: {0}","Retirer ma vidéo":"Retirar mi vídeo","Filmez votre talent en 15 à 60 secondes.":"Graba tu talento en 15 a 60 segundos.","Participer avec La Forge":"Participar con La Forge","Une phrase pour présenter votre vidéo (facultatif)":"Una frase para presentar tu vídeo (opcional)","Envoyer ma participation":"Enviar mi participación","L’équipe relit chaque vidéo avant de la publier.":"El equipo revisa cada vídeo antes de publicarlo.","Le défi de ce jour est terminé.":"El reto de este día ha terminado.","Deux vidéos refusées : ce défi est fermé pour vous.":"Dos vídeos rechazados: este reto está cerrado para ti.","Vous avez déjà envoyé 3 vidéos pour ce défi.":"Ya enviaste 3 vídeos para este reto.","Vous avez déjà participé à ce défi.":"Ya participaste en este reto.","Une vidéo de 15 secondes au moins.":"Un vídeo de 15 segundos como mínimo.","Trop court":"Demasiado corto","Ce jour a déjà un défi.":"Este día ya tiene un reto.","Ce défi a déjà commencé : il ne change plus.":"Este reto ya ha empezado: ya no cambia.","Pas pour votre propre vidéo.":"No para tu propio vídeo.","La relecture de ce défi est terminée.":"La revisión de este reto ha terminado.","Trois talents du jour au plus.":"Tres talentos del día como máximo.","Cette vidéo n’est plus dans le défi.":"Este vídeo ya no está en el reto.","Choisir comme talent du jour":"Elegir como talento del día","Retirer de la mise en avant":"Quitar de lo destacado","Retirée de la mise en avant.":"Quitado de lo destacado.","Votre vidéo est envoyée : l’équipe la relit avant de la publier.":"Tu vídeo se ha enviado: el equipo lo revisa antes de publicarlo.","Vidéo retirée du défi.":"Vídeo retirado del reto.","Programmer un défi":"Programar un reto","Le jour":"El día","La consigne":"La consigna","Programmer le défi":"Programar el reto","Les 14 prochains jours ont déjà un défi.":"Los próximos 14 días ya tienen un reto.","Le programme":"El programa","Annuler ce défi":"Cancelar este reto","Aucun défi programmé.":"Ningún reto programado.","Les vidéos à relire":"Vídeos por revisar","Publier":"Publicar","Aucune vidéo à relire.":"Ningún vídeo por revisar.","Vidéo publiée.":"Vídeo publicado.","Vidéo refusée.":"Vídeo rechazado.","Défi annulé.":"Reto cancelado.","Défi programmé.":"Reto programado.","Participer : dès 13 ans. Ici, ni vote ni argent : les talents du jour sont choisis par l’équipe.":"Participar: desde los 13 años. Aquí no hay votos ni dinero: los talentos del día los elige el equipo.","Chant":"Canto","Humour":"Humor","Invention":"Invención","Parole":"Palabra","Art":"Arte","Comment ça marche":"Cómo funciona","Ce qui vous protège":"Lo que te protege","Bientôt ouvert ici. Voici ce qui vous attend.":"Pronto abrirá aquí. Esto es lo que te espera.","Chaque jour, un nouveau défi de 15 à 60 secondes.":"Cada día, un nuevo reto de 15 a 60 segundos.","Filmez votre talent avec La Forge.":"Graba tu talento con La Forge.","L’équipe relit chaque vidéo et choisit les talents du jour.":"El equipo revisa cada vídeo y elige los talentos del día.","Chaque vidéo est relue avant d’être publique.":"Cada vídeo se revisa antes de hacerse público.","Le pseudo d’un mineur n’est jamais montré.":"El usuario de un menor nunca se muestra.","Vous pouvez retirer votre vidéo à tout moment.":"Puedes retirar tu vídeo en cualquier momento."}</script>
+<script type="application/json" id="nvI18n-pt">{"Aperçu":"Pré-visualização","Autre":"Outro","Catégorie":"Categoria","Cette action n’est pas ouverte à votre âge.":"Esta ação não está disponível para a sua idade.","Cette vidéo est trop lourde.":"Este vídeo é pesado demais.","Chargement…":"Carregando…","Connectez-vous pour continuer.":"Entre na sua conta para continuar.","Contenu inapproprié":"Conteúdo impróprio","Créé sur NEURAVID":"Criado na NEURAVID","Cuisine":"Culinária","Danse":"Dança","En cours de relecture par l’équipe":"Em revisão pela equipe","Envoi…":"Enviando…","Hors sujet":"Fora do assunto","Impossible de joindre NEURAVID pour le moment.":"Não é possível contactar a NEURAVID no momento.","La Forge n’est pas joignable ici.":"La Forge não está acessível aqui.","Langue":"Idioma","Le service est momentanément indisponible. Réessayez dans un instant.":"O serviço está temporariamente indisponível. Tente novamente daqui a pouco.","L’équipe":"A equipe","Ma vidéo":"Meu vídeo","Motif du refus":"Motivo da recusa","Pas de connexion pour le moment.":"Sem conexão no momento.","Qualité de la vidéo":"Qualidade do vídeo","Refilmer":"Filmar outra vez","Refuser":"Recusar","Sport":"Esporte","Titre":"Título","Toucher encore pour annuler":"Toque novamente para cancelar","Toucher encore pour publier":"Toque de novo para publicar","Toucher encore pour refilmer":"Toque de novo para filmar outra vez","Toucher encore pour refuser":"Toque novamente para recusar","Toucher encore pour retirer":"Toque novamente para retirar","Traduction en cours de relecture.":"Tradução em revisão.","Trop long":"Longo demais","Un texte n’a pas été accepté. Changez-le.":"Um texto não foi aceito. Altere-o.","Une vidéo de 60 secondes au plus.":"Um vídeo de no máximo 60 segundos.","Vidéo indisponible pour le moment.":"Vídeo indisponível no momento.","Vérifiez le formulaire : un champ n’est pas rempli comme il faut.":"Verifique o formulário: um campo não está preenchido corretamente.","Talent du Jour":"Talento do Dia","Talent du jour":"Talento do dia","Un défi par jour, ouvert au monde entier : montrez votre talent en 15 à 60 secondes.":"Um desafio por dia, aberto ao mundo inteiro: mostre o seu talento em 15 a 60 segundos.","Aperçu : des défis d’exemple, pour découvrir la page.":"Pré-visualização: desafios de exemplo, para conhecer a página.","Talent du Jour n’est pas encore ouvert.":"Talento do Dia ainda não está aberto.","Aujourd’hui":"Hoje","Le défi du jour":"O desafio do dia","Aucun défi programmé aujourd’hui.":"Nenhum desafio programado para hoje.","Jusqu’à {0}":"Até {0}","Aucune vidéo publiée pour l’instant.":"Ainda não há nenhum vídeo publicado.","1 vidéo publiée":"1 vídeo publicado","{0} vidéos publiées":"{0} vídeos publicados","Demain : un défi « {0} ».":"Amanhã: um desafio de «{0}».","Un rappel par jour quand le défi commence. Vous pouvez l’arrêter à tout moment.":"Um lembrete por dia quando o desafio começa. Pode pará-lo a qualquer momento.","Me prévenir chaque jour":"Avisar-me todos os dias","Rappel activé ✓":"Lembrete ativado ✓","Rappel activé.":"Lembrete ativado.","Rappel arrêté.":"Lembrete desativado.","Les participations":"As participações","Les talents du jour sont choisis par l’équipe : ni vote, ni argent.":"Os talentos do dia são escolhidos pela equipa: nem votos, nem dinheiro.","Certaines vidéos ne vous sont pas visibles pour le moment.":"Alguns vídeos não estão visíveis para si de momento.","La durée de la vidéo n’est pas encore connue. Réessayez dans un instant.":"A duração do vídeo ainda não é conhecida. Tente novamente dentro de momentos.","Retirée du défi : {0}":"Retirado do desafio: {0}","Non relue à temps":"Não revisto a tempo","Les jours passés":"Os dias passados","Aucun jour passé pour l’instant.":"Ainda não há dias passados.","Ce défi n’est plus disponible.":"Este desafio já não está disponível.","Ma participation":"A minha participação","Choisie comme talent du jour":"Escolhido como talento do dia","Publiée":"Publicado","Refusée : {0}":"Recusado: {0}","Retirer ma vidéo":"Retirar o meu vídeo","Filmez votre talent en 15 à 60 secondes.":"Filme o seu talento em 15 a 60 segundos.","Participer avec La Forge":"Participar com La Forge","Une phrase pour présenter votre vidéo (facultatif)":"Uma frase para apresentar o seu vídeo (opcional)","Envoyer ma participation":"Enviar a minha participação","L’équipe relit chaque vidéo avant de la publier.":"A equipa revê cada vídeo antes de o publicar.","Le défi de ce jour est terminé.":"O desafio deste dia terminou.","Deux vidéos refusées : ce défi est fermé pour vous.":"Dois vídeos recusados: este desafio está fechado para si.","Vous avez déjà envoyé 3 vidéos pour ce défi.":"Já enviou 3 vídeos para este desafio.","Vous avez déjà participé à ce défi.":"Já participou neste desafio.","Une vidéo de 15 secondes au moins.":"Um vídeo de pelo menos 15 segundos.","Trop court":"Demasiado curto","Ce jour a déjà un défi.":"Este dia já tem um desafio.","Ce défi a déjà commencé : il ne change plus.":"Este desafio já começou: já não muda.","Pas pour votre propre vidéo.":"Não para o seu próprio vídeo.","La relecture de ce défi est terminée.":"A revisão deste desafio terminou.","Trois talents du jour au plus.":"No máximo três talentos do dia.","Cette vidéo n’est plus dans le défi.":"Este vídeo já não está no desafio.","Choisir comme talent du jour":"Escolher como talento do dia","Retirer de la mise en avant":"Retirar do destaque","Retirée de la mise en avant.":"Retirado do destaque.","Votre vidéo est envoyée : l’équipe la relit avant de la publier.":"O seu vídeo foi enviado: a equipa revê-o antes de o publicar.","Vidéo retirée du défi.":"Vídeo retirado do desafio.","Programmer un défi":"Programar um desafio","Le jour":"O dia","La consigne":"A instrução","Programmer le défi":"Programar o desafio","Les 14 prochains jours ont déjà un défi.":"Os próximos 14 dias já têm um desafio.","Le programme":"O programa","Annuler ce défi":"Cancelar este desafio","Aucun défi programmé.":"Nenhum desafio programado.","Les vidéos à relire":"Vídeos a rever","Publier":"Publicar","Aucune vidéo à relire.":"Nenhum vídeo a rever.","Vidéo publiée.":"Vídeo publicado.","Vidéo refusée.":"Vídeo recusado.","Défi annulé.":"Desafio cancelado.","Défi programmé.":"Desafio programado.","Participer : dès 13 ans. Ici, ni vote ni argent : les talents du jour sont choisis par l’équipe.":"Participar: a partir dos 13 anos. Aqui não há votos nem dinheiro: os talentos do dia são escolhidos pela equipa.","Chant":"Canto","Humour":"Humor","Invention":"Invenção","Parole":"Palavra","Art":"Arte","Comment ça marche":"Como funciona","Ce qui vous protège":"O que o protege","Bientôt ouvert ici. Voici ce qui vous attend.":"Abre aqui em breve. Eis o que o espera.","Chaque jour, un nouveau défi de 15 à 60 secondes.":"Todos os dias, um novo desafio de 15 a 60 segundos.","Filmez votre talent avec La Forge.":"Filme o seu talento com La Forge.","L’équipe relit chaque vidéo et choisit les talents du jour.":"A equipa revê cada vídeo e escolhe os talentos do dia.","Chaque vidéo est relue avant d’être publique.":"Cada vídeo é revisto antes de ficar público.","Le pseudo d’un mineur n’est jamais montré.":"O nome de utilizador de um menor nunca é mostrado.","Vous pouvez retirer votre vidéo à tout moment.":"Pode retirar o seu vídeo a qualquer momento."}</script>
+<script type="application/json" id="nvI18n-ar">{"Aperçu":"معاينة","Autre":"أخرى","Catégorie":"الفئة","Cette action n’est pas ouverte à votre âge.":"هذا الإجراء غير متاح لعمرك.","Cette vidéo est trop lourde.":"هذا الفيديو كبير جدًا.","Chargement…":"جارٍ التحميل…","Connectez-vous pour continuer.":"سجّل الدخول للمتابعة.","Contenu inapproprié":"محتوى غير لائق","Créé sur NEURAVID":"أُنشئ على NEURAVID","Cuisine":"الطبخ","Danse":"الرقص","En cours de relecture par l’équipe":"قيد المراجعة من الفريق","Envoi…":"جارٍ الإرسال…","Hors sujet":"خارج الموضوع","Impossible de joindre NEURAVID pour le moment.":"تعذّر الوصول إلى NEURAVID حاليًا.","La Forge n’est pas joignable ici.":"لا يمكن الوصول إلى La Forge هنا.","Langue":"اللغة","Le service est momentanément indisponible. Réessayez dans un instant.":"الخدمة غير متاحة مؤقتًا. أعد المحاولة بعد قليل.","L’équipe":"الفريق","Ma vidéo":"الفيديو الخاص بي","Motif du refus":"سبب الرفض","Pas de connexion pour le moment.":"لا يوجد اتصال حاليًا.","Qualité de la vidéo":"جودة الفيديو","Refilmer":"إعادة التصوير","Refuser":"ارفض","Sport":"الرياضة","Titre":"العنوان","Toucher encore pour annuler":"المس مرة أخرى للإلغاء","Toucher encore pour publier":"المس مرة أخرى للنشر","Toucher encore pour refilmer":"المس مرة أخرى لإعادة التصوير","Toucher encore pour refuser":"المس مرة أخرى للرفض","Toucher encore pour retirer":"المس مرة أخرى للسحب","Traduction en cours de relecture.":"الترجمة قيد المراجعة.","Trop long":"طويل جدًا","Un texte n’a pas été accepté. Changez-le.":"لم يُقبل أحد النصوص. غيّره.","Une vidéo de 60 secondes au plus.":"فيديو لا يتجاوز 60 ثانية.","Vidéo indisponible pour le moment.":"الفيديو غير متاح حاليًا.","Vérifiez le formulaire : un champ n’est pas rempli comme il faut.":"تحقّق من النموذج: أحد الحقول غير مملوء كما ينبغي.","Talent du Jour":"موهبة اليوم","Talent du jour":"موهبة اليوم","Un défi par jour, ouvert au monde entier : montrez votre talent en 15 à 60 secondes.":"تحدٍّ واحد كل يوم، مفتوح للعالم كله: أظهر موهبتك في 15 إلى 60 ثانية.","Aperçu : des défis d’exemple, pour découvrir la page.":"معاينة: تحديات على سبيل المثال لاكتشاف الصفحة.","Talent du Jour n’est pas encore ouvert.":"«موهبة اليوم» غير متاحة بعد.","Aujourd’hui":"اليوم","Le défi du jour":"تحدي اليوم","Aucun défi programmé aujourd’hui.":"لا يوجد تحدٍّ مبرمج اليوم.","Jusqu’à {0}":"حتى {0}","Aucune vidéo publiée pour l’instant.":"لا يوجد فيديو منشور حاليًا.","1 vidéo publiée":"فيديو واحد منشور","{0} vidéos publiées":"{0} فيديوهات منشورة","Demain : un défi « {0} ».":"غدًا: تحدٍّ في «{0}».","Un rappel par jour quand le défi commence. Vous pouvez l’arrêter à tout moment.":"تذكير واحد يوميًا عند بدء التحدي. يمكنك إيقافه في أي وقت.","Me prévenir chaque jour":"نبّهني كل يوم","Rappel activé ✓":"التذكير مفعّل ✓","Rappel activé.":"تم تفعيل التذكير.","Rappel arrêté.":"تم إيقاف التذكير.","Les participations":"المشاركات","Les talents du jour sont choisis par l’équipe : ni vote, ni argent.":"يختار الفريق مواهب اليوم: لا تصويت ولا مال.","Certaines vidéos ne vous sont pas visibles pour le moment.":"بعض الفيديوهات غير مرئية لك حاليًا.","La durée de la vidéo n’est pas encore connue. Réessayez dans un instant.":"مدة الفيديو غير معروفة بعد. أعد المحاولة بعد قليل.","Retirée du défi : {0}":"سُحبت من التحدي: {0}","Non relue à temps":"لم تُراجَع في الوقت المحدد","Les jours passés":"الأيام الماضية","Aucun jour passé pour l’instant.":"لا توجد أيام ماضية حاليًا.","Ce défi n’est plus disponible.":"هذا التحدي لم يعد متاحًا.","Ma participation":"مشاركتي","Choisie comme talent du jour":"اختيرت موهبةَ اليوم","Publiée":"منشورة","Refusée : {0}":"مرفوضة: {0}","Retirer ma vidéo":"سحب الفيديو الخاص بي","Filmez votre talent en 15 à 60 secondes.":"صوّر موهبتك في 15 إلى 60 ثانية.","Participer avec La Forge":"شارك باستخدام La Forge","Une phrase pour présenter votre vidéo (facultatif)":"جملة لتقديم الفيديو الخاص بك (اختياري)","Envoyer ma participation":"أرسل مشاركتي","L’équipe relit chaque vidéo avant de la publier.":"يراجع الفريق كل فيديو قبل نشره.","Le défi de ce jour est terminé.":"انتهى تحدي هذا اليوم.","Deux vidéos refusées : ce défi est fermé pour vous.":"رُفض فيديوهان: هذا التحدي مغلق بالنسبة لك.","Vous avez déjà envoyé 3 vidéos pour ce défi.":"لقد أرسلت 3 فيديوهات بالفعل لهذا التحدي.","Vous avez déjà participé à ce défi.":"لقد شاركت بالفعل في هذا التحدي.","Une vidéo de 15 secondes au moins.":"فيديو مدته 15 ثانية على الأقل.","Trop court":"قصير جدًا","Ce jour a déjà un défi.":"هذا اليوم لديه تحدٍّ بالفعل.","Ce défi a déjà commencé : il ne change plus.":"بدأ هذا التحدي بالفعل: لم يعد يتغيّر.","Pas pour votre propre vidéo.":"ليس لفيديوك الخاص.","La relecture de ce défi est terminée.":"انتهت مراجعة هذا التحدي.","Trois talents du jour au plus.":"ثلاث مواهب لليوم على الأكثر.","Cette vidéo n’est plus dans le défi.":"هذا الفيديو لم يعد في التحدي.","Choisir comme talent du jour":"اختر موهبةً لليوم","Retirer de la mise en avant":"إزالة من الإبراز","Retirée de la mise en avant.":"أُزيلت من الإبراز.","Votre vidéo est envoyée : l’équipe la relit avant de la publier.":"تم إرسال الفيديو: يراجعه الفريق قبل نشره.","Vidéo retirée du défi.":"سُحب الفيديو من التحدي.","Programmer un défi":"برمج تحديًا","Le jour":"اليوم","La consigne":"التعليمات","Programmer le défi":"برمج التحدي","Les 14 prochains jours ont déjà un défi.":"الأيام الأربعة عشر القادمة لديها تحديات بالفعل.","Le programme":"البرنامج","Annuler ce défi":"ألغِ هذا التحدي","Aucun défi programmé.":"لا توجد تحديات مبرمجة.","Les vidéos à relire":"الفيديوهات المطلوب مراجعتها","Publier":"انشر","Aucune vidéo à relire.":"لا فيديو للمراجعة.","Vidéo publiée.":"تم نشر الفيديو.","Vidéo refusée.":"تم رفض الفيديو.","Défi annulé.":"تم إلغاء التحدي.","Défi programmé.":"تمت برمجة التحدي.","Participer : dès 13 ans. Ici, ni vote ni argent : les talents du jour sont choisis par l’équipe.":"المشاركة: من 13 سنة. لا تصويت ولا مال هنا: يختار الفريق مواهب اليوم.","Chant":"الغناء","Humour":"الفكاهة","Invention":"الاختراع","Parole":"الكلمة","Art":"الفن","Comment ça marche":"كيف يعمل","Ce qui vous protège":"ما يحميك","Bientôt ouvert ici. Voici ce qui vous attend.":"سيُفتح هنا قريبًا. إليك ما ينتظرك.","Chaque jour, un nouveau défi de 15 à 60 secondes.":"كل يوم، تحدٍّ جديد من 15 إلى 60 ثانية.","Filmez votre talent avec La Forge.":"صوّر موهبتك باستخدام La Forge.","L’équipe relit chaque vidéo et choisit les talents du jour.":"يراجع الفريق كل فيديو ويختار مواهب اليوم.","Chaque vidéo est relue avant d’être publique.":"تُراجَع كل فيديو قبل أن يصبح عامًا.","Le pseudo d’un mineur n’est jamais montré.":"لا يُعرض أبدًا اسم مستخدم القاصر.","Vous pouvez retirer votre vidéo à tout moment.":"يمكنك سحب الفيديو الخاص بك في أي وقت."}</script>
+<script type="application/json" id="nvI18n-sw">{"Aperçu":"Onyesho","Autre":"Nyingine","Catégorie":"Kundi","Cette action n’est pas ouverte à votre âge.":"Kitendo hiki hakipatikani kwa umri wako.","Cette vidéo est trop lourde.":"Video hii ni nzito mno.","Chargement…":"Inapakia…","Connectez-vous pour continuer.":"Ingia ili kuendelea.","Contenu inapproprié":"Maudhui yasiyofaa","Créé sur NEURAVID":"Imeundwa kwenye NEURAVID","Cuisine":"Upishi","Danse":"Ngoma","En cours de relecture par l’équipe":"Inakaguliwa na timu","Envoi…":"Inatuma…","Hors sujet":"Nje ya mada","Impossible de joindre NEURAVID pour le moment.":"Haiwezekani kufikia NEURAVID kwa sasa.","La Forge n’est pas joignable ici.":"La Forge haipatikani hapa.","Langue":"Lugha","Le service est momentanément indisponible. Réessayez dans un instant.":"Huduma haipatikani kwa muda. Jaribu tena baada ya muda mfupi.","L’équipe":"Timu","Ma vidéo":"Video yangu","Motif du refus":"Sababu ya kukataa","Pas de connexion pour le moment.":"Hakuna muunganisho kwa sasa.","Qualité de la vidéo":"Ubora wa video","Refilmer":"Rekodi upya","Refuser":"Kataa","Sport":"Michezo","Titre":"Kichwa","Toucher encore pour annuler":"Gusa tena kughairi","Toucher encore pour publier":"Gusa tena ili kuchapisha","Toucher encore pour refilmer":"Gusa tena ili kurekodi upya","Toucher encore pour refuser":"Gusa tena kukataa","Toucher encore pour retirer":"Gusa tena ili kuondoa","Traduction en cours de relecture.":"Tafsiri inakaguliwa.","Trop long":"Ndefu mno","Un texte n’a pas été accepté. Changez-le.":"Maandishi fulani hayakukubaliwa. Yabadilishe.","Une vidéo de 60 secondes au plus.":"Video ya sekunde 60 au chini.","Vidéo indisponible pour le moment.":"Video haipatikani kwa sasa.","Vérifiez le formulaire : un champ n’est pas rempli comme il faut.":"Kagua fomu: sehemu moja haijajazwa ipasavyo.","Talent du Jour":"Kipaji cha Siku","Talent du jour":"Kipaji cha siku","Un défi par jour, ouvert au monde entier : montrez votre talent en 15 à 60 secondes.":"Changamoto moja kila siku, wazi kwa dunia nzima: onyesha kipaji chako kwa sekunde 15 hadi 60.","Aperçu : des défis d’exemple, pour découvrir la page.":"Onyesho: changamoto za mfano, ili kugundua ukurasa.","Talent du Jour n’est pas encore ouvert.":"Kipaji cha Siku bado hakijafunguliwa.","Aujourd’hui":"Leo","Le défi du jour":"Changamoto ya leo","Aucun défi programmé aujourd’hui.":"Hakuna changamoto iliyopangwa leo.","Jusqu’à {0}":"Hadi {0}","Aucune vidéo publiée pour l’instant.":"Hakuna video iliyochapishwa kwa sasa.","1 vidéo publiée":"Video 1 imechapishwa","{0} vidéos publiées":"Video {0} zimechapishwa","Demain : un défi « {0} ».":"Kesho: changamoto ya «{0}».","Un rappel par jour quand le défi commence. Vous pouvez l’arrêter à tout moment.":"Ukumbusho mmoja kwa siku changamoto inapoanza. Unaweza kuusimamisha wakati wowote.","Me prévenir chaque jour":"Nikumbushe kila siku","Rappel activé ✓":"Ukumbusho umewashwa ✓","Rappel activé.":"Ukumbusho umewashwa.","Rappel arrêté.":"Ukumbusho umezimwa.","Les participations":"Ushiriki","Les talents du jour sont choisis par l’équipe : ni vote, ni argent.":"Vipaji vya siku huchaguliwa na timu: hakuna kura, hakuna pesa.","Certaines vidéos ne vous sont pas visibles pour le moment.":"Baadhi ya video hazionekani kwako kwa sasa.","La durée de la vidéo n’est pas encore connue. Réessayez dans un instant.":"Urefu wa video bado haujulikani. Jaribu tena baada ya muda mfupi.","Retirée du défi : {0}":"Imeondolewa kwenye changamoto: {0}","Non relue à temps":"Haikukaguliwa kwa wakati","Les jours passés":"Siku zilizopita","Aucun jour passé pour l’instant.":"Hakuna siku zilizopita kwa sasa.","Ce défi n’est plus disponible.":"Changamoto hii haipatikani tena.","Ma participation":"Ushiriki wangu","Choisie comme talent du jour":"Imechaguliwa kuwa kipaji cha siku","Publiée":"Imechapishwa","Refusée : {0}":"Imekataliwa: {0}","Retirer ma vidéo":"Ondoa video yangu","Filmez votre talent en 15 à 60 secondes.":"Rekodi kipaji chako kwa sekunde 15 hadi 60.","Participer avec La Forge":"Shiriki kwa La Forge","Une phrase pour présenter votre vidéo (facultatif)":"Sentensi ya kutambulisha video yako (si lazima)","Envoyer ma participation":"Tuma ushiriki wangu","L’équipe relit chaque vidéo avant de la publier.":"Timu inapitia kila video kabla ya kuichapisha.","Le défi de ce jour est terminé.":"Changamoto ya siku hii imekwisha.","Deux vidéos refusées : ce défi est fermé pour vous.":"Video mbili zimekataliwa: changamoto hii imefungwa kwako.","Vous avez déjà envoyé 3 vidéos pour ce défi.":"Tayari umetuma video 3 kwa changamoto hii.","Vous avez déjà participé à ce défi.":"Tayari umeshiriki changamoto hii.","Une vidéo de 15 secondes au moins.":"Video ya angalau sekunde 15.","Trop court":"Fupi mno","Ce jour a déjà un défi.":"Siku hii tayari ina changamoto.","Ce défi a déjà commencé : il ne change plus.":"Changamoto hii imeshaanza: haibadiliki tena.","Pas pour votre propre vidéo.":"Si kwa video yako mwenyewe.","La relecture de ce défi est terminée.":"Ukaguzi wa changamoto hii umekwisha.","Trois talents du jour au plus.":"Vipaji vitatu vya siku zaidi.","Cette vidéo n’est plus dans le défi.":"Video hii haipo tena kwenye changamoto.","Choisir comme talent du jour":"Chagua kama kipaji cha siku","Retirer de la mise en avant":"Ondoa kwenye kuangaziwa","Retirée de la mise en avant.":"Imeondolewa kwenye kuangaziwa.","Votre vidéo est envoyée : l’équipe la relit avant de la publier.":"Video yako imetumwa: timu inaipitia kabla ya kuichapisha.","Vidéo retirée du défi.":"Video imeondolewa kwenye changamoto.","Programmer un défi":"Panga changamoto","Le jour":"Siku","La consigne":"Maelekezo","Programmer le défi":"Panga changamoto","Les 14 prochains jours ont déjà un défi.":"Siku 14 zijazo tayari zina changamoto.","Le programme":"Ratiba","Annuler ce défi":"Ghairi changamoto hii","Aucun défi programmé.":"Hakuna changamoto iliyopangwa.","Les vidéos à relire":"Video za kukagua","Publier":"Chapisha","Aucune vidéo à relire.":"Hakuna video ya kukagua.","Vidéo publiée.":"Video imechapishwa.","Vidéo refusée.":"Video imekataliwa.","Défi annulé.":"Changamoto imeghairiwa.","Défi programmé.":"Changamoto imepangwa.","Participer : dès 13 ans. Ici, ni vote ni argent : les talents du jour sont choisis par l’équipe.":"Kushiriki: kuanzia miaka 13. Hakuna kura wala pesa hapa: vipaji vya siku huchaguliwa na timu.","Chant":"Uimbaji","Humour":"Ucheshi","Invention":"Ubunifu","Parole":"Usemi","Art":"Sanaa","Comment ça marche":"Jinsi inavyofanya kazi","Ce qui vous protège":"Kinachokulinda","Bientôt ouvert ici. Voici ce qui vous attend.":"Itafunguliwa hapa hivi karibuni. Hiki ndicho kinachokusubiri.","Chaque jour, un nouveau défi de 15 à 60 secondes.":"Kila siku, changamoto mpya ya sekunde 15 hadi 60.","Filmez votre talent avec La Forge.":"Rekodi kipaji chako kwa La Forge.","L’équipe relit chaque vidéo et choisit les talents du jour.":"Timu inapitia kila video na kuchagua vipaji vya siku.","Chaque vidéo est relue avant d’être publique.":"Kila video hupitiwa kabla ya kuwa ya umma.","Le pseudo d’un mineur n’est jamais montré.":"Jina la mtumiaji la mtoto mdogo halionyeshwi kamwe.","Vous pouvez retirer votre vidéo à tout moment.":"Unaweza kuondoa video yako wakati wowote."}</script>
+<script type="application/json" id="nvI18n-ha">{"Aperçu":"Samfoti","Autre":"Wani","Catégorie":"Rukuni","Cette action n’est pas ouverte à votre âge.":"Wannan aikin ba a buɗe yake ga shekarunka ba.","Cette vidéo est trop lourde.":"Wannan bidiyon ya yi nauyi sosai.","Chargement…":"Ana lodawa…","Connectez-vous pour continuer.":"Shiga don ci gaba.","Contenu inapproprié":"Abun da bai dace ba","Créé sur NEURAVID":"An ƙirƙira a NEURAVID","Cuisine":"Girki","Danse":"Rawa","En cours de relecture par l’équipe":"Ƙungiya na dubawa","Envoi…":"Ana aikawa…","Hors sujet":"Ba a kan magana ba","Impossible de joindre NEURAVID pour le moment.":"Ba za a iya isa ga NEURAVID a yanzu ba.","La Forge n’est pas joignable ici.":"Ba a iya isa ga La Forge a nan.","Langue":"Harshe","Le service est momentanément indisponible. Réessayez dans un instant.":"Sabis ɗin ba ya samuwa na ɗan lokaci. Sake gwadawa nan da ɗan lokaci.","L’équipe":"Ƙungiya","Ma vidéo":"Bidiyona","Motif du refus":"Dalilin ƙi","Pas de connexion pour le moment.":"Babu haɗi a yanzu.","Qualité de la vidéo":"Ingancin bidiyo","Refilmer":"Sake ɗauka","Refuser":"Ƙi","Sport":"Wasanni","Titre":"Take","Toucher encore pour annuler":"Taɓa kuma don soke","Toucher encore pour publier":"Taɓa kuma don wallafawa","Toucher encore pour refilmer":"Taɓa kuma don sake ɗauka","Toucher encore pour refuser":"Taɓa kuma don ƙi","Toucher encore pour retirer":"Sake taɓawa don cirewa","Traduction en cours de relecture.":"Ana duba fassarar.","Trop long":"Ya yi tsawo","Un texte n’a pas été accepté. Changez-le.":"Ba a karɓi wani rubutu ba. Canza shi.","Une vidéo de 60 secondes au plus.":"Bidiyo na daƙiƙa 60 a ƙalla.","Vidéo indisponible pour le moment.":"Bidiyo ba ya samuwa a yanzu.","Vérifiez le formulaire : un champ n’est pas rempli comme il faut.":"Duba fom: wani wuri ba a cike shi yadda ya kamata ba.","Talent du Jour":"Baiwar Rana","Talent du jour":"Baiwar rana","Un défi par jour, ouvert au monde entier : montrez votre talent en 15 à 60 secondes.":"Ƙalubale ɗaya kowace rana, a buɗe ga duniya baki ɗaya: nuna baiwarka cikin daƙiƙa 15 zuwa 60.","Aperçu : des défis d’exemple, pour découvrir la page.":"Samfoti: ƙalubale na misali, don gano shafin.","Talent du Jour n’est pas encore ouvert.":"Baiwar Rana bai buɗe ba tukuna.","Aujourd’hui":"Yau","Le défi du jour":"Ƙalubalen yau","Aucun défi programmé aujourd’hui.":"Babu ƙalubalen da aka tsara yau.","Jusqu’à {0}":"Har zuwa {0}","Aucune vidéo publiée pour l’instant.":"Babu bidiyon da aka wallafa a yanzu.","1 vidéo publiée":"Bidiyo 1 da aka wallafa","{0} vidéos publiées":"Bidiyo {0} da aka wallafa","Demain : un défi « {0} ».":"Gobe: ƙalubalen «{0}».","Un rappel par jour quand le défi commence. Vous pouvez l’arrêter à tout moment.":"Tunatarwa ɗaya kowace rana idan ƙalubale ya fara. Kana iya dakatar da shi a kowane lokaci.","Me prévenir chaque jour":"Tunatar da ni kowace rana","Rappel activé ✓":"An kunna tunatarwa ✓","Rappel activé.":"An kunna tunatarwa.","Rappel arrêté.":"An kashe tunatarwa.","Les participations":"Shigar da aka yi","Les talents du jour sont choisis par l’équipe : ni vote, ni argent.":"Ƙungiya ce ke zaɓar baiwar rana: babu zaɓe, babu kuɗi.","Certaines vidéos ne vous sont pas visibles pour le moment.":"Wasu bidiyoyi ba za ka iya gani ba a yanzu.","La durée de la vidéo n’est pas encore connue. Réessayez dans un instant.":"Ba a san tsawon bidiyon ba tukuna. Sake gwadawa nan da ɗan lokaci.","Retirée du défi : {0}":"An janye daga ƙalubalen: {0}","Non relue à temps":"Ba a duba ta a kan lokaci ba","Les jours passés":"Kwanakin da suka wuce","Aucun jour passé pour l’instant.":"Babu kwanakin da suka wuce a yanzu.","Ce défi n’est plus disponible.":"Wannan ƙalubale ba ya samuwa kuma.","Ma participation":"Shigata","Choisie comme talent du jour":"An zaɓa a matsayin baiwar rana","Publiée":"An wallafa","Refusée : {0}":"An ƙi: {0}","Retirer ma vidéo":"Janye bidiyona","Filmez votre talent en 15 à 60 secondes.":"Ɗauki bidiyon baiwarka cikin daƙiƙa 15 zuwa 60.","Participer avec La Forge":"Shiga da La Forge","Une phrase pour présenter votre vidéo (facultatif)":"Jumla don gabatar da bidiyonka (ba dole ba)","Envoyer ma participation":"Aika shigata","L’équipe relit chaque vidéo avant de la publier.":"Ƙungiyar tana duba kowane bidiyo kafin ta wallafa shi.","Le défi de ce jour est terminé.":"Ƙalubalen wannan rana ya ƙare.","Deux vidéos refusées : ce défi est fermé pour vous.":"An ƙi bidiyo biyu: wannan ƙalubale a rufe yake gare ka.","Vous avez déjà envoyé 3 vidéos pour ce défi.":"Ka riga ka aika bidiyo 3 don wannan ƙalubale.","Vous avez déjà participé à ce défi.":"Ka riga ka shiga wannan ƙalubale.","Une vidéo de 15 secondes au moins.":"Bidiyo na aƙalla daƙiƙa 15.","Trop court":"Ya yi gajere","Ce jour a déjà un défi.":"Wannan rana tana da ƙalubale tuni.","Ce défi a déjà commencé : il ne change plus.":"Wannan ƙalubale ya riga ya fara: ba zai canza ba kuma.","Pas pour votre propre vidéo.":"Ba don bidiyonka ba.","La relecture de ce défi est terminée.":"Dubawar wannan ƙalubale ta ƙare.","Trois talents du jour au plus.":"Baiwar rana uku a mafi yawa.","Cette vidéo n’est plus dans le défi.":"Wannan bidiyo ba ya cikin ƙalubalen kuma.","Choisir comme talent du jour":"Zaɓa a matsayin baiwar rana","Retirer de la mise en avant":"Cire daga haskakawa","Retirée de la mise en avant.":"An cire daga haskakawa.","Votre vidéo est envoyée : l’équipe la relit avant de la publier.":"An aika bidiyonka: ƙungiyar tana duba shi kafin ta wallafa.","Vidéo retirée du défi.":"An janye bidiyo daga ƙalubalen.","Programmer un défi":"Tsara ƙalubale","Le jour":"Ranar","La consigne":"Umarni","Programmer le défi":"Tsara ƙalubalen","Les 14 prochains jours ont déjà un défi.":"Kwanaki 14 masu zuwa suna da ƙalubale tuni.","Le programme":"Jadawali","Annuler ce défi":"Soke wannan ƙalubale","Aucun défi programmé.":"Babu ƙalubalen da aka tsara.","Les vidéos à relire":"Bidiyoyin da za a duba","Publier":"Wallafa","Aucune vidéo à relire.":"Babu bidiyon da za a duba.","Vidéo publiée.":"An wallafa bidiyo.","Vidéo refusée.":"An ƙi bidiyo.","Défi annulé.":"An soke ƙalubalen.","Défi programmé.":"An tsara ƙalubalen.","Participer : dès 13 ans. Ici, ni vote ni argent : les talents du jour sont choisis par l’équipe.":"Shiga: daga shekara 13. Babu zaɓe ko kuɗi a nan: ƙungiya ce ke zaɓar baiwar rana.","Chant":"Waƙa","Humour":"Barkwanci","Invention":"Ƙirƙira","Parole":"Magana","Art":"Fasaha","Comment ça marche":"Yadda yake aiki","Ce qui vous protège":"Abin da ke kare ka","Bientôt ouvert ici. Voici ce qui vous attend.":"Za a buɗe nan ba da daɗewa ba. Ga abin da ke jiranka.","Chaque jour, un nouveau défi de 15 à 60 secondes.":"Kowace rana, sabon ƙalubale na daƙiƙa 15 zuwa 60.","Filmez votre talent avec La Forge.":"Ɗauki bidiyon baiwarka da La Forge.","L’équipe relit chaque vidéo et choisit les talents du jour.":"Ƙungiyar tana duba kowane bidiyo kuma tana zaɓar baiwar rana.","Chaque vidéo est relue avant d’être publique.":"Ana duba kowane bidiyo kafin ya zama na jama’a.","Le pseudo d’un mineur n’est jamais montré.":"Ba a taɓa nuna sunan mai amfani na ƙarami ba.","Vous pouvez retirer votre vidéo à tout moment.":"Kana iya janye bidiyonka a kowane lokaci."}</script>
+<script type="application/json" id="nvI18n-yo">{"Aperçu":"Àyẹ̀wò","Autre":"Òmíràn","Catégorie":"Ẹ̀ka","Cette action n’est pas ouverte à votre âge.":"Ìgbésẹ̀ yìí kò ṣí sílẹ̀ fún ọjọ́-orí rẹ.","Cette vidéo est trop lourde.":"Fídíò yìí wúwo jù.","Chargement…":"Ń gbé e wọlé…","Connectez-vous pour continuer.":"Wọlé láti tẹ̀síwájú.","Contenu inapproprié":"Àkóónú tí kò bójú mu","Créé sur NEURAVID":"A ṣẹ̀dá rẹ̀ lórí NEURAVID","Cuisine":"Oúnjẹ sísè","Danse":"Ijó","En cours de relecture par l’équipe":"Ẹgbẹ́ ń ṣàyẹ̀wò rẹ̀","Envoi…":"Ń fi ránṣẹ́…","Hors sujet":"Kò bá kókó mu","Impossible de joindre NEURAVID pour le moment.":"Kò ṣeé ṣe láti dé NEURAVID báyìí.","La Forge n’est pas joignable ici.":"A kò lè dé La Forge níbí.","Langue":"Èdè","Le service est momentanément indisponible. Réessayez dans un instant.":"Iṣẹ́ náà kò sí fún ìgbà díẹ̀. Tún gbìyànjú láìpẹ́.","L’équipe":"Ẹgbẹ́ náà","Ma vidéo":"Fídíò mi","Motif du refus":"Ìdí tí a fi kọ̀","Pas de connexion pour le moment.":"Kò sí ìsopọ̀ báyìí.","Qualité de la vidéo":"Dídára fídíò","Refilmer":"Tún un yà","Refuser":"Kọ̀ ọ́","Sport":"Eré ìdárayá","Titre":"Àkọlé","Toucher encore pour annuler":"Fọwọ́ kàn án lẹ́ẹ̀kan sí i láti fagilé","Toucher encore pour publier":"Tẹ̀ lẹ́ẹ̀kan sí i láti tẹ̀ ẹ́ jáde","Toucher encore pour refilmer":"Tẹ̀ lẹ́ẹ̀kan sí i láti tún un yà","Toucher encore pour refuser":"Fọwọ́ kàn án lẹ́ẹ̀kan sí i láti kọ̀","Toucher encore pour retirer":"Fọwọ́ kàn án lẹ́ẹ̀kan sí i láti yọ ọ́","Traduction en cours de relecture.":"A ń yẹ ìtumọ̀ wò.","Trop long":"Ó gùn jù","Un texte n’a pas été accepté. Changez-le.":"A kò gba ọ̀rọ̀ kan. Yí i padà.","Une vidéo de 60 secondes au plus.":"Fídíò tí kò ju ìṣẹ́jú-àáyá 60 lọ.","Vidéo indisponible pour le moment.":"Fídíò kò sí báyìí.","Vérifiez le formulaire : un champ n’est pas rempli comme il faut.":"Ṣàyẹ̀wò fọ́ọ̀mù náà: àyè kan kò kún bó ṣe yẹ.","Talent du Jour":"Ẹ̀bùn Ọjọ́ Náà","Talent du jour":"Ẹ̀bùn ọjọ́ náà","Un défi par jour, ouvert au monde entier : montrez votre talent en 15 à 60 secondes.":"Ìpèníjà kan lójoojúmọ́, ó ṣí sílẹ̀ fún gbogbo àgbáyé: fi ẹ̀bùn rẹ hàn láàárín ìṣẹ́jú-àáyá 15 sí 60.","Aperçu : des défis d’exemple, pour découvrir la page.":"Àyẹ̀wò: àwọn ìpèníjà àpẹẹrẹ, láti mọ ojú-ìwé náà.","Talent du Jour n’est pas encore ouvert.":"Ẹ̀bùn Ọjọ́ Náà kò tíì ṣí.","Aujourd’hui":"Òní","Le défi du jour":"Ìpèníjà òní","Aucun défi programmé aujourd’hui.":"Kò sí ìpèníjà tí a ṣètò fún òní.","Jusqu’à {0}":"Títí di {0}","Aucune vidéo publiée pour l’instant.":"Kò sí fídíò tí a tẹ̀ jáde báyìí.","1 vidéo publiée":"Fídíò 1 tí a tẹ̀ jáde","{0} vidéos publiées":"Fídíò {0} tí a tẹ̀ jáde","Demain : un défi « {0} ».":"Ọ̀la: ìpèníjà «{0}».","Un rappel par jour quand le défi commence. Vous pouvez l’arrêter à tout moment.":"Ìrántí kan lójoojúmọ́ nígbà tí ìpèníjà bá bẹ̀rẹ̀. O lè dá a dúró nígbàkigbà.","Me prévenir chaque jour":"Rán mi létí lójoojúmọ́","Rappel activé ✓":"Ìrántí ti ṣiṣẹ́ ✓","Rappel activé.":"Ìrántí ti bẹ̀rẹ̀ iṣẹ́.","Rappel arrêté.":"Ìrántí ti dúró.","Les participations":"Àwọn ìkópa","Les talents du jour sont choisis par l’équipe : ni vote, ni argent.":"Ẹgbẹ́ ló ń yan àwọn ẹ̀bùn ọjọ́ náà: kò sí ìdìbò, kò sí owó.","Certaines vidéos ne vous sont pas visibles pour le moment.":"Àwọn fídíò kan kò hàn sí ọ báyìí.","La durée de la vidéo n’est pas encore connue. Réessayez dans un instant.":"A kò tíì mọ gígùn fídíò náà. Gbìyànjú lẹ́ẹ̀kan sí i láìpẹ́.","Retirée du défi : {0}":"A ti yọ ọ́ kúrò nínú ìpèníjà: {0}","Non relue à temps":"A kò yẹ̀ ẹ́ wò ní àkókò","Les jours passés":"Àwọn ọjọ́ tó kọjá","Aucun jour passé pour l’instant.":"Kò sí ọjọ́ tó kọjá báyìí.","Ce défi n’est plus disponible.":"Ìpèníjà yìí kò sí mọ́.","Ma participation":"Ìkópa mi","Choisie comme talent du jour":"A yàn án gẹ́gẹ́ bí ẹ̀bùn ọjọ́ náà","Publiée":"Ti tẹ̀ jáde","Refusée : {0}":"A kọ̀ ọ́: {0}","Retirer ma vidéo":"Yọ fídíò mi kúrò","Filmez votre talent en 15 à 60 secondes.":"Ya fídíò ẹ̀bùn rẹ láàárín ìṣẹ́jú-àáyá 15 sí 60.","Participer avec La Forge":"Kópa pẹ̀lú La Forge","Une phrase pour présenter votre vidéo (facultatif)":"Gbólóhùn kan láti ṣàfihàn fídíò rẹ (kò pọn dandan)","Envoyer ma participation":"Fi ìkópa mi ránṣẹ́","L’équipe relit chaque vidéo avant de la publier.":"Ẹgbẹ́ náà máa ń yẹ fídíò kọ̀ọ̀kan wò kí wọ́n tó tẹ̀ ẹ́ jáde.","Le défi de ce jour est terminé.":"Ìpèníjà ọjọ́ yìí ti parí.","Deux vidéos refusées : ce défi est fermé pour vous.":"A kọ fídíò méjì: ìpèníjà yìí ti tì fún ọ.","Vous avez déjà envoyé 3 vidéos pour ce défi.":"O ti fi fídíò mẹ́ta ránṣẹ́ tẹ́lẹ̀ fún ìpèníjà yìí.","Vous avez déjà participé à ce défi.":"O ti kópa nínú ìpèníjà yìí tẹ́lẹ̀.","Une vidéo de 15 secondes au moins.":"Fídíò ìṣẹ́jú-àáyá 15 ó kéré tán.","Trop court":"Ó kúrú jù","Ce jour a déjà un défi.":"Ọjọ́ yìí ti ní ìpèníjà kan.","Ce défi a déjà commencé : il ne change plus.":"Ìpèníjà yìí ti bẹ̀rẹ̀: kò ní yí padà mọ́.","Pas pour votre propre vidéo.":"Kì í ṣe fún fídíò tìrẹ.","La relecture de ce défi est terminée.":"Àyẹ̀wò ìpèníjà yìí ti parí.","Trois talents du jour au plus.":"Ẹ̀bùn ọjọ́ náà mẹ́ta ní púpọ̀ jù.","Cette vidéo n’est plus dans le défi.":"Fídíò yìí kò sí nínú ìpèníjà mọ́.","Choisir comme talent du jour":"Yàn án gẹ́gẹ́ bí ẹ̀bùn ọjọ́ náà","Retirer de la mise en avant":"Yọ kúrò nínú ìtànmọ́lẹ̀","Retirée de la mise en avant.":"A ti yọ ọ́ kúrò nínú ìtànmọ́lẹ̀.","Votre vidéo est envoyée : l’équipe la relit avant de la publier.":"A ti fi fídíò rẹ ránṣẹ́: ẹgbẹ́ náà á yẹ̀ ẹ́ wò kí wọ́n tó tẹ̀ ẹ́ jáde.","Vidéo retirée du défi.":"A ti yọ fídíò kúrò nínú ìpèníjà.","Programmer un défi":"Ṣètò ìpèníjà kan","Le jour":"Ọjọ́ náà","La consigne":"Ìtọ́sọ́nà","Programmer le défi":"Ṣètò ìpèníjà náà","Les 14 prochains jours ont déjà un défi.":"Ọjọ́ 14 tó ń bọ̀ ti ní ìpèníjà.","Le programme":"Ètò","Annuler ce défi":"Fagilé ìpèníjà yìí","Aucun défi programmé.":"Kò sí ìpèníjà tí a ṣètò.","Les vidéos à relire":"Àwọn fídíò láti ṣàyẹ̀wò","Publier":"Tẹ̀ ẹ́ jáde","Aucune vidéo à relire.":"Kò sí fídíò láti ṣàyẹ̀wò.","Vidéo publiée.":"A ti tẹ fídíò jáde.","Vidéo refusée.":"A ti kọ fídíò náà.","Défi annulé.":"A ti fagilé ìpèníjà náà.","Défi programmé.":"A ti ṣètò ìpèníjà náà.","Participer : dès 13 ans. Ici, ni vote ni argent : les talents du jour sont choisis par l’équipe.":"Ìkópa: láti ọmọ ọdún 13. Kò sí ìdìbò tàbí owó níbí: ẹgbẹ́ ló ń yan àwọn ẹ̀bùn ọjọ́ náà.","Chant":"Orin kíkọ","Humour":"Àwàdà","Invention":"Ìhùmọ̀","Parole":"Ọ̀rọ̀ sísọ","Art":"Iṣẹ́ ọnà","Comment ça marche":"Bí ó ṣe ń ṣiṣẹ́","Ce qui vous protège":"Ohun tí ó ń dáàbò bò ọ́","Bientôt ouvert ici. Voici ce qui vous attend.":"Yóò ṣí síbí láìpẹ́. Èyí ni ohun tí ń dúró dè ọ́.","Chaque jour, un nouveau défi de 15 à 60 secondes.":"Ojoojúmọ́, ìpèníjà tuntun ti ìṣẹ́jú-àáyá 15 sí 60.","Filmez votre talent avec La Forge.":"Ya fídíò ẹ̀bùn rẹ pẹ̀lú La Forge.","L’équipe relit chaque vidéo et choisit les talents du jour.":"Ẹgbẹ́ náà máa ń yẹ fídíò kọ̀ọ̀kan wò, wọ́n sì ń yan àwọn ẹ̀bùn ọjọ́ náà.","Chaque vidéo est relue avant d’être publique.":"A máa ń yẹ fídíò kọ̀ọ̀kan wò kí ó tó di ti gbogbo ènìyàn.","Le pseudo d’un mineur n’est jamais montré.":"A kì í fi orúkọ aṣàmúlò ọmọdé hàn rárá.","Vous pouvez retirer votre vidéo à tout moment.":"O lè yọ fídíò rẹ kúrò nígbàkigbà."}</script>
+<script type="application/json" id="nvI18n-wo">{"Aperçu":"Wone","Autre":"Leneen","Catégorie":"Xeet","Cette action n’est pas ouverte à votre âge.":"Jëf jii ubbeeku ci sa at.","Cette vidéo est trop lourde.":"Wideyo bii dafa diis lool.","Chargement…":"Mi ngi yeb…","Connectez-vous pour continuer.":"Duggal ngir wéy.","Contenu inapproprié":"Lu jaarul","Créé sur NEURAVID":"Sàkk nañu ko ci NEURAVID","Cuisine":"Togg","Danse":"Fecc","En cours de relecture par l’équipe":"Ekip bi ngi koy seet","Envoi…":"Mi ngi yónne…","Hors sujet":"Bokkul ci mbir mi","Impossible de joindre NEURAVID pour le moment.":"Mënuñu jot NEURAVID léegi.","La Forge n’est pas joignable ici.":"Mënuñu jot La Forge fii.","Langue":"Làkk","Le service est momentanément indisponible. Réessayez dans un instant.":"Liggéey bi amul fi ab diir. Jéemaatal ci kanam tuuti.","L’équipe":"Ekip bi","Ma vidéo":"Sama widewo","Motif du refus":"Lu tax ñu gàntu","Pas de connexion pour le moment.":"Amul connexion léegi.","Qualité de la vidéo":"Baaxaayu widewo bi","Refilmer":"Fotaalaat","Refuser":"Gàntu","Sport":"Po","Titre":"Tur","Toucher encore pour annuler":"Bësal ci kaw ngir neenal","Toucher encore pour publier":"Laalaatal ngir siiwal","Toucher encore pour refilmer":"Laalaatal ngir fotaalaat","Toucher encore pour refuser":"Bësal ci kaw ngir gàntu","Toucher encore pour retirer":"Bësaatal ngir dindi","Traduction en cours de relecture.":"Tekki gi, ñu ngi koy xool.","Trop long":"Dafa gudd lool","Un texte n’a pas été accepté. Changez-le.":"Am na mbind mu ñu nanguwul. Soppil ko.","Une vidéo de 60 secondes au plus.":"Widewo bu weesul 60 saa.","Vidéo indisponible pour le moment.":"Widewo bi amul fi léegi.","Vérifiez le formulaire : un champ n’est pas rempli comme il faut.":"Seetal formulaire bi: am na bérab bu ñu fesalul bu baax.","Talent du Jour":"Mën-mënu Bés bi","Talent du jour":"Mën-mënu bés bi","Un défi par jour, ouvert au monde entier : montrez votre talent en 15 à 60 secondes.":"Benn kàtte bés bu nekk, ubbeeku na ci àddina sépp: wone sa mën-mën ci 15 ba 60 saa.","Aperçu : des défis d’exemple, pour découvrir la page.":"Wone: ay kàtte misaal, ngir xam xët wi.","Talent du Jour n’est pas encore ouvert.":"Mën-mënu Bés bi ubbeeguñu ko ba léegi.","Aujourd’hui":"Tey","Le défi du jour":"Kàtte bu tey","Aucun défi programmé aujourd’hui.":"Amul benn kàtte bu ñu waajal tey.","Jusqu’à {0}":"Ba {0}","Aucune vidéo publiée pour l’instant.":"Amul benn widewo bu ñu siiwal ba léegi.","1 vidéo publiée":"1 widewo bu ñu siiwal","{0} vidéos publiées":"{0} widewo yu ñu siiwal","Demain : un défi « {0} ».":"Ëllëg: benn kàtte «{0}».","Un rappel par jour quand le défi commence. Vous pouvez l’arrêter à tout moment.":"Benn fàttali bés bu nekk bu kàtte bi tàmbalee. Mën nga ko taxawal saa su la neexee.","Me prévenir chaque jour":"Fàttali ma bés bu nekk","Rappel activé ✓":"Fàttali bi dox na ✓","Rappel activé.":"Fàttali bi tàmbali na.","Rappel arrêté.":"Fàttali bi taxaw na.","Les participations":"Bokk yi","Les talents du jour sont choisis par l’équipe : ni vote, ni argent.":"Ekib bi moo tànn mën-mënu bés bi: amul fal, amul xaalis.","Certaines vidéos ne vous sont pas visibles pour le moment.":"Yenn widewo feeñuñu ci yaw léegi.","La durée de la vidéo n’est pas encore connue. Réessayez dans un instant.":"Xamaguñu ba léegi yàggaayu widewo bi. Jéemaatal ci kanam tuuti.","Retirée du défi : {0}":"Dindi nañu ko ci kàtte bi: {0}","Non relue à temps":"Seetuñu ko ci waxtu wi","Les jours passés":"Fan yi weesu","Aucun jour passé pour l’instant.":"Amul bés bu weesu ba léegi.","Ce défi n’est plus disponible.":"Kàtte bii nekkatul.","Ma participation":"Sama bokk","Choisie comme talent du jour":"Tànn nañu ko ni mën-mënu bés bi","Publiée":"Siiwal nañu ko","Refusée : {0}":"Bañ nañu ko: {0}","Retirer ma vidéo":"Dindi sama widewo","Filmez votre talent en 15 à 60 secondes.":"Filmeel sa mën-mën ci 15 ba 60 saa.","Participer avec La Forge":"Bokk ak La Forge","Une phrase pour présenter votre vidéo (facultatif)":"Benn kàtte ngir wone sa widewo (du lu war)","Envoyer ma participation":"Yónnee sama bokk","L’équipe relit chaque vidéo avant de la publier.":"Ekib bi dafay seet widewo bu nekk laata muy siiwal.","Le défi de ce jour est terminé.":"Kàtte bu bés bii jeex na.","Deux vidéos refusées : ce défi est fermé pour vous.":"Bañ nañu ñaari widewo: kàtte bii tëju na ci yaw.","Vous avez déjà envoyé 3 vidéos pour ce défi.":"Yónne nga ba pare 3 widewo ngir kàtte bii.","Vous avez déjà participé à ce défi.":"Bokk nga ba pare ci kàtte bii.","Une vidéo de 15 secondes au moins.":"Widewo bu tollu ci 15 saa lu néew.","Trop court":"Gàtt na lool","Ce jour a déjà un défi.":"Bés bii am na kàtte ba pare.","Ce défi a déjà commencé : il ne change plus.":"Kàtte bii tàmbali na: du soppiku ba noppi.","Pas pour votre propre vidéo.":"Du ngir sa widewo.","La relecture de ce défi est terminée.":"Seet bu kàtte bii jeex na.","Trois talents du jour au plus.":"Ñetti mën-mënu bés bi lu ëpp.","Cette vidéo n’est plus dans le défi.":"Widewo bii nekkatul ci kàtte bi.","Choisir comme talent du jour":"Tànn ko ni mën-mënu bés bi","Retirer de la mise en avant":"Dindi ko ci wone bi","Retirée de la mise en avant.":"Dindi nañu ko ci wone bi.","Votre vidéo est envoyée : l’équipe la relit avant de la publier.":"Yónne nañu sa widewo: ekib bi dafay seet laata muy siiwal.","Vidéo retirée du défi.":"Dindi nañu widewo bi ci kàtte bi.","Programmer un défi":"Waajal benn kàtte","Le jour":"Bés bi","La consigne":"Ndigal li","Programmer le défi":"Waajal kàtte bi","Les 14 prochains jours ont déjà un défi.":"14 bés yiy ñëw am nañu kàtte ba pare.","Le programme":"Prograam bi","Annuler ce défi":"Neenal kàtte bii","Aucun défi programmé.":"Amul benn kàtte bu ñu waajal.","Les vidéos à relire":"Widewo yi war a seet","Publier":"Siiwal","Aucune vidéo à relire.":"Amul widewo bu ñu war a seet.","Vidéo publiée.":"Siiwal nañu widewo bi.","Vidéo refusée.":"Bañ nañu widewo bi.","Défi annulé.":"Neenal nañu kàtte bi.","Défi programmé.":"Waajal nañu kàtte bi.","Participer : dès 13 ans. Ici, ni vote ni argent : les talents du jour sont choisis par l’équipe.":"Bokk: li dale 13 at. Amul fal amul xaalis fii: ekib bi moo tànn mën-mënu bés bi.","Chant":"Woy","Humour":"Kaf","Invention":"Sos","Parole":"Kàddu","Art":"Xarala","Comment ça marche":"Naka lay doxe","Ce qui vous protège":"Li lay aar","Bientôt ouvert ici. Voici ce qui vous attend.":"Dina ubbiku fii ci kanam. Lii mooy li lay xaar.","Chaque jour, un nouveau défi de 15 à 60 secondes.":"Bés bu nekk, benn kàtte bu bees bu 15 ba 60 saa.","Filmez votre talent avec La Forge.":"Filmeel sa mën-mën ak La Forge.","L’équipe relit chaque vidéo et choisit les talents du jour.":"Ekib bi dafay seet widewo bu nekk te tànn mën-mënu bés bi.","Chaque vidéo est relue avant d’être publique.":"Widewo bu nekk dañu koy seet laata muy feeñ ci kenn ku nekk.","Le pseudo d’un mineur n’est jamais montré.":"Turu jëfandikukat bu ndaw du feeñ mukk.","Vous pouvez retirer votre vidéo à tout moment.":"Mën nga dindi sa widewo saa su la neexee."}</script>
+<script type="application/json" id="nvI18n-bm">{"Aperçu":"Jirali","Autre":"Wɛrɛ","Catégorie":"Suguya","Cette action n’est pas ouverte à votre âge.":"Nin kɛwale ma yɛlɛ i ka si ma.","Cette vidéo est trop lourde.":"Nin widewo ka girin kojugu.","Chargement…":"A bɛ ka doni…","Connectez-vous pour continuer.":"Don walasa k’a taa a fɛ.","Contenu inapproprié":"Kɔnɔkow minnu man ɲi","Créé sur NEURAVID":"A dilanna NEURAVID kan","Cuisine":"Tobili","Danse":"Dɔn","En cours de relecture par l’équipe":"Ekipu b’a lajɛ","Envoi…":"A bɛ ka ci…","Hors sujet":"A tɛ barokun na","Impossible de joindre NEURAVID pour le moment.":"A tɛ se ka NEURAVID sɔrɔ sisan.","La Forge n’est pas joignable ici.":"La Forge tɛ sɔrɔ yan.","Langue":"Kan","Le service est momentanément indisponible. Réessayez dans un instant.":"Baara in tɛ sɔrɔ sisan. A lajɛ tugun waati dɔɔnin kɔ.","L’équipe":"Ekipu","Ma vidéo":"N ka widewo","Motif du refus":"Bannikun","Pas de connexion pour le moment.":"Ɲɔgɔnsira tɛ yen sisan.","Qualité de la vidéo":"Widewo ɲɛ","Refilmer":"A ja ta kokura","Refuser":"A ban","Sport":"Farikoloɲɛnajɛ","Titre":"Tɔgɔ","Toucher encore pour annuler":"A digi tugun walasa ka a dabila","Toucher encore pour publier":"A digi tugun ka a bɔ","Toucher encore pour refilmer":"A digi tugun ka a ja ta kokura","Toucher encore pour refuser":"A digi tugun walasa ka ban","Toucher encore pour retirer":"A digi tugun walasa k'a bɔ","Traduction en cours de relecture.":"Bayɛlɛmali bɛ lajɛ la.","Trop long":"A ka jan kojugu","Un texte n’a pas été accepté. Changez-le.":"Sɛbɛn dɔ ma sɔn. A yɛlɛma.","Une vidéo de 60 secondes au plus.":"Widewo sekondi 60 kɔnɔ.","Vidéo indisponible pour le moment.":"Widewo tɛ sɔrɔ sisan.","Vérifiez le formulaire : un champ n’est pas rempli comme il faut.":"Formulɛri lajɛ: yɔrɔ dɔ ma fa ka ɲɛ.","Talent du Jour":"Don Seko","Talent du jour":"Don seko","Un défi par jour, ouvert au monde entier : montrez votre talent en 15 à 60 secondes.":"Kafiya kelen don o don, a da yɛlɛlen don diɲɛ bɛɛ ye: i ka seko jira segondi 15 ka se 60 kɔnɔ.","Aperçu : des défis d’exemple, pour découvrir la page.":"Jirali: kafiya misaliw, walasa ka ɲɛ in dɔn.","Talent du Jour n’est pas encore ouvert.":"Don Seko ma yɛlɛ fɔlɔ.","Aujourd’hui":"Bi","Le défi du jour":"Bi ka kafiya","Aucun défi programmé aujourd’hui.":"Kafiya si ma labɛn bi.","Jusqu’à {0}":"Fo {0}","Aucune vidéo publiée pour l’instant.":"Widewo si ma bɔ fɔlɔ.","1 vidéo publiée":"Widewo 1 bɔra","{0} vidéos publiées":"Widewo {0} bɔra","Demain : un défi « {0} ».":"Sini: kafiya «{0}».","Un rappel par jour quand le défi commence. Vous pouvez l’arrêter à tout moment.":"Hakilijigin kelen don o don ni kafiya daminana. I bɛ se k’a jɔ waati o waati.","Me prévenir chaque jour":"N hakili jigin don o don","Rappel activé ✓":"Hakilijigin bɛ baara la ✓","Rappel activé.":"Hakilijigin daminana.","Rappel arrêté.":"Hakilijigin jɔra.","Les participations":"Sendonw","Les talents du jour sont choisis par l’équipe : ni vote, ni argent.":"Ekipu de bɛ don sekow sugandi: kalata tɛ, wari tɛ.","Certaines vidéos ne vous sont pas visibles pour le moment.":"Widewo dɔw tɛ ye i fɛ sisan.","La durée de la vidéo n’est pas encore connue. Réessayez dans un instant.":"Widewo janya ma dɔn fɔlɔ. A segin a kan dɔɔnin kɔfɛ.","Retirée du défi : {0}":"A bɔra kafiya la: {0}","Non relue à temps":"A ma lajɛ a waati la","Les jours passés":"Don tɛmɛnnenw","Aucun jour passé pour l’instant.":"Don tɛmɛnnen si tɛ fɔlɔ.","Ce défi n’est plus disponible.":"Kafiya in tɛ sɔrɔ tugun.","Ma participation":"N ka sendon","Choisie comme talent du jour":"A sugandira ka kɛ don seko ye","Publiée":"A bɔra","Refusée : {0}":"A ma sɔn: {0}","Retirer ma vidéo":"N ka widewo bɔ yen","Filmez votre talent en 15 à 60 secondes.":"I ka seko ja ta segondi 15 ka se 60 kɔnɔ.","Participer avec La Forge":"Sendon ni La Forge ye","Une phrase pour présenter votre vidéo (facultatif)":"Kumasen kelen ka i ka widewo jira (a man wajibi)","Envoyer ma participation":"N ka sendon ci","L’équipe relit chaque vidéo avant de la publier.":"Ekipu bɛ widewo kelen-kelen bɛɛ lajɛ sani k’a bɔ.","Le défi de ce jour est terminé.":"Nin don in ka kafiya banna.","Deux vidéos refusées : ce défi est fermé pour vous.":"Widewo fila ma sɔn: nin kafiya datugura i ɲɛ.","Vous avez déjà envoyé 3 vidéos pour ce défi.":"I ye widewo 3 ci ka ban nin kafiya kama.","Vous avez déjà participé à ce défi.":"I ye sendon nin kafiya na ka ban.","Une vidéo de 15 secondes au moins.":"Widewo min ka jan segondi 15 ma, a dɔgɔyalen.","Trop court":"A surunyara kojugu","Ce jour a déjà un défi.":"Nin don in ye kafiya sɔrɔ ka ban.","Ce défi a déjà commencé : il ne change plus.":"Nin kafiya daminana ka ban: a tɛ yɛlɛma tugun.","Pas pour votre propre vidéo.":"I yɛrɛ ka widewo tɛ.","La relecture de ce défi est terminée.":"Nin kafiya lajɛli banna.","Trois talents du jour au plus.":"Don sekow saba, a caman na.","Cette vidéo n’est plus dans le défi.":"Nin widewo tɛ kafiya in na tugun.","Choisir comme talent du jour":"A sugandi ka kɛ don seko ye","Retirer de la mise en avant":"A bɔ jirali la","Retirée de la mise en avant.":"A bɔra jirali la.","Votre vidéo est envoyée : l’équipe la relit avant de la publier.":"I ka widewo cira: ekipu b’a lajɛ sani k’a bɔ.","Vidéo retirée du défi.":"Widewo bɔra kafiya la.","Programmer un défi":"Kafiya dɔ labɛn","Le jour":"Don","La consigne":"Cikan","Programmer le défi":"Kafiya labɛn","Les 14 prochains jours ont déjà un défi.":"Don 14 nataw ye kafiya sɔrɔ ka ban.","Le programme":"Porogaramu","Annuler ce défi":"Nin kafiya dabila","Aucun défi programmé.":"Kafiya si ma labɛn.","Les vidéos à relire":"Widewo minnu ka kan ka lajɛ","Publier":"A bɔ","Aucune vidéo à relire.":"Widewo si tɛ lajɛ la.","Vidéo publiée.":"Widewo bɔra.","Vidéo refusée.":"Widewo ma sɔn.","Défi annulé.":"Kafiya dabilara.","Défi programmé.":"Kafiya labɛnna.","Participer : dès 13 ans. Ici, ni vote ni argent : les talents du jour sont choisis par l’équipe.":"Sendon: ka bɔ san 13 la. Kalata ni wari tɛ yan: ekipu de bɛ don sekow sugandi.","Chant":"Dɔnkili","Humour":"Tulonkɛ","Invention":"Dabali","Parole":"Kuma","Art":"Seko ni dɔnko","Comment ça marche":"A bɛ baara cogo min na","Ce qui vous protège":"Min bɛ i lakana","Bientôt ouvert ici. Voici ce qui vous attend.":"A bɛna da yan sɔɔni. Nin ye min bɛ i makɔnɔ.","Chaque jour, un nouveau défi de 15 à 60 secondes.":"Don o don, kafiya kura segondi 15 ka se 60 ma.","Filmez votre talent avec La Forge.":"I ka seko ja ta ni La Forge ye.","L’équipe relit chaque vidéo et choisit les talents du jour.":"Ekipu bɛ widewo kelen-kelen bɛɛ lajɛ ka don ka sekow sugandi.","Chaque vidéo est relue avant d’être publique.":"Widewo kelen-kelen bɛɛ bɛ lajɛ sani a ka jira bɛɛ la.","Le pseudo d’un mineur n’est jamais montré.":"Denmisɛn tɔgɔ tɛ jira abada.","Vous pouvez retirer votre vidéo à tout moment.":"I bɛ se ka i ka widewo bɔ yen waati o waati."}</script>
+<script type="application/json" id="nvI18n-ln">{"Aperçu":"Emoniseli","Autre":"Mosusu","Catégorie":"Eteni","Cette action n’est pas ouverte à votre âge.":"Likambo oyo efungwami te mpo na mbula na yo.","Cette vidéo est trop lourde.":"Video oyo ezali na kilo mingi.","Chargement…":"Ezali kofungola…","Connectez-vous pour continuer.":"Kota mpo na kokoba.","Contenu inapproprié":"Makambo oyo ebongi te","Créé sur NEURAVID":"Esalemi na NEURAVID","Cuisine":"Kolamba","Danse":"Bobina","En cours de relecture par l’équipe":"Ekipe ezali kotala yango","Envoi…":"Ezali kotinda…","Hors sujet":"Libanda ya likambo","Impossible de joindre NEURAVID pour le moment.":"Ekoki te kokutana na NEURAVID sikoyo.","La Forge n’est pas joignable ici.":"La Forge ezwami awa te.","Langue":"Lokota","Le service est momentanément indisponible. Réessayez dans un instant.":"Mosala oyo ezali te mpo na mwa ntango. Meka lisusu mwa moke.","L’équipe":"Ekipe","Ma vidéo":"Vidéo na ngai","Motif du refus":"Ntina ya koboya","Pas de connexion pour le moment.":"Boyokani ezali te sikoyo.","Qualité de la vidéo":"Bolamu ya vidéo","Refilmer":"Kanga lisusu","Refuser":"Boya","Sport":"Lisano","Titre":"Motó","Toucher encore pour annuler":"Finá lisusu mpo na kolongola","Toucher encore pour publier":"Simba lisusu mpo na kobimisa","Toucher encore pour refilmer":"Simba lisusu mpo na kokanga lisusu","Toucher encore pour refuser":"Finá lisusu mpo na koboya","Toucher encore pour retirer":"Finá lisusu mpo na kolongola","Traduction en cours de relecture.":"Libongoli ezali kotalama.","Trop long":"Molai mingi","Un texte n’a pas été accepté. Changez-le.":"Makomi moko endimami te. Bongola yango.","Une vidéo de 60 secondes au plus.":"Video ya basekondi 60 koleka te.","Vidéo indisponible pour le moment.":"Vidéo ezali te mpo na sikoyo.","Vérifiez le formulaire : un champ n’est pas rempli comme il faut.":"Tala formulaire: esika moko etondisami malamu te.","Talent du Jour":"Likabo ya Mokolo","Talent du jour":"Likabo ya mokolo","Un défi par jour, ouvert au monde entier : montrez votre talent en 15 à 60 secondes.":"Défi moko mokolo na mokolo, efungwami na mokili mobimba: lakisa likabo na yo na basekɔndɛ 15 kino 60.","Aperçu : des défis d’exemple, pour découvrir la page.":"Emoniseli: ba défi ya ndakisa, mpo na koyeba lokasa oyo.","Talent du Jour n’est pas encore ouvert.":"Likabo ya Mokolo efungwami naino te.","Aujourd’hui":"Lelo","Le défi du jour":"Défi ya lelo","Aucun défi programmé aujourd’hui.":"Défi moko te ebongisami lelo.","Jusqu’à {0}":"Tii {0}","Aucune vidéo publiée pour l’instant.":"Video moko te ebimisami mpo na sikoyo.","1 vidéo publiée":"Video 1 ebimisami","{0} vidéos publiées":"Ba video {0} ebimisami","Demain : un défi « {0} ».":"Lobi: défi ya «{0}».","Un rappel par jour quand le défi commence. Vous pouvez l’arrêter à tout moment.":"Bokundoli moko mokolo na mokolo ntango défi ebandi. Okoki kotelemisa yango ntango nyonso.","Me prévenir chaque jour":"Kundolisa ngai mokolo na mokolo","Rappel activé ✓":"Bokundoli epelisami ✓","Rappel activé.":"Bokundoli epelisami.","Rappel arrêté.":"Bokundoli etelemisami.","Les participations":"Bosangani","Les talents du jour sont choisis par l’équipe : ni vote, ni argent.":"Ekipi nde eponaka makabo ya mokolo: kopona te, mbongo te.","Certaines vidéos ne vous sont pas visibles pour le moment.":"Ba video mosusu emonanaka na yo te mpo na sikoyo.","La durée de la vidéo n’est pas encore connue. Réessayez dans un instant.":"Bayebi naino te molai ya video. Meka lisusu mwa moke.","Retirée du défi : {0}":"Elongolami na défi: {0}","Non relue à temps":"Etalelamaki na ntango te","Les jours passés":"Mikolo eleki","Aucun jour passé pour l’instant.":"Mokolo moko te eleki mpo na sikoyo.","Ce défi n’est plus disponible.":"Défi oyo ezali lisusu te.","Ma participation":"Bosangani na ngai","Choisie comme talent du jour":"Eponami lokola likabo ya mokolo","Publiée":"Ebimisami","Refusée : {0}":"Eboyami: {0}","Retirer ma vidéo":"Longola video na ngai","Filmez votre talent en 15 à 60 secondes.":"Kanga video ya likabo na yo na basekɔndɛ 15 kino 60.","Participer avec La Forge":"Sangana na La Forge","Une phrase pour présenter votre vidéo (facultatif)":"Lifaso moko mpo na kolakisa video na yo (esengeli te)","Envoyer ma participation":"Tinda bosangani na ngai","L’équipe relit chaque vidéo avant de la publier.":"Ekipi etalaka video nyonso liboso ya kobimisa yango.","Le défi de ce jour est terminé.":"Défi ya mokolo oyo esili.","Deux vidéos refusées : ce défi est fermé pour vous.":"Ba video mibale eboyami: défi oyo ekangami mpo na yo.","Vous avez déjà envoyé 3 vidéos pour ce défi.":"Osili kotinda ba video 3 mpo na défi oyo.","Vous avez déjà participé à ce défi.":"Osili kosangana na défi oyo.","Une vidéo de 15 secondes au moins.":"Video ya basekɔndɛ 15 na moke.","Trop court":"Mokuse mingi","Ce jour a déjà un défi.":"Mokolo oyo esili kozala na défi.","Ce défi a déjà commencé : il ne change plus.":"Défi oyo esili kobanda: ekobongwana lisusu te.","Pas pour votre propre vidéo.":"Mpo na video na yo moko te.","La relecture de ce défi est terminée.":"Botali ya défi oyo esili.","Trois talents du jour au plus.":"Makabo misato ya mokolo koleka te.","Cette vidéo n’est plus dans le défi.":"Video oyo ezali lisusu na défi te.","Choisir comme talent du jour":"Pona lokola likabo ya mokolo","Retirer de la mise en avant":"Longola na bolakisi","Retirée de la mise en avant.":"Elongolami na bolakisi.","Votre vidéo est envoyée : l’équipe la relit avant de la publier.":"Video na yo etindami: ekipi ekotala yango liboso ya kobimisa.","Vidéo retirée du défi.":"Video elongolami na défi.","Programmer un défi":"Bongisa défi moko","Le jour":"Mokolo","La consigne":"Malako","Programmer le défi":"Bongisa défi","Les 14 prochains jours ont déjà un défi.":"Mikolo 14 oyo ezali koya esili kozala na ba défi.","Le programme":"Manaka","Annuler ce défi":"Longola défi oyo","Aucun défi programmé.":"Défi moko te ebongisami.","Les vidéos à relire":"Ba video ya kotala","Publier":"Bimisa","Aucune vidéo à relire.":"Video moko te ya kotala.","Vidéo publiée.":"Video ebimisami.","Vidéo refusée.":"Video eboyami.","Défi annulé.":"Défi elongolami.","Défi programmé.":"Défi ebongisami.","Participer : dès 13 ans. Ici, ni vote ni argent : les talents du jour sont choisis par l’équipe.":"Kosangana: kobanda mbula 13. Kopona te mpe mbongo te awa: ekipi nde eponaka makabo ya mokolo.","Chant":"Koyemba","Humour":"Masano","Invention":"Bokeli","Parole":"Maloba","Art":"Mayele ya bokeli","Comment ça marche":"Ndenge esalaka","Ce qui vous protège":"Oyo ebatelaka yo","Bientôt ouvert ici. Voici ce qui vous attend.":"Ekofungwama awa mosika te. Tala oyo ezali kozela yo.","Chaque jour, un nouveau défi de 15 à 60 secondes.":"Mokolo na mokolo, défi ya sika ya basekɔndɛ 15 kino 60.","Filmez votre talent avec La Forge.":"Kanga video ya likabo na yo na La Forge.","L’équipe relit chaque vidéo et choisit les talents du jour.":"Ekipi etalaka video nyonso mpe eponaka makabo ya mokolo.","Chaque vidéo est relue avant d’être publique.":"Video nyonso etalelamaka liboso ete bato nyonso bamona yango.","Le pseudo d’un mineur n’est jamais montré.":"Nkombo ya mwana moke emonisamaka ata mokolo moko te.","Vous pouvez retirer votre vidéo à tout moment.":"Okoki kolongola video na yo ntango nyonso."}</script>
+
+<script>
+/* ══ NV_CAMERA — EMBARQUÉ ════════════════════════════════════
+   Embarqué, pas référencé : un module NEURAVID doit s'ouvrir
+   seul depuis une URL file://, avec rien à côté. */
+/* ═══════════════════════════════════════════════════════════════════
+   NEURAVID — NV_CAMERA.js
+   Le bouton « Filmer » d'un défi ouvre la caméra du Studio créatif.
+
+   À embarquer dans les 16 modules de défi ET dans NV_MODULE_Create.html.
+
+   ── POURQUOI ─────────────────────────────────────────────────────────
+   Chaque défi a son propre enregistreur. Il fonctionne, il grave les
+   filtres et le logo dans l'image — mais il s'arrête là. La caméra du
+   Studio sait faire beaucoup plus, et elle existe déjà :
+
+       double caméra (médaillon, haut/bas, gauche/droite)
+       masques qui suivent le visage
+       effets pluie, neige, étincelles
+       filtres gravés dans l'image enregistrée
+       photo, montage, galerie
+
+   Une personne qui veut participer à un défi n'a aucune raison d'avoir
+   moins d'outils que quelqu'un qui filme pour rien.
+
+   ── LA DIFFICULTÉ RÉELLE ─────────────────────────────────────────────
+   Le Studio est un AUTRE fichier. Changer de page perd tout : le
+   contexte du défi, et surtout la vidéo elle-même — un Blob ne
+   traverse pas une navigation.
+
+   IndexedDB, si. C'est la seule voie, et Create s'en sert déjà pour
+   son relais. On l'emprunte :
+
+       1. le défi range son contexte et ouvre le Studio
+       2. la personne filme avec tous les outils
+       3. le Studio range la vidéo dans IndexedDB et revient au défi
+       4. le défi la reprend et la présente comme sa propre prise
+
+   ── CE QU'ON NE FAIT PAS ─────────────────────────────────────────────
+   On ne copie pas la caméra du Studio dans les seize défis. Elle pèse
+   plus de trois cents kilo-octets, et seize copies divergeraient au
+   premier correctif — c'est exactement ce qui est arrivé à IA et Coach,
+   qui affichaient deux scores différents pour la même vidéo.
+
+   Et on ne supprime pas l'enregistreur existant : si le Studio est
+   injoignable, il reprend la main. Une passerelle ne doit jamais
+   devenir un point de rupture.
+   ═══════════════════════════════════════════════════════════════════ */
+(function (racine) {
+  'use strict';
+  if (racine.NVCamera) return;
+
+  var BASE_DEFAUT = 'file:///android_asset/flutter_assets/assets/modules/';
+  var CLE_CTX = 'nv_cam_ctx';
+  var DB = 'nvcamera';
+  var MAG = 'prises';
+
+  function emit(type, charge) {
+    try { if (typeof racine.NVemit === 'function') racine.NVemit(type, charge || {}); }
+    catch (e) {}
+  }
+  function base() {
+    var b = racine.NV_MODULES_BASE || BASE_DEFAUT;
+    return b.slice(-1) === '/' ? b : b + '/';
+  }
+
+  /* ── LE COFFRE ────────────────────────────────────────────────────
+     Une vidéo de quelques mégaoctets ne tient pas dans localStorage et
+     ne survit pas à une navigation autrement. IndexedDB est le seul
+     endroit où elle peut attendre. */
+  function ouvrirBase() {
+    return new Promise(function (res) {
+      try { if (!racine.indexedDB) return res(null); } catch (e) { return res(null); }   /* stockage bloqué : l'accès lui-même peut lever une erreur */
+      var r;
+      try { r = racine.indexedDB.open(DB, 1); } catch (e) { return res(null); }
+      r.onupgradeneeded = function () {
+        try { r.result.createObjectStore(MAG); } catch (e) {}
+      };
+      r.onsuccess = function () { res(r.result); };
+      r.onerror = function () { res(null); };
+      /* certains navigateurs ne répondent jamais (fichier ouvert en content://) */
+      setTimeout(function () { res(null); }, 2000);
+    });
+  }
+  function ranger(cle, valeur) {
+    return ouvrirBase().then(function (db) {
+      if (!db) return false;
+      return new Promise(function (res) {
+        try {
+          var t = db.transaction(MAG, 'readwrite');
+          t.objectStore(MAG).put(valeur, cle);
+          t.oncomplete = function () { res(true); };
+          t.onerror = function () { res(false); };
+        } catch (e) { res(false); }
+      });
+    });
+  }
+  function reprendre(cle) {
+    return ouvrirBase().then(function (db) {
+      if (!db) return null;
+      return new Promise(function (res) {
+        try {
+          var t = db.transaction(MAG, 'readonly');
+          var q = t.objectStore(MAG).get(cle);
+          q.onsuccess = function () { res(q.result || null); };
+          q.onerror = function () { res(null); };
+        } catch (e) { res(null); }
+      });
+    });
+  }
+  function oublier(cle) {
+    return ouvrirBase().then(function (db) {
+      if (!db) return;
+      try {
+        var t = db.transaction(MAG, 'readwrite');
+        t.objectStore(MAG).delete(cle);
+      } catch (e) {}
+    });
+  }
+
+  /* ── CÔTÉ DÉFI : partir vers le Studio ────────────────────────────── */
+  function filmer(ctx) {
+    ctx = ctx || {};
+    ctx.module = ctx.module || racine.NV_MODULE_NAME || 'defi';
+    ctx.quand = Date.now();
+    /* La contrainte du défi voyage avec : le Studio doit savoir qu'une
+       story flash s'arrête à sept secondes. Sans ça, la personne filme
+       trente secondes et se fait refuser au retour. */
+    try { racine.sessionStorage.setItem(CLE_CTX, JSON.stringify(ctx)); } catch (e) {}
+    try { racine.localStorage.setItem(CLE_CTX, JSON.stringify(ctx)); } catch (e) {}
+    emit('camera_open', ctx);
+
+    /* Si le Studio est déjà dans cette page, on l'ouvre sans changer
+       d'écran : c'est plus rapide et rien ne peut se perdre. */
+    try {
+      if (racine.NVStudio && typeof racine.NVStudio.open === 'function' &&
+          typeof racine.NVStudio.tab === 'function') {
+        racine.NVStudio.open(); racine.NVStudio.tab('video');
+        return 'local';
+      }
+    } catch (e) {}
+    try {
+      if (racine.NVLien && typeof racine.NVLien.ouvrir === 'function') {
+        racine.NVLien.ouvrir('NVCreate', ctx);
+        return 'lien';
+      }
+    } catch (e) {}
+    try {
+      racine.location.href = base() + 'NV_MODULE_Create.html';
+      return 'fichier';
+    } catch (e) {}
+    return 'aucun';   /* l'appelant reprend la main avec son propre enregistreur */
+  }
+
+  /* ── CÔTÉ STUDIO : d'où vient-on, et comment y retourner ──────────── */
+  function contexte() {
+    var t = null;
+    try { t = racine.sessionStorage.getItem(CLE_CTX); } catch (e) {}
+    if (!t) { try { t = racine.localStorage.getItem(CLE_CTX); } catch (e) {} }
+    if (!t) return null;
+    try {
+      var c = JSON.parse(t);
+      /* Un contexte vieux de plus d'une heure n'a plus de sens : la
+         personne est passée à autre chose. On ne la renvoie pas dans un
+         défi qu'elle a quitté. */
+      if (!c || !c.quand || Date.now() - c.quand > 3600000) return null;
+      return c;
+    } catch (e) { return null; }
+  }
+
+  /* Le Studio appelle ceci quand la prise est terminée. */
+  function rendre(blob, meta) {
+    var c = contexte();
+    if (!c) return Promise.resolve(false);
+    var cle = 'prise_' + (c.module || 'defi') + '_' + (c.defi || 'x');
+    return ranger(cle, {blob: blob, meta: meta || {}, ctx: c, at: Date.now()})
+      .then(function (ok) {
+        if (!ok) return false;
+        emit('camera_done', {module: c.module, defi: c.defi || null,
+                             secondes: (meta && meta.seconds) || null});
+        try {
+          if (racine.NVLien && typeof racine.NVLien.ouvrir === 'function') {
+            racine.NVLien.ouvrir('NV' + c.module, c);
+            return true;
+          }
+        } catch (e) {}
+        try { racine.location.href = base() + 'NV_MODULE_' + c.module + '.html'; }
+        catch (e) {}
+        return true;
+      });
+  }
+
+  /* ── CÔTÉ DÉFI : récupérer la prise au retour ─────────────────────── */
+  function recuperer(module, defi) {
+    var cle = 'prise_' + (module || racine.NV_MODULE_NAME || 'defi') + '_' + (defi || 'x');
+    return reprendre(cle).then(function (p) {
+      if (!p) return null;
+      /* On efface tout de suite : une prise reprise deux fois se
+         retrouverait envoyée deux fois. */
+      oublier(cle);
+      if (!p.at || Date.now() - p.at > 3600000) return null;
+      return p;
+    });
+  }
+
+  /* ══ LE MÉNAGE ════════════════════════════════════════════════════
+     Une prise n'est effacée qu'à sa reprise. Si la personne filme puis
+     ne revient jamais dans le défi, l'entrée reste — une vidéo de
+     plusieurs mégaoctets par tentative abandonnée, sur un téléphone
+     d'entrée de gamme.
+
+     On balaie donc au chargement ce qui a plus d'une heure : c'est la
+     même limite que le contexte, et au-delà la personne est passée à
+     autre chose de toute façon. */
+  function balayer() {
+    return ouvrirBase().then(function (db) {
+      if (!db) return 0;
+      return new Promise(function (res) {
+        var n = 0;
+        try {
+          var t = db.transaction(MAG, 'readwrite');
+          var st = t.objectStore(MAG);
+          var q = st.openCursor();
+          q.onsuccess = function () {
+            var c = q.result;
+            if (!c) { res(n); return; }
+            var v = c.value;
+            if (!v || !v.at || Date.now() - v.at > 3600000) { c.delete(); n++; }
+            c.continue();
+          };
+          q.onerror = function () { res(n); };
+        } catch (e) { res(0); }
+      });
+    });
+  }
+  /* au chargement, sans bloquer quoi que ce soit */
+  try { setTimeout(balayer, 3000); } catch (e) {}
+
+  racine.NVCamera = {
+    balayer: balayer,
+    filmer: filmer,
+    contexte: contexte,
+    rendre: rendre,
+    recuperer: recuperer,
+    /* Pour savoir s'il faut proposer le Studio ou rester sur
+       l'enregistreur local. On ne propose jamais une porte qui ne
+       s'ouvre pas. */
+    studioJoignable: function () {
+      try {
+        if (racine.NVStudio && typeof racine.NVStudio.open === 'function') return true;
+        if (racine.NVLien && typeof racine.NVLien.ouvrir === 'function') return true;
+        return !!racine.NV_MODULES_BASE;
+      } catch (e) { return false; }
+    }
+  };
+})(window);
+
+</script>
+<script>
+(function(){
+/* NEURAVID — la présentation d'une nouveauté (17 novembre 2026, plan des 8 nouveautés, étape 2, confirmé par Karamo).
+   Un petit film animé (dessiné, aucune image extérieure, aucune personne réelle), « Comment ça marche » en 3 étapes et
+   « Ce qui vous protège ». Ouverte en grand quand la nouveauté n'est pas encore ouverte sur le serveur ; repliée sinon.
+   Les textes arrivent déjà traduits par le module. Aucun chiffre, aucun contenu inventé. */
+(function(){
+  if(window.NVPresente) return;
+  var CSS = '.nvp{margin:0 0 14px;border-radius:18px;overflow:hidden;background:#1b1145;border:1px solid rgba(255,255,255,.12)}' +
+    '.nvp canvas{display:block;width:100%;height:150px}' +
+    '.nvp .nvp-intro{margin:12px 14px 4px;font-size:15px;line-height:1.45;color:#f6f1ff}' +
+    '.nvp details{padding:4px 14px 12px}.nvp summary{cursor:pointer;min-height:44px;display:flex;align-items:center;gap:8px;font-weight:700;color:var(--nvp-c1,#ffc531);list-style:none}' +
+    '.nvp summary::-webkit-details-marker{display:none}.nvp summary:before{content:"";width:14px;height:16px;background:currentColor;clip-path:polygon(50% 0,100% 25%,100% 75%,50% 100%,0 75%,0 25%);transition:transform .2s}' +
+    '.nvp details[open] summary:before{transform:rotate(90deg)}' +
+    '.nvp ol{list-style:none;margin:4px 0 10px;padding:0;display:grid;gap:8px}.nvp ol li{display:flex;gap:10px;align-items:flex-start;line-height:1.4;color:#f6f1ff}' +
+    '.nvp ol li b{flex:0 0 28px;height:32px;display:grid;place-items:center;font-size:14px;color:#140b33;background:var(--nvp-c1,#ffc531);clip-path:polygon(50% 0,100% 25%,100% 75%,50% 100%,0 75%,0 25%)}' +
+    '.nvp h3{margin:10px 0 6px;font-size:14px;color:var(--nvp-c2,#16e0d4)}.nvp ul{margin:0;padding:0;list-style:none;display:grid;gap:6px}' +
+    '.nvp ul li{position:relative;padding-left:20px;line-height:1.4;color:#e9e3f5;font-size:14px}.nvp ul li:before{content:"";position:absolute;left:2px;top:.45em;width:10px;height:11px;background:var(--nvp-c2,#16e0d4);clip-path:polygon(50% 0,100% 25%,100% 75%,50% 100%,0 75%,0 25%)}' +
+    '[dir="rtl"] .nvp ul li{padding-left:0;padding-right:20px}[dir="rtl"] .nvp ul li:before{left:auto;right:2px}' +
+    '@media (prefers-reduced-motion:reduce){.nvp summary:before{transition:none}}';
+  function style(){ if(document.getElementById('nvpStyle')) return; var s = document.createElement('style'); s.id = 'nvpStyle'; s.textContent = CSS; document.head.appendChild(s); }
+  function esc(t){ return String(t == null ? '' : t).replace(/[&<>"']/g, function(c){ return {'&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;'}[c]; }); }
+  function hex(g, x, y, r, rot){ g.beginPath(); for(var i = 0; i < 6; i++){ var a = (rot || 0) + Math.PI / 3 * i + Math.PI / 6; g[i ? 'lineTo' : 'moveTo'](x + r * Math.cos(a), y + r * Math.sin(a)); } g.closePath(); }
+  function oeil(g, w, h){ var x = w - 22, y = h - 20; g.globalAlpha = .85; g.fillStyle = 'rgba(20,11,51,.7)'; hex(g, x, y, 13); g.fill(); g.strokeStyle = '#ffc531'; g.lineWidth = 1.5; g.stroke();
+    g.beginPath(); g.ellipse(x, y, 7, 4.2, 0, 0, Math.PI * 2); g.fillStyle = '#f6f1ff'; g.fill(); g.beginPath(); g.arc(x, y, 2.4, 0, Math.PI * 2); g.fillStyle = '#140b33'; g.fill(); g.globalAlpha = 1; }
+  var SCENES = {
+    tresse: function(g, w, h, t, c){ var cx = w / 2, cy = h / 2 + 6, R = Math.min(w, h) * .42;
+      var gr = g.createRadialGradient(cx - R * .3, cy - R * .3, R * .1, cx, cy, R); gr.addColorStop(0, '#2c5fb3'); gr.addColorStop(1, '#0c1840'); g.fillStyle = gr; g.beginPath(); g.arc(cx, cy, R, 0, Math.PI * 2); g.fill();
+      var pts = []; for(var la = -60; la <= 60; la += 15) for(var lo = 0; lo < 360; lo += 15){ var a = (lo + t * 12) * Math.PI / 180, b = la * Math.PI / 180, z = Math.cos(b) * Math.cos(a); if(z < 0) continue;
+        var x = cx + R * Math.cos(b) * Math.sin(a), y = cy - R * Math.sin(b); g.fillStyle = 'rgba(160,210,255,' + (.25 + z * .5) + ')'; g.fillRect(x - 1, y - 1, 2, 2); }
+      var n = 5; for(var i = 0; i < n; i++){ var a1 = (i * 70 + t * 12) * Math.PI / 180, b1 = ((i * 37) % 80 - 40) * Math.PI / 180; pts.push([cx + R * Math.cos(b1) * Math.sin(a1), cy - R * Math.sin(b1), Math.cos(b1) * Math.cos(a1)]); }
+      g.lineWidth = 2.2; g.strokeStyle = c[0]; g.shadowColor = c[0]; g.shadowBlur = 8; var k = (t * .6) % (n - 1);
+      for(var j = 0; j < n - 1; j++){ var p = pts[j], q = pts[j + 1]; if(p[2] < 0 || q[2] < 0) continue; var f = j < Math.floor(k) ? 1 : j === Math.floor(k) ? k % 1 : 0; if(!f) continue;
+        var mx = (p[0] + q[0]) / 2, my = Math.min(p[1], q[1]) - 26; g.beginPath(); g.moveTo(p[0], p[1]); for(var s = 1; s <= 20 * f; s++){ var u = s / 20; g.lineTo((1 - u) * (1 - u) * p[0] + 2 * (1 - u) * u * mx + u * u * q[0], (1 - u) * (1 - u) * p[1] + 2 * (1 - u) * u * my + u * u * q[1]); } g.stroke(); }
+      g.shadowBlur = 0; pts.forEach(function(p){ if(p[2] < 0) return; g.fillStyle = c[0]; hex(g, p[0], p[1], 5); g.fill(); }); },
+    cote: function(g, w, h, t, c){ var m = w / 2, o = Math.sin(t * 1.4) * 6;
+      g.fillStyle = c[0]; g.globalAlpha = .28; g.fillRect(0, 0, m - 2, h); g.fillStyle = c[1]; g.fillRect(m + 2, 0, m - 2, h); g.globalAlpha = 1;
+      [[m / 2, c[0]], [m + m / 2, c[1]]].forEach(function(s, i){ var y = h * .5 + (i ? -o : o); g.fillStyle = s[1]; g.beginPath(); g.arc(s[0], y - 24, 16, 0, Math.PI * 2); g.fill();
+        g.beginPath(); g.moveTo(s[0] - 28, y + 46); g.quadraticCurveTo(s[0], y - 18, s[0] + 28, y + 46); g.fill();
+        g.strokeStyle = s[1]; g.lineWidth = 4; g.lineCap = 'round'; g.beginPath(); g.moveTo(s[0] + (i ? -20 : 20), y + 6); g.lineTo(s[0] + (i ? -38 : 38) , y - 14 + o * (i ? 1 : -1)); g.stroke(); });
+      var pu = 1 + Math.sin(t * 3) * .08; g.fillStyle = '#140b33'; hex(g, m, h / 2, 22 * pu); g.fill(); g.strokeStyle = '#ffc531'; g.lineWidth = 2.5; g.stroke();
+      g.fillStyle = '#ffc531'; g.font = '700 15px system-ui,sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('+', m, h / 2 + 1); },
+    savoir: function(g, w, h, t, c){ var n = 3, e = w / (n + 1), y = h / 2, k = (t * .5) % (n + 1);
+      g.strokeStyle = 'rgba(255,255,255,.2)'; g.lineWidth = 4; g.beginPath(); g.moveTo(e, y); g.lineTo(e * n, y); g.stroke();
+      g.strokeStyle = c[0]; g.beginPath(); g.moveTo(e, y); g.lineTo(e + Math.min(k, n - 1) * e, y); g.stroke();
+      for(var i = 0; i < n; i++){ var x = e * (i + 1), on = k >= i, r = 24 + (on && k - i < .4 ? (1 - (k - i) / .4) * 6 : 0);
+        g.fillStyle = on ? c[0] : '#2a1c63'; hex(g, x, y, r); g.fill(); g.strokeStyle = on ? '#fff' : 'rgba(255,255,255,.3)'; g.lineWidth = 2; g.stroke();
+        g.strokeStyle = on ? '#140b33' : 'rgba(255,255,255,.35)'; g.lineWidth = 3; g.lineCap = 'round'; g.beginPath();
+        if(on){ g.moveTo(x - 9, y); g.lineTo(x - 2, y + 7); g.lineTo(x + 10, y - 7); } else { g.moveTo(x - 7, y); g.lineTo(x + 7, y); } g.stroke(); }
+      for(var s = 0; s < 14; s++){ var a = s * 2.4 + t, rr = (t * 30 + s * 23) % (w * .6); g.fillStyle = s % 2 ? c[1] : c[0]; g.globalAlpha = .5 * (1 - rr / (w * .6)); g.fillRect(w / 2 + Math.cos(a) * rr, y + Math.sin(a) * rr * .35, 3, 3); } g.globalAlpha = 1; },
+    aines: function(g, w, h, t, c){ var cx = w / 2, cy = h / 2, R = Math.min(w, h) * .36;
+      var gr = g.createRadialGradient(cx, cy, 2, cx, cy, R * 1.4); gr.addColorStop(0, c[0]); gr.addColorStop(.35, 'rgba(255,197,49,.25)'); gr.addColorStop(1, 'rgba(255,197,49,0)'); g.fillStyle = gr; g.fillRect(0, 0, w, h);
+      g.fillStyle = c[0]; hex(g, cx, cy, 20 + Math.sin(t * 2) * 2); g.fill();
+      for(var i = 0; i < 8; i++){ var a = i / 8 * Math.PI * 2 + t * .25, x = cx + Math.cos(a) * R * 1.35, y = cy + Math.sin(a) * R * .8;
+        g.strokeStyle = 'rgba(255,255,255,' + (.12 + .1 * Math.sin(t * 2 + i)) + ')'; g.lineWidth = 1.5; g.beginPath(); g.moveTo(cx, cy); g.lineTo(x, y); g.stroke();
+        g.fillStyle = i % 2 ? c[1] : '#f6f1ff'; hex(g, x, y, 9); g.fill(); } },
+    cercle: function(g, w, h, t, c){ var cx = w / 2, cy = h / 2, R = Math.min(w, h) * .34;
+      g.strokeStyle = c[0]; g.lineWidth = 3; g.globalAlpha = .9; hex(g, cx, cy, R * 1.25, t * .15); g.stroke(); g.globalAlpha = 1;
+      for(var i = 0; i < 6; i++){ var a = i / 6 * Math.PI * 2 + t * .15 + Math.PI / 6, x = cx + Math.cos(a) * R * 1.25, y = cy + Math.sin(a) * R * 1.25;
+        g.fillStyle = i % 2 ? c[1] : '#f6f1ff'; g.beginPath(); g.arc(x, y, 8, 0, Math.PI * 2); g.fill(); }
+      var p = 1 + Math.sin(t * 2.2) * .06; g.save(); g.translate(cx, cy); g.scale(p, p); g.fillStyle = c[0]; g.beginPath(); g.moveTo(0, 14);
+      g.bezierCurveTo(-26, -4, -14, -26, 0, -12); g.bezierCurveTo(14, -26, 26, -4, 0, 14); g.fill(); g.restore();
+      for(var k = 0; k < 4; k++){ var a2 = t * .9 + k * 1.6, r2 = R * 2.1, x2 = cx + Math.cos(a2) * r2, y2 = cy + Math.sin(a2) * r2 * .5; g.fillStyle = 'rgba(255,255,255,.25)'; g.beginPath(); g.arc(x2, y2, 4, 0, Math.PI * 2); g.fill(); } },
+    teint: function(g, w, h, t, c){ var T = ['#f3d2b8', '#e0b28f', '#c68a62', '#9c6440', '#74452a', '#4a2b1a'], n = T.length, e = w / (n + 1), k = Math.floor(t * .8) % n;
+      for(var i = 0; i < n; i++){ var x = e * (i + 1), y = h / 2 + (i === k ? -8 : 0), r = i === k ? 24 : 19; g.fillStyle = T[i]; hex(g, x, y, r); g.fill();
+        if(i === k){ g.strokeStyle = c[0]; g.lineWidth = 3; g.stroke(); g.fillStyle = c[0]; g.font = '700 12px system-ui,sans-serif'; g.textAlign = 'center'; g.fillText('✓', x, y + r + 16); } }
+      var lx = (t * 60) % (w + 120) - 60, gr = g.createLinearGradient(lx - 50, 0, lx + 50, 0); gr.addColorStop(0, 'rgba(255,255,255,0)'); gr.addColorStop(.5, 'rgba(255,255,255,.12)'); gr.addColorStop(1, 'rgba(255,255,255,0)'); g.fillStyle = gr; g.fillRect(0, 0, w, h); },
+    miroir: function(g, w, h, t, c){ var f = (Math.sin(t * .9) + 1) / 2, m = w * (.15 + .7 * f);
+      g.fillStyle = '#2b2448'; g.fillRect(0, 0, w, h); g.fillStyle = 'rgba(255,255,255,.05)'; for(var v = 0; v < w; v += 10) g.fillRect(v, 0, 1, h); g.fillStyle = '#a49cc0'; g.beginPath(); g.arc(w / 2, h / 2 - 8, 26, 0, Math.PI * 2); g.fill(); g.fillStyle = '#7d7699'; g.beginPath(); g.ellipse(w / 2, h / 2 + 44, 40, 20, 0, Math.PI, 0); g.fill();
+      g.save(); g.beginPath(); g.rect(m, 0, w - m, h); g.clip(); var gr = g.createLinearGradient(0, 0, w, h); gr.addColorStop(0, c[0]); gr.addColorStop(1, c[1]); g.fillStyle = gr; g.fillRect(0, 0, w, h);
+      g.fillStyle = '#fff'; g.beginPath(); g.arc(w / 2, h / 2 - 8, 26, 0, Math.PI * 2); g.fill(); g.fillStyle = 'rgba(255,255,255,.85)'; g.beginPath(); g.ellipse(w / 2, h / 2 + 44, 40, 20, 0, Math.PI, 0); g.fill(); for(var s2 = 0; s2 < 6; s2++){ var a = s2 + t * 2; g.fillStyle = 'rgba(255,255,255,.8)'; hex(g, w / 2 + Math.cos(a) * 46, h / 2 - 8 + Math.sin(a) * 30, 3); g.fill(); } g.restore();
+      g.strokeStyle = '#fff'; g.lineWidth = 2; g.beginPath(); g.moveTo(m, 0); g.lineTo(m, h); g.stroke(); g.fillStyle = '#140b33'; hex(g, m, h / 2, 14); g.fill(); g.strokeStyle = c[0]; g.stroke(); },
+    pagne: function(g, w, h, t, c){ var pal = [c[0], c[1], '#ff4f9e', '#16e0d4', '#ffc531', '#7a5cff'], s = 34, dec = (t * 18) % (s * 2);
+      for(var r = -1; r * s * .87 < h + s; r++) for(var q = -2; q * s < w + s * 2; q++){ var x = q * s + (r % 2 ? s / 2 : 0) - dec, y = r * s * .87, col = pal[(q + r * 2 + 60) % pal.length];
+        g.fillStyle = col; g.globalAlpha = .85; hex(g, x, y, s * .5); g.fill(); g.globalAlpha = 1; g.fillStyle = '#140b33'; g.beginPath(); g.arc(x, y, s * .18, 0, Math.PI * 2); g.fill();
+        g.strokeStyle = 'rgba(255,255,255,.55)'; g.lineWidth = 1.2; g.beginPath(); g.arc(x, y, s * .3, 0, Math.PI * 2); g.stroke(); }
+      var lx = ((t * 80) % (w * 1.6)) - w * .3, gr = g.createLinearGradient(lx - 60, 0, lx + 60, 0); gr.addColorStop(0, 'rgba(255,255,255,0)'); gr.addColorStop(.5, 'rgba(255,255,255,.35)'); gr.addColorStop(1, 'rgba(255,255,255,0)');
+      g.fillStyle = gr; g.fillRect(0, 0, w, h); var v = g.createLinearGradient(0, 0, 0, h); v.addColorStop(0, 'rgba(20,11,51,.15)'); v.addColorStop(1, 'rgba(20,11,51,.55)'); g.fillStyle = v; g.fillRect(0, 0, w, h); },
+    /* Talent du Jour (17 nov. 2026) : le soleil du jour, un projecteur, et le cadran des 15 à 60 secondes */
+    talent: function(g, w, h, t, c){ var cx = w / 2, cy = h / 2, R = Math.min(w, h) * .26;
+      var bg = g.createRadialGradient(cx, cy, 4, cx, cy, Math.max(w, h) * .7); bg.addColorStop(0, 'rgba(255,197,49,.18)'); bg.addColorStop(1, 'rgba(20,11,51,0)'); g.fillStyle = bg; g.fillRect(0, 0, w, h);
+      for(var k = 0; k < 12; k++){ var a = t * .25 + k * Math.PI / 6; g.strokeStyle = k % 2 ? 'rgba(22,224,212,.28)' : 'rgba(255,197,49,.32)'; g.lineWidth = 3; g.beginPath();
+        g.moveTo(cx + Math.cos(a) * R * 1.2, cy + Math.sin(a) * R * 1.2); g.lineTo(cx + Math.cos(a) * R * 1.75, cy + Math.sin(a) * R * 1.75); g.stroke(); }
+      var f = (t % 6) / 6; g.strokeStyle = 'rgba(255,255,255,.15)'; g.lineWidth = 7; g.beginPath(); g.arc(cx, cy, R * 1.05, 0, Math.PI * 2); g.stroke();
+      g.strokeStyle = c[1]; g.lineCap = 'round'; g.beginPath(); g.arc(cx, cy, R * 1.05, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * (.25 + .75 * f)); g.stroke(); g.lineCap = 'butt';
+      var gr = g.createLinearGradient(cx - R, cy - R, cx + R, cy + R); gr.addColorStop(0, c[0]); gr.addColorStop(1, c[1]); g.fillStyle = gr; hex(g, cx, cy, R * .9); g.fill();
+      g.fillStyle = '#140b33'; hex(g, cx, cy, R * .78); g.fill();
+      var e = 1 + Math.sin(t * 2.4) * .08; g.fillStyle = c[0]; g.beginPath(); for(var i = 0; i < 10; i++){ var r = (i % 2 ? R * .2 : R * .48) * e, b = -Math.PI / 2 + i * Math.PI / 5; g[i ? 'lineTo' : 'moveTo'](cx + Math.cos(b) * r, cy + Math.sin(b) * r); } g.closePath(); g.fill();
+      for(var m = 0; m < 5; m++){ var a2 = t * .7 + m * 1.26, x2 = cx + Math.cos(a2) * R * 2.05, y2 = cy + Math.sin(a2) * R * .95; g.globalAlpha = .75; g.fillStyle = m % 2 ? c[1] : '#ff4f9e'; hex(g, x2, y2, 7); g.fill(); g.globalAlpha = 1; } }
+  };
+  var FILMS = [];
+  function dessiner(f, t){ var c = f.c, r = c.getBoundingClientRect(), d = Math.min(window.devicePixelRatio || 1, 2), w = Math.max(1, Math.round(r.width)), h = Math.max(1, Math.round(r.height));
+    if(c.width !== w * d || c.height !== h * d){ c.width = w * d; c.height = h * d; } var g = c.getContext('2d'); g.setTransform(d, 0, 0, d, 0, 0);
+    var bg = g.createLinearGradient(0, 0, w, h); bg.addColorStop(0, '#1b1145'); bg.addColorStop(1, '#2a1260'); g.fillStyle = bg; g.fillRect(0, 0, w, h);
+    try{ (SCENES[f.scene] || SCENES.savoir)(g, w, h, t, f.couleurs); }catch(e){ /* rien */ } oeil(g, w, h); }
+  var calme = false; try{ calme = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches; }catch(e){ calme = false; }
+  var t0 = performance.now(), dernier = 0, roule = false;
+  /* 17 nov. 2026 (étape 7, la vitesse) : un film joue 12 s quand il paraît, puis s'arrête sur son image ; toucher le film le rejoue.
+     Au repos, la page ne dessine plus rien (le film coûtait de 18 à 44 % du processeur d'un téléphone modeste). */
+  var DUREE_JEU = 12000;
+  function jouer(f){ f.fin = performance.now() + DUREE_JEU; relancer(); }
+  function boucle(now){ roule = false; var vus = FILMS.filter(function(f){ return f.vu && now < (f.fin || 0) && document.body.contains(f.c); }); FILMS = FILMS.filter(function(f){ return document.body.contains(f.c); });
+    if(!vus.length || calme || document.hidden) return; if(now - dernier >= 33){ dernier = now; vus.forEach(function(f){ dessiner(f, (now - t0) / 1000); }); } roule = true; requestAnimationFrame(boucle); }
+  function relancer(){ if(!roule && !calme){ roule = true; requestAnimationFrame(boucle); } }
+  document.addEventListener('visibilitychange', relancer);
+  var io = window.IntersectionObserver ? new IntersectionObserver(function(es){ es.forEach(function(e){ FILMS.forEach(function(f){ if(f.c === e.target){ var avant = f.vu; f.vu = e.isIntersecting; if(f.vu && !avant && !f.joue){ f.joue = 1; jouer(f); } } }); }); relancer(); }) : null;
+  function film(c, scene, couleurs){ var f = {c:c, scene:scene, couleurs:couleurs || ['#ffc531', '#16e0d4'], vu:!io, fin:0}; FILMS.push(f); dessiner(f, calme ? 2.2 : 0); if(io) io.observe(c); else jouer(f);
+    c.addEventListener('click', function(){ if(!calme) jouer(f); });
+    var d = c.parentNode && c.parentNode.querySelector && c.parentNode.querySelector('details'); if(d) d.addEventListener('toggle', function(){ if(d.open && !calme) jouer(f); });
+    relancer(); }
+  function rejouer(){ FILMS.forEach(function(f){ if(f.vu) jouer(f); }); }
+  function html(o){ return '<section class="nvp" style="--nvp-c1:' + esc(o.couleurs[0]) + ';--nvp-c2:' + esc(o.couleurs[1]) + '" aria-label="' + esc(o.titreFilm || o.comment) + '">' +
+    '<canvas aria-hidden="true" data-nvp-scene="' + esc(o.scene) + '" data-nvp-c="' + esc(o.couleurs.join(',')) + '"></canvas>' + (o.intro ? '<p class="nvp-intro">' + esc(o.intro) + '</p>' : '') +
+    '<details' + (o.ouvert ? ' open' : '') + (o.cle ? ' data-nvp-cle="' + esc(o.cle) + '"' : '') + '><summary>' + esc(o.comment) + '</summary><ol>' +
+    o.etapes.map(function(s, i){ return '<li><b>' + (i + 1) + '</b><span>' + esc(s) + '</span></li>'; }).join('') + '</ol>' +
+    (o.protections && o.protections.length ? '<h3>' + esc(o.protege) + '</h3><ul>' + o.protections.map(function(s){ return '<li>' + esc(s) + '</li>'; }).join('') + '</ul>' : '') + '</details></section>'; }
+  /* toute toile « data-nvp-scene » posée dans la page (par html()) reçoit son film */
+  function animer(racine){ style(); Array.prototype.forEach.call((racine || document).querySelectorAll('canvas[data-nvp-scene]'), function(c){ if(c._nvp) return; c._nvp = 1;
+    film(c, c.getAttribute('data-nvp-scene'), (c.getAttribute('data-nvp-c') || '').split(',')); }); }
+  if(window.MutationObserver){ var mo = new MutationObserver(function(){ if(document.querySelector('canvas[data-nvp-scene]:not([data-nvp-vu])')){ Array.prototype.forEach.call(document.querySelectorAll('canvas[data-nvp-scene]:not([data-nvp-vu])'), function(c){ c.setAttribute('data-nvp-vu', '1'); }); animer(); } });
+    var go = function(){ if(document.body) mo.observe(document.body, {childList:true, subtree:true}); }; if(document.body) go(); else document.addEventListener('DOMContentLoaded', go); }
+  /* o : {cle, scene, couleurs:[c1, c2], ouvert, intro, comment, protege, etapes:[3], protections:[3], titreFilm, apres:element} */
+  function poser(o){ style(); var el = document.getElementById('nvPres');
+    if(!o){ if(el) el.remove(); return; }
+    var cle = [o.cle, o.ouvert ? 1 : 0, o.intro || '', o.comment, o.etapes.join('|'), o.protections.join('|')].join('§');
+    if(el && el._cle === cle){ if(o.apres && el.previousElementSibling !== o.apres) o.apres.parentNode.insertBefore(el, o.apres.nextSibling); return; }
+    var ouvertAvant = el && el._ouvertUtilisateur;
+    if(!el){ el = document.createElement('section'); el.id = 'nvPres'; el.className = 'nvp'; }
+    el._cle = cle; el.style.setProperty('--nvp-c1', o.couleurs[0]); el.style.setProperty('--nvp-c2', o.couleurs[1]);
+    el.setAttribute('aria-label', o.titreFilm || o.comment);
+    el.innerHTML = '<canvas aria-hidden="true"></canvas>' + (o.intro ? '<p class="nvp-intro">' + esc(o.intro) + '</p>' : '') +
+      '<details' + (o.ouvert || ouvertAvant ? ' open' : '') + '><summary>' + esc(o.comment) + '</summary><ol>' +
+      o.etapes.map(function(s, i){ return '<li><b>' + (i + 1) + '</b><span>' + esc(s) + '</span></li>'; }).join('') + '</ol>' +
+      '<h3>' + esc(o.protege) + '</h3><ul>' + o.protections.map(function(s){ return '<li>' + esc(s) + '</li>'; }).join('') + '</ul></details>';
+    var d = el.querySelector('details'); d.addEventListener('toggle', function(){ el._ouvertUtilisateur = d.open; });
+    if(o.apres && el.previousElementSibling !== o.apres) o.apres.parentNode.insertBefore(el, o.apres.nextSibling);
+    film(el.querySelector('canvas'), o.scene, o.couleurs); }
+  window.NVPresente = {poser:poser, html:html, animer:animer, style:style, scenes:Object.keys(SCENES), dessins:SCENES, hex:hex, rejouer:rejouer, dureeJeu:DUREE_JEU};   /* dessins, hex : pour les films (defis/films) */
+})();
+
+/* ════════════════════════════════════════════════════════════════════
+ TALENT DU JOUR (17 novembre 2026, innovation 2 du plan des 16, choisi pour Karamo)
+ Chaque jour, un défi court ouvert au monde entier : montrer son talent en 15 à 60 secondes, filmé avec La Forge.
+ L'équipe programme le défi (jamais inventé : sans défi, rien n'est montré comme tel), relit chaque vidéo avant qu'elle
+ soit publique, et peut choisir jusqu'à 3 « talents du jour » (un choix de l'équipe, dit comme tel : ni vote ni argent).
+ Serveur : /v1/talentjour (univers), capacité /v1/talentjour/capacites.
+ Rien n'est inventé : une valeur inconnue s'écrit « — » ; les exemples n'existent que dans l'aperçu, marqués « Aperçu ».
+ ════════════════════════════════════════════════════════════════════ */
+'use strict';
+var MOI = 'TalentJour';
+var LANGUES_UI = {fr:{nom:'Français', loc:'fr-FR'}, en:{nom:'English', loc:'en-GB'}, es:{nom:'Español', loc:'es-ES'}, pt:{nom:'Português', loc:'pt-BR'},
+  ar:{nom:'العربية', loc:'ar-u-nu-latn', rtl:true}, sw:{nom:'Kiswahili', loc:'sw-KE', relire:true}, ha:{nom:'Hausa', loc:'ha-NG', relire:true},
+  yo:{nom:'Yorùbá', loc:'yo-NG', relire:true}, wo:{nom:'Wolof', loc:'fr-SN', relire:true}, bm:{nom:'Bamanankan', loc:'fr-ML', relire:true},
+  ln:{nom:'Lingála', loc:'fr-CD', relire:true}};
+function N(s){ return s; }
+var CATEGORIES = {cuisine:[N('Cuisine'), '🍲'], chant:[N('Chant'), '🎤'], humour:[N('Humour'), '😄'], invention:[N('Invention'), '💡'], danse:[N('Danse'), '💃'],
+  parole:[N('Parole'), '🗣️'], art:[N('Art'), '🎨'], sport:[N('Sport'), '⚽'], autre:[N('Autre'), '✨']};
+var MOTIFS = {hors_sujet:N('Hors sujet'), trop_long:N('Trop long'), trop_court:N('Trop court'), contenu:N('Contenu inapproprié'), qualite:N('Qualité de la vidéo'), autre:N('Autre')};
+
+function $(id){ return document.getElementById(id); }
+function esc(s){ return String(s == null ? '' : s).replace(/[&<>"']/g, function(c){ return {'&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;'}[c]; }); }
+function brut(k){ try{ return localStorage.getItem(k); }catch(e){ return null; } }
+function ecrire(k, v){ try{ localStorage.setItem(k, JSON.stringify(v)); return true; }catch(e){ return false; } }
+function api(){ return window.NV_API_BASE ? String(window.NV_API_BASE).replace(/\/$/, '') : null; }
+function jeton(){ return window.NV_TOKEN ? String(window.NV_TOKEN) : ''; }
+function utilisateur(){ return window.NV_USER && typeof window.NV_USER === 'object' ? window.NV_USER : null; }
+function compte(){ var u = utilisateur(); return u && u.id ? String(u.id) : '—'; }
+function nombre(x){ return typeof x === 'number' && isFinite(x) && x >= 0 ? x : null; }
+function roles(){ var u = utilisateur(); return u && Array.isArray(u.roles) ? u.roles : []; }
+/* les rôles de l'équipe : ceux du téléphone, ou ceux que le serveur dit (GET /v1/talentjour/moi) */
+function moderateur(){ var r = roles(); return r.indexOf('moderateur') >= 0 || r.indexOf('verificateur') >= 0 || r.indexOf('organisateur') >= 0 || !!(ST.moiSrv && ST.moiSrv.equipe === true); }
+function redacteur(){ var r = roles(); return r.indexOf('redacteur') >= 0 || r.indexOf('organisateur') >= 0 || !!(ST.moiSrv && ST.moiSrv.redaction === true); }
+function organisateur(){ return roles().indexOf('organisateur') >= 0 || !!(ST.moiSrv && ST.moiSrv.annuler === true); }
+
+function langueDetectee(){
+  try{ var hl = /(?:^#|&)lang=([a-z]{2})/.exec(location.hash || ''); if(hl && LANGUES_UI[hl[1]]) return hl[1]; }catch(e){}
+  var c = brut('nv_ui_langue'); if(c){ try{ c = JSON.parse(c); }catch(e){} if(typeof c === 'string' && LANGUES_UI[c]) return c; }
+  try{ if(window.NV_LANG){ var n = String(window.NV_LANG).slice(0, 2).toLowerCase(); if(LANGUES_UI[n]) return n; } }catch(e){}
+  var l = []; try{ l = navigator.languages && navigator.languages.length ? navigator.languages : [navigator.language || 'fr']; }catch(e){}
+  for(var i = 0; i < l.length; i++){ var k = String(l[i] || '').slice(0, 2).toLowerCase(); if(LANGUES_UI[k]) return k; }
+  return 'fr';
+}
+var L = 'fr', LOC = 'fr-FR', DICO = {};
+function poserLangue(l){
+  L = LANGUES_UI[l] ? l : 'fr'; DICO = {};
+  if(L !== 'fr'){ try{ DICO = JSON.parse($('nvI18n-' + L).textContent) || {}; }catch(e){ L = 'fr'; DICO = {}; } }
+  LOC = LANGUES_UI[L].loc;
+  document.documentElement.lang = L; document.documentElement.dir = LANGUES_UI[L].rtl ? 'rtl' : 'ltr';
+}
+function T(s){ var t = DICO[s] || s, a = arguments; return t.replace(/\{(\d)\}/g, function(m, i){ var v = a[+i + 1]; return v == null ? '—' : String(v); }); }
+function nb(x){ var n = nombre(x); if(n == null) return '—'; try{ return n.toLocaleString(LOC); }catch(e){ return String(n); } }
+function drapeau(iso){ iso = String(iso || '').toUpperCase(); if(!/^[A-Z]{2}$/.test(iso)) return ''; return String.fromCodePoint(127397 + iso.charCodeAt(0), 127397 + iso.charCodeAt(1)); }
+function nomPays(iso){ if(!iso) return '—'; try{ return new Intl.DisplayNames([LOC], {type:'region'}).of(String(iso).toUpperCase()) || iso; }catch(e){ return iso; } }
+/* le jour d'un défi est un jour UTC (« 2026-11-17 ») : montré comme une date, sans décalage */
+function dateJour(j){ if(!/^\d{4}-\d{2}-\d{2}$/.test(String(j || ''))) return '—'; var d = new Date(j + 'T12:00:00Z');
+  try{ return d.toLocaleDateString(LOC, {weekday:'long', day:'numeric', month:'long', timeZone:'UTC'}); }catch(e){ return j; } }
+function heure(iso){ var d = new Date(iso); if(!iso || isNaN(d)) return '—'; try{ return d.toLocaleString(LOC, {weekday:'short', hour:'2-digit', minute:'2-digit'}); }catch(e){ return iso.slice(11, 16); } }
+function categorie(k){ var c = CATEGORIES[k]; return c ? T(c[0]) : '—'; }
+function glyphe(k){ var c = CATEGORIES[k]; return c ? c[1] : '✨'; }
+function partsTexte(n){ return nombre(n) === 0 ? T('Aucune vidéo publiée pour l’instant.') : nombre(n) === 1 ? T('1 vidéo publiée') : T('{0} vidéos publiées', nb(n)); }
+
+var ST = {apercu:false, cap:null, etat:'', vue:'jour', liste:null, defi:null, prog:null, file:null, prise:null, legende:'', envoi:false, sur:{}, occupe:{}, focusVers:null, decalage:0, minuteur:0};
+function cleFilm(){ return 'nv_talent_film|' + compte(); }
+
+function appeler(methode, chemin, corps, cle){
+  var h = {Accept:'application/json'}; if(jeton()) h.Authorization = 'Bearer ' + jeton();
+  if(methode !== 'GET') h['Idempotency-Key'] = cle || ('tj-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8));
+  var o = {method:methode, headers:h, mode:'cors', cache:'no-cache'};
+  if(corps instanceof FormData) o.body = corps; else if(corps){ h['Content-Type'] = 'application/json'; o.body = JSON.stringify(corps); }
+  return fetch(api() + chemin, o).then(function(r){
+    return r.text().then(function(t){ var j = null; try{ j = t ? JSON.parse(t) : null; }catch(e){ j = null; }
+      if(!r.ok){ var err = new Error('http ' + r.status); err.status = r.status; err.code = j && (j.erreur || j.code); err.params = j && j.params || {}; throw err; } return j; });
+  });
+}
+function emit(type, payload){
+  var msg = {source:'neuravid', module:MOI, type:type, payload:payload || {}};
+  if(window.NVemit && !window.NVemit.__nvLocal){ try{ window.NVemit(type, msg.payload); }catch(e){} }
+  try{ if(window.flutter_inappwebview) window.flutter_inappwebview.callHandler('nvEvent', msg); }catch(e){}
+  try{ window.dispatchEvent(new CustomEvent('nv:' + type, {detail:msg.payload})); }catch(e){}
+}
+function ouvrir(id, ctx){
+  var base = window.NV_MODULES_BASE ? String(window.NV_MODULES_BASE).replace(/\/?$/, '/') : '', url = base + 'NV_MODULE_' + id + '.html';
+  emit('open_module', {target:'NV' + id, url:url, contexte:ctx || null});
+  try{ if(ctx) sessionStorage.setItem('nv_ctx_' + id, JSON.stringify(ctx)); }catch(e){}
+  if(window.flutter_inappwebview) return;
+  if(window.NVLien && typeof window.NVLien.ouvrir === 'function'){ try{ window.NVLien.ouvrir('NV' + id, ctx); return; }catch(e){} }
+  try{ location.href = url; }catch(e){}
+}
+var toastT = 0;
+function toast(t){ var el = $('toast'); el.textContent = t; el.classList.add('on'); clearTimeout(toastT); toastT = setTimeout(function(){ el.classList.remove('on'); }, 3400); }
+var ERREURS = {age_minimum:N('Cette action n’est pas ouverte à votre âge.'), moderation:N('Un texte n’a pas été accepté. Changez-le.'),
+  trop_long:N('Une vidéo de 60 secondes au plus.'), trop_court:N('Une vidéo de 15 secondes au moins.'), fichier_trop_grand:N('Cette vidéo est trop lourde.'),
+  deja_participe:N('Vous avez déjà participé à ce défi.'), trop_de_refus:N('Deux vidéos refusées : ce défi est fermé pour vous.'),
+  trop_d_envois:N('Vous avez déjà envoyé 3 vidéos pour ce défi.'), defi_ferme:N('Le défi de ce jour est terminé.'), defi_inconnu:N('Ce défi n’est plus disponible.'),
+  jour_pris:N('Ce jour a déjà un défi.'), defi_commence:N('Ce défi a déjà commencé : il ne change plus.'), jamais_pour_soi:N('Pas pour votre propre vidéo.'),
+  relecture_fermee:N('La relecture de ce défi est terminée.'), duree_inconnue:N('La durée de la vidéo n’est pas encore connue. Réessayez dans un instant.'), trop_de_vedettes:N('Trois talents du jour au plus.'), participation_inconnue:N('Cette vidéo n’est plus dans le défi.'),
+  publication_indisponible:N('Le service est momentanément indisponible. Réessayez dans un instant.'), rappel_indisponible:N('Le service est momentanément indisponible. Réessayez dans un instant.')};
+function erreurTexte(e){
+  var c = e && e.code;
+  if(c === 'champ_invalide') return T('Vérifiez le formulaire : un champ n’est pas rempli comme il faut.');
+  if(c && ERREURS[c]) return T(ERREURS[c]);
+  if(e && e.status === 401) return T('Connectez-vous pour continuer.');
+  return navigator.onLine === false ? T('Pas de connexion pour le moment.') : T('Impossible de joindre NEURAVID pour le moment.');
+}
+
+/* ════════ LES DONNÉES ════════ */
+function chargerCap(){
+  if(ST.apercu){ ST.cap = {talentjour:true, secondes:[15, 60], participer:true, rappel:true}; return Promise.resolve(); }
+  if(!api()){ ST.cap = null; ST.etat = 'sansserveur'; return Promise.resolve(); }
+  return appeler('GET', '/v1/talentjour/capacites').then(function(c){ ST.cap = c && c.talentjour === true ? c : null; if(!ST.cap) ST.etat = 'indisponible'; });
+}
+/* l'heure du serveur : la fin du jour est comptée avec elle, jamais avec l'horloge du téléphone seule */
+function maintenant(){ return Date.now() + ST.decalage; }
+function chargerJour(){
+  ST.vue = 'jour'; ST.defi = null;
+  if(ST.apercu){ var dm = demo(); ST.liste = dm.liste; ST.defi = dm.details[dm.liste.aujourdhui.id]; ST.liste.aujourdhui.moi = ST.defi.moi; ST.etat = 'ok'; rendre(); return Promise.resolve(); }
+  if(!ST.cap){ rendre(); return Promise.resolve(); }
+  ST.etat = 'charge'; rendreEtat();
+  return appeler('GET', '/v1/talentjour').then(function(o){
+      ST.liste = o && typeof o === 'object' ? o : null; ST.etat = 'ok';
+      var t = o && Date.parse(o.maintenant); if(t && isFinite(t)) ST.decalage = t - Date.now();
+      /* le défi du jour : ses participations (la liste ne les donne pas) */
+      var a = o && o.aujourdhui; if(!a) return;
+      return appeler('GET', '/v1/talentjour/defis/' + encodeURIComponent(a.id)).then(function(x){ ST.defi = x; }, function(){ ST.defi = null; });
+    }, function(){ ST.etat = navigator.onLine === false ? 'horsligne' : 'erreur'; }).then(function(){ rendre(); armer(); });
+}
+function chargerDefi(id){
+  ST.vue = 'defi'; ST.defi = null; ST.sur = {};
+  if(ST.apercu){ ST.defi = demo().details[id] || null; ST.focusVers = 'hDefi'; rendre(); return Promise.resolve(); }
+  ST.etat = 'charge'; rendre();
+  return appeler('GET', '/v1/talentjour/defis/' + encodeURIComponent(id)).then(function(x){ ST.defi = x; ST.etat = 'ok'; emit('talentjour_voir', {defi:id}); },
+    function(e){ ST.etat = 'ok'; toast(erreurTexte(e)); ST.vue = 'jour'; }).then(function(){ ST.focusVers = ST.defi ? 'hDefi' : 'hJour'; rendre(); });
+}
+function chargerEquipe(){
+  ST.vue = 'equipe';
+  if(ST.apercu){ var d = demo(); ST.prog = d.prog; ST.file = d.file; rendre(); return Promise.resolve(); }
+  ST.etat = 'charge'; rendre();
+  return Promise.all([redacteur() ? appeler('GET', '/v1/talentjour/equipe/programme').catch(function(e){ toast(erreurTexte(e)); return null; }) : null,
+    moderateur() ? appeler('GET', '/v1/talentjour/equipe/file').catch(function(e){ toast(erreurTexte(e)); return null; }) : null])
+    .then(function(r){ ST.prog = r[0]; ST.file = r[1]; ST.etat = 'ok'; rendre(); });
+}
+/* à la fin du jour (heure du serveur), la page se relit : le défi suivant commence */
+function armer(){ clearTimeout(ST.minuteur); var a = ST.liste && ST.liste.aujourdhui; if(!a || ST.apercu) return; var f = Date.parse(a.fin) - maintenant();
+  if(isFinite(f) && f > 0 && f < 864e5 + 6e4) ST.minuteur = setTimeout(function(){ if(ST.vue === 'jour') chargerJour(); }, f + 1500); }
+
+/* ════════ L'AFFICHAGE ════════ */
+function rendreEtat(){
+  var el = $('etat'), t = '';
+  if(ST.apercu) t = T('Aperçu : des défis d’exemple, pour découvrir la page.');
+  else if(ST.etat === 'charge') t = T('Chargement…');
+  else if(ST.etat === 'sansserveur' || ST.etat === 'indisponible') t = T('Talent du Jour n’est pas encore ouvert.');
+  else if(ST.etat === 'horsligne') t = T('Pas de connexion pour le moment.');
+  else if(ST.etat === 'erreur') t = T('Impossible de joindre NEURAVID pour le moment.');
+  el.textContent = t; el.hidden = !t;
+}
+function onglets(){
+  var o = [['jour', T('Aujourd’hui')]];
+  if(moderateur() || redacteur()) o.push(['equipe', T('L’équipe')]);
+  if(o.length < 2) return '';
+  return '<nav class="chips" aria-label="' + esc(T('Talent du Jour')) + '">' + o.map(function(x){
+    return '<button type="button" data-vue="' + x[0] + '" aria-pressed="' + (ST.vue === x[0] || (ST.vue === 'defi' && x[0] === 'jour')) + '">' + esc(x[1]) + '</button>'; }).join('') + '</nav>';
+}
+function apercuPuce(){ return ST.apercu ? '<span class="apercu">' + esc(T('Aperçu')) + '</span>' : ''; }
+function videoPart(p){
+  if(p.video && p.video.url) return '<video controls playsinline preload="none"' + (p.video.affiche ? ' poster="' + esc(p.video.affiche) + '"' : '') + ' src="' + esc(p.video.url) + '" aria-label="' + esc(p.legende || T('Talent du Jour')) + '"></video>';
+  if(ST.apercu) return '<canvas width="180" height="320" data-demo="' + esc(p.pays || '') + '" aria-hidden="true"></canvas>';
+  return '<div class="vide-v">' + esc(T('Vidéo indisponible pour le moment.')) + '</div>';
+}
+function cartePart(p, d){
+  var h = '<div class="part' + (p.vedette ? ' vedette' : '') + '">' + videoPart(p);
+  if(p.vedette) h += '<span class="etoile"><i aria-hidden="true"></i>' + esc(T('Talent du jour')) + '</span>';
+  h += '<p><span aria-hidden="true">' + drapeau(p.pays) + '</span> ' + esc(nomPays(p.pays)) + (p.auteur && p.auteur.handle ? ' · @' + esc(p.auteur.handle) : '') + '</p>';
+  if(p.legende) h += '<p>' + esc(p.legende) + '</p>';
+  if(p.creeSurNeuravid) h += '<span class="nv-cree"><i></i>' + esc(T('Créé sur NEURAVID')) + '</span>';
+  /* l'équipe (rédaction) choisit au plus 3 talents du jour, jamais sa propre vidéo, pendant la relecture */
+  if(redacteur() && !p.moi && d && (d.vedettePossible === true || (ST.apercu && d.phase === 'ouvert')))
+    h += '<button type="button" data-vedette="' + esc(p.id) + '" aria-pressed="' + !!p.vedette + '"' + (ST.occupe['v' + p.id] ? ' disabled' : '') + '>' + esc(p.vedette ? T('Retirer de la mise en avant') : T('Choisir comme talent du jour')) + '</button>';
+  return h + '</div>';
+}
+function rendreParts(d){
+  var l = d.participations || [];
+  var h = '<section aria-labelledby="hParts"><h2 id="hParts">' + esc(T('Les participations')) + '</h2><p class="d">' + esc(partsTexte(nombre(d.nbParticipations) != null ? d.nbParticipations : l.length)) + '</p>';
+  if(l.some(function(p){ return p.vedette; })) h += '<p class="regle">' + esc(T('Les talents du jour sont choisis par l’équipe : ni vote, ni argent.')) + '</p>';
+  if(l.length) h += '<div class="grille">' + l.map(function(p){ return cartePart(p, d); }).join('') + '</div>';
+  /* le serveur ne dit pas pourquoi (abonnés d'un mineur, ou publication injoignable) : la page ne l'invente pas */
+  if(nombre(d.nbParticipations) > l.length) h += '<p class="regle">' + esc(T('Certaines vidéos ne vous sont pas visibles pour le moment.')) + '</p>';
+  return h + '</section>';
+}
+function rendreJour(){
+  var o = ST.liste || {}, a = o.aujourdhui, d = ST.defi && a && ST.defi.id === a.id ? ST.defi : null, h = '';
+  h += '<section aria-labelledby="hJour"><h2 id="hJour" tabindex="-1">' + esc(T('Le défi du jour')) + apercuPuce() + '</h2>';
+  if(!a){ h += '<p class="vide">' + esc(ST.etat === 'ok' ? T('Aucun défi programmé aujourd’hui.') : '—') + '</p>'; }
+  else {
+    h += '<div class="jour"><div class="jour-hex" aria-hidden="true"><span>' + glyphe(a.categorie) + '</span></div><div><p class="d">' + esc(categorie(a.categorie)) + ' · ' + esc(dateJour(a.jour)) + '</p>' +
+      '<h3>' + esc(a.titre) + '</h3><p class="cons">' + esc(a.consigne) + '</p><p class="d">' + esc(T('Jusqu’à {0}', heure(a.fin))) + ' · ' + esc(partsTexte(a.nbParticipations)) + '</p></div></div>';
+  }
+  if(o.demain) h += '<p class="astuce">' + esc(T('Demain : un défi « {0} ».', categorie(o.demain.categorie))) + '</p>';
+  h += rendreRappel() + '</section>';
+  if(a) h += rendreMoi(d || {id:a.id, phase:a.phase, moi:a.moi});
+  if(d) h += rendreParts(d);
+  h += rendrePasses(o.passes || []);
+  return h;
+}
+function rendreRappel(){
+  if(!ST.cap || ST.cap.rappel === false || (!jeton() && !ST.apercu)) return '';
+  var d = ST.defi, on = ST.moiSrv && typeof ST.moiSrv.rappel === 'boolean' ? ST.moiSrv.rappel : !!(d && d.moi && d.moi.rappel);
+  return '<div class="interrupteur"><p class="d">' + esc(T('Un rappel par jour quand le défi commence. Vous pouvez l’arrêter à tout moment.')) + '</p>' +
+    '<button type="button" id="bRappel" aria-pressed="' + on + '"' + (ST.occupe.rappel ? ' disabled' : '') + '>' + esc(on ? T('Rappel activé ✓') : T('Me prévenir chaque jour')) + '</button></div>';
+}
+function rendrePasses(l){
+  var h = '<section aria-labelledby="hPasses"><h2 id="hPasses">' + esc(T('Les jours passés')) + '</h2>';
+  if(!l.length) return h + '<p class="vide">' + esc(T('Aucun jour passé pour l’instant.')) + '</p></section>';
+  return h + l.map(function(x){
+    var v = (x.vedettes || []).map(function(p){ return drapeau(p.pays) + (p.auteur && p.auteur.handle ? ' @' + esc(p.auteur.handle) : ' ' + esc(nomPays(p.pays))); }).join(' · ');
+    return '<div class="passe"><div class="mini" aria-hidden="true">' + glyphe(x.categorie) + '</div><div><h3><button type="button" data-ouvrir="' + esc(x.id) + '">' + esc(x.titre) + '</button></h3>' +
+      '<p class="d">' + esc(dateJour(x.jour)) + ' · ' + esc(categorie(x.categorie)) + ' · ' + esc(partsTexte(x.nbParticipations)) + '</p>' +
+      (v ? '<p class="d"><span class="etoile"><i aria-hidden="true"></i>' + esc(T('Talent du jour')) + '</span> ' + v + '</p>' : '') + '</div></div>'; }).join('') + '</section>';
+}
+function rendreDefi(){
+  var d = ST.defi; if(!d) return '<p class="vide">' + esc(T('Ce défi n’est plus disponible.')) + '</p>';
+  var h = '<button type="button" class="lien retour" data-vue="jour">' + (LANGUES_UI[L].rtl ? '→ ' : '← ') + esc(T('Aujourd’hui')) + '</button>';
+  h += '<section aria-labelledby="hDefi"><div class="jour"><div class="jour-hex" aria-hidden="true"><span>' + glyphe(d.categorie) + '</span></div><div><p class="d">' + esc(categorie(d.categorie)) + ' · ' + esc(dateJour(d.jour)) + '</p>' +
+    '<h2 id="hDefi" tabindex="-1">' + esc(d.titre) + apercuPuce() + '</h2><p class="cons">' + esc(d.consigne) + '</p></div></div></section>';
+  if(d.phase === 'ouvert') h += rendreMoi(d);
+  return h + rendreParts(d);
+}
+function rendreMoi(d){
+  var m = d.moi || {}, p = m.participation, h = '<section aria-labelledby="hMoi"><h2 id="hMoi">' + esc(T('Ma participation')) + '</h2>';
+  if(!jeton() && !ST.apercu) return h + '<p class="d">' + esc(T('Connectez-vous pour continuer.')) + '</p></section>';
+  if(p){
+    h += '<p><b>' + esc(p.etat === 'publie' ? (p.vedette ? T('Choisie comme talent du jour') : T('Publiée')) : p.etat === 'refuse' ? T('Refusée : {0}', T(MOTIFS[p.motif] || 'Autre')) :
+      p.etat === 'retire' ? T('Retirée du défi : {0}', T(MOTIFS[p.motif] || 'Autre')) : p.etat === 'close' ? (p.motif === 'annule' ? T('Défi annulé.') : T('Non relue à temps')) : T('En cours de relecture par l’équipe')) + '</b></p>';
+    if(p.etat === 'publie' || p.etat === 'verification') h += '<button type="button" id="bRetirer">' + esc(ST.sur.retirer ? T('Toucher encore pour retirer') : T('Retirer ma vidéo')) + '</button>';
+  }
+  if(m.peut){
+    /* une prise filmée pour UN AUTRE défi n'est jamais montrée ni envoyée ici */
+    if(ST.prise && ST.prise.defi && ST.prise.defi !== d.id) oublierPrise();
+    if(!ST.prise) h += '<p>' + esc(T('Filmez votre talent en 15 à 60 secondes.')) + '</p><div class="actions"><button type="button" class="btn-or" id="bFilmer">' + esc(T('Participer avec La Forge')) + '</button></div>';
+    else h += '<video class="prise" id="vPrise" controls playsinline aria-label="' + esc(T('Ma vidéo')) + '"></video>' +
+      '<form class="form" id="fPart"><label>' + esc(T('Une phrase pour présenter votre vidéo (facultatif)')) + '<input id="iLegende" maxlength="150" value="' + esc(ST.legende) + '"></label>' +
+      '<button type="submit" class="btn-or"' + (ST.envoi ? ' disabled' : '') + '>' + esc(ST.envoi ? T('Envoi…') : T('Envoyer ma participation')) + '</button>' +
+      '<button type="button" id="bRefilmer">' + esc(ST.sur.refilmer ? T('Toucher encore pour refilmer') : T('Refilmer')) + '</button>' +
+      '<p class="regle">' + esc(T('L’équipe relit chaque vidéo avant de la publier.')) + '</p></form>';
+  } else if(!p || p.etat !== 'publie' && p.etat !== 'verification'){
+    var r = {age:N('Cette action n’est pas ouverte à votre âge.'), fermee:N('Le défi de ce jour est terminé.'), refus:N('Deux vidéos refusées : ce défi est fermé pour vous.'),
+      envois:N('Vous avez déjà envoyé 3 vidéos pour ce défi.'), indisponible:N('Le service est momentanément indisponible. Réessayez dans un instant.')}[m.raison];
+    if(r) h += '<p class="d">' + esc(T(r)) + '</p>';
+  }
+  return h + '</section>';
+}
+function rendreEquipe(){
+  var h = '';
+  if(redacteur() && ST.prog){
+    var libres = ST.prog.joursLibres || [];
+    h += '<section aria-labelledby="hNouveau"><h2 id="hNouveau">' + esc(T('Programmer un défi')) + apercuPuce() + '</h2>' + (libres.length ? '<form class="form" id="fDefi">' +
+      '<label>' + esc(T('Le jour')) + '<select id="iJour" class="plein">' + libres.map(function(j){ return '<option value="' + esc(j) + '">' + esc(dateJour(j)) + '</option>'; }).join('') + '</select></label>' +
+      '<label>' + esc(T('Catégorie')) + '<select id="iCat" class="plein">' + Object.keys(CATEGORIES).map(function(k){ return '<option value="' + k + '">' + CATEGORIES[k][1] + ' ' + esc(categorie(k)) + '</option>'; }).join('') + '</select></label>' +
+      '<label>' + esc(T('Titre')) + '<input id="iTitre" maxlength="80" required></label><label>' + esc(T('La consigne')) + '<textarea id="iConsigne" maxlength="300" rows="3" required></textarea></label>' +
+      '<button type="submit" class="btn-or"' + (ST.occupe.creer ? ' disabled' : '') + '>' + esc(T('Programmer le défi')) + '</button></form>' : '<p class="vide">' + esc(T('Les 14 prochains jours ont déjà un défi.')) + '</p>') + '</section>';
+    h += '<section aria-labelledby="hProg"><h2 id="hProg">' + esc(T('Le programme')) + '</h2>' + ((ST.prog.defis || []).length ? '<ul>' + ST.prog.defis.map(function(x){
+      return '<li><div class="l1"><span>' + glyphe(x.categorie) + ' <b>' + esc(dateJour(x.jour)) + '</b> · ' + esc(x.titre || '—') + '</span><span class="d">' + esc(partsTexte(x.nbParticipations)) + '</span></div>' +
+        (organisateur() ? '<button type="button" data-annuler="' + esc(x.id) + '">' + esc(ST.sur['a' + x.id] ? T('Toucher encore pour annuler') : T('Annuler ce défi')) + '</button>' : '') + '</li>'; }).join('') + '</ul>'
+      : '<p class="vide">' + esc(T('Aucun défi programmé.')) + '</p>') + '</section>';
+  }
+  if(moderateur() && ST.file){
+    h += '<section aria-labelledby="hFile"><h2 id="hFile" tabindex="-1">' + esc(T('Les vidéos à relire')) + apercuPuce() + '</h2>' + ((ST.file.items || []).length ? '<div class="grille">' + ST.file.items.map(function(t){
+      return '<div class="part">' + (t.url ? '<video controls playsinline preload="none" src="' + esc(t.url) + '" aria-label="' + esc(t.legende || (t.defi && t.defi.titre) || '') + '"></video>' : (ST.apercu ? '<canvas width="180" height="320" data-demo="' + esc((t.auteur && t.auteur.pays) || '') + '" aria-hidden="true"></canvas>' : '<div class="vide-v">' + esc(T('Vidéo indisponible pour le moment.')) + '</div>')) +
+        '<p><b>' + esc(t.defi && t.defi.titre) + '</b></p><p>' + esc(t.defi ? dateJour(t.defi.jour) : '—') + '</p>' +
+        '<p><span aria-hidden="true">' + drapeau(t.pays) + '</span> ' + esc(nomPays(t.pays)) + ' · ' + (nombre(t.duree) != null ? esc(nb(Math.round(t.duree))) + ' s' : '—') + '</p>' + (t.legende ? '<p>' + esc(t.legende) + '</p>' : '') +
+        '<button type="button" class="btn-or" data-publier="' + esc(t.id) + '">' + esc(ST.sur['p' + t.id] ? T('Toucher encore pour publier') : T('Publier')) + '</button>' +
+        '<select data-motif="' + esc(t.id) + '" aria-label="' + esc(T('Motif du refus')) + '">' + Object.keys(MOTIFS).map(function(k){ return '<option value="' + k + '">' + esc(T(MOTIFS[k])) + '</option>'; }).join('') + '</select>' +
+        '<button type="button" data-refuser="' + esc(t.id) + '">' + esc(ST.sur['r' + t.id] ? T('Toucher encore pour refuser') : T('Refuser')) + '</button></div>'; }).join('') + '</div>'
+      : '<p class="vide">' + esc(T('Aucune vidéo à relire.')) + '</p>') + '</section>';
+  }
+  return h;
+}
+function rendrePied(){
+  var h = '<label>' + esc(T('Langue')) + ' <select id="langue">' + Object.keys(LANGUES_UI).map(function(k){ return '<option value="' + k + '"' + (k === L ? ' selected' : '') + '>' + esc(LANGUES_UI[k].nom) + '</option>'; }).join('') + '</select></label>';
+  if(LANGUES_UI[L].relire) h += '<span>' + esc(T('Traduction en cours de relecture.')) + '</span>';
+  h += '<span>' + esc(T('Participer : dès 13 ans. Ici, ni vote ni argent : les talents du jour sont choisis par l’équipe.')) + '</span>';
+  $('pied').innerHTML = h;
+}
+function rendre(){
+  document.title = T('Talent du Jour') + ' · NEURAVID';
+  $('titre').textContent = T('Talent du Jour');
+  $('soustitre').textContent = T('Un défi par jour, ouvert au monde entier : montrez votre talent en 15 à 60 secondes.');
+  rendreEtat();
+  var h = '';
+  if(ST.cap){ h = onglets(); h += ST.vue === 'defi' ? rendreDefi() : ST.vue === 'equipe' ? rendreEquipe() : rendreJour(); }
+  var ae = document.activeElement, focus = null;
+  if(ae && $('contenu').contains(ae)){ if(ae.id) focus = '#' + ae.id; else { var at = ['data-vue', 'data-ouvrir', 'data-vedette', 'data-publier', 'data-refuser', 'data-annuler'];
+    for(var k = 0; k < at.length; k++){ if(ae.hasAttribute(at[k])){ focus = '[' + at[k] + '="' + String(ae.getAttribute(at[k])).replace(/["\\]/g, '') + '"]'; break; } } } }
+  $('contenu').innerHTML = h;
+  if(focus){ try{ var fe = document.querySelector(focus); if(fe) fe.focus({preventScroll:true}); }catch(e){} }
+  var vp = $('vPrise'); if(ST.prise && vp && ST.prise.url && vp.getAttribute('src') !== ST.prise.url){ try{ vp.setAttribute('src', ST.prise.url); }catch(e){} }
+  Array.prototype.forEach.call(document.querySelectorAll('canvas[data-demo]'), function(c){ demoDessiner(c, c.getAttribute('data-demo')); });
+  if(ST.focusVers){ var fv = $(ST.focusVers); if(fv){ try{ fv.focus({preventScroll:false}); }catch(e){} } ST.focusVers = null; }
+  rendrePied();
+}
+
+/* ════════ LES GESTES ════════ */
+function deuxTouchers(cle){ if(ST.sur[cle]){ delete ST.sur[cle]; return true; } ST.sur[cle] = true; rendre(); setTimeout(function(){ if(ST.sur[cle]){ delete ST.sur[cle]; rendre(); } }, 5000); return false; }
+function defiCourant(){ return ST.vue === 'defi' ? ST.defi : (ST.defi || (ST.liste && ST.liste.aujourdhui ? {id:ST.liste.aujourdhui.id, phase:ST.liste.aujourdhui.phase, moi:ST.liste.aujourdhui.moi} : null)); }
+function recharger(){ return ST.vue === 'defi' && ST.defi ? chargerDefi(ST.defi.id) : chargerJour(); }
+function noterFilm(o){ o.quand = Date.now(); var t = JSON.stringify(o); try{ sessionStorage.setItem(cleFilm(), t); }catch(e){} try{ localStorage.setItem(cleFilm(), t); }catch(e){} }
+function lireFilm(){ var f = null; try{ f = JSON.parse(sessionStorage.getItem(cleFilm()) || 'null'); }catch(e){} if(!f){ try{ f = JSON.parse(localStorage.getItem(cleFilm()) || 'null'); }catch(e){} } return f; }
+function oublierFilm(){ try{ sessionStorage.removeItem(cleFilm()); }catch(e){} try{ localStorage.removeItem(cleFilm()); }catch(e){} }
+function filmer(){
+  var d = defiCourant(); if(!d) return;
+  if(ST.apercu){ ST.prise = {url:'', blob:null, apercu:true, defi:d.id}; rendre(); return; }
+  if(!window.NVCamera || !NVCamera.studioJoignable()){ toast(T('La Forge n’est pas joignable ici.')); return; }
+  noterFilm({defi:d.id, legende:ST.legende, compte:compte()}); emit('talentjour_filmer', {defi:d.id});
+  NVCamera.filmer({module:MOI, defi:d.id, titre:T('Talent du Jour'), mode:'video', minSeconds:15, maxSeconds:60, regles:[T('Filmez votre talent en 15 à 60 secondes.')]});
+}
+function reprendrePrise(){
+  var f = lireFilm();
+  if(!window.NVCamera || !f || !f.defi || f.compte !== compte() || Date.now() - (f.quand || 0) > 3600000) return Promise.resolve(null);   /* la prise d'un AUTRE compte du téléphone n'est jamais reprise */
+  return NVCamera.recuperer(MOI, f.defi).then(function(p){
+    if(!p || !p.blob) return null;
+    if(typeof f.legende === 'string') ST.legende = f.legende;
+    ST.prise = {blob:p.blob, url:URL.createObjectURL(p.blob), meta:p.meta || {}, defi:f.defi};
+    return f.defi;
+  }, function(){ return null; });
+}
+function oublierPrise(){ if(ST.prise && ST.prise.url){ try{ URL.revokeObjectURL(ST.prise.url); }catch(e){} } ST.prise = null; oublierFilm(); }
+function envoyer(){
+  var d = defiCourant(), pr = ST.prise; if(!d || !pr || ST.envoi) return;
+  if(pr.defi && pr.defi !== d.id){ oublierPrise(); rendre(); return; }
+  ST.envoi = true; rendre();
+  var p, leg = String(ST.legende || '').trim();
+  if(ST.apercu){ var m = d.moi || (d.moi = {}); m.participation = {id:'tp_ap' + Date.now(), etat:'verification'}; m.peut = false; p = Promise.resolve({etat:'verification'}); }
+  else { var fd = new FormData(); if(leg) fd.append('legende', leg);
+    var mt = {}; if(pr.meta && pr.meta.provenance) mt.provenance = pr.meta.provenance; if(pr.meta && pr.meta.teint) mt.teint = pr.meta.teint;
+    if(Object.keys(mt).length) try{ fd.append('meta', JSON.stringify(mt)); }catch(e){}
+    if(pr.meta && nombre(pr.meta.seconds)) fd.append('seconds', String(pr.meta.seconds));
+    fd.append('video', pr.blob, 'talent.' + (/mp4/.test(pr.blob.type) ? 'mp4' : 'webm')); pr.cle = pr.cle || ('tjp-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6));
+    p = appeler('POST', '/v1/talentjour/defis/' + encodeURIComponent(d.id) + '/participations', fd, pr.cle); }
+  p.then(function(){ toast(T('Votre vidéo est envoyée : l’équipe la relit avant de la publier.')); emit('talentjour_participer', {defi:d.id}); oublierPrise(); ST.legende = ''; ST.envoi = false;
+      return ST.apercu ? rendre() : recharger(); },
+    function(e){ ST.envoi = false; if(e && e.status && e.status < 500 && e.code !== 'en_cours') pr.cle = null; toast(erreurTexte(e)); rendre(); });
+}
+function retirer(){
+  var d = defiCourant(), p = d && d.moi && d.moi.participation; if(!p || !deuxTouchers('retirer')) return;
+  (ST.apercu ? Promise.resolve() : appeler('POST', '/v1/talentjour/participations/' + encodeURIComponent(p.id) + '/retirer', {})).then(function(){ toast(T('Vidéo retirée du défi.'));
+    if(ST.apercu){ d.moi.participation = null; d.moi.peut = d.phase === 'ouvert'; return rendre(); } return recharger(); }, function(e){ toast(erreurTexte(e)); rendre(); });
+}
+function rappel(){
+  if(ST.occupe.rappel) return; var on = !(ST.moiSrv && ST.moiSrv.rappel); ST.occupe.rappel = true; rendre();
+  (ST.apercu ? Promise.resolve({rappel:on}) : appeler('POST', '/v1/talentjour/rappel', {actif:on})).then(function(o){ ST.moiSrv = ST.moiSrv || {}; ST.moiSrv.rappel = !!(o && o.rappel);
+    toast(ST.moiSrv.rappel ? T('Rappel activé.') : T('Rappel arrêté.')); emit('talentjour_rappel', {actif:ST.moiSrv.rappel}); }, function(e){ toast(erreurTexte(e)); })
+    .then(function(){ ST.occupe.rappel = false; rendre(); });
+}
+function vedette(pid){
+  var d = ST.vue === 'defi' ? ST.defi : ST.defi; if(!d || ST.occupe['v' + pid]) return;
+  var p = (d.participations || []).filter(function(x){ return x.id === pid; })[0]; if(!p) return; var oui = !p.vedette;
+  ST.occupe['v' + pid] = true; rendre();
+  (ST.apercu ? Promise.resolve({vedette:oui}) : appeler('POST', '/v1/talentjour/participations/' + encodeURIComponent(pid) + '/vedette', {oui:oui}))
+    .then(function(o){ p.vedette = !!(o && o.vedette); toast(p.vedette ? T('Choisie comme talent du jour') : T('Retirée de la mise en avant.')); }, function(e){ toast(erreurTexte(e)); })
+    .then(function(){ delete ST.occupe['v' + pid]; rendre(); });
+}
+function decider(pid, publier){
+  if(!deuxTouchers((publier ? 'p' : 'r') + pid)) return;
+  var s = document.querySelector('[data-motif="' + String(pid).replace(/["\\]/g, '') + '"]');
+  (ST.apercu ? Promise.resolve() : appeler('POST', '/v1/talentjour/participations/' + encodeURIComponent(pid) + '/decider', publier ? {publier:true} : {publier:false, motif:s ? s.value : 'autre'}))
+    .then(function(){ toast(publier ? T('Vidéo publiée.') : T('Vidéo refusée.')); if(ST.file) ST.file.items = (ST.file.items || []).filter(function(x){ return x.id !== pid; }); ST.focusVers = 'hFile'; },
+      function(e){ toast(erreurTexte(e)); }).then(rendre);
+}
+function annuler(did){
+  if(!deuxTouchers('a' + did)) return;
+  (ST.apercu ? Promise.resolve() : appeler('POST', '/v1/talentjour/defis/' + encodeURIComponent(did) + '/annuler', {})).then(function(){ toast(T('Défi annulé.'));
+    if(ST.apercu){ ST.prog.defis = ST.prog.defis.filter(function(x){ return x.id !== did; }); return rendre(); } return chargerEquipe(); }, function(e){ toast(erreurTexte(e)); rendre(); });
+}
+function creerDefi(){
+  var j = ($('iJour') || {}).value, c = ($('iCat') || {}).value, ti = String(($('iTitre') || {}).value || '').trim(), co = String(($('iConsigne') || {}).value || '').trim();
+  if(!j || !CATEGORIES[c] || ti.length < 3 || co.length < 3){ toast(T('Vérifiez le formulaire : un champ n’est pas rempli comme il faut.')); return; }
+  if(ST.occupe.creer) return; ST.occupe.creer = true; rendre();
+  (ST.apercu ? Promise.resolve({id:'tj_ap' + Date.now(), jour:j, categorie:c, titre:ti, nbParticipations:0}) : appeler('POST', '/v1/talentjour/defis', {jour:j, categorie:c, titre:ti, consigne:co}))
+    .then(function(x){ toast(T('Défi programmé.')); emit('talentjour_programmer', {jour:j});
+      ST.occupe.creer = false; if(ST.apercu){ ST.prog.defis.push(Object.assign({titre:ti}, x)); ST.prog.joursLibres = ST.prog.joursLibres.filter(function(y){ return y !== j; }); return rendre(); } return chargerEquipe(); },
+      function(e){ ST.occupe.creer = false; toast(erreurTexte(e)); rendre(); });
+}
+
+/* ════════ L'APERÇU (démonstration seulement) ════════ */
+function demo(){
+  var n = Date.now(), J = 864e5, iso = function(x){ return new Date(x).toISOString(); }, jr = function(x){ return iso(x).slice(0, 10); };
+  var fin = Date.UTC(new Date(n).getUTCFullYear(), new Date(n).getUTCMonth(), new Date(n).getUTCDate()) + J;
+  var parts = [{id:'tp_ap1', pays:'SN', legende:'Le thiéboudienne de ma grand-mère, en une minute.', auteur:{handle:'awa_dk'}, vedette:true, creeSurNeuravid:true, video:null},
+    {id:'tp_ap2', pays:'NG', legende:'Jollof en 45 secondes chrono.', auteur:{handle:'tunde'}, vedette:false, creeSurNeuravid:true, video:null},
+    {id:'tp_ap3', pays:'BR', legende:'', auteur:null, vedette:false, creeSurNeuravid:false, video:null},
+    {id:'tp_ap4', pays:'MA', legende:'Le couscous du vendredi.', auteur:{handle:'salma'}, vedette:false, creeSurNeuravid:true, video:null}];
+  var auj = {id:'tj_ap0', jour:jr(n), categorie:'cuisine', titre:'Le plat de ma famille', consigne:'Montrez en 15 à 60 secondes le plat que votre famille prépare pour les grands jours.',
+    debut:iso(fin - J), fin:iso(fin), phase:'ouvert', nbParticipations:4};
+  var d0 = Object.assign({}, auj, {participations:parts, moi:{peut:true, raison:null, participation:null, rappel:false}});
+  var p1 = {id:'tj_ap1', jour:jr(n - J), categorie:'chant', titre:'La chanson de mon enfance', consigne:'Chantez le refrain d’une chanson de votre enfance.', phase:'termine', nbParticipations:3,
+    vedettes:[{id:'tp_ap5', pays:'GH', auteur:{handle:'adjoa'}}]};
+  var p2 = {id:'tj_ap2', jour:jr(n - 2 * J), categorie:'invention', titre:'Réparé avec trois fois rien', consigne:'Montrez un objet que vous avez réparé ou inventé.', phase:'termine', nbParticipations:2,
+    vedettes:[{id:'tp_ap6', pays:'KE', auteur:{handle:'wanjiru'}}, {id:'tp_ap7', pays:'IN', auteur:null}]};
+  var det = {tj_ap0:d0};
+  det.tj_ap1 = Object.assign({}, p1, {participations:[{id:'tp_ap5', pays:'GH', legende:'Une berceuse en twi.', auteur:{handle:'adjoa'}, vedette:true, creeSurNeuravid:true, video:null},
+    {id:'tp_ap8', pays:'CD', legende:'', auteur:{handle:'grace_cd'}, vedette:false, creeSurNeuravid:true, video:null}], moi:{peut:false, raison:'fermee'}});
+  det.tj_ap2 = Object.assign({}, p2, {participations:[{id:'tp_ap6', pays:'KE', legende:'Une radio solaire.', auteur:{handle:'wanjiru'}, vedette:true, creeSurNeuravid:true, video:null}], moi:{peut:false, raison:'fermee'}});
+  return {liste:{aujourdhui:Object.assign({}, auj, {moi:d0.moi}), demain:{categorie:'danse'}, passes:[p1, p2]}, details:det,
+    prog:{defis:[{id:'tj_ap0', jour:jr(n), categorie:'cuisine', titre:auj.titre, nbParticipations:4}, {id:'tj_ap9', jour:jr(n + J), categorie:'danse', titre:'Le pas de chez moi', nbParticipations:0}],
+      joursLibres:[jr(n + 2 * J), jr(n + 3 * J), jr(n + 4 * J)]},
+    file:{items:[{id:'tp_ap10', defi:{id:'tj_ap0', jour:jr(n), titre:auj.titre}, legende:'Le mafé du dimanche.', pays:'ML', duree:38, auteur:{pays:'ML'}}]}};
+}
+function demoDessiner(c, pays){
+  var g = c.getContext('2d'); if(!g) return; var W = c.width, H = c.height, k = ((String(pays).charCodeAt(0) || 70) * 53 + (String(pays).charCodeAt(1) || 70) * 17) % 360;
+  var gr = g.createLinearGradient(0, 0, W, H); gr.addColorStop(0, 'hsl(' + k + ',60%,30%)'); gr.addColorStop(1, 'hsl(' + ((k + 60) % 360) + ',70%,18%)'); g.fillStyle = gr; g.fillRect(0, 0, W, H);
+  for(var i = 0; i < 7; i++){ var x = W / 2 + Math.cos(i) * 50, y = H / 2 - 20 + Math.sin(i * 1.7) * 70; g.fillStyle = 'rgba(255,255,255,.12)'; g.beginPath();
+    for(var a = 0; a < 6; a++){ var t = Math.PI / 3 * a; g.lineTo(x + 18 * Math.cos(t), y + 18 * Math.sin(t)); } g.closePath(); g.fill(); }
+  g.font = '64px sans-serif'; g.textAlign = 'center'; g.fillText(drapeau(pays) || '✨', W / 2, H / 2);
+  g.fillStyle = 'rgba(0,0,0,.55)'; g.fillRect(0, H - 26, W, 26); g.fillStyle = '#ffc531'; g.font = 'bold 13px sans-serif'; g.fillText(T('Aperçu'), W / 2, H - 9);
+}
+
+/* ════════ LE DÉMARRAGE ════════ */
+function changerVue(v){
+  ST.sur = {};
+  if(v === 'equipe' && (moderateur() || redacteur())) return chargerEquipe();
+  return chargerJour().then(function(){ var b = $('hJour'); if(b) b.focus(); });
+}
+function demarrer(){
+  poserLangue(langueDetectee());
+  /* sans serveur branché, la page montre son aperçu (repère « Aperçu »), aussi dans l'application, comme les autres
+     modules ; dès qu'un serveur est branché, seul le vrai contenu est montré. */
+  ST.apercu = !api();
+  if(ST.apercu && !utilisateur()){ try{ window.NV_USER = {id:'demo', handle:'visiteur', prenom:'Aya', age:25, majeur:true, iso:'GN'}; }catch(e){} }
+  var ctx = null;
+  try{ ctx = JSON.parse(sessionStorage.getItem('nv_ctx_' + MOI) || 'null'); sessionStorage.removeItem('nv_ctx_' + MOI); }catch(e){}
+  rendre();
+  chargerCap().catch(function(e){ ST.cap = null; ST.etat = e && e.status && e.status < 500 ? 'indisponible' : navigator.onLine === false ? 'horsligne' : 'erreur'; })
+    .then(function(){ if(!ST.cap) return rendre();
+      var m = jeton() && !ST.apercu ? appeler('GET', '/v1/talentjour/moi').then(function(o){ ST.moiSrv = o; }, function(){}) : Promise.resolve();
+      return m.then(reprendrePrise); })
+    .then(function(did){
+      if(!ST.cap) return;
+      return chargerJour().then(function(){
+        var a = ST.liste && ST.liste.aujourdhui;
+        /* une prise filmée pour un défi qui n'est plus celui du jour : oubliée (jamais envoyée ailleurs), et c'est dit */
+        if(did && !(a && a.id === did)){ oublierPrise(); toast(T('Le défi de ce jour est terminé.')); rendre(); return; }
+        if(ctx && typeof ctx.defi === 'string' && !(a && a.id === ctx.defi)) return chargerDefi(ctx.defi);
+        if(ctx && ctx.vue === 'equipe' && (moderateur() || redacteur())) return chargerEquipe();
+      });
+    });
+  document.addEventListener('click', function(ev){
+    var b = ev.target && ev.target.closest ? ev.target.closest('button') : null; if(!b) return;
+    var a = function(k){ return b.getAttribute(k); };
+    if(a('data-vue')) changerVue(a('data-vue'));
+    else if(a('data-ouvrir')) chargerDefi(a('data-ouvrir'));
+    else if(a('data-vedette')) vedette(a('data-vedette'));
+    else if(b.id === 'bFilmer') filmer();
+    else if(b.id === 'bRefilmer'){ if(deuxTouchers('refilmer')){ oublierPrise(); filmer(); } }
+    else if(b.id === 'bRetirer') retirer();
+    else if(b.id === 'bRappel') rappel();
+    else if(a('data-publier')) decider(a('data-publier'), true);
+    else if(a('data-refuser')) decider(a('data-refuser'), false);
+    else if(a('data-annuler')) annuler(a('data-annuler'));
+  });
+  document.addEventListener('input', function(ev){ var t = ev.target; if(t && t.id === 'iLegende') ST.legende = t.value; });
+  document.addEventListener('change', function(ev){
+    var t = ev.target; if(!t) return;
+    if(t.id === 'langue'){ var l = t.value; if(!LANGUES_UI[l]) return; ecrire('nv_ui_langue', l); poserLangue(l); rendre(); var s = $('langue'); if(s) s.focus(); }
+  });
+  document.addEventListener('submit', function(ev){
+    var f = ev.target; if(!f) return; ev.preventDefault();
+    if(f.id === 'fPart') envoyer(); else if(f.id === 'fDefi') creerDefi();
+  });
+  document.addEventListener('visibilitychange', function(){ if(document.visibilityState === 'visible' && ST.cap && !ST.apercu && ST.vue === 'jour' && ST.liste && ST.liste.aujourdhui && Date.parse(ST.liste.aujourdhui.fin) <= maintenant()) chargerJour(); });
+  window.NVTalentJour = {etat:function(){ return {etat:ST.etat, vue:ST.vue, apercu:ST.apercu, aujourdhui:!!(ST.liste && ST.liste.aujourdhui), prise:!!ST.prise, langue:L}; }};
+}
+
+/* ════════ La présentation : un film dessiné, « Comment ça marche », « Ce qui vous protège ». En grand quand la page n'est
+   pas encore ouverte ; repliée sur la page principale sinon. ════════ */
+var _rendrePres = rendre;
+rendre = function(){ var r = _rendrePres.apply(this, arguments); presenterNouveaute(); return r; };
+function presenterNouveaute(){
+  if(!window.NVPresente) return;
+  var ferme = !ST.cap && !ST.apercu && (ST.etat === 'sansserveur' || ST.etat === 'indisponible');
+  if(!ferme && !((ST.cap || ST.apercu) && ST.vue === 'jour')){ NVPresente.poser(null); return; }
+  NVPresente.poser({cle:'talent', scene:'talent', couleurs:['#ffc531', '#16e0d4'], ouvert:ferme, apres:$('etat'), titreFilm:T('Talent du Jour'),
+    intro:ferme ? T('Bientôt ouvert ici. Voici ce qui vous attend.') : '', comment:T('Comment ça marche'), protege:T('Ce qui vous protège'),
+    etapes:[T('Chaque jour, un nouveau défi de 15 à 60 secondes.'), T('Filmez votre talent avec La Forge.'), T('L’équipe relit chaque vidéo et choisit les talents du jour.')],
+    protections:[T('Chaque vidéo est relue avant d’être publique.'), T('Le pseudo d’un mineur n’est jamais montré.'), T('Vous pouvez retirer votre vidéo à tout moment.')]});
+}
+
+/* ════════ L'aperçu en repli (17 nov. 2026, rappel de Karamo : « ne plus dépendre l'affichage des contenus ou fonctionnalités
+   d'un module uniquement par la présence ou branchement d'un serveur ») ════════
+   Un serveur branché qui ne propose pas (encore) cette fonction, ou qui ne répond pas : la page ne reste jamais fermée,
+   elle montre son aperçu, toujours marqué « Aperçu » (rien n'est envoyé). Dès que le serveur l'annonce, seul le vrai contenu. */
+function repliApercu(){ if(ST.cap || ST.apercu) return false; ST.apercu = true; ST.repli = true;
+  if(!utilisateur()){ try{ window.NV_USER = {id:'demo', handle:'visiteur', prenom:'Aya', age:25, majeur:true, iso:'GN'}; }catch(e){} }
+  return true; }
+(function(){ var cc0 = chargerCap;
+  chargerCap = function(){ return cc0().then(function(){ if(repliApercu()) return cc0(); }, function(e){ if(repliApercu()) return cc0(); throw e; }); }; })();
+
+demarrer();
+})();
+
+</script>
+</body>
+</html>
