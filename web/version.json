@@ -1,6 +1,6 @@
 {
- "version": "2026.11.16-bd66038e7cb5",
- "date": "2026-11-16T23:30:12Z",
+ "version": "2026.11.17-90694d141c11",
+ "date": "2026-11-17T00:47:52Z",
  "entree": "index.html",
  "modules": [
   "NV_MODULE_Arena.html",
@@ -14,6 +14,7 @@
   "NV_MODULE_CinemaWorld.html",
   "NV_MODULE_Conditions.html",
   "NV_MODULE_Conteur.html",
+  "NV_MODULE_Cote.html",
   "NV_MODULE_Create.html",
   "NV_MODULE_Dashboard.html",
   "NV_MODULE_Entree.html",
@@ -92,9 +93,13 @@
    "sha256": "ded6502035b74bf55f6c4a73e5c9d5eeefad47df8d19d736abf365e076387291",
    "taille": 1444374
   },
+  "NV_MODULE_Cote.html": {
+   "sha256": "93a38f5dc9a664e2e80fe11de735230a39718de0192467900bc3bfe156c74c28",
+   "taille": 131068
+  },
   "NV_MODULE_Create.html": {
-   "sha256": "7375b21771ea62fcecc07c2c192bcb8e2063a2f5517117704c0475df65686d96",
-   "taille": 2065105
+   "sha256": "9c6fc277db3356a92899e8382733f48372b0e775a70248997d40c50c872d3785",
+   "taille": 2066714
   },
   "NV_MODULE_Dashboard.html": {
    "sha256": "50b4c7bc3b903e1bb3ef6ddc142d36b5525eb2e7bdfd93e973c9e055314b4c19",
@@ -121,8 +126,8 @@
    "taille": 299220
   },
   "NV_MODULE_Home.html": {
-   "sha256": "f2f780fd4e85d5b947dbc70332361449469f5c2c8b0e56a2b990f2de51cf434d",
-   "taille": 1968707
+   "sha256": "62334fc883e1d20152d8b1f5beea875390d7cd2f9bc372563da032c9f0ad250a",
+   "taille": 1971578
   },
   "NV_MODULE_Iris.html": {
    "sha256": "2bf25330343430a2f39a0251896aaa0169327edbb0ccfb089c7c624bbb7c96e7",
@@ -145,8 +150,8 @@
    "taille": 946708
   },
   "NV_MODULE_Notifications.html": {
-   "sha256": "1e7157914ae8609b9c34efdb259dee225185399a6060d0cfc1554806b42f7ead",
-   "taille": 505570
+   "sha256": "d525f61d5b5502aa03380476fac820bfa27874916523d9d6f6680ec133020f83",
+   "taille": 510418
   },
   "NV_MODULE_Orbite.html": {
    "sha256": "b7d81787dddffb71187049df8e6bfe0e8f6c602c266c8c3ed110c650ace6a660",

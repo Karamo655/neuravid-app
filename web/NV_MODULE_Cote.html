@@ -1,0 +1,920 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<!--NV_VITESSE--><script>/* NEURAVID — la vitesse commune (14 novembre 2026). Injectée en tête de chaque module par injecter_vitesse.py.
+   Rien n'est retiré : chaque animation reste, elle travaille seulement quand on la voit, et au rythme que le téléphone peut tenir.
+   1. La cadence des images (requestAnimationFrame) suit le téléphone et la personne :
+      - téléphone modeste (≤ 4 cœurs, ≤ 2 Go, ou économie de données) : 30 images/s au plus ;
+      - personne qui ne touche à rien depuis 15 s : 30 images/s (20 sur un téléphone modeste) ; tout geste rend la pleine cadence ;
+      - jamais pendant une capture (caméra, micro ou enregistrement en cours) : pleine cadence, rien n'est touché.
+   2. Les animations CSS sans fin s'arrêtent quand elles sortent de l'écran, et reprennent dès qu'elles reviennent.
+   3. (deuxième vague) Quand la cadence est réduite, les animations CSS sans fin et les animations SVG à l'écran avancent AU MÊME
+      rythme que le reste (elles sont « pilotées » : même mouvement, même vitesse, mais une image calculée 30 ou 20 fois par seconde
+      au lieu de 60). Sans cela, une seule petite animation obligeait le téléphone à recomposer tout l'écran 60 fois par seconde.
+      Tout geste les rend à elles-mêmes. Une animation mise en pause par le module n'est jamais relancée.
+   window.NVVitesse = {faible, cadence(), cran(), repos(), capture(), pilotees()} pour les essais. */
+(function(){ 'use strict';
+  if(window.NVVitesse || typeof window.requestAnimationFrame !== 'function') return;
+  var N = navigator, cx = N.connection || {}, coeurs = N.hardwareConcurrency || 8, mem = N.deviceMemory || 8;
+  var faible = coeurs <= 4 || mem <= 2 || !!cx.saveData;
+  var REPOS_MS = 15000, IV_FAIBLE = 1000 / 30, IV_REPOS = 1000 / (faible ? 20 : 30);
+  var natRAF = window.requestAnimationFrame.bind(window), natCAF = window.cancelAnimationFrame.bind(window);
+  var maintenant = function(){ return (window.performance && performance.now) ? performance.now() : Date.now(); };
+  var file = new Map(), suivant = 1, demande = 0, dernier = -1e9, geste = maintenant();
+
+  /* ── la capture : flux de la caméra ou du micro encore vivants, ou enregistrement en cours ── */
+  var flux = [], enregistreurs = [], capCache = {t:0, v:false}, md = null;
+  function enCapture(){ var t = maintenant(); if(t - capCache.t < 400) return capCache.v; capCache.t = t; var v = false;
+    try{
+      flux = flux.filter(function(s){ return s.getTracks().some(function(k){ return k.readyState === 'live'; }); }); if(flux.length) v = true;
+      enregistreurs = enregistreurs.filter(function(r){ return r.state !== 'inactive'; }); if(enregistreurs.length) v = true;
+    }catch(e){ v = true; }
+    return (capCache.v = v); }
+  try{ md = N.mediaDevices; if(md && md.getUserMedia){ var gum = md.getUserMedia.bind(md);
+    md.getUserMedia = function(){ return gum.apply(null, arguments).then(function(s){ flux.push(s); capCache.t = 0; return s; }); }; } }catch(e){}
+  try{ if(md && md.getDisplayMedia){ var gdm = md.getDisplayMedia.bind(md);
+    md.getDisplayMedia = function(){ return gdm.apply(null, arguments).then(function(s){ flux.push(s); capCache.t = 0; return s; }); }; } }catch(e){}
+  try{ if(window.MediaRecorder && MediaRecorder.prototype.start){ var dem = MediaRecorder.prototype.start;
+    MediaRecorder.prototype.start = function(){ enregistreurs.push(this); capCache.t = 0; return dem.apply(this, arguments); }; } }catch(e){}
+
+  function repos(){ return maintenant() - geste > REPOS_MS; }
+  /* 4. la cadence qui s'adapte : si le téléphone n'arrive pas à tenir la cadence voulue (les images arrivent 1,6 fois trop tard
+     pendant 2 s), on descend d'un cran (60 → 30 → 20, ou 30 → 20 → 15 sur un téléphone modeste) ; quand il respire de nouveau
+     pendant 8 s, on remonte. Une cadence tenue est plus fluide, et les touchers sont servis plus vite, qu'une cadence ratée. */
+  var CRANS = faible ? [30, 20, 15] : [60, 30, 20], cran = 0, ema = 0, lent = 0, aise = 0, derniereImage = 0;
+  function voulue(){ var c = CRANS[cran]; if(repos()) c = Math.min(c, faible ? 20 : 30); return c; }
+  function intervalle(){ if(enCapture()) return 0; var c = voulue(); return c >= 60 ? 0 : 1000 / c; }
+  function mesurer(ts){ var d = ts - derniereImage; derniereImage = ts; if(d <= 0 || d > 250){ ema = 0; return; }
+    ema = ema ? ema * .9 + d * .1 : d; var cible = 1000 / voulue();
+    if(ema > cible * 1.6){ lent += d; aise = 0; if(lent > 2000 && cran < CRANS.length - 1){ cran++; lent = 0; ema = 0; } }
+    else if(ema < cible * 1.15){ aise += d; lent = 0; if(aise > 8000 && cran > 0){ cran--; aise = 0; ema = 0; } }
+    else { lent = 0; aise = 0; } }
+
+  /* ── les animations pilotées (CSS sans fin et SVG à l'écran, seulement quand la cadence est réduite) ── */
+  var pilotes = [], svgs = [], gouverne = false;
+  function piloter(ts){
+    for(var i = 0; i < pilotes.length; i++){ var p = pilotes[i]; try{ p.a.currentTime = p.base + (ts - p.t0) * (p.a.playbackRate || 1); }catch(e){} }
+    for(i = 0; i < svgs.length; i++){ var q = svgs[i]; try{ q.s.setCurrentTime(q.base + (ts - q.t0) / 1000); }catch(e){} } }
+  function relancer(){ if(!demande && (file.size || pilotes.length || svgs.length)) demande = natRAF(tour); }
+  function prendre(a){ for(var i = 0; i < pilotes.length; i++) if(pilotes[i].a === a) return;
+    try{ var ct = a.currentTime || 0; a.pause(); a.currentTime = ct; pilotes.push({a:a, base:ct, t0:maintenant()}); relancer(); }catch(e){} }
+  function prendreSvg(s){ for(var i = 0; i < svgs.length; i++) if(svgs[i].s === s) return;
+    try{ if(s.animationsPaused()) return; var ct = s.getCurrentTime(); s.pauseAnimations(); svgs.push({s:s, base:ct, t0:maintenant()}); relancer(); }catch(e){} }
+  function lacher(){ var l = pilotes; pilotes = [];
+    l.forEach(function(p){ try{ var t = p.a.effect && p.a.effect.target; if(p.a.playState === 'paused' && t && t.isConnected) p.a.play(); }catch(e){} });
+    var m = svgs; svgs = []; m.forEach(function(q){ try{ q.s.unpauseAnimations(); }catch(e){} }); }
+  function lacherA(a){ pilotes = pilotes.filter(function(p){ return p.a !== a; }); }
+
+  function tour(ts){ demande = 0; if(!file.size && !pilotes.length && !svgs.length) return;
+    var iv = intervalle(); if(iv && ts - dernier < iv - 3){ demande = natRAF(tour); return; }
+    if(!iv && (pilotes.length || svgs.length)) lacher();
+    dernier = ts; if(!enCapture()) mesurer(ts); if(iv) piloter(ts);
+    var lot = file; file = new Map();
+    lot.forEach(function(cb){ try{ cb(ts); }catch(e){ setTimeout(function(){ throw e; }, 0); } });
+    relancer(); }
+  window.requestAnimationFrame = function(cb){ if(typeof cb !== 'function') return natRAF(cb); var id = suivant++; file.set(id, cb); if(!demande) demande = natRAF(tour); return id; };
+  window.cancelAnimationFrame = function(id){ file.delete(id); if(!file.size && !pilotes.length && !svgs.length && demande){ natCAF(demande); demande = 0; } };
+  function bouge(){ var r = repos(); geste = maintenant(); if(r) dernier = -1e9; if(gouverne && !intervalle()){ gouverne = false; lacher(); } }
+  ['pointerdown', 'touchstart', 'keydown', 'wheel', 'scroll'].forEach(function(n){ window.addEventListener(n, bouge, {capture:true, passive:true}); });
+
+  /* ── les animations CSS sans fin hors de l'écran ── */
+  var suivis = typeof WeakMap === 'function' ? new WeakMap() : null, arretees = [], io = null;
+  function sansFin(a){ try{ return a.effect && a.effect.getTiming && a.effect.getTiming().iterations === Infinity; }catch(e){ return false; } }
+  function voulueEnPause(el){ try{ return /paused/.test(getComputedStyle(el).animationPlayState || ''); }catch(e){ return false; } }
+  function estCSS(a){ return !!(window.CSSAnimation && a instanceof CSSAnimation); }
+  if(suivis && 'IntersectionObserver' in window && document.getAnimations){
+    io = new IntersectionObserver(function(es){ es.forEach(function(e){ var el = e.target, s = suivis.get(el); if(!s) return; s.vu = e.isIntersecting;
+      if(s.vu){ var reste = []; arretees.forEach(function(a){ var t = a.effect && a.effect.target;
+          if(t === el){ if(a.playState === 'paused' && !voulueEnPause(el)){ if(gouverne) prendre(a); else try{ a.play(); }catch(x){} } } else reste.push(a); }); arretees = reste; }
+      else { try{ el.getAnimations().forEach(function(a){ if(!estCSS(a) || !sansFin(a)) return; var pil = pilotes.some(function(p){ return p.a === a; });
+          if(pil){ lacherA(a); arretees.push(a); } else if(a.playState === 'running'){ try{ a.pause(); arretees.push(a); }catch(x){} } }); }catch(x){} } }); }, {rootMargin:'120px'});
+    var balayer = function(){ if(document.hidden) return;
+      arretees = arretees.filter(function(a){ var t = a.effect && a.effect.target; return t && t.isConnected; });
+      pilotes = pilotes.filter(function(p){ var t = p.a.effect && p.a.effect.target; return t && t.isConnected && p.a.playState !== 'idle'; });
+      gouverne = intervalle() > 0; if(!gouverne && (pilotes.length || svgs.length)) lacher();
+      try{ document.getAnimations().forEach(function(a){ if(!estCSS(a) || !sansFin(a)) return; var t = a.effect && a.effect.target; if(!t || t.nodeType !== 1) return;
+        var s = suivis.get(t); if(!s){ suivis.set(t, {vu:true}); io.observe(t); return; }
+        if(!s.vu){ if(a.playState === 'running'){ try{ a.pause(); arretees.push(a); }catch(x){} } return; }
+        if(gouverne && a.playState === 'running' && !voulueEnPause(t)) prendre(a); }); }catch(e){}
+      /* les SVG animés : endormis hors de l'écran, pilotés à l'écran quand la cadence est réduite */
+      try{ [].forEach.call(document.querySelectorAll('svg'), function(s){ if(s.ownerSVGElement || !s.pauseAnimations) return;
+          if(!s.querySelector('animate,animateTransform,animateMotion,set')) return; var r = s.getBoundingClientRect(), vu = !!(r.width && r.bottom > -120 && r.top < innerHeight + 120);
+          if(!vu){ var pil = svgs.some(function(q){ return q.s === s; });
+            if(pil){ svgs = svgs.filter(function(q){ return q.s !== s; }); s.__nvDort = true; }
+            else if(!s.animationsPaused()){ try{ s.pauseAnimations(); s.__nvDort = true; }catch(e){} } return; }
+          if(s.__nvDort){ s.__nvDort = false; try{ s.unpauseAnimations(); }catch(e){} }
+          if(gouverne) prendreSvg(s); }); }catch(e){}
+      svgs = svgs.filter(function(q){ return q.s.isConnected; }); };
+    var lancer = function(){ balayer(); setInterval(balayer, 2000); };
+    if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', function(){ setTimeout(lancer, 1500); }); else setTimeout(lancer, 1500);
+  }
+  window.NVVitesse = {faible:faible, repos:repos, capture:enCapture, cadence:function(){ var iv = intervalle(); return iv ? Math.round(1000 / iv) : 60; }, cran:function(){ return cran; },
+    pilotees:function(){ return {css:pilotes.length, svg:svgs.length}; }};
+})();</script><!--/NV_VITESSE-->
+<!--NV_CONFIG--><script src="nv-config.js"></script><!--/NV_CONFIG-->
+<!--NV_DEMO--><script id="nv-demo">
+/* NEURAVID — LA DÉMONSTRATION dans chaque module (injectée en tête de page, avant le module).
+   Jamais dans l'application ni avec un serveur (NV_API_BASE). Allumée si l'accueil l'a allumée pour la session
+   (sessionStorage « nv_demo » = 1), ou « #demo » dans l'adresse, ou une page ouverte comme fichier (file:, content:).
+   Elle permet seulement d'ouvrir les autres modules à côté (NV_MODULES_BASE) avec le même visiteur de démonstration ;
+   chaque module garde ses propres règles (rien d'inventé hors de la démonstration).
+   Seule exception à « jamais dans l'application » : l'APK « NEURAVID Aperçu » pose window.NV_APERCU = true (3 nov. 2026) ;
+   l'application de production ne le pose jamais. */
+(function(){ try{ var dansApp = !window.NV_APERCU && !!(window.flutter_inappwebview || window.NVLien || window.ReactNativeWebView), h = location.hash || '', s = null; try{ s = sessionStorage.getItem('nv_demo'); }catch(e){ s = null; }
+  if(dansApp || (typeof window.NV_API_BASE === 'string' && window.NV_API_BASE) || s === '0' || /(^#|&)demo=0(&|$)/.test(h)) return;
+  if(!(s === '1' || /(^#|&)demo(=1)?(&|$)/.test(h) || /^(file|content):$/.test(location.protocol))) return;
+  window.NV_DEMO = true; try{ sessionStorage.setItem('nv_demo', '1'); }catch(e){ /* rien */ }
+  if(!window.NV_MODULES_BASE) window.NV_MODULES_BASE = './';
+  if(!window.NV_USER) window.NV_USER = {id:'demo', handle:'visiteur', prenom:'Aya', age:25, majeur:true, iso:'GN'};
+}catch(e){ /* rien */ } })();
+</script><!--/NV_DEMO-->
+
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#140b33">
+<title>Côte à côte · NEURAVID</title>
+<style>
+/* Côte à côte : un duo à distance, l'écran partagé en deux (16 novembre 2026).
+   Aucune ressource extérieure : les vidéos viennent des serveurs (univers et publication). */
+:root{
+  --nuit:#140b33; --nuit2:#1c1147; --alv:#241657; --craie:#f6f1ff; --brume:rgba(236,228,255,.74); --trait:rgba(255,255,255,.16);
+  --or:#ffc531; --argent:#d7dbe6; --bronze:#e0995a; --cyan:#16e0d4; --rose:#ff4f9e; --rouge:#ff7a7a;
+  --hex:polygon(25% 0,75% 0,100% 50%,75% 100%,25% 100%,0 50%);
+  --sans:system-ui,-apple-system,"Segoe UI",Roboto,"Noto Sans",sans-serif;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%;text-size-adjust:100%}
+body{margin:0;background:var(--nuit);color:var(--craie);font:16px/1.45 var(--sans);min-height:100vh}
+main{max-width:768px;margin:0 auto;padding:12px 16px calc(32px + env(safe-area-inset-bottom,0px))}
+header{display:flex;align-items:center;gap:10px;padding:6px 0 10px}
+.hex{width:34px;height:30px;flex:0 0 auto;clip-path:var(--hex);background:linear-gradient(135deg,var(--cyan),#6c2bd9);display:grid;place-items:center}
+.hex i{width:14px;height:14px;border-radius:50%;background:var(--nuit);box-shadow:inset 0 0 0 4px var(--craie)}
+h1{font-size:1.2rem;margin:0;line-height:1.2}
+h2{font-size:1rem;margin:0 0 8px;display:flex;align-items:center;gap:8px}
+h2::before{content:"";width:12px;height:11px;clip-path:var(--hex);background:var(--cyan);flex:0 0 auto}
+.sous{margin:0;color:var(--brume);font-size:.88rem}
+.apercu{display:inline-block;margin-inline-start:6px;padding:1px 8px;border-radius:999px;background:var(--or);color:#2a1a00;font-size:.75rem;font-weight:800;vertical-align:middle}
+#etat{margin:0 0 12px;padding:8px 12px;border-radius:10px;background:var(--nuit2);border:1px solid var(--trait);font-size:.9rem}
+#etat.hl{border-color:var(--or)}
+#etat.ok{border-color:rgba(22,224,212,.5)}
+section{background:var(--nuit2);border:1px solid var(--trait);border-radius:14px;padding:12px 14px;margin:0 0 12px}
+ul{list-style:none;margin:0;padding:0}
+li{padding:7px 0;border-top:1px solid var(--trait)}
+li:first-child{border-top:0}
+.l1{display:flex;justify-content:space-between;gap:10px;align-items:baseline;flex-wrap:wrap}
+.d{color:var(--brume);font-size:.86rem}
+.puce{display:inline-block;padding:0 7px;border-radius:999px;font-size:.75rem;font-weight:700;border:1px solid var(--trait);white-space:nowrap}
+.puce.an{color:var(--rouge);border-color:var(--rouge)}
+.puce.re{color:var(--or);border-color:var(--or)}
+.puce.co{color:var(--cyan);border-color:var(--cyan)}
+.chiffres{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;text-align:center}
+.chiffres b{display:block;font-size:1.25rem}
+.chiffres span{font-size:.75rem;color:var(--brume)}
+.med{display:inline-flex;align-items:center;gap:3px;margin-inline-end:8px;white-space:nowrap}
+.med i{width:12px;height:11px;clip-path:var(--hex);display:inline-block}
+.or i{background:var(--or)} .ar i{background:var(--argent)} .br i{background:var(--bronze)}
+table{width:100%;border-collapse:collapse;font-size:.92rem}
+td,th{padding:5px 4px;text-align:center;border-top:1px solid var(--trait)}
+td:first-child,th:first-child{text-align:start}
+th{font-size:.75rem;color:var(--brume);font-weight:600;border-top:0}
+button,select,.lien{font:inherit;color:inherit}
+button{min-height:44px;padding:8px 14px;border-radius:12px;border:1px solid var(--trait);background:var(--alv);cursor:pointer}
+button:focus-visible,select:focus-visible,.lien:focus-visible{outline:2px solid var(--or);outline-offset:2px}
+button[disabled]{opacity:.55;cursor:default}
+.actions{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 12px}
+.actions button{flex:1 1 140px}
+.lien{background:none;border:0;padding:6px 0;min-height:36px;color:var(--cyan);text-decoration:underline;cursor:pointer;font-size:.88rem}
+.jours button{min-height:40px;margin-block:4px 0;margin-inline:0 6px;padding:6px 10px;font-size:.88rem}
+.jours button[aria-current="true"]{border-color:var(--or)}
+footer{color:var(--brume);font-size:.8rem;display:grid;gap:8px;margin-top:4px}
+footer label{display:flex;gap:8px;align-items:center}
+select{min-height:40px;border-radius:10px;background:var(--alv);border:1px solid var(--trait);padding:4px 8px}
+#toast{position:fixed;left:50%;bottom:calc(16px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--craie);color:var(--nuit);padding:8px 14px;border-radius:10px;font-weight:700;opacity:0;pointer-events:none;max-width:calc(100% - 32px)}
+#toast.on{opacity:1}
+.vide{color:var(--brume);margin:0}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+[dir="rtl"] .l1{direction:rtl}
+@media (prefers-reduced-motion:no-preference){#toast{transition:opacity .2s}}
+@media (min-width:560px){h1{font-size:1.35rem}}
+
+.chips{display:flex;gap:6px;flex-wrap:wrap;margin:0 0 10px}
+.chips button{min-height:40px;padding:4px 12px;font-size:.88rem;border-radius:999px}
+.chips button[aria-pressed="true"]{border-color:var(--or);color:var(--or)}
+.form{display:grid;gap:10px}
+.form label{display:grid;gap:4px;font-size:.88rem;color:var(--brume)}
+input,textarea{font:inherit;color:var(--craie);background:var(--alv);border:1px solid var(--trait);border-radius:10px;padding:8px 10px;min-height:44px;width:100%}
+input:focus-visible,textarea:focus-visible{outline:2px solid var(--or);outline-offset:2px}
+.btn-or{background:linear-gradient(135deg,var(--or),#ff9f1c);color:#2a1a00;border:0;font-weight:800}
+.duo{display:grid;grid-template-columns:96px 1fr;gap:10px;align-items:start;padding:10px 0;border-top:1px solid var(--trait)}
+.duo:first-of-type{border-top:0}
+.duo video,.duo canvas{width:96px;aspect-ratio:9/16;border-radius:10px;background:#000;object-fit:cover;display:block}
+.duo .qui{font-weight:700}
+.duo .actions{margin:8px 0 0}
+.duo .actions button{flex:1 1 120px;min-height:40px;padding:6px 10px;font-size:.88rem}
+.grand video,.grand canvas{width:100%;max-width:300px;aspect-ratio:9/16;border-radius:12px;background:#000;display:block;margin:0 auto 10px}
+.ecran{display:grid;grid-template-columns:1fr 1fr;gap:3px;max-width:300px;margin:0 auto 10px;border-radius:12px;overflow:hidden}
+.ecran.hb{grid-template-columns:1fr}
+.ecran i{display:grid;place-items:center;aspect-ratio:9/16;background:var(--alv);font-style:normal;font-size:.8rem;color:var(--brume);text-align:center;padding:6px}
+.ecran.hb i{aspect-ratio:16/9}
+.ecran i.moi{background:linear-gradient(135deg,rgba(22,224,212,.25),rgba(108,43,217,.35));color:var(--craie)}
+.message{margin:4px 0 0;padding:6px 8px;border-radius:8px;background:rgba(255,255,255,.06);font-size:.88rem}
+.duo.vise{outline:2px solid var(--or);outline-offset:4px;border-radius:12px}
+.ecran{direction:ltr}
+</style>
+</head>
+<body>
+<main id="app">
+<header><div class="hex" aria-hidden="true"><i></i></div><div><h1 id="titre">Côte à côte</h1><p class="sous" id="soustitre"></p></div></header>
+<p id="etat" role="status" aria-live="polite"></p>
+<div id="contenu"></div>
+<footer id="pied"></footer>
+</main>
+<div id="toast" role="status" aria-live="polite"></div>
+<script type="application/json" id="nvI18n-en">{"Côte à côte":"Side by Side","Un duo à distance : vous et une personne d’un autre pays, sur le même écran.":"A long-distance duet: you and someone from another country, on the same screen.","Aperçu":"Preview","Aperçu : des duos d’exemple, pour découvrir la page.":"Preview: example duets, to discover the page.","Chargement…":"Loading…","Côte à côte n’est pas encore ouvert.":"Side by Side is not open yet.","Connectez-vous pour faire un duo.":"Sign in to make a duet.","Pas de connexion pour le moment.":"No connection right now.","Impossible de joindre NEURAVID pour le moment.":"Unable to reach NEURAVID right now.","Aucun compte trouvé sous ce nom.":"No account found with this name.","Cette personne ne peut pas encore faire de duo (16 ans).":"This person cannot make duets yet (16 years).","Cette personne n’accepte pas de duo de votre part pour le moment.":"This person does not accept duets from you right now.","Un duo est déjà en cours entre vous deux.":"A duet is already in progress between you two.","Vous avez déjà 5 duos en attente : attendez une réponse.":"You already have 5 duets waiting: wait for a reply.","Côte à côte est ouvert à partir de 16 ans.":"Side by Side is open from 16 years of age.","Une moitié de 60 secondes au plus.":"A half of 60 seconds at most.","Votre message n’a pas été accepté. Changez-le.":"Your message was not accepted. Change it.","Vous avez déjà demandé de refaire deux fois.":"You have already asked for a redo twice.","Ce duo a changé entre-temps.":"This duet has changed in the meantime.","Invitation en attente":"Invitation pending","À décider":"To decide","Publié":"Published","Refusé":"Declined","Annulé":"Cancelled","Expiré":"Expired","Non publié":"Not published","Retiré":"Removed","Commencer un duo":"Start a duet","Votre moitié est prête. {0} recevra l’invitation et filmera la sienne à côté.":"Your half is ready. {0} will receive the invitation and film theirs next to it.","Envoyer l’invitation":"Send the invitation","Envoi…":"Sending…","Refaire ma moitié":"Redo my half","Filmez votre moitié, puis invitez une personne : elle filmera la sienne à côté de la vôtre, où qu’elle soit dans le monde.":"Film your half, then invite someone: they will film theirs next to yours, wherever they are in the world.","Avec qui ? (son pseudo)":"With whom? (their username)","L’écran partagé":"The shared screen","Gauche / droite":"Left / right","Haut / bas":"Top / bottom","Vous":"You","Votre duo":"Your duet partner","Un mot pour l’inviter (facultatif)":"A word to invite them (optional)","Filmer ma moitié":"Film my half","{0} vous demande de refaire : {1}":"{0} asks you to redo: {1}","{0} vous demande de refaire votre moitié.":"{0} asks you to redo your half.","Envoyer à {0}":"Send to {0}","Filmez votre moitié à côté de la sienne. Réponse avant le {0}.":"Film your half next to theirs. Reply before {0}.","Filmer ma moitié à côté":"Film my half next to it","Refuser":"Decline","Toucher encore pour refuser":"Tap again to decline","Envoyé : {0} décide de le publier.":"Sent: {0} decides whether to publish it.","Toucher encore pour retirer ma moitié":"Tap again to withdraw my half","Retirer ma moitié":"Withdraw my half","Toucher encore pour retirer le duo":"Tap again to remove the duet","Retirer le duo":"Remove the duet","En attente de {0}, jusqu’au {1}.":"Waiting for {0}, until {1}.","Toucher encore pour annuler":"Tap again to cancel","Annuler l’invitation":"Cancel the invitation","{0} a filmé sa moitié. Regardez, puis décidez.":"{0} has filmed their half. Watch, then decide.","La vidéo se prépare. Revenez dans un instant.":"The video is being prepared. Come back in a moment.","Publier le duo":"Publish the duet","Demander de refaire":"Ask for a redo","Toucher encore pour ne pas publier":"Tap again to not publish","Ne pas publier":"Do not publish","Ce qu’il faudrait changer (facultatif)":"What should change (optional)","Envoyer la demande":"Send the request","Invitations reçues":"Invitations received","Mes duos":"My duets","Aucun duo pour l’instant : commencez le premier.":"No duets yet: start the first one.","Langue":"Language","Traduction en cours de relecture.":"Translation being reviewed.","À partir de 16 ans. Votre moitié n’est jamais publiée seule ; le duo n’est publié que si vous l’acceptez tous les deux, et chacun peut le retirer à tout moment.":"From 16 years of age. Your half is never published on its own; the duet is only published if you both accept it, and either of you can remove it at any time.","Écrivez le pseudo de la personne à inviter.":"Write the username of the person to invite.","La Forge n’est pas joignable ici.":"La Forge cannot be reached here.","Ma moitié":"My half","Votre moitié : 60 secondes au plus.":"Your half: 60 seconds at most.","Vous serez en haut de l’écran.":"You will be at the top of the screen.","Vous serez à gauche de l’écran.":"You will be on the left of the screen.","Duo avec {0}":"Duet with {0}","Filmez votre moitié à côté de la sienne.":"Film your half next to theirs.","Invitation envoyée.":"Invitation sent.","Votre moitié est envoyée.":"Your half has been sent.","Déjà envoyé.":"Already sent.","Duo refusé.":"Duet declined.","Invitation annulée.":"Invitation cancelled.","Le duo ne sera pas publié.":"The duet will not be published.","Duo retiré.":"Duet removed.","Duo publié.":"Duet published.","Demande envoyée.":"Request sent.","Votre moitié est trop courte.":"Your half is too short.","Cette vidéo n’est pas acceptée : filmez-la avec La Forge.":"This video is not accepted: film it with La Forge.","Cette vidéo est trop lourde.":"This video is too large.","Le service est momentanément indisponible. Réessayez dans un instant.":"The service is temporarily unavailable. Try again in a moment.","Envoi déjà en cours : patientez un instant.":"Already sending: please wait a moment.","Toucher encore pour refaire":"Tap again to redo"}</script>
+<script type="application/json" id="nvI18n-es">{"Côte à côte":"Lado a lado","Un duo à distance : vous et une personne d’un autre pays, sur le même écran.":"Un dúo a distancia: tú y una persona de otro país, en la misma pantalla.","Aperçu":"Vista previa","Aperçu : des duos d’exemple, pour découvrir la page.":"Vista previa: dúos de ejemplo, para descubrir la página.","Chargement…":"Cargando…","Côte à côte n’est pas encore ouvert.":"Lado a lado aún no está abierto.","Connectez-vous pour faire un duo.":"Inicia sesión para hacer un dúo.","Pas de connexion pour le moment.":"Sin conexión por ahora.","Impossible de joindre NEURAVID pour le moment.":"No se puede contactar con NEURAVID por ahora.","Aucun compte trouvé sous ce nom.":"No se encontró ninguna cuenta con este nombre.","Cette personne ne peut pas encore faire de duo (16 ans).":"Esta persona aún no puede hacer dúos (16 años).","Cette personne n’accepte pas de duo de votre part pour le moment.":"Esta persona no acepta dúos tuyos por ahora.","Un duo est déjà en cours entre vous deux.":"Ya hay un dúo en curso entre ustedes dos.","Vous avez déjà 5 duos en attente : attendez une réponse.":"Ya tienes 5 dúos en espera: espera una respuesta.","Côte à côte est ouvert à partir de 16 ans.":"Lado a lado está abierto a partir de los 16 años.","Une moitié de 60 secondes au plus.":"Una mitad de 60 segundos como máximo.","Votre message n’a pas été accepté. Changez-le.":"Tu mensaje no fue aceptado. Cámbialo.","Vous avez déjà demandé de refaire deux fois.":"Ya pediste rehacerlo dos veces.","Ce duo a changé entre-temps.":"Este dúo ha cambiado mientras tanto.","Invitation en attente":"Invitación pendiente","À décider":"Por decidir","Publié":"Publicado","Refusé":"Rechazado","Annulé":"Cancelado","Expiré":"Caducado","Non publié":"No publicado","Retiré":"Retirado","Commencer un duo":"Empezar un dúo","Votre moitié est prête. {0} recevra l’invitation et filmera la sienne à côté.":"Tu mitad está lista. {0} recibirá la invitación y grabará la suya al lado.","Envoyer l’invitation":"Enviar la invitación","Envoi…":"Enviando…","Refaire ma moitié":"Rehacer mi mitad","Filmez votre moitié, puis invitez une personne : elle filmera la sienne à côté de la vôtre, où qu’elle soit dans le monde.":"Graba tu mitad y luego invita a una persona: ella grabará la suya junto a la tuya, esté donde esté en el mundo.","Avec qui ? (son pseudo)":"¿Con quién? (su seudónimo)","L’écran partagé":"La pantalla compartida","Gauche / droite":"Izquierda / derecha","Haut / bas":"Arriba / abajo","Vous":"Tú","Votre duo":"Tu pareja de dúo","Un mot pour l’inviter (facultatif)":"Unas palabras para invitarle (opcional)","Filmer ma moitié":"Grabar mi mitad","{0} vous demande de refaire : {1}":"{0} te pide que lo rehagas: {1}","{0} vous demande de refaire votre moitié.":"{0} te pide que rehagas tu mitad.","Envoyer à {0}":"Enviar a {0}","Filmez votre moitié à côté de la sienne. Réponse avant le {0}.":"Graba tu mitad junto a la suya. Responde antes del {0}.","Filmer ma moitié à côté":"Grabar mi mitad al lado","Refuser":"Rechazar","Toucher encore pour refuser":"Toca de nuevo para rechazar","Envoyé : {0} décide de le publier.":"Enviado: {0} decide si lo publica.","Toucher encore pour retirer ma moitié":"Toca de nuevo para retirar mi mitad","Retirer ma moitié":"Retirar mi mitad","Toucher encore pour retirer le duo":"Toca de nuevo para retirar el dúo","Retirer le duo":"Retirar el dúo","En attente de {0}, jusqu’au {1}.":"Esperando a {0}, hasta el {1}.","Toucher encore pour annuler":"Toca de nuevo para cancelar","Annuler l’invitation":"Cancelar la invitación","{0} a filmé sa moitié. Regardez, puis décidez.":"{0} ha grabado su mitad. Mira y luego decide.","La vidéo se prépare. Revenez dans un instant.":"El vídeo se está preparando. Vuelve en un momento.","Publier le duo":"Publicar el dúo","Demander de refaire":"Pedir que lo rehaga","Toucher encore pour ne pas publier":"Toca de nuevo para no publicar","Ne pas publier":"No publicar","Ce qu’il faudrait changer (facultatif)":"Lo que habría que cambiar (opcional)","Envoyer la demande":"Enviar la solicitud","Invitations reçues":"Invitaciones recibidas","Mes duos":"Mis dúos","Aucun duo pour l’instant : commencez le premier.":"Ningún dúo por ahora: empieza el primero.","Langue":"Idioma","Traduction en cours de relecture.":"Traducción en revisión.","À partir de 16 ans. Votre moitié n’est jamais publiée seule ; le duo n’est publié que si vous l’acceptez tous les deux, et chacun peut le retirer à tout moment.":"A partir de los 16 años. Tu mitad nunca se publica sola; el dúo solo se publica si ambos lo aceptan, y cada uno puede retirarlo en cualquier momento.","Écrivez le pseudo de la personne à inviter.":"Escribe el seudónimo de la persona a invitar.","La Forge n’est pas joignable ici.":"La Forge no está disponible aquí.","Ma moitié":"Mi mitad","Votre moitié : 60 secondes au plus.":"Tu mitad: 60 segundos como máximo.","Vous serez en haut de l’écran.":"Estarás en la parte de arriba de la pantalla.","Vous serez à gauche de l’écran.":"Estarás a la izquierda de la pantalla.","Duo avec {0}":"Dúo con {0}","Filmez votre moitié à côté de la sienne.":"Graba tu mitad junto a la suya.","Invitation envoyée.":"Invitación enviada.","Votre moitié est envoyée.":"Tu mitad ha sido enviada.","Déjà envoyé.":"Ya enviado.","Duo refusé.":"Dúo rechazado.","Invitation annulée.":"Invitación cancelada.","Le duo ne sera pas publié.":"El dúo no se publicará.","Duo retiré.":"Dúo retirado.","Duo publié.":"Dúo publicado.","Demande envoyée.":"Solicitud enviada.","Votre moitié est trop courte.":"Tu mitad es demasiado corta.","Cette vidéo n’est pas acceptée : filmez-la avec La Forge.":"Este vídeo no se acepta: grábalo con La Forge.","Cette vidéo est trop lourde.":"Este vídeo es demasiado pesado.","Le service est momentanément indisponible. Réessayez dans un instant.":"El servicio no está disponible por el momento. Inténtalo de nuevo en un instante.","Envoi déjà en cours : patientez un instant.":"Ya se está enviando: espera un instante.","Toucher encore pour refaire":"Toca de nuevo para rehacer"}</script>
+<script type="application/json" id="nvI18n-pt">{"Côte à côte":"Lado a lado","Un duo à distance : vous et une personne d’un autre pays, sur le même écran.":"Um dueto à distância: você e uma pessoa de outro país, na mesma tela.","Aperçu":"Pré-visualização","Aperçu : des duos d’exemple, pour découvrir la page.":"Pré-visualização: duetos de exemplo, para conhecer a página.","Chargement…":"Carregando…","Côte à côte n’est pas encore ouvert.":"Lado a lado ainda não está aberto.","Connectez-vous pour faire un duo.":"Entre na sua conta para fazer um dueto.","Pas de connexion pour le moment.":"Sem conexão no momento.","Impossible de joindre NEURAVID pour le moment.":"Não é possível contactar a NEURAVID no momento.","Aucun compte trouvé sous ce nom.":"Nenhuma conta encontrada com este nome.","Cette personne ne peut pas encore faire de duo (16 ans).":"Esta pessoa ainda não pode fazer duetos (16 anos).","Cette personne n’accepte pas de duo de votre part pour le moment.":"Esta pessoa não aceita duetos seus no momento.","Un duo est déjà en cours entre vous deux.":"Já há um dueto em curso entre vocês dois.","Vous avez déjà 5 duos en attente : attendez une réponse.":"Você já tem 5 duetos em espera: aguarde uma resposta.","Côte à côte est ouvert à partir de 16 ans.":"Lado a lado está aberto a partir dos 16 anos.","Une moitié de 60 secondes au plus.":"Uma metade de 60 segundos no máximo.","Votre message n’a pas été accepté. Changez-le.":"Sua mensagem não foi aceita. Altere-a.","Vous avez déjà demandé de refaire deux fois.":"Você já pediu para refazer duas vezes.","Ce duo a changé entre-temps.":"Este dueto mudou entretanto.","Invitation en attente":"Convite pendente","À décider":"Por decidir","Publié":"Publicado","Refusé":"Recusado","Annulé":"Cancelado","Expiré":"Expirado","Non publié":"Não publicado","Retiré":"Retirado","Commencer un duo":"Começar um dueto","Votre moitié est prête. {0} recevra l’invitation et filmera la sienne à côté.":"Sua metade está pronta. {0} receberá o convite e filmará a dele ao lado.","Envoyer l’invitation":"Enviar o convite","Envoi…":"Enviando…","Refaire ma moitié":"Refazer minha metade","Filmez votre moitié, puis invitez une personne : elle filmera la sienne à côté de la vôtre, où qu’elle soit dans le monde.":"Filme sua metade e depois convide uma pessoa: ela filmará a dela ao lado da sua, onde quer que esteja no mundo.","Avec qui ? (son pseudo)":"Com quem? (o nome de usuário)","L’écran partagé":"A tela dividida","Gauche / droite":"Esquerda / direita","Haut / bas":"Em cima / em baixo","Vous":"Você","Votre duo":"Seu par de dueto","Un mot pour l’inviter (facultatif)":"Uma palavra para o convidar (opcional)","Filmer ma moitié":"Filmar minha metade","{0} vous demande de refaire : {1}":"{0} pede que você refaça: {1}","{0} vous demande de refaire votre moitié.":"{0} pede que você refaça sua metade.","Envoyer à {0}":"Enviar para {0}","Filmez votre moitié à côté de la sienne. Réponse avant le {0}.":"Filme sua metade ao lado da dele. Responda antes de {0}.","Filmer ma moitié à côté":"Filmar minha metade ao lado","Refuser":"Recusar","Toucher encore pour refuser":"Toque novamente para recusar","Envoyé : {0} décide de le publier.":"Enviado: {0} decide se o publica.","Toucher encore pour retirer ma moitié":"Toque novamente para retirar minha metade","Retirer ma moitié":"Retirar minha metade","Toucher encore pour retirer le duo":"Toque novamente para retirar o dueto","Retirer le duo":"Retirar o dueto","En attente de {0}, jusqu’au {1}.":"Aguardando {0}, até {1}.","Toucher encore pour annuler":"Toque novamente para cancelar","Annuler l’invitation":"Cancelar o convite","{0} a filmé sa moitié. Regardez, puis décidez.":"{0} filmou a metade dele. Veja e depois decida.","La vidéo se prépare. Revenez dans un instant.":"O vídeo está sendo preparado. Volte daqui a pouco.","Publier le duo":"Publicar o dueto","Demander de refaire":"Pedir para refazer","Toucher encore pour ne pas publier":"Toque novamente para não publicar","Ne pas publier":"Não publicar","Ce qu’il faudrait changer (facultatif)":"O que deveria mudar (opcional)","Envoyer la demande":"Enviar o pedido","Invitations reçues":"Convites recebidos","Mes duos":"Meus duetos","Aucun duo pour l’instant : commencez le premier.":"Nenhum dueto por agora: comece o primeiro.","Langue":"Idioma","Traduction en cours de relecture.":"Tradução em revisão.","À partir de 16 ans. Votre moitié n’est jamais publiée seule ; le duo n’est publié que si vous l’acceptez tous les deux, et chacun peut le retirer à tout moment.":"A partir dos 16 anos. Sua metade nunca é publicada sozinha; o dueto só é publicado se vocês dois aceitarem, e cada um pode retirá-lo a qualquer momento.","Écrivez le pseudo de la personne à inviter.":"Escreva o nome de usuário da pessoa a convidar.","La Forge n’est pas joignable ici.":"La Forge não está acessível aqui.","Ma moitié":"Minha metade","Votre moitié : 60 secondes au plus.":"Sua metade: 60 segundos no máximo.","Vous serez en haut de l’écran.":"Você ficará na parte de cima da tela.","Vous serez à gauche de l’écran.":"Você ficará à esquerda da tela.","Duo avec {0}":"Dueto com {0}","Filmez votre moitié à côté de la sienne.":"Filme sua metade ao lado da dele.","Invitation envoyée.":"Convite enviado.","Votre moitié est envoyée.":"Sua metade foi enviada.","Déjà envoyé.":"Já enviado.","Duo refusé.":"Dueto recusado.","Invitation annulée.":"Convite cancelado.","Le duo ne sera pas publié.":"O dueto não será publicado.","Duo retiré.":"Dueto retirado.","Duo publié.":"Dueto publicado.","Demande envoyée.":"Pedido enviado.","Votre moitié est trop courte.":"Sua metade é curta demais.","Cette vidéo n’est pas acceptée : filmez-la avec La Forge.":"Este vídeo não é aceito: filme-o com La Forge.","Cette vidéo est trop lourde.":"Este vídeo é pesado demais.","Le service est momentanément indisponible. Réessayez dans un instant.":"O serviço está temporariamente indisponível. Tente novamente daqui a pouco.","Envoi déjà en cours : patientez un instant.":"Já está sendo enviado: aguarde um instante.","Toucher encore pour refaire":"Toque novamente para refazer"}</script>
+<script type="application/json" id="nvI18n-ar">{"Côte à côte":"جنبًا إلى جنب","Un duo à distance : vous et une personne d’un autre pays, sur le même écran.":"ثنائي عن بُعد: أنت وشخص من بلد آخر، على الشاشة نفسها.","Aperçu":"معاينة","Aperçu : des duos d’exemple, pour découvrir la page.":"معاينة: ثنائيات على سبيل المثال لاكتشاف الصفحة.","Chargement…":"جارٍ التحميل…","Côte à côte n’est pas encore ouvert.":"جنبًا إلى جنب غير مفتوح بعد.","Connectez-vous pour faire un duo.":"سجّل الدخول لصنع ثنائي.","Pas de connexion pour le moment.":"لا يوجد اتصال حاليًا.","Impossible de joindre NEURAVID pour le moment.":"تعذّر الوصول إلى NEURAVID حاليًا.","Aucun compte trouvé sous ce nom.":"لم يُعثر على أي حساب بهذا الاسم.","Cette personne ne peut pas encore faire de duo (16 ans).":"لا يمكن لهذا الشخص صنع ثنائي بعد (16 سنة).","Cette personne n’accepte pas de duo de votre part pour le moment.":"لا يقبل هذا الشخص ثنائيات منك حاليًا.","Un duo est déjà en cours entre vous deux.":"يوجد ثنائي جارٍ بينكما بالفعل.","Vous avez déjà 5 duos en attente : attendez une réponse.":"لديك بالفعل 5 ثنائيات قيد الانتظار: انتظر ردًا.","Côte à côte est ouvert à partir de 16 ans.":"جنبًا إلى جنب متاح ابتداءً من 16 سنة.","Une moitié de 60 secondes au plus.":"نصف مدته 60 ثانية على الأكثر.","Votre message n’a pas été accepté. Changez-le.":"لم تُقبل رسالتك. غيّرها.","Vous avez déjà demandé de refaire deux fois.":"لقد طلبت الإعادة مرتين بالفعل.","Ce duo a changé entre-temps.":"تغيّر هذا الثنائي في الأثناء.","Invitation en attente":"دعوة قيد الانتظار","À décider":"بانتظار القرار","Publié":"منشور","Refusé":"مرفوض","Annulé":"ملغى","Expiré":"منتهي الصلاحية","Non publié":"غير منشور","Retiré":"مسحوب","Commencer un duo":"ابدأ ثنائيًا","Votre moitié est prête. {0} recevra l’invitation et filmera la sienne à côté.":"نصفك جاهز. سيتلقى {0} الدعوة ويصوّر نصفه بجانبه.","Envoyer l’invitation":"أرسل الدعوة","Envoi…":"جارٍ الإرسال…","Refaire ma moitié":"أعد نصفي","Filmez votre moitié, puis invitez une personne : elle filmera la sienne à côté de la vôtre, où qu’elle soit dans le monde.":"صوّر نصفك، ثم ادعُ شخصًا: سيصوّر نصفه بجانب نصفك، أينما كان في العالم.","Avec qui ? (son pseudo)":"مع من؟ (اسم المستخدم)","L’écran partagé":"الشاشة المقسومة","Gauche / droite":"يسار / يمين","Haut / bas":"أعلى / أسفل","Vous":"أنت","Votre duo":"شريكك في الثنائي","Un mot pour l’inviter (facultatif)":"كلمة لدعوته (اختياري)","Filmer ma moitié":"صوّر نصفي","{0} vous demande de refaire : {1}":"يطلب منك {0} الإعادة: {1}","{0} vous demande de refaire votre moitié.":"يطلب منك {0} إعادة نصفك.","Envoyer à {0}":"أرسل إلى {0}","Filmez votre moitié à côté de la sienne. Réponse avant le {0}.":"صوّر نصفك بجانب نصفه. الرد قبل {0}.","Filmer ma moitié à côté":"صوّر نصفي بجانبه","Refuser":"ارفض","Toucher encore pour refuser":"المس مرة أخرى للرفض","Envoyé : {0} décide de le publier.":"أُرسل: يقرر {0} نشره.","Toucher encore pour retirer ma moitié":"المس مرة أخرى لسحب نصفي","Retirer ma moitié":"اسحب نصفي","Toucher encore pour retirer le duo":"المس مرة أخرى لسحب الثنائي","Retirer le duo":"اسحب الثنائي","En attente de {0}, jusqu’au {1}.":"بانتظار {0}، حتى {1}.","Toucher encore pour annuler":"المس مرة أخرى للإلغاء","Annuler l’invitation":"ألغِ الدعوة","{0} a filmé sa moitié. Regardez, puis décidez.":"صوّر {0} نصفه. شاهد، ثم قرّر.","La vidéo se prépare. Revenez dans un instant.":"يجري تجهيز الفيديو. عد بعد قليل.","Publier le duo":"انشر الثنائي","Demander de refaire":"اطلب الإعادة","Toucher encore pour ne pas publier":"المس مرة أخرى لعدم النشر","Ne pas publier":"لا تنشر","Ce qu’il faudrait changer (facultatif)":"ما ينبغي تغييره (اختياري)","Envoyer la demande":"أرسل الطلب","Invitations reçues":"الدعوات الواردة","Mes duos":"ثنائياتي","Aucun duo pour l’instant : commencez le premier.":"لا توجد ثنائيات بعد: ابدأ الأول.","Langue":"اللغة","Traduction en cours de relecture.":"الترجمة قيد المراجعة.","À partir de 16 ans. Votre moitié n’est jamais publiée seule ; le duo n’est publié que si vous l’acceptez tous les deux, et chacun peut le retirer à tout moment.":"ابتداءً من 16 سنة. لا يُنشر نصفك وحده أبدًا؛ لا يُنشر الثنائي إلا إذا قبلتماه كلاكما، ويمكن لكل منكما سحبه في أي وقت.","Écrivez le pseudo de la personne à inviter.":"اكتب اسم مستخدم الشخص الذي تريد دعوته.","La Forge n’est pas joignable ici.":"لا يمكن الوصول إلى La Forge هنا.","Ma moitié":"نصفي","Votre moitié : 60 secondes au plus.":"نصفك: 60 ثانية على الأكثر.","Vous serez en haut de l’écran.":"ستكون في أعلى الشاشة.","Vous serez à gauche de l’écran.":"ستكون على يسار الشاشة.","Duo avec {0}":"ثنائي مع {0}","Filmez votre moitié à côté de la sienne.":"صوّر نصفك بجانب نصفه.","Invitation envoyée.":"أُرسلت الدعوة.","Votre moitié est envoyée.":"أُرسل نصفك.","Déjà envoyé.":"أُرسل بالفعل.","Duo refusé.":"رُفض الثنائي.","Invitation annulée.":"أُلغيت الدعوة.","Le duo ne sera pas publié.":"لن يُنشر الثنائي.","Duo retiré.":"سُحب الثنائي.","Duo publié.":"نُشر الثنائي.","Demande envoyée.":"أُرسل الطلب.","Votre moitié est trop courte.":"نصفك قصير جدًا.","Cette vidéo n’est pas acceptée : filmez-la avec La Forge.":"هذا الفيديو غير مقبول: صوّره باستخدام La Forge.","Cette vidéo est trop lourde.":"هذا الفيديو كبير جدًا.","Le service est momentanément indisponible. Réessayez dans un instant.":"الخدمة غير متاحة مؤقتًا. أعد المحاولة بعد قليل.","Envoi déjà en cours : patientez un instant.":"الإرسال جارٍ بالفعل: انتظر قليلًا.","Toucher encore pour refaire":"المس مرة أخرى للإعادة"}</script>
+<script type="application/json" id="nvI18n-sw">{"Côte à côte":"Bega kwa Bega","Un duo à distance : vous et une personne d’un autre pays, sur le même écran.":"Duo kwa mbali: wewe na mtu wa nchi nyingine, kwenye skrini moja.","Aperçu":"Onyesho","Aperçu : des duos d’exemple, pour découvrir la page.":"Onyesho: duo za mfano, ili kugundua ukurasa.","Chargement…":"Inapakia…","Côte à côte n’est pas encore ouvert.":"Bega kwa Bega bado haijafunguliwa.","Connectez-vous pour faire un duo.":"Ingia ili kufanya duo.","Pas de connexion pour le moment.":"Hakuna muunganisho kwa sasa.","Impossible de joindre NEURAVID pour le moment.":"Haiwezekani kufikia NEURAVID kwa sasa.","Aucun compte trouvé sous ce nom.":"Hakuna akaunti iliyopatikana kwa jina hili.","Cette personne ne peut pas encore faire de duo (16 ans).":"Mtu huyu bado hawezi kufanya duo (miaka 16).","Cette personne n’accepte pas de duo de votre part pour le moment.":"Mtu huyu hakubali duo kutoka kwako kwa sasa.","Un duo est déjà en cours entre vous deux.":"Tayari kuna duo inayoendelea kati yenu wawili.","Vous avez déjà 5 duos en attente : attendez une réponse.":"Tayari una duo 5 zinazosubiri: subiri jibu.","Côte à côte est ouvert à partir de 16 ans.":"Bega kwa Bega iko wazi kuanzia miaka 16.","Une moitié de 60 secondes au plus.":"Nusu ya sekunde 60 zaidi.","Votre message n’a pas été accepté. Changez-le.":"Ujumbe wako haukukubaliwa. Ubadilishe.","Vous avez déjà demandé de refaire deux fois.":"Tayari umeomba kurudia mara mbili.","Ce duo a changé entre-temps.":"Duo hii imebadilika wakati huo.","Invitation en attente":"Mwaliko unasubiri","À décider":"Ya kuamua","Publié":"Imechapishwa","Refusé":"Imekataliwa","Annulé":"Imeghairiwa","Expiré":"Imeisha muda","Non publié":"Haijachapishwa","Retiré":"Imeondolewa","Commencer un duo":"Anzisha duo","Votre moitié est prête. {0} recevra l’invitation et filmera la sienne à côté.":"Nusu yako iko tayari. {0} atapokea mwaliko na kurekodi yake kando.","Envoyer l’invitation":"Tuma mwaliko","Envoi…":"Inatuma…","Refaire ma moitié":"Rudia nusu yangu","Filmez votre moitié, puis invitez une personne : elle filmera la sienne à côté de la vôtre, où qu’elle soit dans le monde.":"Rekodi nusu yako, kisha mwalike mtu: atarekodi yake kando ya yako, popote alipo duniani.","Avec qui ? (son pseudo)":"Na nani? (jina lake la mtumiaji)","L’écran partagé":"Skrini iliyogawanywa","Gauche / droite":"Kushoto / kulia","Haut / bas":"Juu / chini","Vous":"Wewe","Votre duo":"Mwenzako wa duo","Un mot pour l’inviter (facultatif)":"Neno la kumwalika (si lazima)","Filmer ma moitié":"Rekodi nusu yangu","{0} vous demande de refaire : {1}":"{0} anakuomba urudie: {1}","{0} vous demande de refaire votre moitié.":"{0} anakuomba urudie nusu yako.","Envoyer à {0}":"Tuma kwa {0}","Filmez votre moitié à côté de la sienne. Réponse avant le {0}.":"Rekodi nusu yako kando ya yake. Jibu kabla ya {0}.","Filmer ma moitié à côté":"Rekodi nusu yangu kando","Refuser":"Kataa","Toucher encore pour refuser":"Gusa tena kukataa","Envoyé : {0} décide de le publier.":"Imetumwa: {0} anaamua kuichapisha.","Toucher encore pour retirer ma moitié":"Gusa tena kuondoa nusu yangu","Retirer ma moitié":"Ondoa nusu yangu","Toucher encore pour retirer le duo":"Gusa tena kuondoa duo","Retirer le duo":"Ondoa duo","En attente de {0}, jusqu’au {1}.":"Inasubiri {0}, hadi {1}.","Toucher encore pour annuler":"Gusa tena kughairi","Annuler l’invitation":"Ghairi mwaliko","{0} a filmé sa moitié. Regardez, puis décidez.":"{0} amerekodi nusu yake. Tazama, kisha uamue.","La vidéo se prépare. Revenez dans un instant.":"Video inaandaliwa. Rudi baada ya muda mfupi.","Publier le duo":"Chapisha duo","Demander de refaire":"Omba irudiwe","Toucher encore pour ne pas publier":"Gusa tena ili isichapishwe","Ne pas publier":"Usichapishe","Ce qu’il faudrait changer (facultatif)":"Kinachopaswa kubadilishwa (si lazima)","Envoyer la demande":"Tuma ombi","Invitations reçues":"Mialiko iliyopokelewa","Mes duos":"Duo zangu","Aucun duo pour l’instant : commencez le premier.":"Hakuna duo bado: anzisha ya kwanza.","Langue":"Lugha","Traduction en cours de relecture.":"Tafsiri inakaguliwa.","À partir de 16 ans. Votre moitié n’est jamais publiée seule ; le duo n’est publié que si vous l’acceptez tous les deux, et chacun peut le retirer à tout moment.":"Kuanzia miaka 16. Nusu yako haichapishwi peke yake kamwe; duo huchapishwa tu mkikubali nyote wawili, na kila mmoja anaweza kuiondoa wakati wowote.","Écrivez le pseudo de la personne à inviter.":"Andika jina la mtumiaji la mtu wa kumwalika.","La Forge n’est pas joignable ici.":"La Forge haipatikani hapa.","Ma moitié":"Nusu yangu","Votre moitié : 60 secondes au plus.":"Nusu yako: sekunde 60 zaidi.","Vous serez en haut de l’écran.":"Utakuwa juu ya skrini.","Vous serez à gauche de l’écran.":"Utakuwa upande wa kushoto wa skrini.","Duo avec {0}":"Duo na {0}","Filmez votre moitié à côté de la sienne.":"Rekodi nusu yako kando ya yake.","Invitation envoyée.":"Mwaliko umetumwa.","Votre moitié est envoyée.":"Nusu yako imetumwa.","Déjà envoyé.":"Tayari imetumwa.","Duo refusé.":"Duo imekataliwa.","Invitation annulée.":"Mwaliko umeghairiwa.","Le duo ne sera pas publié.":"Duo haitachapishwa.","Duo retiré.":"Duo imeondolewa.","Duo publié.":"Duo imechapishwa.","Demande envoyée.":"Ombi limetumwa.","Votre moitié est trop courte.":"Nusu yako ni fupi mno.","Cette vidéo n’est pas acceptée : filmez-la avec La Forge.":"Video hii haikubaliwi: irekodi kwa La Forge.","Cette vidéo est trop lourde.":"Video hii ni nzito mno.","Le service est momentanément indisponible. Réessayez dans un instant.":"Huduma haipatikani kwa muda. Jaribu tena baada ya muda mfupi.","Envoi déjà en cours : patientez un instant.":"Tayari inatumwa: subiri kidogo.","Toucher encore pour refaire":"Gusa tena kurudia"}</script>
+<script type="application/json" id="nvI18n-ha">{"Côte à côte":"Kafaɗa da Kafaɗa","Un duo à distance : vous et une personne d’un autre pays, sur le même écran.":"Duo daga nesa: kai da wani daga wata ƙasa, a allo ɗaya.","Aperçu":"Samfoti","Aperçu : des duos d’exemple, pour découvrir la page.":"Samfoti: duo na misali, don gano shafin.","Chargement…":"Ana lodawa…","Côte à côte n’est pas encore ouvert.":"Kafaɗa da Kafaɗa bai buɗe ba tukuna.","Connectez-vous pour faire un duo.":"Shiga don yin duo.","Pas de connexion pour le moment.":"Babu haɗi a yanzu.","Impossible de joindre NEURAVID pour le moment.":"Ba za a iya isa ga NEURAVID a yanzu ba.","Aucun compte trouvé sous ce nom.":"Ba a sami asusu da wannan sunan ba.","Cette personne ne peut pas encore faire de duo (16 ans).":"Wannan mutumin bai iya yin duo ba tukuna (shekara 16).","Cette personne n’accepte pas de duo de votre part pour le moment.":"Wannan mutumin ba ya karɓar duo daga gare ka a yanzu.","Un duo est déjà en cours entre vous deux.":"Akwai duo da ke gudana tsakaninku biyu.","Vous avez déjà 5 duos en attente : attendez une réponse.":"Kana da duo 5 da ke jira: jira amsa.","Côte à côte est ouvert à partir de 16 ans.":"Kafaɗa da Kafaɗa a buɗe yake daga shekara 16.","Une moitié de 60 secondes au plus.":"Rabi na daƙiƙa 60 a mafi yawa.","Votre message n’a pas été accepté. Changez-le.":"Ba a karɓi saƙonka ba. Canza shi.","Vous avez déjà demandé de refaire deux fois.":"Ka riga ka nemi a sake yi sau biyu.","Ce duo a changé entre-temps.":"Wannan duo ya canza a halin yanzu.","Invitation en attente":"Gayyata na jira","À décider":"Don yanke shawara","Publié":"An wallafa","Refusé":"An ƙi","Annulé":"An soke","Expiré":"Lokaci ya ƙare","Non publié":"Ba a wallafa ba","Retiré":"An cire","Commencer un duo":"Fara duo","Votre moitié est prête. {0} recevra l’invitation et filmera la sienne à côté.":"Rabinka ya shirya. {0} zai karɓi gayyatar ya ɗauki nasa a gefe.","Envoyer l’invitation":"Aika gayyata","Envoi…":"Ana aikawa…","Refaire ma moitié":"Sake rabina","Filmez votre moitié, puis invitez une personne : elle filmera la sienne à côté de la vôtre, où qu’elle soit dans le monde.":"Ɗauki rabinka, sannan ka gayyaci wani: zai ɗauki nasa a gefen naka, duk inda yake a duniya.","Avec qui ? (son pseudo)":"Da wa? (sunan mai amfani)","L’écran partagé":"Allon da aka raba","Gauche / droite":"Hagu / dama","Haut / bas":"Sama / ƙasa","Vous":"Kai","Votre duo":"Abokin duo","Un mot pour l’inviter (facultatif)":"Kalma don gayyatarsa (zaɓi)","Filmer ma moitié":"Ɗauki rabina","{0} vous demande de refaire : {1}":"{0} na roƙonka ka sake yi: {1}","{0} vous demande de refaire votre moitié.":"{0} na roƙonka ka sake rabinka.","Envoyer à {0}":"Aika wa {0}","Filmez votre moitié à côté de la sienne. Réponse avant le {0}.":"Ɗauki rabinka a gefen nasa. Amsa kafin {0}.","Filmer ma moitié à côté":"Ɗauki rabina a gefe","Refuser":"Ƙi","Toucher encore pour refuser":"Taɓa kuma don ƙi","Envoyé : {0} décide de le publier.":"An aika: {0} zai yanke shawarar wallafa shi.","Toucher encore pour retirer ma moitié":"Taɓa kuma don janye rabina","Retirer ma moitié":"Janye rabina","Toucher encore pour retirer le duo":"Taɓa kuma don cire duo","Retirer le duo":"Cire duo","En attente de {0}, jusqu’au {1}.":"Ana jiran {0}, har zuwa {1}.","Toucher encore pour annuler":"Taɓa kuma don soke","Annuler l’invitation":"Soke gayyatar","{0} a filmé sa moitié. Regardez, puis décidez.":"{0} ya ɗauki rabinsa. Kalla, sannan ka yanke shawara.","La vidéo se prépare. Revenez dans un instant.":"Ana shirya bidiyon. Dawo nan da ɗan lokaci.","Publier le duo":"Wallafa duo","Demander de refaire":"Nemi a sake yi","Toucher encore pour ne pas publier":"Taɓa kuma don kada a wallafa","Ne pas publier":"Kada a wallafa","Ce qu’il faudrait changer (facultatif)":"Abin da ya kamata a canza (zaɓi)","Envoyer la demande":"Aika buƙata","Invitations reçues":"Gayyatar da aka karɓa","Mes duos":"Duo na","Aucun duo pour l’instant : commencez le premier.":"Babu duo a yanzu: fara na farko.","Langue":"Harshe","Traduction en cours de relecture.":"Ana duba fassarar.","À partir de 16 ans. Votre moitié n’est jamais publiée seule ; le duo n’est publié que si vous l’acceptez tous les deux, et chacun peut le retirer à tout moment.":"Daga shekara 16. Ba a taɓa wallafa rabinka shi kaɗai ba; ana wallafa duo ne kawai idan ku biyu kun yarda, kuma kowannenku na iya cire shi a kowane lokaci.","Écrivez le pseudo de la personne à inviter.":"Rubuta sunan mai amfani na wanda za ka gayyata.","La Forge n’est pas joignable ici.":"Ba a iya isa ga La Forge a nan.","Ma moitié":"Rabina","Votre moitié : 60 secondes au plus.":"Rabinka: daƙiƙa 60 a mafi yawa.","Vous serez en haut de l’écran.":"Za ka kasance a saman allo.","Vous serez à gauche de l’écran.":"Za ka kasance a hagun allo.","Duo avec {0}":"Duo da {0}","Filmez votre moitié à côté de la sienne.":"Ɗauki rabinka a gefen nasa.","Invitation envoyée.":"An aika gayyata.","Votre moitié est envoyée.":"An aika rabinka.","Déjà envoyé.":"An riga an aika.","Duo refusé.":"An ƙi duo.","Invitation annulée.":"An soke gayyatar.","Le duo ne sera pas publié.":"Ba za a wallafa duo ba.","Duo retiré.":"An cire duo.","Duo publié.":"An wallafa duo.","Demande envoyée.":"An aika buƙata.","Votre moitié est trop courte.":"Rabinka ya yi gajere sosai.","Cette vidéo n’est pas acceptée : filmez-la avec La Forge.":"Ba a karɓi wannan bidiyon ba: ɗauke shi da La Forge.","Cette vidéo est trop lourde.":"Wannan bidiyon ya yi nauyi sosai.","Le service est momentanément indisponible. Réessayez dans un instant.":"Sabis ɗin ba ya samuwa na ɗan lokaci. Sake gwadawa nan da ɗan lokaci.","Envoi déjà en cours : patientez un instant.":"Ana aikawa tuni: jira ɗan lokaci.","Toucher encore pour refaire":"Taɓa kuma don sake yi"}</script>
+<script type="application/json" id="nvI18n-yo">{"Côte à côte":"Ẹ̀gbẹ́ sí Ẹ̀gbẹ́","Un duo à distance : vous et une personne d’un autre pays, sur le même écran.":"Duo láti ọ̀nà jíjìn: ìwọ àti ẹnìkan láti orílẹ̀-èdè mìíràn, lórí ojú ìbòjú kan náà.","Aperçu":"Àyẹ̀wò","Aperçu : des duos d’exemple, pour découvrir la page.":"Àyẹ̀wò: àwọn duo àpẹẹrẹ, láti mọ ojú-ìwé náà.","Chargement…":"Ń gbé e wọlé…","Côte à côte n’est pas encore ouvert.":"Ẹ̀gbẹ́ sí Ẹ̀gbẹ́ kò tíì ṣí.","Connectez-vous pour faire un duo.":"Wọlé láti ṣe duo.","Pas de connexion pour le moment.":"Kò sí ìsopọ̀ báyìí.","Impossible de joindre NEURAVID pour le moment.":"Kò ṣeé ṣe láti dé NEURAVID báyìí.","Aucun compte trouvé sous ce nom.":"A kò rí àkáǹtì kankan pẹ̀lú orúkọ yìí.","Cette personne ne peut pas encore faire de duo (16 ans).":"Ẹni yìí kò tíì lè ṣe duo (ọdún 16).","Cette personne n’accepte pas de duo de votre part pour le moment.":"Ẹni yìí kò gba duo láti ọ̀dọ̀ rẹ báyìí.","Un duo est déjà en cours entre vous deux.":"Duo kan ti ń lọ láàrín ẹ̀yin méjèèjì.","Vous avez déjà 5 duos en attente : attendez une réponse.":"O ti ní duo 5 tí ń dúró: dúró de ìdáhùn.","Côte à côte est ouvert à partir de 16 ans.":"Ẹ̀gbẹ́ sí Ẹ̀gbẹ́ ṣí sílẹ̀ láti ọmọ ọdún 16.","Une moitié de 60 secondes au plus.":"Ìdajì tí kò ju ìṣẹ́jú-àáyá 60 lọ.","Votre message n’a pas été accepté. Changez-le.":"A kò gba ọ̀rọ̀ rẹ. Yí i padà.","Vous avez déjà demandé de refaire deux fois.":"O ti béèrè fún àtúnṣe lẹ́ẹ̀mejì.","Ce duo a changé entre-temps.":"Duo yìí ti yí padà láàrín àkókò náà.","Invitation en attente":"Ìpè ń dúró","À décider":"Láti pinnu","Publié":"A ti tẹ̀jáde","Refusé":"A kọ̀ ọ́","Annulé":"A ti fagilé","Expiré":"Àkókò ti tán","Non publié":"A kò tẹ̀ ẹ́ jáde","Retiré":"A ti yọ ọ́ kúrò","Commencer un duo":"Bẹ̀rẹ̀ duo kan","Votre moitié est prête. {0} recevra l’invitation et filmera la sienne à côté.":"Ìdajì rẹ ti ṣetán. {0} yóò gba ìpè náà yóò sì ya tirẹ̀ lẹ́gbẹ̀ẹ́ rẹ̀.","Envoyer l’invitation":"Fi ìpè ránṣẹ́","Envoi…":"Ń fi ránṣẹ́…","Refaire ma moitié":"Tún ìdajì mi ṣe","Filmez votre moitié, puis invitez une personne : elle filmera la sienne à côté de la vôtre, où qu’elle soit dans le monde.":"Ya ìdajì rẹ, lẹ́yìn náà pe ẹnìkan: yóò ya tirẹ̀ lẹ́gbẹ̀ẹ́ tìrẹ, níbikíbi tí ó bá wà láyé.","Avec qui ? (son pseudo)":"Pẹ̀lú ta? (orúkọ ìdánimọ̀ rẹ̀)","L’écran partagé":"Ojú ìbòjú tí a pín","Gauche / droite":"Òsì / ọ̀tún","Haut / bas":"Òkè / ìsàlẹ̀","Vous":"Ìwọ","Votre duo":"Ẹnìkejì duo rẹ","Un mot pour l’inviter (facultatif)":"Ọ̀rọ̀ kan láti pè é (àṣàyàn)","Filmer ma moitié":"Ya ìdajì mi","{0} vous demande de refaire : {1}":"{0} ń béèrè pé kí o tún un ṣe: {1}","{0} vous demande de refaire votre moitié.":"{0} ń béèrè pé kí o tún ìdajì rẹ ṣe.","Envoyer à {0}":"Fi ránṣẹ́ sí {0}","Filmez votre moitié à côté de la sienne. Réponse avant le {0}.":"Ya ìdajì rẹ lẹ́gbẹ̀ẹ́ tirẹ̀. Dáhùn kí {0} tó dé.","Filmer ma moitié à côté":"Ya ìdajì mi lẹ́gbẹ̀ẹ́ rẹ̀","Refuser":"Kọ̀ ọ́","Toucher encore pour refuser":"Fọwọ́ kàn án lẹ́ẹ̀kan sí i láti kọ̀","Envoyé : {0} décide de le publier.":"A ti fi ránṣẹ́: {0} ló máa pinnu bóyá kí a tẹ̀ ẹ́ jáde.","Toucher encore pour retirer ma moitié":"Fọwọ́ kàn án lẹ́ẹ̀kan sí i láti yọ ìdajì mi kúrò","Retirer ma moitié":"Yọ ìdajì mi kúrò","Toucher encore pour retirer le duo":"Fọwọ́ kàn án lẹ́ẹ̀kan sí i láti yọ duo kúrò","Retirer le duo":"Yọ duo kúrò","En attente de {0}, jusqu’au {1}.":"Ó ń dúró de {0}, títí di {1}.","Toucher encore pour annuler":"Fọwọ́ kàn án lẹ́ẹ̀kan sí i láti fagilé","Annuler l’invitation":"Fagilé ìpè náà","{0} a filmé sa moitié. Regardez, puis décidez.":"{0} ti ya ìdajì tirẹ̀. Wò ó, lẹ́yìn náà pinnu.","La vidéo se prépare. Revenez dans un instant.":"A ń pèsè fídíò náà. Padà wá ní ìṣẹ́jú díẹ̀.","Publier le duo":"Tẹ duo jáde","Demander de refaire":"Béèrè fún àtúnṣe","Toucher encore pour ne pas publier":"Fọwọ́ kàn án lẹ́ẹ̀kan sí i kí a má tẹ̀ ẹ́ jáde","Ne pas publier":"Má ṣe tẹ̀ ẹ́ jáde","Ce qu’il faudrait changer (facultatif)":"Ohun tí ó yẹ kí ó yí padà (àṣàyàn)","Envoyer la demande":"Fi ìbéèrè ránṣẹ́","Invitations reçues":"Àwọn ìpè tí a gbà","Mes duos":"Àwọn duo mi","Aucun duo pour l’instant : commencez le premier.":"Kò sí duo kankan síbẹ̀: bẹ̀rẹ̀ àkọ́kọ́.","Langue":"Èdè","Traduction en cours de relecture.":"A ń yẹ ìtumọ̀ wò.","À partir de 16 ans. Votre moitié n’est jamais publiée seule ; le duo n’est publié que si vous l’acceptez tous les deux, et chacun peut le retirer à tout moment.":"Láti ọmọ ọdún 16. A kì í tẹ ìdajì rẹ jáde nìkan láé; a máa tẹ duo jáde nìkan tí ẹ̀yin méjèèjì bá gbà, ẹnikẹ́ni nínú yín sì lè yọ ọ́ kúrò nígbàkígbà.","Écrivez le pseudo de la personne à inviter.":"Kọ orúkọ ìdánimọ̀ ẹni tí o fẹ́ pè.","La Forge n’est pas joignable ici.":"A kò lè dé La Forge níbí.","Ma moitié":"Ìdajì mi","Votre moitié : 60 secondes au plus.":"Ìdajì rẹ: ìṣẹ́jú-àáyá 60 ní púpọ̀ jùlọ.","Vous serez en haut de l’écran.":"Ìwọ yóò wà lókè ojú ìbòjú.","Vous serez à gauche de l’écran.":"Ìwọ yóò wà ní apá òsì ojú ìbòjú.","Duo avec {0}":"Duo pẹ̀lú {0}","Filmez votre moitié à côté de la sienne.":"Ya ìdajì rẹ lẹ́gbẹ̀ẹ́ tirẹ̀.","Invitation envoyée.":"A ti fi ìpè ránṣẹ́.","Votre moitié est envoyée.":"A ti fi ìdajì rẹ ránṣẹ́.","Déjà envoyé.":"A ti fi ránṣẹ́ tẹ́lẹ̀.","Duo refusé.":"A ti kọ duo náà.","Invitation annulée.":"A ti fagilé ìpè náà.","Le duo ne sera pas publié.":"A kò ní tẹ duo náà jáde.","Duo retiré.":"A ti yọ duo náà kúrò.","Duo publié.":"A ti tẹ duo náà jáde.","Demande envoyée.":"A ti fi ìbéèrè ránṣẹ́.","Votre moitié est trop courte.":"Ìdajì rẹ kúrú jù.","Cette vidéo n’est pas acceptée : filmez-la avec La Forge.":"A kò gba fídíò yìí: ya á pẹ̀lú La Forge.","Cette vidéo est trop lourde.":"Fídíò yìí wúwo jù.","Le service est momentanément indisponible. Réessayez dans un instant.":"Iṣẹ́ náà kò sí fún ìgbà díẹ̀. Tún gbìyànjú láìpẹ́.","Envoi déjà en cours : patientez un instant.":"Ó ti ń fi ránṣẹ́: dúró díẹ̀.","Toucher encore pour refaire":"Fọwọ́ kàn án lẹ́ẹ̀kan sí i láti tún un ṣe"}</script>
+<script type="application/json" id="nvI18n-wo">{"Côte à côte":"Wet ak Wet","Un duo à distance : vous et une personne d’un autre pays, sur le même écran.":"Duo bu sore: yow ak kenn ci beneen réew, ci benn ekraan.","Aperçu":"Wone","Aperçu : des duos d’exemple, pour découvrir la page.":"Wone: ay duo yu misaal, ngir xam xët wi.","Chargement…":"Mi ngi yeb…","Côte à côte n’est pas encore ouvert.":"Wet ak Wet ubbeeguñu ko ba léegi.","Connectez-vous pour faire un duo.":"Duggal ngir def benn duo.","Pas de connexion pour le moment.":"Amul connexion léegi.","Impossible de joindre NEURAVID pour le moment.":"Mënuñu jot NEURAVID léegi.","Aucun compte trouvé sous ce nom.":"Gisuñu benn compte ci tur wii.","Cette personne ne peut pas encore faire de duo (16 ans).":"Nit kii mënul def duo ba léegi (16 at).","Cette personne n’accepte pas de duo de votre part pour le moment.":"Nit kii nanguwul duo yu jóge ci yow léegi.","Un duo est déjà en cours entre vous deux.":"Am na benn duo bu ngi dox ci seen digg.","Vous avez déjà 5 duos en attente : attendez une réponse.":"Am nga 5 duo yuy xaar: xaaral tontu.","Côte à côte est ouvert à partir de 16 ans.":"Wet ak Wet ubbeeku na ci ñi am 16 at ak lu ko ëpp.","Une moitié de 60 secondes au plus.":"Genn-wàll bu weesul 60 saa.","Votre message n’a pas été accepté. Changez-le.":"Sa bataaxal nanguwuñu ko. Soppil ko.","Vous avez déjà demandé de refaire deux fois.":"Laaj nga defaraat ñaari yoon ba noppi.","Ce duo a changé entre-temps.":"Duo bii soppiku na ci diggante bi.","Invitation en attente":"Woote buy xaar","À décider":"Ngir dogal","Publié":"Siiwal nañu ko","Refusé":"Gàntu nañu ko","Annulé":"Neenal nañu ko","Expiré":"Jamono ji jeex na","Non publié":"Siiwaluñu ko","Retiré":"Dindi nañu ko","Commencer un duo":"Tàmbali benn duo","Votre moitié est prête. {0} recevra l’invitation et filmera la sienne à côté.":"Sa genn-wàll pare na. {0} dina jot woote bi te filmal boppam ci wetam.","Envoyer l’invitation":"Yónnee woote bi","Envoi…":"Mi ngi yónne…","Refaire ma moitié":"Defaraat sama genn-wàll","Filmez votre moitié, puis invitez une personne : elle filmera la sienne à côté de la vôtre, où qu’elle soit dans le monde.":"Filmal sa genn-wàll, ba noppi nga woo kenn: dina filmal boppam ci wetu sa bos, fu mu man a nekk ci àdduna.","Avec qui ? (son pseudo)":"Ak kan? (turam ci NEURAVID)","L’écran partagé":"Ekraan bu ñu séddoo","Gauche / droite":"Càmmooñ / ndijoor","Haut / bas":"Kaw / suuf","Vous":"Yow","Votre duo":"Sa naataangoo duo","Un mot pour l’inviter (facultatif)":"Benn kàddu ngir woo ko (bu soobee)","Filmer ma moitié":"Filmal sama genn-wàll","{0} vous demande de refaire : {1}":"{0} dafay laaj nga defaraat: {1}","{0} vous demande de refaire votre moitié.":"{0} dafay laaj nga defaraat sa genn-wàll.","Envoyer à {0}":"Yónnee ko {0}","Filmez votre moitié à côté de la sienne. Réponse avant le {0}.":"Filmal sa genn-wàll ci wetu boppam. Tontul balaa {0}.","Filmer ma moitié à côté":"Filmal sama genn-wàll ci wetam","Refuser":"Gàntu","Toucher encore pour refuser":"Bësal ci kaw ngir gàntu","Envoyé : {0} décide de le publier.":"Yónnee nañu ko: {0} moo koy dogal siiwal.","Toucher encore pour retirer ma moitié":"Bësal ci kaw ngir dindi sama genn-wàll","Retirer ma moitié":"Dindi sama genn-wàll","Toucher encore pour retirer le duo":"Bësal ci kaw ngir dindi duo bi","Retirer le duo":"Dindi duo bi","En attente de {0}, jusqu’au {1}.":"Ñu ngi xaar {0}, ba {1}.","Toucher encore pour annuler":"Bësal ci kaw ngir neenal","Annuler l’invitation":"Neenal woote bi","{0} a filmé sa moitié. Regardez, puis décidez.":"{0} filmal na genn-wàllam. Xoolal, ba noppi nga dogal.","La vidéo se prépare. Revenez dans un instant.":"Wideyo bi ñu ngi koy waajal. Dellusil ci kanam tuuti.","Publier le duo":"Siiwal duo bi","Demander de refaire":"Laaj mu defaraat","Toucher encore pour ne pas publier":"Bësal ci kaw ngir bañ a siiwal","Ne pas publier":"Bul siiwal","Ce qu’il faudrait changer (facultatif)":"Li war a soppiku (bu soobee)","Envoyer la demande":"Yónnee laaj bi","Invitations reçues":"Woote yi ñu la yónnee","Mes duos":"Samay duo","Aucun duo pour l’instant : commencez le premier.":"Amul duo ba léegi: tàmbali bu jëkk bi.","Langue":"Làkk","Traduction en cours de relecture.":"Tekki gi, ñu ngi koy xool.","À partir de 16 ans. Votre moitié n’est jamais publiée seule ; le duo n’est publié que si vous l’acceptez tous les deux, et chacun peut le retirer à tout moment.":"Ci ñi am 16 at ak lu ko ëpp. Sa genn-wàll du siiwalu moom rekk mukk; duo bi dañu koy siiwal rekk su ngeen ko nangoo ñoom ñaar, te ku nekk man nga koy dindi saa su nekk.","Écrivez le pseudo de la personne à inviter.":"Bindal turu NEURAVID bu nit ki ngay woo.","La Forge n’est pas joignable ici.":"Mënuñu jot La Forge fii.","Ma moitié":"Sama genn-wàll","Votre moitié : 60 secondes au plus.":"Sa genn-wàll: 60 saa lu ëpp.","Vous serez en haut de l’écran.":"Dinga nekk ci kaw ekraan bi.","Vous serez à gauche de l’écran.":"Dinga nekk ci càmmooñu ekraan bi.","Duo avec {0}":"Duo ak {0}","Filmez votre moitié à côté de la sienne.":"Filmal sa genn-wàll ci wetu boppam.","Invitation envoyée.":"Woote bi yónnee nañu ko.","Votre moitié est envoyée.":"Sa genn-wàll yónnee nañu ko.","Déjà envoyé.":"Yónnee nañu ko ba noppi.","Duo refusé.":"Duo bi gàntu nañu ko.","Invitation annulée.":"Woote bi neenal nañu ko.","Le duo ne sera pas publié.":"Duo bi duñu ko siiwal.","Duo retiré.":"Duo bi dindi nañu ko.","Duo publié.":"Duo bi siiwal nañu ko.","Demande envoyée.":"Laaj bi yónnee nañu ko.","Votre moitié est trop courte.":"Sa genn-wàll gàtt na lool.","Cette vidéo n’est pas acceptée : filmez-la avec La Forge.":"Wideyo bii nanguwuñu ko: filmal ko ak La Forge.","Cette vidéo est trop lourde.":"Wideyo bii dafa diis lool.","Le service est momentanément indisponible. Réessayez dans un instant.":"Liggéey bi amul fi ab diir. Jéemaatal ci kanam tuuti.","Envoi déjà en cours : patientez un instant.":"Ñu ngi koy yónne ba noppi: xaaral tuuti.","Toucher encore pour refaire":"Bësal ci kaw ngir defaraat"}</script>
+<script type="application/json" id="nvI18n-bm">{"Côte à côte":"Kɛrɛ ni Kɛrɛ","Un duo à distance : vous et une personne d’un autre pays, sur le même écran.":"Duo yɔrɔjan na: e ni mɔgɔ dɔ min bɔra jamana wɛrɛ la, ekaran kelen kan.","Aperçu":"Jirali","Aperçu : des duos d’exemple, pour découvrir la page.":"Jirali: duo misaliw, walasa ka ɲɛ in dɔn.","Chargement…":"A bɛ ka doni…","Côte à côte n’est pas encore ouvert.":"Kɛrɛ ni Kɛrɛ ma yɛlɛ fɔlɔ.","Connectez-vous pour faire un duo.":"Don walasa ka duo kɛ.","Pas de connexion pour le moment.":"Ɲɔgɔnsira tɛ yen sisan.","Impossible de joindre NEURAVID pour le moment.":"A tɛ se ka NEURAVID sɔrɔ sisan.","Aucun compte trouvé sous ce nom.":"Jatebɔsɛbɛn si ma sɔrɔ ni tɔgɔ in ye.","Cette personne ne peut pas encore faire de duo (16 ans).":"Nin mɔgɔ tɛ se ka duo kɛ fɔlɔ (san 16).","Cette personne n’accepte pas de duo de votre part pour le moment.":"Nin mɔgɔ tɛ sɔn i ka duo ma sisan.","Un duo est déjà en cours entre vous deux.":"Duo dɔ bɛ taa ka ɲɛ aw fila cɛ kaban.","Vous avez déjà 5 duos en attente : attendez une réponse.":"Duo 5 bɛ i bolo ka makɔnɔ: jaabi makɔnɔ.","Côte à côte est ouvert à partir de 16 ans.":"Kɛrɛ ni Kɛrɛ yɛlɛlen don ka bɔ san 16 la.","Une moitié de 60 secondes au plus.":"Tilancɛ min tɛ tɛmɛ segɔn 60 kan.","Votre message n’a pas été accepté. Changez-le.":"I ka cikan ma sɔn. A yɛlɛma.","Vous avez déjà demandé de refaire deux fois.":"I ye a ɲini siɲɛ fila ko a ka kɛ kokura.","Ce duo a changé entre-temps.":"Nin duo yɛlɛmana o cɛ la.","Invitation en attente":"Weleli bɛ makɔnɔ","À décider":"Ka latigɛ","Publié":"A bɔra kɛnɛ kan","Refusé":"A banna","Annulé":"A dabilara","Expiré":"A waati tɛmɛna","Non publié":"A ma bɔ kɛnɛ kan","Retiré":"A bɔra yen","Commencer un duo":"Duo dɔ daminɛ","Votre moitié est prête. {0} recevra l’invitation et filmera la sienne à côté.":"I ka tilancɛ labɛnnen don. {0} na weleli sɔrɔ ka a ta ja ta a kɛrɛ fɛ.","Envoyer l’invitation":"Weleli ci","Envoi…":"A bɛ ka ci…","Refaire ma moitié":"N ka tilancɛ kɛ kokura","Filmez votre moitié, puis invitez une personne : elle filmera la sienne à côté de la vôtre, où qu’elle soit dans le monde.":"I ka tilancɛ ja ta, o kɔ ka mɔgɔ dɔ wele: a na a ta ja ta i ta kɛrɛ fɛ, a mana kɛ diɲɛ yɔrɔ o yɔrɔ.","Avec qui ? (son pseudo)":"Ni jɔn ye? (a tɔgɔ NEURAVID kan)","L’écran partagé":"Ekaran tilalen","Gauche / droite":"Numanbolo / kininbolo","Haut / bas":"Sanfɛ / duguma","Vous":"E","Votre duo":"I ka duo jɛɲɔgɔn","Un mot pour l’inviter (facultatif)":"Kuma dɔ k’a wele (n’i y’a fɛ)","Filmer ma moitié":"N ka tilancɛ ja ta","{0} vous demande de refaire : {1}":"{0} b’a ɲini i fɛ i k’a kɛ kokura: {1}","{0} vous demande de refaire votre moitié.":"{0} b’a ɲini i fɛ i ka i ka tilancɛ kɛ kokura.","Envoyer à {0}":"A ci {0} ma","Filmez votre moitié à côté de la sienne. Réponse avant le {0}.":"I ka tilancɛ ja ta a ta kɛrɛ fɛ. Jaabi ka kɔn {0} ɲɛ.","Filmer ma moitié à côté":"N ka tilancɛ ja ta a kɛrɛ fɛ","Refuser":"A ban","Toucher encore pour refuser":"A digi tugun walasa ka ban","Envoyé : {0} décide de le publier.":"A cira: {0} b’a latigɛ ni a bɛ bɔ kɛnɛ kan.","Toucher encore pour retirer ma moitié":"A digi tugun walasa ka n ka tilancɛ bɔ","Retirer ma moitié":"N ka tilancɛ bɔ","Toucher encore pour retirer le duo":"A digi tugun walasa ka duo bɔ","Retirer le duo":"Duo bɔ","En attente de {0}, jusqu’au {1}.":"A bɛ {0} makɔnɔ, ka se {1} ma.","Toucher encore pour annuler":"A digi tugun walasa ka a dabila","Annuler l’invitation":"Weleli dabila","{0} a filmé sa moitié. Regardez, puis décidez.":"{0} y’a ka tilancɛ ja ta. A lajɛ, o kɔ ka latigɛ.","La vidéo se prépare. Revenez dans un instant.":"Widewo bɛ ka labɛn. Segin waati dɔɔnin kɔ.","Publier le duo":"Duo bɔ kɛnɛ kan","Demander de refaire":"A ɲini a ka kɛ kokura","Toucher encore pour ne pas publier":"A digi tugun walasa a kana bɔ kɛnɛ kan","Ne pas publier":"A kana bɔ kɛnɛ kan","Ce qu’il faudrait changer (facultatif)":"Min ka kan ka yɛlɛma (n’i y’a fɛ)","Envoyer la demande":"Ɲinini ci","Invitations reçues":"Weleli minw sɔrɔla","Mes duos":"N ka duow","Aucun duo pour l’instant : commencez le premier.":"Duo si tɛ yen fɔlɔ: fɔlɔ daminɛ.","Langue":"Kan","Traduction en cours de relecture.":"Bayɛlɛmali bɛ lajɛ la.","À partir de 16 ans. Votre moitié n’est jamais publiée seule ; le duo n’est publié que si vous l’acceptez tous les deux, et chacun peut le retirer à tout moment.":"Ka bɔ san 16 la. I ka tilancɛ tɛ bɔ kɛnɛ kan a kelen dɔrɔn abada; duo bɛ bɔ kɛnɛ kan ni aw fila sɔnna a ma dɔrɔn, ani aw kelen-kelen bɛɛ bɛ se k’a bɔ waati o waati.","Écrivez le pseudo de la personne à inviter.":"Mɔgɔ min bɛ welele, i ka a tɔgɔ NEURAVID kan sɛbɛn.","La Forge n’est pas joignable ici.":"La Forge tɛ sɔrɔ yan.","Ma moitié":"N ka tilancɛ","Votre moitié : 60 secondes au plus.":"I ka tilancɛ: segɔn 60 dɔrɔn.","Vous serez en haut de l’écran.":"I na kɛ ekaran sanfɛ la.","Vous serez à gauche de l’écran.":"I na kɛ ekaran numanbolo fɛ.","Duo avec {0}":"Duo ni {0} ye","Filmez votre moitié à côté de la sienne.":"I ka tilancɛ ja ta a ta kɛrɛ fɛ.","Invitation envoyée.":"Weleli cira.","Votre moitié est envoyée.":"I ka tilancɛ cira.","Déjà envoyé.":"A cira kaban.","Duo refusé.":"Duo banna.","Invitation annulée.":"Weleli dabilara.","Le duo ne sera pas publié.":"Duo tɛna bɔ kɛnɛ kan.","Duo retiré.":"Duo bɔra yen.","Duo publié.":"Duo bɔra kɛnɛ kan.","Demande envoyée.":"Ɲinini cira.","Votre moitié est trop courte.":"I ka tilancɛ surun kojugu.","Cette vidéo n’est pas acceptée : filmez-la avec La Forge.":"Nin widewo ma sɔn: a ja ta ni La Forge ye.","Cette vidéo est trop lourde.":"Nin widewo ka girin kojugu.","Le service est momentanément indisponible. Réessayez dans un instant.":"Baara in tɛ sɔrɔ sisan. A lajɛ tugun waati dɔɔnin kɔ.","Envoi déjà en cours : patientez un instant.":"A bɛ ka ci kaban: makɔnɔ dɔɔnin.","Toucher encore pour refaire":"A digi tugun walasa k’a kɛ kokura"}</script>
+<script type="application/json" id="nvI18n-ln">{"Côte à côte":"Pembeni na Pembeni","Un duo à distance : vous et une personne d’un autre pays, sur le même écran.":"Duo ya mosika: yo na moto moko ya mboka mosusu, na esika moko ya ekrá.","Aperçu":"Emoniseli","Aperçu : des duos d’exemple, pour découvrir la page.":"Emoniseli: ba duo ya ndakisa, mpo na koyeba lokasa oyo.","Chargement…":"Ezali kofungola…","Côte à côte n’est pas encore ouvert.":"Pembeni na Pembeni efungwami naino te.","Connectez-vous pour faire un duo.":"Kota mpo na kosala duo.","Pas de connexion pour le moment.":"Boyokani ezali te sikoyo.","Impossible de joindre NEURAVID pour le moment.":"Ekoki te kokutana na NEURAVID sikoyo.","Aucun compte trouvé sous ce nom.":"Kɔnti moko te ezwami na nkombo oyo.","Cette personne ne peut pas encore faire de duo (16 ans).":"Moto oyo akoki naino kosala duo te (mibu 16).","Cette personne n’accepte pas de duo de votre part pour le moment.":"Moto oyo andimaka duo na yo te sikoyo.","Un duo est déjà en cours entre vous deux.":"Duo moko ezali kokende kala kati na bino mibale.","Vous avez déjà 5 duos en attente : attendez une réponse.":"Ozali na ba duo 5 oyo ezali kozela: zela eyano.","Côte à côte est ouvert à partir de 16 ans.":"Pembeni na Pembeni efungwami banda mibu 16.","Une moitié de 60 secondes au plus.":"Ndambo ya basekonde 60 kaka.","Votre message n’a pas été accepté. Changez-le.":"Nsango na yo endimami te. Bongola yango.","Vous avez déjà demandé de refaire deux fois.":"Osili kosɛnga kosala lisusu mbala mibale.","Ce duo a changé entre-temps.":"Duo oyo ebongwani na ntango yango.","Invitation en attente":"Libyangi ezali kozela","À décider":"Ya kozwa mokano","Publié":"Ebimisami","Refusé":"Eboyami","Annulé":"Elongolami","Expiré":"Ntango esili","Non publié":"Ebimisami te","Retiré":"Elongolami","Commencer un duo":"Banda duo moko","Votre moitié est prête. {0} recevra l’invitation et filmera la sienne à côté.":"Ndambo na yo esili kobongama. {0} akozwa libyangi mpe akofilma ya ye pembeni.","Envoyer l’invitation":"Tinda libyangi","Envoi…":"Ezali kotinda…","Refaire ma moitié":"Sala ndambo na ngai lisusu","Filmez votre moitié, puis invitez une personne : elle filmera la sienne à côté de la vôtre, où qu’elle soit dans le monde.":"Filma ndambo na yo, sima benga moto moko: akofilma ya ye pembeni ya oyo ya yo, esika nyonso azali na mokili.","Avec qui ? (son pseudo)":"Na nani? (nkombo na ye)","L’écran partagé":"Ekrá oyo bakaboli","Gauche / droite":"Loboko ya mwasi / ya mobali","Haut / bas":"Likolo / nse","Vous":"Yo","Votre duo":"Moninga na yo ya duo","Un mot pour l’inviter (facultatif)":"Liloba moko mpo na kobenga ye (soki olingi)","Filmer ma moitié":"Filma ndambo na ngai","{0} vous demande de refaire : {1}":"{0} asɛngi yo osala lisusu: {1}","{0} vous demande de refaire votre moitié.":"{0} asɛngi yo osala ndambo na yo lisusu.","Envoyer à {0}":"Tinda epai ya {0}","Filmez votre moitié à côté de la sienne. Réponse avant le {0}.":"Filma ndambo na yo pembeni ya ya ye. Yanola liboso ya {0}.","Filmer ma moitié à côté":"Filma ndambo na ngai pembeni","Refuser":"Boya","Toucher encore pour refuser":"Finá lisusu mpo na koboya","Envoyé : {0} décide de le publier.":"Etindami: {0} akozwa mokano ya kobimisa yango.","Toucher encore pour retirer ma moitié":"Finá lisusu mpo na kolongola ndambo na ngai","Retirer ma moitié":"Longola ndambo na ngai","Toucher encore pour retirer le duo":"Finá lisusu mpo na kolongola duo","Retirer le duo":"Longola duo","En attente de {0}, jusqu’au {1}.":"Ezali kozela {0}, kino {1}.","Toucher encore pour annuler":"Finá lisusu mpo na kolongola","Annuler l’invitation":"Longola libyangi","{0} a filmé sa moitié. Regardez, puis décidez.":"{0} afilmi ndambo na ye. Tala, sima zwa mokano.","La vidéo se prépare. Revenez dans un instant.":"Video ezali kobongisama. Zonga mwa moke.","Publier le duo":"Bimisa duo","Demander de refaire":"Sɛnga asala lisusu","Toucher encore pour ne pas publier":"Finá lisusu mpo ebimisama te","Ne pas publier":"Kobimisa te","Ce qu’il faudrait changer (facultatif)":"Oyo esengeli kobongwana (soki olingi)","Envoyer la demande":"Tinda bosɛngi","Invitations reçues":"Mabyangi oyo ozwi","Mes duos":"Ba duo na ngai","Aucun duo pour l’instant : commencez le premier.":"Duo ezali naino te: banda ya liboso.","Langue":"Lokota","Traduction en cours de relecture.":"Libongoli ezali kotalama.","À partir de 16 ans. Votre moitié n’est jamais publiée seule ; le duo n’est publié que si vous l’acceptez tous les deux, et chacun peut le retirer à tout moment.":"Banda mibu 16. Ndambo na yo ebimisamaka yango moko te; duo ebimisamaka kaka soki bino mibale bondimi, mpe moko na moko akoki kolongola yango ntango nyonso.","Écrivez le pseudo de la personne à inviter.":"Koma nkombo ya moto oyo okobenga.","La Forge n’est pas joignable ici.":"La Forge ezwami awa te.","Ma moitié":"Ndambo na ngai","Votre moitié : 60 secondes au plus.":"Ndambo na yo: basekonde 60 kaka.","Vous serez en haut de l’écran.":"Okozala likolo ya ekrá.","Vous serez à gauche de l’écran.":"Okozala na loboko ya mwasi ya ekrá.","Duo avec {0}":"Duo na {0}","Filmez votre moitié à côté de la sienne.":"Filma ndambo na yo pembeni ya ya ye.","Invitation envoyée.":"Libyangi etindami.","Votre moitié est envoyée.":"Ndambo na yo etindami.","Déjà envoyé.":"Esili kotindama.","Duo refusé.":"Duo eboyami.","Invitation annulée.":"Libyangi elongolami.","Le duo ne sera pas publié.":"Duo ekobimisama te.","Duo retiré.":"Duo elongolami.","Duo publié.":"Duo ebimisami.","Demande envoyée.":"Bosɛngi etindami.","Votre moitié est trop courte.":"Ndambo na yo ezali mokuse mingi.","Cette vidéo n’est pas acceptée : filmez-la avec La Forge.":"Video oyo endimami te: filma yango na La Forge.","Cette vidéo est trop lourde.":"Video oyo ezali na kilo mingi.","Le service est momentanément indisponible. Réessayez dans un instant.":"Mosala oyo ezali te mpo na mwa ntango. Meka lisusu mwa moke.","Envoi déjà en cours : patientez un instant.":"Ezali kotindama kala: zela mwa moke.","Toucher encore pour refaire":"Finá lisusu mpo na kosala lisusu"}</script>
+
+<script>
+/* ══ NV_CAMERA — EMBARQUÉ ════════════════════════════════════
+   Embarqué, pas référencé : un module NEURAVID doit s'ouvrir
+   seul depuis une URL file://, avec rien à côté. */
+/* ═══════════════════════════════════════════════════════════════════
+   NEURAVID — NV_CAMERA.js
+   Le bouton « Filmer » d'un défi ouvre la caméra du Studio créatif.
+
+   À embarquer dans les 16 modules de défi ET dans NV_MODULE_Create.html.
+
+   ── POURQUOI ─────────────────────────────────────────────────────────
+   Chaque défi a son propre enregistreur. Il fonctionne, il grave les
+   filtres et le logo dans l'image — mais il s'arrête là. La caméra du
+   Studio sait faire beaucoup plus, et elle existe déjà :
+
+       double caméra (médaillon, haut/bas, gauche/droite)
+       masques qui suivent le visage
+       effets pluie, neige, étincelles
+       filtres gravés dans l'image enregistrée
+       photo, montage, galerie
+
+   Une personne qui veut participer à un défi n'a aucune raison d'avoir
+   moins d'outils que quelqu'un qui filme pour rien.
+
+   ── LA DIFFICULTÉ RÉELLE ─────────────────────────────────────────────
+   Le Studio est un AUTRE fichier. Changer de page perd tout : le
+   contexte du défi, et surtout la vidéo elle-même — un Blob ne
+   traverse pas une navigation.
+
+   IndexedDB, si. C'est la seule voie, et Create s'en sert déjà pour
+   son relais. On l'emprunte :
+
+       1. le défi range son contexte et ouvre le Studio
+       2. la personne filme avec tous les outils
+       3. le Studio range la vidéo dans IndexedDB et revient au défi
+       4. le défi la reprend et la présente comme sa propre prise
+
+   ── CE QU'ON NE FAIT PAS ─────────────────────────────────────────────
+   On ne copie pas la caméra du Studio dans les seize défis. Elle pèse
+   plus de trois cents kilo-octets, et seize copies divergeraient au
+   premier correctif — c'est exactement ce qui est arrivé à IA et Coach,
+   qui affichaient deux scores différents pour la même vidéo.
+
+   Et on ne supprime pas l'enregistreur existant : si le Studio est
+   injoignable, il reprend la main. Une passerelle ne doit jamais
+   devenir un point de rupture.
+   ═══════════════════════════════════════════════════════════════════ */
+(function (racine) {
+  'use strict';
+  if (racine.NVCamera) return;
+
+  var BASE_DEFAUT = 'file:///android_asset/flutter_assets/assets/modules/';
+  var CLE_CTX = 'nv_cam_ctx';
+  var DB = 'nvcamera';
+  var MAG = 'prises';
+
+  function emit(type, charge) {
+    try { if (typeof racine.NVemit === 'function') racine.NVemit(type, charge || {}); }
+    catch (e) {}
+  }
+  function base() {
+    var b = racine.NV_MODULES_BASE || BASE_DEFAUT;
+    return b.slice(-1) === '/' ? b : b + '/';
+  }
+
+  /* ── LE COFFRE ────────────────────────────────────────────────────
+     Une vidéo de quelques mégaoctets ne tient pas dans localStorage et
+     ne survit pas à une navigation autrement. IndexedDB est le seul
+     endroit où elle peut attendre. */
+  function ouvrirBase() {
+    return new Promise(function (res) {
+      try { if (!racine.indexedDB) return res(null); } catch (e) { return res(null); }   /* stockage bloqué : l'accès lui-même peut lever une erreur */
+      var r;
+      try { r = racine.indexedDB.open(DB, 1); } catch (e) { return res(null); }
+      r.onupgradeneeded = function () {
+        try { r.result.createObjectStore(MAG); } catch (e) {}
+      };
+      r.onsuccess = function () { res(r.result); };
+      r.onerror = function () { res(null); };
+      /* certains navigateurs ne répondent jamais (fichier ouvert en content://) */
+      setTimeout(function () { res(null); }, 2000);
+    });
+  }
+  function ranger(cle, valeur) {
+    return ouvrirBase().then(function (db) {
+      if (!db) return false;
+      return new Promise(function (res) {
+        try {
+          var t = db.transaction(MAG, 'readwrite');
+          t.objectStore(MAG).put(valeur, cle);
+          t.oncomplete = function () { res(true); };
+          t.onerror = function () { res(false); };
+        } catch (e) { res(false); }
+      });
+    });
+  }
+  function reprendre(cle) {
+    return ouvrirBase().then(function (db) {
+      if (!db) return null;
+      return new Promise(function (res) {
+        try {
+          var t = db.transaction(MAG, 'readonly');
+          var q = t.objectStore(MAG).get(cle);
+          q.onsuccess = function () { res(q.result || null); };
+          q.onerror = function () { res(null); };
+        } catch (e) { res(null); }
+      });
+    });
+  }
+  function oublier(cle) {
+    return ouvrirBase().then(function (db) {
+      if (!db) return;
+      try {
+        var t = db.transaction(MAG, 'readwrite');
+        t.objectStore(MAG).delete(cle);
+      } catch (e) {}
+    });
+  }
+
+  /* ── CÔTÉ DÉFI : partir vers le Studio ────────────────────────────── */
+  function filmer(ctx) {
+    ctx = ctx || {};
+    ctx.module = ctx.module || racine.NV_MODULE_NAME || 'defi';
+    ctx.quand = Date.now();
+    /* La contrainte du défi voyage avec : le Studio doit savoir qu'une
+       story flash s'arrête à sept secondes. Sans ça, la personne filme
+       trente secondes et se fait refuser au retour. */
+    try { racine.sessionStorage.setItem(CLE_CTX, JSON.stringify(ctx)); } catch (e) {}
+    try { racine.localStorage.setItem(CLE_CTX, JSON.stringify(ctx)); } catch (e) {}
+    emit('camera_open', ctx);
+
+    /* Si le Studio est déjà dans cette page, on l'ouvre sans changer
+       d'écran : c'est plus rapide et rien ne peut se perdre. */
+    try {
+      if (racine.NVStudio && typeof racine.NVStudio.open === 'function' &&
+          typeof racine.NVStudio.tab === 'function') {
+        racine.NVStudio.open(); racine.NVStudio.tab('video');
+        return 'local';
+      }
+    } catch (e) {}
+    try {
+      if (racine.NVLien && typeof racine.NVLien.ouvrir === 'function') {
+        racine.NVLien.ouvrir('NVCreate', ctx);
+        return 'lien';
+      }
+    } catch (e) {}
+    try {
+      racine.location.href = base() + 'NV_MODULE_Create.html';
+      return 'fichier';
+    } catch (e) {}
+    return 'aucun';   /* l'appelant reprend la main avec son propre enregistreur */
+  }
+
+  /* ── CÔTÉ STUDIO : d'où vient-on, et comment y retourner ──────────── */
+  function contexte() {
+    var t = null;
+    try { t = racine.sessionStorage.getItem(CLE_CTX); } catch (e) {}
+    if (!t) { try { t = racine.localStorage.getItem(CLE_CTX); } catch (e) {} }
+    if (!t) return null;
+    try {
+      var c = JSON.parse(t);
+      /* Un contexte vieux de plus d'une heure n'a plus de sens : la
+         personne est passée à autre chose. On ne la renvoie pas dans un
+         défi qu'elle a quitté. */
+      if (!c || !c.quand || Date.now() - c.quand > 3600000) return null;
+      return c;
+    } catch (e) { return null; }
+  }
+
+  /* Le Studio appelle ceci quand la prise est terminée. */
+  function rendre(blob, meta) {
+    var c = contexte();
+    if (!c) return Promise.resolve(false);
+    var cle = 'prise_' + (c.module || 'defi') + '_' + (c.defi || 'x');
+    return ranger(cle, {blob: blob, meta: meta || {}, ctx: c, at: Date.now()})
+      .then(function (ok) {
+        if (!ok) return false;
+        emit('camera_done', {module: c.module, defi: c.defi || null,
+                             secondes: (meta && meta.seconds) || null});
+        try {
+          if (racine.NVLien && typeof racine.NVLien.ouvrir === 'function') {
+            racine.NVLien.ouvrir('NV' + c.module, c);
+            return true;
+          }
+        } catch (e) {}
+        try { racine.location.href = base() + 'NV_MODULE_' + c.module + '.html'; }
+        catch (e) {}
+        return true;
+      });
+  }
+
+  /* ── CÔTÉ DÉFI : récupérer la prise au retour ─────────────────────── */
+  function recuperer(module, defi) {
+    var cle = 'prise_' + (module || racine.NV_MODULE_NAME || 'defi') + '_' + (defi || 'x');
+    return reprendre(cle).then(function (p) {
+      if (!p) return null;
+      /* On efface tout de suite : une prise reprise deux fois se
+         retrouverait envoyée deux fois. */
+      oublier(cle);
+      if (!p.at || Date.now() - p.at > 3600000) return null;
+      return p;
+    });
+  }
+
+  /* ══ LE MÉNAGE ════════════════════════════════════════════════════
+     Une prise n'est effacée qu'à sa reprise. Si la personne filme puis
+     ne revient jamais dans le défi, l'entrée reste — une vidéo de
+     plusieurs mégaoctets par tentative abandonnée, sur un téléphone
+     d'entrée de gamme.
+
+     On balaie donc au chargement ce qui a plus d'une heure : c'est la
+     même limite que le contexte, et au-delà la personne est passée à
+     autre chose de toute façon. */
+  function balayer() {
+    return ouvrirBase().then(function (db) {
+      if (!db) return 0;
+      return new Promise(function (res) {
+        var n = 0;
+        try {
+          var t = db.transaction(MAG, 'readwrite');
+          var st = t.objectStore(MAG);
+          var q = st.openCursor();
+          q.onsuccess = function () {
+            var c = q.result;
+            if (!c) { res(n); return; }
+            var v = c.value;
+            if (!v || !v.at || Date.now() - v.at > 3600000) { c.delete(); n++; }
+            c.continue();
+          };
+          q.onerror = function () { res(n); };
+        } catch (e) { res(0); }
+      });
+    });
+  }
+  /* au chargement, sans bloquer quoi que ce soit */
+  try { setTimeout(balayer, 3000); } catch (e) {}
+
+  racine.NVCamera = {
+    balayer: balayer,
+    filmer: filmer,
+    contexte: contexte,
+    rendre: rendre,
+    recuperer: recuperer,
+    /* Pour savoir s'il faut proposer le Studio ou rester sur
+       l'enregistreur local. On ne propose jamais une porte qui ne
+       s'ouvre pas. */
+    studioJoignable: function () {
+      try {
+        if (racine.NVStudio && typeof racine.NVStudio.open === 'function') return true;
+        if (racine.NVLien && typeof racine.NVLien.ouvrir === 'function') return true;
+        return !!racine.NV_MODULES_BASE;
+      } catch (e) { return false; }
+    }
+  };
+})(window);
+
+</script>
+<script>
+(function(){
+/* ════════════════════════════════════════════════════════════════════
+ CÔTE À CÔTE (16 novembre 2026, recommandation 5 acceptée par Karamo)
+ Un duo à distance, l'écran partagé en deux : vous filmez votre moitié et invitez UNE personne (16 ans, d'un autre pays
+ ou d'à côté) ; elle filme la sienne à côté de la vôtre dans La Forge ; vous décidez ensemble de la publier.
+ Serveur : /v1/cote (univers), capacité /v1/cote/capacites. On filme avec La Forge (NVCamera), qui pose la moitié de l'autre
+ à côté de la caméra (gauche / droite ou haut / bas).
+ Rien n'est inventé : une valeur inconnue s'écrit « — » ; les exemples n'existent que dans l'aperçu, marqués « Aperçu ».
+ ════════════════════════════════════════════════════════════════════ */
+'use strict';
+var MOI = 'Cote';
+var AGE_MIN = 16;
+var LANGUES_UI = {fr:{nom:'Français', loc:'fr-FR'}, en:{nom:'English', loc:'en-GB'}, es:{nom:'Español', loc:'es-ES'}, pt:{nom:'Português', loc:'pt-BR'},
+  ar:{nom:'العربية', loc:'ar-u-nu-latn', rtl:true}, sw:{nom:'Kiswahili', loc:'sw-KE', relire:true}, ha:{nom:'Hausa', loc:'ha-NG', relire:true},
+  yo:{nom:'Yorùbá', loc:'yo-NG', relire:true}, wo:{nom:'Wolof', loc:'fr-SN', relire:true}, bm:{nom:'Bamanankan', loc:'fr-ML', relire:true},
+  ln:{nom:'Lingála', loc:'fr-CD', relire:true}};
+var CLE_FILM = 'nv_cote_film';
+
+function $(id){ return document.getElementById(id); }
+function esc(s){ return String(s == null ? '' : s).replace(/[&<>"']/g, function(c){ return {'&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;'}[c]; }); }
+function brut(k){ try{ return localStorage.getItem(k); }catch(e){ return null; } }
+function ecrire(k, v){ try{ localStorage.setItem(k, JSON.stringify(v)); return true; }catch(e){ return false; } }
+function api(){ return window.NV_API_BASE ? String(window.NV_API_BASE).replace(/\/$/, '') : null; }
+function jeton(){ return window.NV_TOKEN ? String(window.NV_TOKEN) : ''; }
+function utilisateur(){ return window.NV_USER && typeof window.NV_USER === 'object' ? window.NV_USER : null; }
+function nombre(x){ return typeof x === 'number' && isFinite(x) && x >= 0 ? x : null; }
+
+/* ── la langue : la même que le reste de NEURAVID (« nv_ui_langue »), sinon l'application, sinon le téléphone ── */
+function langueDetectee(){
+  try{ var hl = /(?:^#|&)lang=([a-z]{2})/.exec(location.hash || ''); if(hl && LANGUES_UI[hl[1]]) return hl[1]; }catch(e){}
+  var c = brut('nv_ui_langue'); if(c){ try{ c = JSON.parse(c); }catch(e){} if(typeof c === 'string' && LANGUES_UI[c]) return c; }
+  try{ if(window.NV_LANG){ var n = String(window.NV_LANG).slice(0, 2).toLowerCase(); if(LANGUES_UI[n]) return n; } }catch(e){}
+  var l = []; try{ l = navigator.languages && navigator.languages.length ? navigator.languages : [navigator.language || 'fr']; }catch(e){}
+  for(var i = 0; i < l.length; i++){ var k = String(l[i] || '').slice(0, 2).toLowerCase(); if(LANGUES_UI[k]) return k; }
+  return 'fr';
+}
+var L = 'fr', LOC = 'fr-FR', DICO = {};
+function poserLangue(l){
+  L = LANGUES_UI[l] ? l : 'fr'; DICO = {};
+  if(L !== 'fr'){ try{ DICO = JSON.parse($('nvI18n-' + L).textContent) || {}; }catch(e){ L = 'fr'; DICO = {}; } }
+  LOC = LANGUES_UI[L].loc;
+  document.documentElement.lang = L; document.documentElement.dir = LANGUES_UI[L].rtl ? 'rtl' : 'ltr';
+}
+function T(s){ var t = DICO[s] || s, a = arguments; return t.replace(/\{(\d)\}/g, function(m, i){ var v = a[+i + 1]; return v == null ? '—' : String(v); }); }
+function dateTexte(iso){ var d = iso ? new Date(iso) : null; if(!d || isNaN(d)) return '—'; try{ return d.toLocaleDateString(LOC, {day:'numeric', month:'long'}); }catch(e){ return '—'; } }
+
+/* ── les pays : drapeau + nom (le code seul si le téléphone ne connaît pas le nom) ── */
+function drapeau(iso){ iso = String(iso || '').toUpperCase(); if(!/^[A-Z]{2}$/.test(iso)) return ''; return String.fromCodePoint(127397 + iso.charCodeAt(0), 127397 + iso.charCodeAt(1)); }
+var NOMS = null;
+function nomPays(iso){
+  iso = String(iso || '').toUpperCase(); if(!/^[A-Z]{2}$/.test(iso)) return '';
+  if(NOMS === null){ NOMS = false; try{ NOMS = new Intl.DisplayNames([LOC, 'fr'], {type:'region'}); }catch(e){ NOMS = false; } }
+  var n = null; try{ n = NOMS ? NOMS.of(iso) : null; }catch(e){ n = null; }
+  return n && n !== iso ? n : iso;
+}
+function quiTexte(p){ if(!p) return '—'; var h = p.handle ? '@' + p.handle : (p.nom || '—'), f = drapeau(p.pays); return (f ? f + ' ' : '') + h; }
+
+/* ── l'état ── */
+var ST = {apercu:false, cap:null, etat:'', envoyes:[], recus:[], prise:null, envoi:false, form:{invite:'', disposition:'gd', message:''}, sur:{}, occupe:{}};
+
+/* ── le réseau ── */
+function appeler(methode, chemin, corps, cle){
+  var h = {Accept:'application/json'}; if(jeton()) h.Authorization = 'Bearer ' + jeton();
+  if(methode !== 'GET') h['Idempotency-Key'] = cle || ('ct-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8));
+  var o = {method:methode, headers:h, mode:'cors', cache:'no-cache'};
+  if(corps instanceof FormData) o.body = corps; else if(corps){ h['Content-Type'] = 'application/json'; o.body = JSON.stringify(corps); }
+  return fetch(api() + chemin, o).then(function(r){
+    return r.text().then(function(t){ var j = null; try{ j = t ? JSON.parse(t) : null; }catch(e){ j = null; }
+      if(!r.ok){ var err = new Error('http ' + r.status); err.status = r.status; err.code = j && j.erreur; throw err; } return j; });
+  });
+}
+function emit(type, payload){
+  var msg = {source:'neuravid', module:MOI, type:type, payload:payload || {}};
+  if(window.NVemit && !window.NVemit.__nvLocal){ try{ window.NVemit(type, msg.payload); }catch(e){} }
+  try{ if(window.flutter_inappwebview) window.flutter_inappwebview.callHandler('nvEvent', msg); }catch(e){}
+  try{ window.dispatchEvent(new CustomEvent('nv:' + type, {detail:msg.payload})); }catch(e){}
+}
+function ouvrir(id, ctx){
+  var base = window.NV_MODULES_BASE ? String(window.NV_MODULES_BASE).replace(/\/?$/, '/') : '', url = base + 'NV_MODULE_' + id + '.html';
+  emit('open_module', {target:'NV' + id, url:url, contexte:ctx || null});
+  try{ if(ctx) sessionStorage.setItem('nv_ctx_' + id, JSON.stringify(ctx)); }catch(e){}
+  if(window.flutter_inappwebview) return;
+  if(window.NVLien && typeof window.NVLien.ouvrir === 'function'){ try{ window.NVLien.ouvrir('NV' + id, ctx); return; }catch(e){} }
+  try{ location.href = url; }catch(e){}
+}
+var toastT = 0;
+function toast(t){ var el = $('toast'); el.textContent = t; el.classList.add('on'); clearTimeout(toastT); toastT = setTimeout(function(){ el.classList.remove('on'); }, 3400); }
+var ERREURS = {personne_inconnue:'Aucun compte trouvé sous ce nom.', invite_age:'Cette personne ne peut pas encore faire de duo (16 ans).',
+  duos_fermes:'Cette personne n’accepte pas de duo de votre part pour le moment.', deja_invite:'Un duo est déjà en cours entre vous deux.',
+  trop_d_invitations:'Vous avez déjà 5 duos en attente : attendez une réponse.', age_minimum:'Côte à côte est ouvert à partir de 16 ans.',
+  trop_long:'Une moitié de 60 secondes au plus.', moderation:'Votre message n’a pas été accepté. Changez-le.', trop_de_tours:'Vous avez déjà demandé de refaire deux fois.',
+  cote_indisponible:'Côte à côte n’est pas encore ouvert.', trop_court:'Votre moitié est trop courte.', type_refuse:'Cette vidéo n’est pas acceptée : filmez-la avec La Forge.',
+  video_manquante:'Cette vidéo n’est pas acceptée : filmez-la avec La Forge.', fichier_trop_grand:'Cette vidéo est trop lourde.', video_trop_longue:'Une moitié de 60 secondes au plus.',
+  publication_injoignable:'Le service est momentanément indisponible. Réessayez dans un instant.', socle_injoignable:'Le service est momentanément indisponible. Réessayez dans un instant.',
+  publication_indisponible:'Le service est momentanément indisponible. Réessayez dans un instant.', moderation_indisponible:'Le service est momentanément indisponible. Réessayez dans un instant.'};
+function erreurTexte(e){
+  var c = e && e.code;
+  if(c && ERREURS[c]) return T(ERREURS[c]);
+  if(c && /^duo_/.test(c)) return T('Ce duo a changé entre-temps.');
+  if(e && e.status === 401) return T('Connectez-vous pour faire un duo.');
+  return navigator.onLine === false ? T('Pas de connexion pour le moment.') : T('Impossible de joindre NEURAVID pour le moment.');
+}
+
+/* ════════ LES DONNÉES ════════ */
+function age(){ var u = utilisateur(); return u && typeof u.age === 'number' ? u.age : null; }
+function charger(){
+  if(ST.apercu){ ST.cap = true; if(!ST.envoyes.length && !ST.recus.length){ var d = demoDuos(); ST.envoyes = d.envoyes; ST.recus = d.recus; } ST.etat = 'ok'; rendre(); return Promise.resolve(); }
+  if(!api()){ ST.cap = false; ST.etat = 'sansserveur'; rendre(); return Promise.resolve(); }
+  ST.etat = 'charge'; rendreEtat();
+  return appeler('GET', '/v1/cote/capacites').then(function(c){
+    ST.cap = !!(c && c.cote === true);
+    if(!ST.cap){ ST.etat = 'indisponible'; return; }
+    if(!jeton()){ ST.etat = 'connexion'; return; }
+    return appeler('GET', '/v1/cote').then(function(o){ ST.envoyes = o && Array.isArray(o.envoyes) ? o.envoyes : []; ST.recus = o && Array.isArray(o.recus) ? o.recus : []; ST.etat = 'ok'; });
+  }).catch(function(e){ ST.etat = e && e.status === 401 ? 'connexion' : navigator.onLine === false ? 'horsligne' : 'erreur'; })
+    .then(function(){ rendre(); });
+}
+function trouver(id){ return ST.envoyes.concat(ST.recus).filter(function(x){ return x.id === id; })[0] || null; }
+
+/* ════════ L'AFFICHAGE ════════ */
+var ETATS = {invitation:['Invitation en attente', 're'], a_valider:['À décider', 're'], publiee:['Publié', 'co'], refusee:['Refusé', 'an'],
+  annulee:['Annulé', 'an'], expiree:['Expiré', 'an'], declinee:['Non publié', 'an'], retiree:['Retiré', 'an']};
+function puce(x){ var e = ETATS[x.etat] || ['—', '']; return '<span class="puce ' + e[1] + '">' + esc(T(e[0])) + '</span>'; }
+function rendreEtat(){
+  var el = $('etat'), t = '';
+  if(ST.apercu) t = T('Aperçu : des duos d’exemple, pour découvrir la page.');
+  else if(ST.etat === 'charge') t = T('Chargement…');
+  else if(ST.etat === 'sansserveur' || ST.etat === 'indisponible') t = T('Côte à côte n’est pas encore ouvert.');
+  else if(ST.etat === 'connexion') t = T('Connectez-vous pour faire un duo.');
+  else if(ST.etat === 'horsligne') t = T('Pas de connexion pour le moment.');
+  else if(ST.etat === 'erreur') t = T('Impossible de joindre NEURAVID pour le moment.');
+  el.textContent = t; el.hidden = !t;
+}
+function ecran(dispo, gauche, droite){
+  return '<div class="ecran' + (dispo === 'hb' ? ' hb' : '') + '" aria-hidden="true"><i>' + esc(gauche) + '</i><i class="moi">' + esc(droite) + '</i></div>';
+}
+function rendreNouveau(){
+  var a = age();
+  var h = '<section aria-labelledby="hNouveau"><h2 id="hNouveau">' + esc(T('Commencer un duo')) + '</h2>';
+  if(a != null && a < AGE_MIN && !ST.apercu) return h + '<p class="vide">' + esc(T('Côte à côte est ouvert à partir de 16 ans.')) + '</p></section>';
+  var pr = ST.prise && ST.prise.quoi === 'nouveau' ? ST.prise : null, f = ST.form;
+  if(pr){
+    h += '<div class="grand"><video id="vPrise" playsinline controls muted></video></div>' +
+      '<p>' + esc(T('Votre moitié est prête. {0} recevra l’invitation et filmera la sienne à côté.', f.invite ? '@' + f.invite.replace(/^@/, '') : null)) + '</p>' +
+      '<div class="form"><label>' + esc(T('Avec qui ? (son pseudo)')) + '<input id="iInvite" autocomplete="off" maxlength="41" placeholder="@" value="' + esc(f.invite) + '"></label></div>' +
+      '<div class="actions"><button class="btn-or" id="bInviter"' + (ST.envoi ? ' disabled' : '') + '>' + esc(ST.envoi ? T('Envoi…') : T('Envoyer l’invitation')) + '</button>' +
+      '<button id="bRefaireMoitie"' + (ST.envoi ? ' disabled' : '') + '>' + esc(ST.sur.refaireNouveau ? T('Toucher encore pour refaire') : T('Refaire ma moitié')) + '</button></div>';
+    return h + '</section>';
+  }
+  h += '<p class="d">' + esc(T('Filmez votre moitié, puis invitez une personne : elle filmera la sienne à côté de la vôtre, où qu’elle soit dans le monde.')) + '</p>' +
+    '<form class="form" id="fNouveau"><label>' + esc(T('Avec qui ? (son pseudo)')) + '<input name="invite" id="iInvite" autocomplete="off" maxlength="41" placeholder="@" value="' + esc(f.invite) + '"></label>' +
+    '<div class="chips" role="radiogroup" aria-label="' + esc(T('L’écran partagé')) + '">' +
+    '<button type="button" role="radio" data-dispo="gd" aria-checked="' + (f.disposition === 'gd') + '">' + esc(T('Gauche / droite')) + '</button>' +
+    '<button type="button" role="radio" data-dispo="hb" aria-checked="' + (f.disposition === 'hb') + '">' + esc(T('Haut / bas')) + '</button></div>' +
+    ecran(f.disposition, T('Vous'), T('Votre duo')) +
+    '<label>' + esc(T('Un mot pour l’inviter (facultatif)')) + '<textarea name="message" id="iMessage" maxlength="140" rows="2">' + esc(f.message) + '</textarea></label>' +
+    '<button class="btn-or" type="submit" id="bFilmerMoitie">' + esc(T('Filmer ma moitié')) + '</button></form>';
+  return h + '</section>';
+}
+function rendreRecu(x){
+  var h = '<div class="duo" data-duo="' + esc(x.id) + '">';
+  h += x.etat === 'invitation' && x.moitie ? '<video playsinline controls muted preload="metadata" crossorigin="anonymous" src="' + esc(x.moitie) + '"></video>'
+    : x.video ? '<video playsinline controls preload="metadata" src="' + esc(x.video.url) + '"></video>' : (ST.apercu ? '<canvas width="96" height="170" data-demo="' + esc(x.id) + '"></canvas>' : '<i></i>');
+  h += '<div><p><span class="qui">' + esc(quiTexte(x.avec)) + '</span> ' + puce(x) + '</p>';
+  if(x.message) h += '<p class="message">« ' + esc(x.message) + ' »</p>';
+  var pr = ST.prise && ST.prise.quoi === 'repondre' && ST.prise.duo === x.id ? ST.prise : null;
+  if(x.etat === 'invitation'){
+    if(x.tours && x.motif) h += '<p class="d">' + esc(T('{0} vous demande de refaire : {1}', quiTexte(x.avec), x.motif)) + '</p>';
+    else if(x.tours) h += '<p class="d">' + esc(T('{0} vous demande de refaire votre moitié.', quiTexte(x.avec))) + '</p>';
+    if(pr){
+      h += '<div class="grand"><video id="vPrise" playsinline controls muted></video></div><div class="actions"><button class="btn-or" data-envoyer="' + esc(x.id) + '"' + (ST.envoi ? ' disabled' : '') + '>' +
+        esc(ST.envoi ? T('Envoi…') : T('Envoyer à {0}', quiTexte(x.avec))) + '</button><button data-refaire-prise="' + esc(x.id) + '"' + (ST.envoi ? ' disabled' : '') + '>' + esc(ST.sur['refairePrise' + x.id] ? T('Toucher encore pour refaire') : T('Refaire ma moitié')) + '</button></div>';
+    } else {
+      h += '<p class="d">' + esc(T('Filmez votre moitié à côté de la sienne. Réponse avant le {0}.', dateTexte(x.expire))) + '</p>' +
+        '<div class="actions"><button class="btn-or" data-filmer="' + esc(x.id) + '">' + esc(T('Filmer ma moitié à côté')) + '</button>' +
+        '<button data-refuser="' + esc(x.id) + '">' + esc(ST.sur['refuser' + x.id] ? T('Toucher encore pour refuser') : T('Refuser')) + '</button></div>';
+    }
+  } else if(x.etat === 'a_valider') h += '<p class="d">' + esc(T('Envoyé : {0} décide de le publier.', quiTexte(x.avec))) + '</p>' +
+    '<div class="actions"><button data-refuser="' + esc(x.id) + '">' + esc(ST.sur['refuser' + x.id] ? T('Toucher encore pour retirer ma moitié') : T('Retirer ma moitié')) + '</button></div>';
+  else if(x.etat === 'publiee') h += retirerBouton(x);
+  return h + '</div></div>';
+}
+function retirerBouton(x){
+  return '<div class="actions"><button data-retirer="' + esc(x.id) + '">' + esc(ST.sur['retirer' + x.id] ? T('Toucher encore pour retirer le duo') : T('Retirer le duo')) + '</button></div>';
+}
+function rendreEnvoye(x){
+  var h = '<div class="duo" data-duo="' + esc(x.id) + '">';
+  h += x.video ? '<video playsinline controls preload="metadata" src="' + esc(x.video.url) + '"></video>'
+    : x.moitie ? '<video playsinline muted preload="metadata" src="' + esc(x.moitie) + '"></video>' : (ST.apercu ? '<canvas width="96" height="170" data-demo="' + esc(x.id) + '"></canvas>' : '<i></i>');
+  h += '<div><p><span class="qui">' + esc(quiTexte(x.avec)) + '</span> ' + puce(x) + '</p>';
+  if(x.etat === 'invitation') h += '<p class="d">' + esc(T('En attente de {0}, jusqu’au {1}.', quiTexte(x.avec), dateTexte(x.expire))) + '</p>' +
+    '<div class="actions"><button data-annuler="' + esc(x.id) + '">' + esc(ST.sur['annuler' + x.id] ? T('Toucher encore pour annuler') : T('Annuler l’invitation')) + '</button></div>';
+  else if(x.etat === 'a_valider'){
+    h += '<p class="d">' + esc(x.video ? T('{0} a filmé sa moitié. Regardez, puis décidez.', quiTexte(x.avec)) : T('La vidéo se prépare. Revenez dans un instant.')) + '</p>' +
+      '<div class="actions"><button class="btn-or" data-publier="' + esc(x.id) + '"' + (ST.occupe[x.id] || (!x.video && !ST.apercu) ? ' disabled' : '') + '>' + esc(T('Publier le duo')) + '</button>';
+    if(x.tours + 1 < (x.toursMax || 3)) h += '<button data-redemander="' + esc(x.id) + '">' + esc(T('Demander de refaire')) + '</button>';
+    h += '<button data-decliner="' + esc(x.id) + '">' + esc(ST.sur['decliner' + x.id] ? T('Toucher encore pour ne pas publier') : T('Ne pas publier')) + '</button></div>';
+    if(ST.sur['redemander' + x.id]) h += '<form class="form" data-redemander-form="' + esc(x.id) + '"><label>' + esc(T('Ce qu’il faudrait changer (facultatif)')) + '<input name="motif" maxlength="140"></label>' +
+      '<button type="submit">' + esc(T('Envoyer la demande')) + '</button></form>';
+  } else if(x.etat === 'publiee') h += retirerBouton(x);
+  return h + '</div></div>';
+}
+function rendreListes(){
+  var h = '';
+  if(ST.recus.length) h += '<section aria-labelledby="hRecus"><h2 id="hRecus">' + esc(T('Invitations reçues')) + (ST.apercu ? '<span class="apercu">' + esc(T('Aperçu')) + '</span>' : '') + '</h2>' + ST.recus.map(rendreRecu).join('') + '</section>';
+  if(ST.envoyes.length) h += '<section aria-labelledby="hEnvoyes"><h2 id="hEnvoyes">' + esc(T('Mes duos')) + (ST.apercu ? '<span class="apercu">' + esc(T('Aperçu')) + '</span>' : '') + '</h2>' + ST.envoyes.map(rendreEnvoye).join('') + '</section>';
+  if(!h && ST.etat === 'ok') h = '<section><p class="vide">' + esc(T('Aucun duo pour l’instant : commencez le premier.')) + '</p></section>';
+  return h;
+}
+function rendrePied(){
+  var h = '<label>' + esc(T('Langue')) + ' <select id="langue">' + Object.keys(LANGUES_UI).map(function(k){ return '<option value="' + k + '"' + (k === L ? ' selected' : '') + '>' + esc(LANGUES_UI[k].nom) + '</option>'; }).join('') + '</select></label>';
+  if(LANGUES_UI[L].relire) h += '<span>' + esc(T('Traduction en cours de relecture.')) + '</span>';
+  h += '<span>' + esc(T('À partir de 16 ans. Votre moitié n’est jamais publiée seule ; le duo n’est publié que si vous l’acceptez tous les deux, et chacun peut le retirer à tout moment.')) + '</span>';
+  $('pied').innerHTML = h;
+}
+function rendre(){
+  document.title = T('Côte à côte') + ' · NEURAVID';
+  $('titre').textContent = T('Côte à côte');
+  $('soustitre').textContent = T('Un duo à distance : vous et une personne d’un autre pays, sur le même écran.');
+  rendreEtat();
+  var h = '';
+  if(ST.cap && (ST.etat === 'ok')) h = rendreNouveau() + rendreListes();
+  var ae = document.activeElement, focus = null;
+  if(ae && $('contenu').contains(ae)){ if(ae.id) focus = '#' + ae.id; else { for(var k = 0; k < ae.attributes.length; k++){ var at = ae.attributes[k]; if(/^data-/.test(at.name) && at.name !== 'data-demo'){ focus = '[' + at.name + '="' + String(at.value).replace(/["\\]/g, '') + '"]'; break; } } } }
+  $('contenu').innerHTML = h;
+  if(focus){ try{ var fe = document.querySelector(focus); if(fe) fe.focus({preventScroll:true}); }catch(e){} }
+  if(ST.prise && $('vPrise')){ try{ $('vPrise').src = ST.prise.url; }catch(e){} }
+  /* une moitié servie sans autorisation de lecture croisée : elle reste visible sans « crossorigin » */
+  Array.prototype.forEach.call(document.querySelectorAll('video[crossorigin]'), function(v){ v.onerror = function(){ if(v.getAttribute('crossorigin') !== null){ v.removeAttribute('crossorigin'); v.src = v.getAttribute('src'); v.load(); } }; });
+  if(ST.apercu) Array.prototype.forEach.call(document.querySelectorAll('canvas[data-demo]'), function(c){ var x = trouver(c.getAttribute('data-demo')); demoDessiner(c, x); });
+  /* ouvert depuis une notification du Tam-tam : le duo concerné est montré */
+  if(ST.vers && ST.etat === 'ok'){ var dv = document.querySelector('[data-duo="' + String(ST.vers).replace(/["\\]/g, '') + '"]'); if(dv){ dv.classList.add('vise'); try{ dv.scrollIntoView({block:'center'}); }catch(e){} } ST.vers = null; }
+  rendrePied();
+}
+
+/* ════════ FILMER (avec La Forge) ════════ */
+function noterFilm(o){ o.quand = Date.now(); var t = JSON.stringify(o); try{ sessionStorage.setItem(CLE_FILM, t); }catch(e){} try{ localStorage.setItem(CLE_FILM, t); }catch(e){} }
+function lireFilm(){ var f = null; try{ f = JSON.parse(sessionStorage.getItem(CLE_FILM) || 'null'); }catch(e){} if(!f){ try{ f = JSON.parse(localStorage.getItem(CLE_FILM) || 'null'); }catch(e){} } return f; }
+function oublierFilm(){ try{ sessionStorage.removeItem(CLE_FILM); }catch(e){} try{ localStorage.removeItem(CLE_FILM); }catch(e){} }
+function forgeOk(){ if(!window.NVCamera || !NVCamera.studioJoignable()){ toast(T('La Forge n’est pas joignable ici.')); return false; } return true; }
+function filmerMoitie(){
+  var f = ST.form; f.invite = String(f.invite || '').trim();
+  if(!/^@?[A-Za-z0-9_.]{2,40}$/.test(f.invite)){ toast(T('Écrivez le pseudo de la personne à inviter.')); var i = $('iInvite'); if(i) i.focus(); return; }
+  if(ST.apercu){ ST.prise = {quoi:'nouveau', url:'', blob:null, apercu:true}; rendre(); return; }
+  if(!forgeOk()) return;
+  noterFilm({quoi:'nouveau', invite:f.invite, disposition:f.disposition, message:f.message});
+  emit('cote_filmer', {quoi:'nouveau'});
+  NVCamera.filmer({module:MOI, defi:'nouveau', titre:T('Ma moitié'), mode:'video', minSeconds:1, maxSeconds:60,
+    regles:[T('Votre moitié : 60 secondes au plus.'), f.disposition === 'hb' ? T('Vous serez en haut de l’écran.') : T('Vous serez à gauche de l’écran.')]});
+}
+function filmerReponse(id){
+  var x = trouver(id); if(!x) return;
+  if(ST.apercu){ ST.prise = {quoi:'repondre', duo:id, url:'', blob:null, apercu:true}; rendre(); return; }
+  if(!x.moitie){ toast(T('Ce duo a changé entre-temps.')); charger(); return; }
+  if(!forgeOk()) return;
+  noterFilm({quoi:'repondre', duo:id});
+  emit('cote_filmer', {quoi:'repondre', duo:id});
+  var max = nombre(x.secondes) ? Math.min(60, Math.ceil(x.secondes) + 1) : 60;
+  NVCamera.filmer({module:MOI, defi:id, titre:T('Duo avec {0}', quiTexte(x.avec)), mode:'video', minSeconds:1, maxSeconds:max,
+    duo:{url:x.moitie, auteur:x.avec && x.avec.handle && x.avec.mineur === false ? '@' + x.avec.handle : null, dispo:x.disposition === 'hb' ? 'hb' : 'gd'},
+    regles:[T('Filmez votre moitié à côté de la sienne.')]});
+}
+/* au retour de La Forge : la prise reste liée à SON duo (contexte rendu, sinon la note gardée) */
+function reprendrePrise(retour){
+  var f = lireFilm(), defi = retour || (f && (f.quoi === 'nouveau' ? 'nouveau' : f.duo));
+  if(!defi || !window.NVCamera || (!retour && Date.now() - ((f && f.quand) || 0) > 3600000)) return Promise.resolve();
+  return NVCamera.recuperer(MOI, defi).then(function(p){
+    if(!p || !p.blob) return;
+    if(f && f.quoi === 'nouveau' && defi === 'nouveau'){ ST.form = {invite:f.invite || '', disposition:f.disposition === 'hb' ? 'hb' : 'gd', message:f.message || ''}; }
+    oublierFilm();
+    ST.prise = {quoi:defi === 'nouveau' ? 'nouveau' : 'repondre', duo:defi === 'nouveau' ? null : defi, blob:p.blob, url:URL.createObjectURL(p.blob),
+      secondes:nombre(p.meta && (p.meta.seconds || p.meta.secondes)), meta:p.meta || {}};
+    return garderPrise(ST.prise);
+  });
+}
+function dureeBlob(prise){
+  if(prise.secondes || !prise.url) return Promise.resolve(prise.secondes || null);
+  return new Promise(function(res){ var v = document.createElement('video'), fait = false; v.preload = 'metadata'; v.muted = true;
+    var fin = function(x){ if(fait) return; fait = true; res(x); try{ v.removeAttribute('src'); v.load(); }catch(e){} };
+    v.onloadedmetadata = function(){ if(isFinite(v.duration) && v.duration > 0) return fin(v.duration);
+      v.ondurationchange = function(){ if(isFinite(v.duration) && v.duration > 0) fin(v.duration); }; try{ v.currentTime = 1e7; }catch(e){ fin(null); } };
+    v.onerror = function(){ fin(null); }; v.src = prise.url; setTimeout(function(){ fin(null); }, 4000); });
+}
+function oublierPrise(){ if(ST.prise){ try{ if(ST.prise.url) URL.revokeObjectURL(ST.prise.url); }catch(e){} } ST.prise = null; garderPrise(null); }
+/* la prise est gardée sur le téléphone (IndexedDB) jusqu'à ce que le serveur l'ait reçue : un rechargement ne la perd pas */
+function baseLocale(){ return new Promise(function(res){ try{ var r = indexedDB.open('nv_cote', 1); r.onupgradeneeded = function(){ r.result.createObjectStore('prises'); };
+  r.onsuccess = function(){ res(r.result); }; r.onerror = function(){ res(null); }; }catch(e){ res(null); } setTimeout(function(){ res(null); }, 2000); }); }
+function cleLocale(){ var u = utilisateur(); return 'prise|' + (u && u.id ? u.id : '—'); }
+function garderPrise(pr){
+  if(ST.apercu) return Promise.resolve();
+  return baseLocale().then(function(db){ if(!db) return; return new Promise(function(res){ try{ var t = db.transaction('prises', 'readwrite'), st = t.objectStore('prises');
+    if(pr && pr.blob) st.put({quoi:pr.quoi, duo:pr.duo || null, blob:pr.blob, secondes:pr.secondes || null, meta:pr.meta || {}, form:pr.quoi === 'nouveau' ? ST.form : null, cle:pr.cle || null, quand:Date.now()}, cleLocale());
+    else st.delete(cleLocale());
+    t.oncomplete = function(){ res(); }; t.onerror = function(){ res(); }; }catch(e){ res(); } }); });
+}
+function reprendrePriseLocale(){
+  if(ST.prise || ST.apercu) return Promise.resolve();
+  return baseLocale().then(function(db){ if(!db) return; return new Promise(function(res){ try{ var q = db.transaction('prises', 'readonly').objectStore('prises').get(cleLocale());
+    q.onsuccess = function(){ var o = q.result; if(o && o.blob && Date.now() - (o.quand || 0) < 7 * 864e5){ if(o.form) ST.form = {invite:o.form.invite || '', disposition:o.form.disposition === 'hb' ? 'hb' : 'gd', message:o.form.message || ''};
+      ST.prise = {quoi:o.quoi, duo:o.duo, blob:o.blob, url:URL.createObjectURL(o.blob), secondes:o.secondes, meta:o.meta || {}, cle:o.cle || null}; } res(); };
+    q.onerror = function(){ res(); }; }catch(e){ res(); } }); });
+}
+function envoyerPrise(){
+  var pr = ST.prise; if(!pr || ST.envoi) return;
+  ST.envoi = true; rendre();
+  if(!pr.cle){ pr.cle = 'ct-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8); garderPrise(pr); }      /* la même clé après un rechargement */
+  dureeBlob(pr).then(function(s){
+    if(s != null && s > 61) throw {code:'trop_long'};
+    if(ST.apercu) return demoEnvoyer(pr);
+    var fd = new FormData();
+    if(s != null) fd.append('seconds', String(Math.round(s * 100) / 100));          /* inconnue : non envoyée, jamais inventée */
+    if(pr.meta && pr.meta.provenance) try{ fd.append('meta', JSON.stringify({provenance:pr.meta.provenance})); }catch(e){}
+    var chemin;
+    if(pr.quoi === 'nouveau'){ fd.append('invite', '@' + ST.form.invite.replace(/^@/, '')); fd.append('disposition', ST.form.disposition); if(ST.form.message) fd.append('message', ST.form.message); chemin = '/v1/cote'; }
+    else chemin = '/v1/cote/' + encodeURIComponent(pr.duo) + '/repondre';
+    fd.append('video', pr.blob, 'moitie.' + (/mp4/.test(pr.blob.type) ? 'mp4' : 'webm'));
+    return appeler('POST', chemin, fd, pr.cle);
+  }).then(function(){
+    emit(pr.quoi === 'nouveau' ? 'cote_inviter' : 'cote_repondre', {duo:pr.duo || null});
+    toast(pr.quoi === 'nouveau' ? T('Invitation envoyée.') : T('Votre moitié est envoyée.'));
+    if(pr.quoi === 'nouveau') ST.form = {invite:'', disposition:'gd', message:''};
+    oublierPrise();
+    return ST.apercu ? null : charger();
+  }, function(e){
+    if(e && e.code === 'cle_reutilisee'){ oublierPrise(); toast(T('Déjà envoyé.')); return charger(); }
+    if(e && e.code === 'en_cours'){ toast(T('Envoi déjà en cours : patientez un instant.')); return; }
+    toast(erreurTexte(e));
+    /* une invitation refusée (personne, âge, réglages) : la moitié est gardée, on peut corriger le pseudo */
+    if(e && pr.quoi === 'repondre' && /^duo_/.test(e.code || '')){ oublierPrise(); return charger(); }
+  }).then(function(){ ST.envoi = false; rendre(); });
+}
+
+/* ════════ LES DÉCISIONS ════════ */
+function deuxTouchers(cle){ if(ST.sur[cle]) { delete ST.sur[cle]; return true; } ST.sur[cle] = true; rendre(); return false; }
+function agir(id, quoi, corps, message){
+  if(ST.occupe[id]) return; ST.occupe[id] = true; rendre();
+  var p = ST.apercu ? Promise.resolve(demoAgir(id, quoi)) : appeler('POST', '/v1/cote/' + encodeURIComponent(id) + '/' + quoi, corps || {}, 'cta-' + id + '-' + quoi + '-' + (trouver(id) || {}).tours);
+  p.then(function(){ toast(T(message)); emit('cote_' + quoi, {duo:id}); return ST.apercu ? null : charger(); }, function(e){ toast(erreurTexte(e)); return ST.apercu ? null : charger(); })
+    .then(function(){ delete ST.occupe[id]; rendre(); });
+}
+
+/* ════════ L'APERÇU (démonstration seulement) ════════ */
+function demoDuos(){
+  var j = Date.now(), d = function(n){ return new Date(j + n * 864e5).toISOString(); };
+  return {
+    recus:[{id:'ct_ap1', role:'invite', etat:'invitation', disposition:'gd', message:'On danse le même pas, toi à Conakry, moi à Abidjan ?', secondes:12, tours:0, toursMax:3,
+      avec:{id:'u-ap1', nom:'Aminata', handle:'aminata', pays:'CI'}, expire:d(6), moitie:null, video:null}],
+    envoyes:[{id:'ct_ap2', role:'auteur', etat:'a_valider', disposition:'hb', message:'Ma recette, ta recette !', secondes:20, tours:0, toursMax:3,
+      avec:{id:'u-ap2', nom:'Lucas', handle:'lucas', pays:'BR'}, expire:d(12), moitie:null, video:null},
+      {id:'ct_ap3', role:'auteur', etat:'publiee', disposition:'gd', message:'', secondes:15, tours:1, toursMax:3,
+      avec:{id:'u-ap3', nom:'Wanjiru', handle:'wanjiru', pays:'KE'}, expire:null, moitie:null, video:null}]};
+}
+function demoAgir(id, quoi){
+  var x = trouver(id); if(!x) return;
+  x.etat = {refuser:'refusee', annuler:'annulee', publier:'publiee', decliner:'declinee', retirer:'retiree', refaire:'invitation'}[quoi] || x.etat;
+  if(quoi === 'refaire') x.tours++;
+}
+function demoEnvoyer(pr){
+  if(pr.quoi === 'nouveau') ST.envoyes.unshift({id:'ct_ap' + Date.now(), role:'auteur', etat:'invitation', disposition:ST.form.disposition, message:ST.form.message, secondes:null, tours:0, toursMax:3,
+    avec:{id:null, handle:ST.form.invite.replace(/^@/, ''), pays:''}, expire:new Date(Date.now() + 7 * 864e5).toISOString(), moitie:null, video:null});
+  else { var x = trouver(pr.duo); if(x) x.etat = 'a_valider'; }
+}
+function demoDessiner(c, x){
+  var g = c.getContext('2d'); if(!g || !x) return; var W = c.width, H = c.height, hb = x.disposition === 'hb';
+  var teinte = function(iso){ iso = iso || 'NV'; return (iso.charCodeAt(0) * 7 + iso.charCodeAt(1)) % 360; };
+  var moitie = function(x0, y0, w, h, iso, dra){ var k = teinte(iso), gr = g.createLinearGradient(x0, y0, x0 + w, y0 + h); gr.addColorStop(0, 'hsl(' + k + ',70%,38%)'); gr.addColorStop(1, 'hsl(' + ((k + 60) % 360) + ',70%,18%)');
+    g.fillStyle = gr; g.fillRect(x0, y0, w, h); g.fillStyle = '#fff'; g.textAlign = 'center'; g.font = Math.round(Math.min(w, h) * .32) + 'px sans-serif'; g.fillText(dra, x0 + w / 2, y0 + h * .58); };
+  var moi = (utilisateur() && utilisateur().iso) || 'GN';
+  if(hb){ moitie(0, 0, W, H / 2, x.role === 'auteur' ? moi : x.avec.pays, drapeau(x.role === 'auteur' ? moi : x.avec.pays)); moitie(0, H / 2, W, H / 2, x.role === 'auteur' ? x.avec.pays : moi, drapeau(x.role === 'auteur' ? x.avec.pays : moi)); }
+  else { moitie(0, 0, W / 2, H, x.role === 'auteur' ? moi : x.avec.pays, drapeau(x.role === 'auteur' ? moi : x.avec.pays)); moitie(W / 2, 0, W / 2, H, x.role === 'auteur' ? x.avec.pays : moi, drapeau(x.role === 'auteur' ? x.avec.pays : moi)); }
+  g.fillStyle = 'rgba(0,0,0,.55)'; g.fillRect(0, H - 18, W, 18); g.fillStyle = '#ffc531'; g.font = 'bold 11px sans-serif'; g.fillText(T('Aperçu'), W / 2, H - 5);
+}
+
+/* ════════ LE DÉMARRAGE ════════ */
+function demarrer(){
+  poserLangue(langueDetectee());
+  ST.apercu = !!window.NV_DEMO && !api();
+  var retour = null;
+  try{ var c = JSON.parse(sessionStorage.getItem('nv_ctx_' + MOI) || 'null'); if(c && c.module === MOI && typeof c.defi === 'string') retour = c.defi; if(c && typeof c.duo === 'string') ST.vers = c.duo; sessionStorage.removeItem('nv_ctx_' + MOI); }catch(e){}
+  rendre();
+  reprendrePrise(retour).then(reprendrePriseLocale, reprendrePriseLocale).then(charger, charger);
+  document.addEventListener('click', function(ev){
+    var b = ev.target && ev.target.closest ? ev.target.closest('button') : null; if(!b) return;
+    var a = function(k){ return b.getAttribute(k); };
+    if(a('data-dispo')){ ST.form.disposition = a('data-dispo') === 'hb' ? 'hb' : 'gd'; rendre(); var q = document.querySelector('[data-dispo="' + ST.form.disposition + '"]'); if(q) q.focus(); }
+    else if(b.id === 'bInviter') envoyerPrise();
+    else if(b.id === 'bRefaireMoitie'){ if(deuxTouchers('refaireNouveau')){ oublierPrise(); filmerMoitie(); } }
+    else if(a('data-filmer')) filmerReponse(a('data-filmer'));
+    else if(a('data-envoyer')) envoyerPrise();
+    else if(a('data-refaire-prise')){ var id = a('data-refaire-prise'); if(deuxTouchers('refairePrise' + id)){ oublierPrise(); filmerReponse(id); } }
+    else if(a('data-refuser')){ if(deuxTouchers('refuser' + a('data-refuser'))) agir(a('data-refuser'), 'refuser', null, 'Duo refusé.'); }
+    else if(a('data-annuler')){ if(deuxTouchers('annuler' + a('data-annuler'))) agir(a('data-annuler'), 'annuler', null, 'Invitation annulée.'); }
+    else if(a('data-decliner')){ if(deuxTouchers('decliner' + a('data-decliner'))) agir(a('data-decliner'), 'decliner', null, 'Le duo ne sera pas publié.'); }
+    else if(a('data-retirer')){ if(deuxTouchers('retirer' + a('data-retirer'))) agir(a('data-retirer'), 'retirer', null, 'Duo retiré.'); }
+    else if(a('data-publier')) agir(a('data-publier'), 'publier', null, 'Duo publié.');
+    else if(a('data-redemander')){ ST.sur['redemander' + a('data-redemander')] = !ST.sur['redemander' + a('data-redemander')]; rendre(); }
+  });
+  document.addEventListener('input', function(ev){
+    var t = ev.target; if(!t) return;
+    if(t.id === 'iInvite') ST.form.invite = t.value; else if(t.id === 'iMessage') ST.form.message = t.value;
+  });
+  document.addEventListener('submit', function(ev){
+    var f = ev.target; if(!f) return; ev.preventDefault();
+    if(f.id === 'fNouveau') filmerMoitie();
+    else if(f.getAttribute('data-redemander-form')){ var id = f.getAttribute('data-redemander-form'), m = f.motif.value.trim(); delete ST.sur['redemander' + id]; agir(id, 'refaire', m ? {message:m} : {}, 'Demande envoyée.'); }
+  });
+  document.addEventListener('change', function(ev){
+    if(ev.target && ev.target.id === 'langue'){ var l = ev.target.value; if(!LANGUES_UI[l]) return; ecrire('nv_ui_langue', l); NOMS = null; poserLangue(l); rendre(); var s = $('langue'); if(s) s.focus(); }
+  });
+  window.NVCote = {etat:function(){ return {etat:ST.etat, apercu:ST.apercu, envoyes:ST.envoyes.length, recus:ST.recus.length, prise:!!ST.prise, langue:L}; }};
+}
+
+demarrer();
+})();
+
+</script>
+</body>
+</html>
