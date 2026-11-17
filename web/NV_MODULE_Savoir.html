@@ -1069,7 +1069,10 @@ function changerVue(v){
 }
 function demarrer(){
   poserLangue(langueDetectee());
-  ST.apercu = !!window.NV_DEMO && !api();
+  /* 17 nov. 2026 (Karamo) : sans serveur branché, la page montre son aperçu (repère « Aperçu »), aussi dans l'application,
+     comme les autres modules ; dès qu'un serveur est branché, seul le vrai contenu est montré. */
+  ST.apercu = !api();
+  if(ST.apercu && !utilisateur()){ try{ window.NV_USER = {id:'demo', handle:'visiteur', prenom:'Aya', age:25, majeur:true, iso:'GN'}; }catch(e){} }
   reprendreCleMerci();
   var retour = null, ctx = null;
   try{ ctx = JSON.parse(sessionStorage.getItem('nv_ctx_' + MOI) || 'null'); if(ctx && ctx.module === MOI && ctx.defi === 'tuto') retour = 'tuto'; sessionStorage.removeItem('nv_ctx_' + MOI); }catch(e){}
