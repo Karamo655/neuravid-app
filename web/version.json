@@ -1,6 +1,6 @@
 {
- "version": "2026.11.17-0b99b7c6657f",
- "date": "2026-11-17T06:12:13Z",
+ "version": "2026.11.17-96d4a2669e19",
+ "date": "2026-11-17T06:38:49Z",
  "entree": "index.html",
  "modules": [
   "NV_MODULE_Aines.html",
@@ -53,8 +53,8 @@
  "config": "nv-config.js (exclu de l'empreinte : il change selon le déploiement)",
  "fichiers": {
   "NV_MODULE_Aines.html": {
-   "sha256": "bfd4745aa3285cf223969a5e404d0d03ef990fcf740ee8864b75d0fdeef91e57",
-   "taille": 222441
+   "sha256": "fd88c58b5b9217c92aa5a070590b6d579d0d705edb8fda71a64f1e3af629710b",
+   "taille": 279330
   },
   "NV_MODULE_Arena.html": {
    "sha256": "51386af55a8989ce71554dcfc57804c08c66ca5f25f6658408fb825506c29d4d",
@@ -157,8 +157,8 @@
    "taille": 946708
   },
   "NV_MODULE_Notifications.html": {
-   "sha256": "2369374764a70df390e8b7860200f1cd694b20f5a405e6140519555cf246c3c4",
-   "taille": 530051
+   "sha256": "ac2ae4dcf6ade3da8eaa6f9ccad4f70a37fe880cf6e477c5459c02bb86b4e875",
+   "taille": 533499
   },
   "NV_MODULE_Orbite.html": {
    "sha256": "b7d81787dddffb71187049df8e6bfe0e8f6c602c266c8c3ed110c650ace6a660",
