@@ -1,6 +1,6 @@
 {
- "version": "2026.11.17-0cd2a3e66a9a",
- "date": "2026-11-17T02:30:32Z",
+ "version": "2026.11.17-e9742f1c698a",
+ "date": "2026-11-17T03:21:47Z",
  "entree": "index.html",
  "modules": [
   "NV_MODULE_Aines.html",
@@ -31,6 +31,7 @@
   "NV_MODULE_MissMaster.html",
   "NV_MODULE_Notifications.html",
   "NV_MODULE_Orbite.html",
+  "NV_MODULE_Pagne.html",
   "NV_MODULE_Passeport.html",
   "NV_MODULE_Phare.html",
   "NV_MODULE_Phare_leger.html",
@@ -132,8 +133,8 @@
    "taille": 299220
   },
   "NV_MODULE_Home.html": {
-   "sha256": "e406d6e8fb3b1664d4d52f80f3ca4286a70e377256cabd2dad9ce8f94dd72de3",
-   "taille": 1977818
+   "sha256": "ca610a516f1cb55f1d824d3a605a4027446f73787e1c888df9f1225b556805a6",
+   "taille": 1981196
   },
   "NV_MODULE_Iris.html": {
    "sha256": "2bf25330343430a2f39a0251896aaa0169327edbb0ccfb089c7c624bbb7c96e7",
@@ -156,12 +157,16 @@
    "taille": 946708
   },
   "NV_MODULE_Notifications.html": {
-   "sha256": "8f3f0f5f7ed3ce5f072c85ae7b0ab5f4c02b2fc3fa815fef3ab83096f55595d3",
-   "taille": 526469
+   "sha256": "2369374764a70df390e8b7860200f1cd694b20f5a405e6140519555cf246c3c4",
+   "taille": 530051
   },
   "NV_MODULE_Orbite.html": {
    "sha256": "b7d81787dddffb71187049df8e6bfe0e8f6c602c266c8c3ed110c650ace6a660",
    "taille": 1443176
+  },
+  "NV_MODULE_Pagne.html": {
+   "sha256": "b2aeaf2ffe6144b616f5b0b7a5be1f153340104b00c39c6ae84a29b11ed19f6e",
+   "taille": 143004
   },
   "NV_MODULE_Passeport.html": {
    "sha256": "d36230935dcfd193bcd7a6707de341d25ae411d1939ce201bb5003981bc1f01b",
