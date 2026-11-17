@@ -905,7 +905,15 @@ body.nx-grands .durees button,body.nx-grands .modes button{min-height:40px;font-
       for(var i = 0; i < n; i++){ var x = (i + 1) * w / (n + 1), d = Math.abs(x - bx) / (s * 1.4), on = Math.max(0, 1 - d);
         g.globalAlpha = .28 + .72 * on; g.fillStyle = pal[i % pal.length]; hex(g, x, y + Math.sin(t * 1.6 + i) * 3, s * (.42 + .1 * on)); g.fill(); g.globalAlpha = 1;
         if(on > .5){ g.strokeStyle = c[0]; g.lineWidth = 2; hex(g, x, y, s * .62); g.stroke(); } }
-      g.fillStyle = c[0]; hex(g, sx, 14, 12); g.fill(); g.fillStyle = '#140b33'; g.beginPath(); g.arc(sx, 14, 4, 0, Math.PI * 2); g.fill(); }
+      g.fillStyle = c[0]; hex(g, sx, 14, 12); g.fill(); g.fillStyle = '#140b33'; g.beginPath(); g.arc(sx, 14, 4, 0, Math.PI * 2); g.fill(); },
+    /* Style Universe (17 nov. 2026) : un hexagone partagé avant/après, un fil de couture qui court, des étapes qui s'allument */
+    style: function(g, w, h, t, c){ var cx = w / 2, cy = h / 2, R = Math.min(w, h) * .3, m = cx + Math.sin(t * .9) * R * .55;
+      g.save(); hex(g, cx, cy, R); g.clip(); g.fillStyle = '#3a2a6a'; g.fillRect(0, 0, m, h); var gr = g.createLinearGradient(m, 0, cx + R, 0); gr.addColorStop(0, c[0]); gr.addColorStop(1, c[1]);
+      g.fillStyle = gr; g.fillRect(m, 0, w, h); for(var i = 0; i < 6; i++){ g.strokeStyle = 'rgba(255,255,255,.35)'; g.lineWidth = 2; g.setLineDash([6, 6]); g.lineDashOffset = -t * 30;
+        g.beginPath(); g.moveTo(cx - R, cy - R + i * R * .4); g.quadraticCurveTo(cx, cy - R * .6 + i * R * .4 + Math.sin(t + i) * 8, cx + R, cy - R + i * R * .4); g.stroke(); } g.setLineDash([]); g.restore();
+      g.strokeStyle = '#fff'; g.lineWidth = 2; g.beginPath(); g.moveTo(m, cy - R); g.lineTo(m, cy + R); g.stroke(); g.fillStyle = '#140b33'; hex(g, m, cy, 11); g.fill(); g.strokeStyle = c[1]; g.stroke();
+      g.strokeStyle = c[0]; g.lineWidth = 3; hex(g, cx, cy, R); g.stroke();
+      for(var k = 0; k < 3; k++){ var on = ((t * .6) % 3) > k; g.fillStyle = on ? c[1] : 'rgba(255,255,255,.25)'; hex(g, cx - R * .6 + k * R * .6, cy + R * 1.3, 8); g.fill(); } }
   };
   var FILMS = [];
   function dessiner(f, t){ var c = f.c, r = c.getBoundingClientRect(), d = Math.min(window.devicePixelRatio || 1, 2), w = Math.max(1, Math.round(r.width)), h = Math.max(1, Math.round(r.height));
@@ -4512,6 +4520,7 @@ function lireCtxCamera(){
     CTX.defi = {defi:CTX.retour.defi, titre:CTX.retour.titre, module:CTX.retour.module, min:min, max:max, sponsor:c.sponsor || null, tag:txt(c.tag, 40) || null, flamme:c.module === 'CallUniverse'};
     if(c.mode === 'photo') CAM.mode = 'photo';
     if(typeof c.studioLite === 'string') CTX.studioLite = txt(c.studioLite, 20);   /* 17 nov. 2026 : Studio Lite (fg40) */
+    if(c.nouveaute === 'miroir' || c.nouveaute === 'teint') CTX.nouveaute = c.nouveaute;   /* 17 nov. 2026 : Style Universe ouvre le Miroir (avant/après) */
   return true;
 }
 function lireContextes(){
