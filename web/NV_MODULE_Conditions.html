@@ -114,15 +114,21 @@
 <!--NV_CONFIG--><script src="nv-config.js"></script><!--/NV_CONFIG-->
 <!--NV_DEMO--><script id="nv-demo">
 /* NEURAVID — LA DÉMONSTRATION dans chaque module (injectée en tête de page, avant le module).
-   Jamais dans l'application ni avec un serveur (NV_API_BASE). Allumée si l'accueil l'a allumée pour la session
+   Jamais avec un serveur (NV_API_BASE) ; sans serveur, partout (17 nov. 2026, voir plus bas). Allumée si l'accueil l'a allumée pour la session
    (sessionStorage « nv_demo » = 1), ou « #demo » dans l'adresse, ou une page ouverte comme fichier (file:, content:).
    Elle permet seulement d'ouvrir les autres modules à côté (NV_MODULES_BASE) avec le même visiteur de démonstration ;
    chaque module garde ses propres règles (rien d'inventé hors de la démonstration).
    Seule exception à « jamais dans l'application » : l'APK « NEURAVID Aperçu » pose window.NV_APERCU = true (3 nov. 2026) ;
    l'application de production ne le pose jamais. */
-(function(){ try{ var dansApp = !window.NV_APERCU && !!(window.flutter_inappwebview || window.NVLien || window.ReactNativeWebView), h = location.hash || '', s = null; try{ s = sessionStorage.getItem('nv_demo'); }catch(e){ s = null; }
-  if(dansApp || (typeof window.NV_API_BASE === 'string' && window.NV_API_BASE) || s === '0' || /(^#|&)demo=0(&|$)/.test(h)) return;
-  if(!(s === '1' || /(^#|&)demo(=1)?(&|$)/.test(h) || /^(file|content):$/.test(location.protocol))) return;
+(function(){ try{ var h = location.hash || '', s = null; try{ s = sessionStorage.getItem('nv_demo'); }catch(e){ s = null; }
+  /* 17 nov. 2026 (Karamo : « ne plus dépendre l'affichage… uniquement par la présence d'un serveur ») : SANS SERVEUR, l'aperçu
+     s'allume partout, aussi dans l'application et sur le site officiel (toujours marqué « Aperçu ») ; « #demo=0 » ou « Quitter
+     la démonstration » l'éteignent ; dès qu'un serveur est branché (NV_API_BASE), jamais. */
+  if((typeof window.NV_API_BASE === 'string' && window.NV_API_BASE) || s === '0' || /(^#|&)demo=0(&|$)/.test(h)) return;
+  /* L'Entrée, Nos conditions et Le signalement : seulement une démonstration demandée (jamais d'office) ; un faux compte, une
+     fausse acceptation ou un faux signalement tromperaient. */
+  var explicite = s === '1' || /(^#|&)demo(=1)?(&|$)/.test(h) || /^(file|content):$/.test(location.protocol);
+  if(!explicite && /NV_MODULE_(Entree|Conditions|Report)\.html/.test(location.pathname || '')) return;
   window.NV_DEMO = true; try{ sessionStorage.setItem('nv_demo', '1'); }catch(e){ /* rien */ }
   if(!window.NV_MODULES_BASE) window.NV_MODULES_BASE = './';
   if(!window.NV_USER) window.NV_USER = {id:'demo', handle:'visiteur', prenom:'Aya', age:25, majeur:true, iso:'GN'};

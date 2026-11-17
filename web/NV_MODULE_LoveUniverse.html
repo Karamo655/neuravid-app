@@ -112,17 +112,71 @@
     pilotees:function(){ return {css:pilotes.length, svg:svgs.length}; }};
 })();</script><!--/NV_VITESSE-->
 <!--NV_CONFIG--><script src="nv-config.js"></script><!--/NV_CONFIG-->
+<!--NV_REPLI--><script id="nv-repli">window.NV_REPLI_MODULE="LoveUniverse";window.NV_REPLI_SONDE={"url": "/v1/univers/capacites", "cle": "love"};
+/* NEURAVID — L'APERÇU EN REPLI (17 novembre 2026, rappel de Karamo : « ne plus dépendre l'affichage des contenus ou
+   fonctionnalités d'un module uniquement par la présence ou branchement d'un serveur »).
+   Injecté en tête de chaque module, APRÈS la configuration (nv-config.js) et AVANT la démonstration (nv_demo.js).
+   Un serveur est branché (NV_API_BASE) mais il ne propose pas (encore) la fonction de ce module, ou il ne répond pas :
+   le module s'ouvre comme sans serveur, c'est-à-dire avec son aperçu, toujours marqué « Aperçu » ; rien n'est envoyé.
+   Comment : la réponse du serveur est gardée sur le téléphone (6 h au plus) ; la page la lit tout de suite, puis redemande
+   au serveur en arrière-plan ; si la réponse a changé, la page se recharge UNE fois (la fonction arrive, ou disparaît).
+   Jamais pour L'Entrée, Nos conditions et Le signalement (un faux aperçu y tromperait) : ils ne reçoivent pas ce script. */
+(function(){ try{
+  var MOD = window.NV_REPLI_MODULE, S = window.NV_REPLI_SONDE, api = window.NV_API_BASE;
+  if(!MOD || !S || typeof api !== 'string' || !api) return;
+  api = api.replace(/\/$/, '');
+  var cle = 'nv_repli|' + MOD + '|' + api, garde = 'nv_repli_recharge|' + MOD, c = null;
+  try{ c = JSON.parse(localStorage.getItem(cle) || 'null'); }catch(e){ c = null; }
+  var repli = !!(c && c.absent === true && Date.now() - (c.at || 0) < 6 * 3600e3);
+  if(repli){ window.NV_REPLI = {api:api, module:MOD}; window.NV_API_BASE = ''; }
+  var TXT = {fr:'Aperçu : ce serveur ne propose pas encore cette fonction. Rien n\'est envoyé.', en:'Preview: this server does not offer this feature yet. Nothing is sent.',
+    es:'Vista previa: este servidor aún no ofrece esta función. No se envía nada.', pt:'Pré-visualização: este servidor ainda não oferece esta função. Nada é enviado.',
+    ar:'معاينة: هذا الخادم لا يقدّم هذه الميزة بعد. لا يُرسل أي شيء.', sw:'Onyesho: seva hii bado haitoi kipengele hiki. Hakuna kinachotumwa.',
+    ha:'Samfoti: wannan sabar ba ta bayar da wannan aikin ba tukuna. Ba a aika komai ba.', yo:'Àyẹ̀wò: olùpèsè yìí kò tíì pèsè iṣẹ́ yìí. Kò sí ohun tí a fi ránṣẹ́.',
+    wo:'Wone: serwëer bii joxagul liggéey bii ba léegi. Dara yónnewul.', bm:'Jirali: nin sɛriwɛri ma nin baara di fɔlɔ. Foyi tɛ ci.',
+    ln:'Emoniseli: serveur oyo epesi naino mosala oyo te. Eloko moko te etindami.'};
+  var COURT = {fr:'Aperçu', en:'Preview', es:'Vista previa', pt:'Pré-visualização', ar:'معاينة', sw:'Onyesho', ha:'Samfoti', yo:'Àyẹ̀wò', wo:'Wone', bm:'Jirali', ln:'Emoniseli'};
+  function langue(){ var l = ''; try{ l = String(window.NV_LANG || JSON.parse(localStorage.getItem('nv_ui_langue') || '""') || navigator.language || 'fr'); }catch(e){ l = 'fr'; }
+    l = l.slice(0, 2).toLowerCase(); return TXT[l] ? l : 'fr'; }
+  /* le repère « Aperçu » : la phrase entière quelques secondes, puis un petit repère dans le coin (jamais sur un bouton : il ne capte aucun toucher) */
+  function repere(){ if(document.getElementById('nvRepli')) return; var l = langue(), d = document.createElement('div'); d.id = 'nvRepli'; d.setAttribute('role', 'status'); d.dir = l === 'ar' ? 'rtl' : 'ltr';
+    d.style.cssText = 'position:fixed;z-index:2147483000;top:calc(6px + env(safe-area-inset-top,0px));left:50%;transform:translateX(-50%);max-width:calc(100% - 24px);' +
+      'background:#ffc531;color:#2a1a00;font:700 12px/1.35 system-ui,-apple-system,Roboto,sans-serif;padding:6px 12px;border-radius:999px;box-shadow:0 4px 14px rgba(0,0,0,.35);pointer-events:none;text-align:center';
+    d.textContent = TXT[l]; document.body.appendChild(d);
+    setTimeout(function(){ d.textContent = COURT[l]; d.style.left = 'auto'; d.style.right = '8px'; d.style.transform = 'none'; d.style.padding = '2px 9px'; d.style.opacity = '.9'; }, 6000); }
+  if(repli){ if(document.body) repere(); else document.addEventListener('DOMContentLoaded', repere); }
+  /* la vraie réponse du serveur, en arrière-plan */
+  function noter(absent){ try{ localStorage.setItem(cle, JSON.stringify({absent:absent, at:Date.now()})); }catch(e){}
+    if(absent === repli) return;
+    var n = 0; try{ n = +sessionStorage.getItem(garde) || 0; }catch(e){}
+    if(n >= 2) return;                                                           /* jamais une boucle de rechargements */
+    try{ sessionStorage.setItem(garde, String(n + 1)); }catch(e){}
+    try{ location.reload(); }catch(e){} }
+  var h = {Accept:'application/json'}; if(window.NV_TOKEN) h.Authorization = 'Bearer ' + window.NV_TOKEN;
+  var ctl = window.AbortController ? new AbortController() : null, t = setTimeout(function(){ if(ctl) ctl.abort(); }, 8000);
+  fetch(api + S.url, {headers:h, mode:'cors', cache:'no-cache', signal:ctl ? ctl.signal : undefined}).then(function(r){
+    if(!r.ok) return {absent:true};
+    return r.json().then(function(o){ if(!S.cle) return {absent:false}; var v = o && o[S.cle]; return {absent:!(v === true || (v && typeof v === 'object'))}; }, function(){ return {absent:true}; });
+  }).then(function(x){ clearTimeout(t); noter(x.absent); }, function(){ clearTimeout(t); noter(true); });   /* le serveur ne répond pas : l'aperçu aussi */
+}catch(e){ /* rien */ } })();
+</script><!--/NV_REPLI-->
 <!--NV_DEMO--><script id="nv-demo">
 /* NEURAVID — LA DÉMONSTRATION dans chaque module (injectée en tête de page, avant le module).
-   Jamais dans l'application ni avec un serveur (NV_API_BASE). Allumée si l'accueil l'a allumée pour la session
+   Jamais avec un serveur (NV_API_BASE) ; sans serveur, partout (17 nov. 2026, voir plus bas). Allumée si l'accueil l'a allumée pour la session
    (sessionStorage « nv_demo » = 1), ou « #demo » dans l'adresse, ou une page ouverte comme fichier (file:, content:).
    Elle permet seulement d'ouvrir les autres modules à côté (NV_MODULES_BASE) avec le même visiteur de démonstration ;
    chaque module garde ses propres règles (rien d'inventé hors de la démonstration).
    Seule exception à « jamais dans l'application » : l'APK « NEURAVID Aperçu » pose window.NV_APERCU = true (3 nov. 2026) ;
    l'application de production ne le pose jamais. */
-(function(){ try{ var dansApp = !window.NV_APERCU && !!(window.flutter_inappwebview || window.NVLien || window.ReactNativeWebView), h = location.hash || '', s = null; try{ s = sessionStorage.getItem('nv_demo'); }catch(e){ s = null; }
-  if(dansApp || (typeof window.NV_API_BASE === 'string' && window.NV_API_BASE) || s === '0' || /(^#|&)demo=0(&|$)/.test(h)) return;
-  if(!(s === '1' || /(^#|&)demo(=1)?(&|$)/.test(h) || /^(file|content):$/.test(location.protocol))) return;
+(function(){ try{ var h = location.hash || '', s = null; try{ s = sessionStorage.getItem('nv_demo'); }catch(e){ s = null; }
+  /* 17 nov. 2026 (Karamo : « ne plus dépendre l'affichage… uniquement par la présence d'un serveur ») : SANS SERVEUR, l'aperçu
+     s'allume partout, aussi dans l'application et sur le site officiel (toujours marqué « Aperçu ») ; « #demo=0 » ou « Quitter
+     la démonstration » l'éteignent ; dès qu'un serveur est branché (NV_API_BASE), jamais. */
+  if((typeof window.NV_API_BASE === 'string' && window.NV_API_BASE) || s === '0' || /(^#|&)demo=0(&|$)/.test(h)) return;
+  /* L'Entrée, Nos conditions et Le signalement : seulement une démonstration demandée (jamais d'office) ; un faux compte, une
+     fausse acceptation ou un faux signalement tromperaient. */
+  var explicite = s === '1' || /(^#|&)demo(=1)?(&|$)/.test(h) || /^(file|content):$/.test(location.protocol);
+  if(!explicite && /NV_MODULE_(Entree|Conditions|Report)\.html/.test(location.pathname || '')) return;
   window.NV_DEMO = true; try{ sessionStorage.setItem('nv_demo', '1'); }catch(e){ /* rien */ }
   if(!window.NV_MODULES_BASE) window.NV_MODULES_BASE = './';
   if(!window.NV_USER) window.NV_USER = {id:'demo', handle:'visiteur', prenom:'Aya', age:25, majeur:true, iso:'GN'};
