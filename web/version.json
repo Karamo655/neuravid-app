@@ -1,6 +1,6 @@
 {
- "version": "2026.11.17-96d4a2669e19",
- "date": "2026-11-17T06:38:49Z",
+ "version": "2026.11.17-3e4ac79b585d",
+ "date": "2026-11-17T07:43:09Z",
  "entree": "index.html",
  "modules": [
   "NV_MODULE_Aines.html",
@@ -1203,6 +1203,426 @@
   "essai.html": {
    "sha256": "35bea1050c188404663f31787e427e72ededb15521700ac6577fe329b8e2a537",
    "taille": 6632
+  },
+  "films/aines.jpg": {
+   "sha256": "6e998953458e0662de85d732a6686e27e00fd83a68831069078132cbbf20ef43",
+   "taille": 18968
+  },
+  "films/aines_fond.mp4": {
+   "sha256": "1b5fea3600e1dd98eb047bb0dd35d09866aa93f532d6ae51b73e9c8ed932f69e",
+   "taille": 1911032
+  },
+  "films/ar/aines.mp4": {
+   "sha256": "5672eddbc832ac2febaf1953a6c71d2331da980dbc9becb9659bc135d7b6f079",
+   "taille": 1609860
+  },
+  "films/ar/cercle.mp4": {
+   "sha256": "2984801544afab8a457f2b31e29bb889af213b6a547cbc0a86025e0c0f7fd1b1",
+   "taille": 1563387
+  },
+  "films/ar/cote.mp4": {
+   "sha256": "98c3acf8f40e19a94334a7134dd898d3335575474ff03e18fe5b2a35589ef332",
+   "taille": 1324553
+  },
+  "films/ar/miroir.mp4": {
+   "sha256": "639a8dfebea6c8038b70086bde6f9315705d3be65e01e108497e1afab507e9b2",
+   "taille": 1414128
+  },
+  "films/ar/pagne.mp4": {
+   "sha256": "4821cf39e28cba33a57b85963a92b722c8cc0d44a9b30166d40c6eb08f2cb427",
+   "taille": 2806985
+  },
+  "films/ar/savoir.mp4": {
+   "sha256": "598d733cc8508dfcc879ab03a3bcdd1ac7fa268859fab3b7ea359f8f592f836f",
+   "taille": 1437736
+  },
+  "films/ar/teint.mp4": {
+   "sha256": "663c4cc278d1ad5092cd8105752083d141fb5d4af826d7bbe4ce6e01a19fe665",
+   "taille": 1416066
+  },
+  "films/ar/tresse.mp4": {
+   "sha256": "8162907d85c5e01ccac0275b672e15c5b8030b24f7a101a31866a9e854ccdbf7",
+   "taille": 1566786
+  },
+  "films/bm/aines.mp4": {
+   "sha256": "2e74aa2e8ec46a28ccdbfaf1e74bd84fa7b88bc1c199934bba19b7f7d3bd5635",
+   "taille": 1610258
+  },
+  "films/bm/cercle.mp4": {
+   "sha256": "e5d88bb86580cfc199dc8c6628fc33ee74aa9f22da3836c3378ad563def8b677",
+   "taille": 1577802
+  },
+  "films/bm/cote.mp4": {
+   "sha256": "da458532765e4fe23bef79ea266252843a40fed8b55d6777731eab33813db7b9",
+   "taille": 1336909
+  },
+  "films/bm/miroir.mp4": {
+   "sha256": "c0160c4471f2cc1cfccf55a6c36ae8a9139e3500f8228a4750a69a8626bea1dc",
+   "taille": 1419837
+  },
+  "films/bm/pagne.mp4": {
+   "sha256": "69d11b0e454d2a325eea7f8e76c173349b3241f3e99a854f9df00c859886b791",
+   "taille": 2816653
+  },
+  "films/bm/savoir.mp4": {
+   "sha256": "41a0df9a07056eca8f79fbbb114cf0ef1db938dd116218f022ce576189e31592",
+   "taille": 1447492
+  },
+  "films/bm/teint.mp4": {
+   "sha256": "96408eed972603e2fa62d6f67083d2934194443d909101db7c81e452800306cf",
+   "taille": 1443497
+  },
+  "films/bm/tresse.mp4": {
+   "sha256": "a93db821fe3c18d335999e6b3e9e818d12f09675d4237d0871e1c5366c1bb326",
+   "taille": 1606691
+  },
+  "films/cercle.jpg": {
+   "sha256": "0f4e8b9488b27f4aa19d49a776af7ac1616a7d6658a9b0914918918d5fa762a6",
+   "taille": 18339
+  },
+  "films/cercle_fond.mp4": {
+   "sha256": "fee0ce8948b3049e4ea8632b27cc0e22bee3e75cb222ea15bbb20d674c67d902",
+   "taille": 1865461
+  },
+  "films/cote.jpg": {
+   "sha256": "456766f386491a659ff0c740dc5e852e542f7f31cb9d580fdc47ab9e31ce4f1e",
+   "taille": 15703
+  },
+  "films/cote_fond.mp4": {
+   "sha256": "2514d8fa51164369c10adcdbbc6586f6e917fea5fdff4ed7eec60c0009355aec",
+   "taille": 1550450
+  },
+  "films/en/aines.mp4": {
+   "sha256": "93d688c861745f5e6528109744e110a4a9af4de5d36c6b045babc7151e5e60c7",
+   "taille": 1629189
+  },
+  "films/en/cercle.mp4": {
+   "sha256": "0e0e767a0c1b20629cc289997024b5e7ecf6943cc8032cbbf01542ed1fe29e72",
+   "taille": 1570352
+  },
+  "films/en/cote.mp4": {
+   "sha256": "4c82ac70212c27ee7c25470b78f56e22ebb78a380f1564ca4ab91782b24e1ea4",
+   "taille": 1334989
+  },
+  "films/en/miroir.mp4": {
+   "sha256": "23e5a8d406345ab1239b25a67917bbad152c085bc9b7b5ab2d5db23e8b7ba9eb",
+   "taille": 1417969
+  },
+  "films/en/pagne.mp4": {
+   "sha256": "565d617a894433fb69524a7c1f179fe8b10fa11e94a7f5fee9a6db8b35117e7b",
+   "taille": 2822155
+  },
+  "films/en/savoir.mp4": {
+   "sha256": "3f2c6afda6890e42fb13a6debd8d5bace3dcdad0a1a77632b55ee9f6816d7316",
+   "taille": 1456722
+  },
+  "films/en/teint.mp4": {
+   "sha256": "3b774004da9710494689dce6cf9b36838ce456e74a46b546a06c14bef7534275",
+   "taille": 1442456
+  },
+  "films/en/tresse.mp4": {
+   "sha256": "9b0cea5ba3830de94d514387b2034bddf7897bebcdd2884b2518b87d1d9a5b03",
+   "taille": 1594411
+  },
+  "films/es/aines.mp4": {
+   "sha256": "24b64102c5e8e06fbf8db139902f249067c0dba54947d3a04399bc2ed310b26b",
+   "taille": 1636138
+  },
+  "films/es/cercle.mp4": {
+   "sha256": "c1f7d2d52682d16b0cbebdadda5563608ec5280dc0d90b410484416082348c26",
+   "taille": 1607404
+  },
+  "films/es/cote.mp4": {
+   "sha256": "a769d7e66059a22efd39404018963caea377ae856a424c902fbc5d4c31fa77ea",
+   "taille": 1333053
+  },
+  "films/es/miroir.mp4": {
+   "sha256": "f4c553e2ae552a23bee7ae0317e0e2f32baca3657ff36a70e07605772017ab78",
+   "taille": 1418868
+  },
+  "films/es/pagne.mp4": {
+   "sha256": "46e2257bcc770010f609482206dec2467f2af0b6af9754ea80529cbe9c799d14",
+   "taille": 2816540
+  },
+  "films/es/savoir.mp4": {
+   "sha256": "2e363ac7d4b53352842e404ffeff2a1f664a5cff6fe1ad2ff784b30ff8cf535d",
+   "taille": 1474864
+  },
+  "films/es/teint.mp4": {
+   "sha256": "50bf18732c8cde69794471954748781ec9c5e272cd462f60edb28f533240fd08",
+   "taille": 1441943
+  },
+  "films/es/tresse.mp4": {
+   "sha256": "a94dc7308ec33df08555b7ed2e5d688652d0b98d2b6fe720ff8ec5948f9bf02c",
+   "taille": 1591773
+  },
+  "films/films.json": {
+   "sha256": "d91d23c49140e9cb00f1b47bafeb6857ce068e2274447f7f2019190975b9a348",
+   "taille": 30446
+  },
+  "films/fr/aines.mp4": {
+   "sha256": "e72e100703981e108a401d967b37fe214a659c503fb08724286034062f16cc79",
+   "taille": 1626626
+  },
+  "films/fr/cercle.mp4": {
+   "sha256": "9fe317fa240fa952c5231379f1c8cf809cea256ea4aa08fa03ec9f0b9aa23bf5",
+   "taille": 1633308
+  },
+  "films/fr/cote.mp4": {
+   "sha256": "f6bfaf95e8fbe1d7ae67a32f09c0ca5dd106e64c369a42700abaf18d87118885",
+   "taille": 1343290
+  },
+  "films/fr/miroir.mp4": {
+   "sha256": "2c8e27ad179e637679a1ffc20896e7ecf9397781e38cb4d2dbd83844ffcafae4",
+   "taille": 1424870
+  },
+  "films/fr/pagne.mp4": {
+   "sha256": "5aef9928fefb721d165fad6069e7615a0b0a4113c9aa2f0c8713155c927c95e0",
+   "taille": 2824547
+  },
+  "films/fr/savoir.mp4": {
+   "sha256": "a9c190f9f9e302add5ebcf62fb44e9a6c8a33a141f3cd99401fe366029baa011",
+   "taille": 1449620
+  },
+  "films/fr/teint.mp4": {
+   "sha256": "f8f1f3400a4737e266ca7e5da46ed6e793bda3e36b734d35e5b5b838baa96bb4",
+   "taille": 1445289
+  },
+  "films/fr/tresse.mp4": {
+   "sha256": "8fccd8bb0c81b4b1f204f7960acb54d2e85c806e6fcf7d0197a3e25fd4b718b4",
+   "taille": 1607387
+  },
+  "films/ha/aines.mp4": {
+   "sha256": "df20c57112bfaae2213d7dbab32ce6c1ba5aae913c538115851f310862fb8fa0",
+   "taille": 1620521
+  },
+  "films/ha/cercle.mp4": {
+   "sha256": "605974d4ecf6b02b63afe934e9192d406d9fe408fc86b297a4bbb6dc9fe4561b",
+   "taille": 1577097
+  },
+  "films/ha/cote.mp4": {
+   "sha256": "21453d679f9bd0d9171a561164932b6a6883f6af08748a13492b8100aa3fda5f",
+   "taille": 1335901
+  },
+  "films/ha/miroir.mp4": {
+   "sha256": "b09997eebdd5736ffb684d400dc28dca0bf0de66d8c175fbf6f76037c2ee5b0b",
+   "taille": 1417560
+  },
+  "films/ha/pagne.mp4": {
+   "sha256": "d81d3228d4eaa8ad2f028bfa43b1ab907588f7410f67144626292765e3058e9f",
+   "taille": 2833525
+  },
+  "films/ha/savoir.mp4": {
+   "sha256": "4a3d9a365afd440ef7b5fa729d60790c257af65441287b274eab638f3cd0591f",
+   "taille": 1445516
+  },
+  "films/ha/teint.mp4": {
+   "sha256": "5a2a79ae5541bb4b221d247e1e437d9d96be60907de24790b058e998507d03a9",
+   "taille": 1451367
+  },
+  "films/ha/tresse.mp4": {
+   "sha256": "9f14e8cc6f3c042769d6d1eb233f73b4d2627abf5c8af0c070ed983a7f101534",
+   "taille": 1604778
+  },
+  "films/ln/aines.mp4": {
+   "sha256": "f665ee4f1b96c1f6ee4e7c8713ab5735e4a42b80e386051061b901c2cf1ff20e",
+   "taille": 1635466
+  },
+  "films/ln/cercle.mp4": {
+   "sha256": "fa8ad39f278445ec28d26d6fc243829f0da3b9991a541c78b6d2e1e193f1785d",
+   "taille": 1630528
+  },
+  "films/ln/cote.mp4": {
+   "sha256": "30a253647a5f3b12eb26f51b7fefff3ee546d7fef634b16940c989da62003633",
+   "taille": 1347559
+  },
+  "films/ln/miroir.mp4": {
+   "sha256": "c9f0b5d2081bc146dc79ffb3f1f14c3fa3739f47a2c5262b37a72511d41ffada",
+   "taille": 1418162
+  },
+  "films/ln/pagne.mp4": {
+   "sha256": "47c19df1ecebf6606d12a0f70f764e4330f67cdeb7bc41fb1f0793fcf77197ea",
+   "taille": 2837001
+  },
+  "films/ln/savoir.mp4": {
+   "sha256": "9aff6102c8e78a465142c3f2d819e87cf4ecf1136fc9bc33e4b8d9732a69a3b5",
+   "taille": 1463246
+  },
+  "films/ln/teint.mp4": {
+   "sha256": "616fd89ad5f0ee85332aa8904b9396916b07880d44b5ec28d664f755eb8b4d66",
+   "taille": 1480550
+  },
+  "films/ln/tresse.mp4": {
+   "sha256": "f91cce05c46fff3689b0e07729bca0dc1ff25e4a465076b6e0d16cb174b03358",
+   "taille": 1610822
+  },
+  "films/miroir.jpg": {
+   "sha256": "cf4adcfbd6d41f2dc9433a1b51d43e33852bc74c02437f1ab2540d6fda47479f",
+   "taille": 16407
+  },
+  "films/miroir_fond.mp4": {
+   "sha256": "cb99add1fc4550006cd126c0e87e7e5e32d19d0fedc2499f098e057ce925ae6f",
+   "taille": 1658733
+  },
+  "films/pagne.jpg": {
+   "sha256": "e85ff1e1b6be1cd1b5da3480b9a9d273e9185202011319ca0125b34b4eb65624",
+   "taille": 38413
+  },
+  "films/pagne_fond.mp4": {
+   "sha256": "863cef9e2571369b0b0439c31c30b530e52acaa134e996c99602095259741ece",
+   "taille": 3484360
+  },
+  "films/pt/aines.mp4": {
+   "sha256": "e05713243f9f525c7c88f7a30236f6450a73e289d17f856e6f0bfcea5d67e8b3",
+   "taille": 1648564
+  },
+  "films/pt/cercle.mp4": {
+   "sha256": "d9ef00d50fdd9c1f6c910e95dd594d68cf64f63b6d724577978d31862f6526ad",
+   "taille": 1634123
+  },
+  "films/pt/cote.mp4": {
+   "sha256": "0647bdcee164747b86bf73431732d80d61da76f632f29488a120b580c61299b1",
+   "taille": 1345745
+  },
+  "films/pt/miroir.mp4": {
+   "sha256": "3c5873a2f6ca81f7b0899b9d44252c320cecb2307985e4eb68112cdc29c0ef2b",
+   "taille": 1416623
+  },
+  "films/pt/pagne.mp4": {
+   "sha256": "ea33ea18e4bbdc3151da5e08d183d0a76f800406215b9df4135907f1d32cb0f4",
+   "taille": 2821814
+  },
+  "films/pt/savoir.mp4": {
+   "sha256": "9420b381451c3d31085795cf9049484459edc580b3972a7b07feb407b86de312",
+   "taille": 1450968
+  },
+  "films/pt/teint.mp4": {
+   "sha256": "a96feaea000e247e3be15c050e8c2aeb210d0a15522743ecc2be3eb357f6c252",
+   "taille": 1453174
+  },
+  "films/pt/tresse.mp4": {
+   "sha256": "379aeedd4e5b04c5e4e0fbbbb754c9b18de3a49538758727918c3bed06237c99",
+   "taille": 1614877
+  },
+  "films/savoir.jpg": {
+   "sha256": "0eb0d4100d4e8346bebf159625b6038ede21733b91288dee5a1c1c88764c8348",
+   "taille": 16948
+  },
+  "films/savoir_fond.mp4": {
+   "sha256": "18ccbe3cbe09e5a498174494f604301a38d0c2bf4777eaf301451d59d0e7658f",
+   "taille": 1708599
+  },
+  "films/sw/aines.mp4": {
+   "sha256": "814571d680ff5a908394e30ae945146c98edb74dec02a3e32833f9e2bb792c03",
+   "taille": 1638559
+  },
+  "films/sw/cercle.mp4": {
+   "sha256": "4187e7006f0941ab92ed8f503ea14038b4c42c59ef40a2c86e1ad59ee8d2aa07",
+   "taille": 1607150
+  },
+  "films/sw/cote.mp4": {
+   "sha256": "42963056a50e6a17fe96e0b314e701842f06bc0517401b897a4d7e33b0db3334",
+   "taille": 1339842
+  },
+  "films/sw/miroir.mp4": {
+   "sha256": "f6c4c7b60c6179592281d5ca75b326c275b8a00c214d263cca7d09f7ada9c52f",
+   "taille": 1416501
+  },
+  "films/sw/pagne.mp4": {
+   "sha256": "20c353b867d25d32cb9449ce93c71e6de2ae902dbfd2449c8db31933a655a018",
+   "taille": 2841823
+  },
+  "films/sw/savoir.mp4": {
+   "sha256": "32f22700968a53e2a9950c24a5705f18d53f52d98113f9ad462ff44b3db4de9b",
+   "taille": 1446870
+  },
+  "films/sw/teint.mp4": {
+   "sha256": "3f9c9ade8d421bb708c8d71e3a0ac2038d38792ff6311f843a267f3656f32361",
+   "taille": 1474206
+  },
+  "films/sw/tresse.mp4": {
+   "sha256": "75a547fd904462ce8e2475d41ac556c7395ef632fc06e7b86b9f56ae8b0480d8",
+   "taille": 1607191
+  },
+  "films/teint.jpg": {
+   "sha256": "864fb003760247ddfac33f71d2dc58bf0600f2f0749306947266e12939a6e958",
+   "taille": 17133
+  },
+  "films/teint_fond.mp4": {
+   "sha256": "ebfc0563ae2c511639e152c29cbba5224c397a63589eb8c2e7191a4e6a40b7f8",
+   "taille": 1645370
+  },
+  "films/tresse.jpg": {
+   "sha256": "1fae914a243c5c358e15b19621617f760982b870927311361f9464e0c5499a5a",
+   "taille": 18146
+  },
+  "films/tresse_fond.mp4": {
+   "sha256": "ec2c51c5d159b167159ae27e2ac3f1fdd0a27c435ea71900b3e3cf0c2fbc4f0f",
+   "taille": 1902222
+  },
+  "films/wo/aines.mp4": {
+   "sha256": "0ad0ac9bb15a612f8dfd9b6117fca92ab3b2f861368746c2ce434bbc6ef04a56",
+   "taille": 1622098
+  },
+  "films/wo/cercle.mp4": {
+   "sha256": "af693b21de4ceb5ff7d914f43c31cc896abc6161e190541045f0c7d0c8d6cb01",
+   "taille": 1593026
+  },
+  "films/wo/cote.mp4": {
+   "sha256": "154b72f362e62edba3706760c364e1c31748b8529aada313e9778f3c0174a305",
+   "taille": 1338816
+  },
+  "films/wo/miroir.mp4": {
+   "sha256": "4f28d4312e5e61070922cf081ad92d293afe9c0e2c4d4962b397ec32bdfdef19",
+   "taille": 1413190
+  },
+  "films/wo/pagne.mp4": {
+   "sha256": "a53164ba4e6530a3bfb62d6dfb5d7eb3f57d10dd83f63128bf6c21d4d9619a24",
+   "taille": 2816582
+  },
+  "films/wo/savoir.mp4": {
+   "sha256": "b418cf32d4a405ce61e99010a36d8f1a7ba14ccc88e6626887263d9c05efb910",
+   "taille": 1447948
+  },
+  "films/wo/teint.mp4": {
+   "sha256": "d9e2b78b2d07b9a5c28150ad151b91ea340ed1f44920fabcd3a7f67aff8da0e7",
+   "taille": 1443079
+  },
+  "films/wo/tresse.mp4": {
+   "sha256": "c59553833168affd6c8abfc7ff4a37639b9fe79566ae71bd4e77ba6e4af2fac1",
+   "taille": 1592049
+  },
+  "films/yo/aines.mp4": {
+   "sha256": "977bc75a43b6da5677ff1fce3b0e2e02f7dee6d1b1f5e2e782d7269356b720f1",
+   "taille": 1638632
+  },
+  "films/yo/cercle.mp4": {
+   "sha256": "0073b4a7982a446e4e341ab340d601b275e96cec8b254caf8681540561f688a9",
+   "taille": 1602644
+  },
+  "films/yo/cote.mp4": {
+   "sha256": "6c68e31553af9980a5b70561a35e07c3442511ce57b531391c23154a271c9c77",
+   "taille": 1333017
+  },
+  "films/yo/miroir.mp4": {
+   "sha256": "a9c13731bd3f1fceed7b4f374528ba2bca1d7049692c80e3388c172bfe790cb2",
+   "taille": 1420353
+  },
+  "films/yo/pagne.mp4": {
+   "sha256": "ec26f326998fdbad20e32a498afce03f31019b504d26223276b8a0aad593c257",
+   "taille": 2826043
+  },
+  "films/yo/savoir.mp4": {
+   "sha256": "e8f6e1c4826acbf6b6badce4402dabc238301cc0d3fb31efd89fff5e2325bd7b",
+   "taille": 1458671
+  },
+  "films/yo/teint.mp4": {
+   "sha256": "a16c31ebe490b3dad207f672d2beb5ed3038a85251023acfb324cb68abdec644",
+   "taille": 1449217
+  },
+  "films/yo/tresse.mp4": {
+   "sha256": "87f567a2a77413b906c61a8051f4c199581cd5e8b8a73ab3d917cb87b7fde907",
+   "taille": 1609636
   },
   "ia/LICENCE_MediaPipe_Apache-2.0.txt": {
    "sha256": "379dc9be621e253a565b178cfefb3b18976a56b6a10a9f7678f297cfed21f31a",

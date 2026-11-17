@@ -1,0 +1,917 @@
+{
+ "duree": 20,
+ "largeur": 720,
+ "hauteur": 1280,
+ "temps": {
+  "titre": [
+   0.3,
+   3.4
+  ],
+  "e1": [
+   3.6,
+   7.9
+  ],
+  "e2": [
+   8.1,
+   12.4
+  ],
+  "e3": [
+   12.6,
+   16.9
+  ],
+  "fin": [
+   17.3,
+   20
+  ]
+ },
+ "films": {
+  "cercle": {
+   "module": "Reglages",
+   "scene": "cercle",
+   "couleurs": [
+    "#FF6FB5",
+    "#16e0d4"
+   ],
+   "fond": "cercle_fond.mp4",
+   "affiche": "cercle.jpg",
+   "langues": {
+    "fr": {
+     "titre": "Mon cercle de confiance",
+     "etapes": [
+      "Choisissez vos personnes de confiance : elles ne sont jamais prévenues.",
+      "Le mode Fleurs met de côté les commentaires des inconnus, jusqu’à votre accord.",
+      "Le mode calme : pendant quelques heures, seul votre cercle peut vous joindre."
+     ],
+     "mp4": "fr/cercle.mp4"
+    },
+    "en": {
+     "titre": "My circle of trust",
+     "etapes": [
+      "Choose your trusted people: they are never notified.",
+      "Flowers mode puts strangers' comments aside until you approve them.",
+      "Calm mode: for a few hours, only your circle can reach you."
+     ],
+     "mp4": "en/cercle.mp4"
+    },
+    "es": {
+     "titre": "Mi círculo de confianza",
+     "etapes": [
+      "Elige a tus personas de confianza: nunca se les avisa.",
+      "El modo Flores aparta los comentarios de desconocidos hasta que los apruebes.",
+      "El modo calma: durante unas horas, solo tu círculo puede contactarte."
+     ],
+     "mp4": "es/cercle.mp4"
+    },
+    "pt": {
+     "titre": "O meu círculo de confiança",
+     "etapes": [
+      "Escolha as suas pessoas de confiança: nunca são avisadas.",
+      "O modo Flores põe de lado os comentários de desconhecidos até à sua aprovação.",
+      "O modo calma: durante algumas horas, só o seu círculo o pode contactar."
+     ],
+     "mp4": "pt/cercle.mp4"
+    },
+    "ar": {
+     "titre": "دائرة ثقتي",
+     "etapes": [
+      "اختر الأشخاص الذين تثق بهم: لا يتم إبلاغهم أبدًا.",
+      "يضع وضع الزهور تعليقات الغرباء جانبًا حتى توافق عليها.",
+      "وضع الهدوء: لبضع ساعات، لا يمكن أن يتواصل معك إلا دائرتك."
+     ],
+     "mp4": "ar/cercle.mp4"
+    },
+    "sw": {
+     "titre": "Mduara wangu wa kuaminika",
+     "etapes": [
+      "Chagua watu unaowaamini: hawajulishwi kamwe.",
+      "Hali ya Maua inaweka kando maoni ya watu usiowajua hadi uyaidhinishe.",
+      "Hali ya utulivu: kwa saa chache, mduara wako pekee unaweza kukufikia."
+     ],
+     "mp4": "sw/cercle.mp4"
+    },
+    "ha": {
+     "titre": "Da'irar amintattuna",
+     "etapes": [
+      "Zaɓi mutanen da ka amince da su: ba a taɓa sanar da su ba.",
+      "Yanayin Furanni yana ajiye sharhin baƙi a gefe har sai ka amince.",
+      "Yanayin natsuwa: na wasu sa'o'i, da'irarka kaɗai ke iya samunka."
+     ],
+     "mp4": "ha/cercle.mp4"
+    },
+    "yo": {
+     "titre": "Àwọn ẹni tí mo gbẹ́kẹ̀lé",
+     "etapes": [
+      "Yan àwọn ẹni tí o gbẹ́kẹ̀lé: a kì í sọ fún wọn rárá.",
+      "Ipò Òdòdó máa ń fi ọ̀rọ̀ àwọn àjèjì sí ẹ̀gbẹ́ títí o fi fọwọ́ sí i.",
+      "Ipò ìdákẹ́jẹ́ẹ́: fún wákàtí díẹ̀, àwọn ẹni tí o gbẹ́kẹ̀lé nìkan ló lè kàn sí ọ."
+     ],
+     "mp4": "yo/cercle.mp4"
+    },
+    "wo": {
+     "titre": "Sama mbooloom ñu ma wóolu",
+     "etapes": [
+      "Tànnal ñi nga wóolu: duñu leen yégal mukk.",
+      "Anam Tóor-tóor dafay teg ci wet saraay ñi nga xamul, ba nga nangu.",
+      "Anam dal: ay waxtu, sa mbooloo rekk moo la mën a jot."
+     ],
+     "mp4": "wo/cercle.mp4"
+    },
+    "bm": {
+     "titre": "N ka dannaya kulu",
+     "etapes": [
+      "I ka mɔgɔ dannaw sugandi: u tɛ kibaru sɔrɔ abada.",
+      "Feerenw cogo bɛ dunanw ka hakilinaw bila kɛrɛfɛ fo i ka sɔn.",
+      "Hakilisigi cogo: lɛri dama kɔnɔ, i ka kulu dɔrɔn de bɛ se ka i sɔrɔ."
+     ],
+     "mp4": "bm/cercle.mp4"
+    },
+    "ln": {
+     "titre": "Lisanga ya bato natyelaka motema",
+     "etapes": [
+      "Pona bato oyo otyelaka motema: bayebisamaka ata mokolo moko te.",
+      "Lolenge ya Bafololo etiaka maloba ya bapaya pembeni kino okondima.",
+      "Lolenge ya kimya: na ngonga mwa moke, kaka lisanga na yo ekoki kokutana na yo."
+     ],
+     "mp4": "ln/cercle.mp4"
+    }
+   }
+  },
+  "teint": {
+   "module": "Create",
+   "scene": "teint",
+   "couleurs": [
+    "#E8B84A",
+    "#16e0d4"
+   ],
+   "fond": "teint_fond.mp4",
+   "affiche": "teint.jpg",
+   "langues": {
+    "fr": {
+     "titre": "Mon teint",
+     "etapes": [
+      "Choisissez votre teint, ou laissez « Auto ».",
+      "La Forge garde votre teint : la lumière et les filtres ne l’éclaircissent pas.",
+      "« Teint respecté » s’affiche quand votre teint est resté fidèle du début à la fin."
+     ],
+     "mp4": "fr/teint.mp4"
+    },
+    "en": {
+     "titre": "My skin tone",
+     "etapes": [
+      "Choose your skin tone, or leave it on “Auto”.",
+      "La Forge keeps your skin tone: light and filters don't lighten it.",
+      "“Skin tone respected” appears when your skin tone stayed true from start to finish."
+     ],
+     "mp4": "en/teint.mp4"
+    },
+    "es": {
+     "titre": "Mi tono de piel",
+     "etapes": [
+      "Elige tu tono de piel, o deja «Auto».",
+      "La Forge conserva tu tono de piel: la luz y los filtros no lo aclaran.",
+      "«Tono respetado» aparece cuando tu tono de piel se mantuvo fiel de principio a fin."
+     ],
+     "mp4": "es/teint.mp4"
+    },
+    "pt": {
+     "titre": "O meu tom de pele",
+     "etapes": [
+      "Escolha o seu tom de pele, ou deixe «Auto».",
+      "La Forge mantém o seu tom de pele: a luz e os filtros não o clareiam.",
+      "«Tom respeitado» aparece quando o seu tom de pele se manteve fiel do início ao fim."
+     ],
+     "mp4": "pt/teint.mp4"
+    },
+    "ar": {
+     "titre": "بشرتي",
+     "etapes": [
+      "اختر لون بشرتك، أو اترك «تلقائي».",
+      "تحافظ La Forge على لون بشرتك: لا يفتّحه الضوء ولا المرشحات.",
+      "تظهر «لون محترم» عندما يبقى لون بشرتك وفيًا من البداية إلى النهاية."
+     ],
+     "mp4": "ar/teint.mp4"
+    },
+    "sw": {
+     "titre": "Rangi ya ngozi yangu",
+     "etapes": [
+      "Chagua rangi ya ngozi yako, au acha «Auto».",
+      "La Forge inahifadhi rangi ya ngozi yako: mwanga na vichujio havifanyi iwe nyeupe.",
+      "«Rangi imeheshimiwa» inaonekana rangi ya ngozi yako ikibaki kweli tangu mwanzo hadi mwisho."
+     ],
+     "mp4": "sw/teint.mp4"
+    },
+    "ha": {
+     "titre": "Launin fatata",
+     "etapes": [
+      "Zaɓi launin fatarka, ko ka bar «Auto».",
+      "La Forge na kiyaye launin fatarka: haske da matattara ba sa haskaka shi.",
+      "«An mutunta launin fata» yana bayyana idan launin fatarka ya kasance daidai daga farko har ƙarshe."
+     ],
+     "mp4": "ha/teint.mp4"
+    },
+    "yo": {
+     "titre": "Àwọ̀ ara mi",
+     "etapes": [
+      "Yan àwọ̀ ara rẹ, tàbí fi «Auto» sílẹ̀.",
+      "La Forge máa ń pa àwọ̀ ara rẹ mọ́: ìmọ́lẹ̀ àti àwọn àlẹ̀mọ́ kì í mú un fúyẹ́.",
+      "«A bọ̀wọ̀ fún àwọ̀ ara» máa ń hàn nígbà tí àwọ̀ ara rẹ bá wà bí ó ti rí láti ìbẹ̀rẹ̀ dé òpin."
+     ],
+     "mp4": "yo/teint.mp4"
+    },
+    "wo": {
+     "titre": "Sama melokaan der",
+     "etapes": [
+      "Tànnal sa melo, walla bayyi «Auto».",
+      "La Forge dafay denc sa melo: leer ak filtar yi duñu ko weexal.",
+      "«Melo bu ñu sàmm» dina feeñ bu sa melo desee ni mu meloo ca njëlbéen ba ca mujj."
+     ],
+     "mp4": "wo/teint.mp4"
+    },
+    "bm": {
+     "titre": "N ka fari ɲɛ",
+     "etapes": [
+      "I ka golo ɲɛ sugandi, walima ka «Auto» to yen.",
+      "La Forge bɛ i ka golo ɲɛ mara: yeelen ni filitiriw t'a gɛlɛya.",
+      "«Golo ɲɛ bonyana» bɛ jira ni i ka golo ɲɛ tora a cogo la ka bɔ a daminɛ na fo a laban."
+     ],
+     "mp4": "bm/teint.mp4"
+    },
+    "ln": {
+     "titre": "Langi ya loposo na ngai",
+     "etapes": [
+      "Pona langi ya poso na yo, to tika «Auto».",
+      "La Forge ebatelaka langi ya poso na yo: pole mpe bafiltre ekomisaka yango pembe te.",
+      "«Langi etosami» emonanaka soki langi ya poso na yo etikali ndenge moko kobanda ebandeli kino nsuka."
+     ],
+     "mp4": "ln/teint.mp4"
+    }
+   }
+  },
+  "miroir": {
+   "module": "Create",
+   "scene": "miroir",
+   "couleurs": [
+    "#E8B84A",
+    "#ff4f9e"
+   ],
+   "fond": "miroir_fond.mp4",
+   "affiche": "miroir.jpg",
+   "langues": {
+    "fr": {
+     "titre": "Le Miroir",
+     "etapes": [
+      "Filmez l’avant.",
+      "Filmez l’après : l’avant reste en fantôme pour vous guider.",
+      "La Forge assemble les deux avec une transition en hexagone, sur le rythme."
+     ],
+     "mp4": "fr/miroir.mp4"
+    },
+    "en": {
+     "titre": "The Mirror",
+     "etapes": [
+      "Film the before.",
+      "Film the after: the before stays as a ghost to guide you.",
+      "La Forge joins the two with a hexagon transition, on the beat."
+     ],
+     "mp4": "en/miroir.mp4"
+    },
+    "es": {
+     "titre": "El Espejo",
+     "etapes": [
+      "Graba el antes.",
+      "Graba el después: el antes queda como fantasma para guiarte.",
+      "La Forge une las dos con una transición en hexágono, al ritmo."
+     ],
+     "mp4": "es/miroir.mp4"
+    },
+    "pt": {
+     "titre": "O Espelho",
+     "etapes": [
+      "Filme o antes.",
+      "Filme o depois: o antes fica como fantasma para o guiar.",
+      "La Forge junta os dois com uma transição em hexágono, ao ritmo."
+     ],
+     "mp4": "pt/miroir.mp4"
+    },
+    "ar": {
+     "titre": "المرآة",
+     "etapes": [
+      "صوّر «قبل».",
+      "صوّر «بعد»: تبقى لقطة «قبل» شبحًا ترشدك.",
+      "تجمع La Forge اللقطتين بانتقال سداسي، على الإيقاع."
+     ],
+     "mp4": "ar/miroir.mp4"
+    },
+    "sw": {
+     "titre": "Kioo",
+     "etapes": [
+      "Rekodi kabla.",
+      "Rekodi baada: kabla inabaki kama kivuli kukuongoza.",
+      "La Forge inaunganisha mbili kwa mpito wa pembe sita, kwenye mdundo."
+     ],
+     "mp4": "sw/miroir.mp4"
+    },
+    "ha": {
+     "titre": "Madubi",
+     "etapes": [
+      "Ɗauki kafin.",
+      "Ɗauki bayan: kafin ɗin yana nan kamar inuwa don ya jagorance ka.",
+      "La Forge na haɗa su biyu da sauyin murabba'i shida, a kan kari."
+     ],
+     "mp4": "ha/miroir.mp4"
+    },
+    "yo": {
+     "titre": "Dígí",
+     "etapes": [
+      "Ya ti ìṣáájú.",
+      "Ya ti ẹ̀yìn: ti ìṣáájú á wà bí òjìji láti tọ́ ọ sọ́nà.",
+      "La Forge máa ń so méjèèjì pọ̀ pẹ̀lú ìyípadà onígun mẹ́fà, lórí ìlù."
+     ],
+     "mp4": "yo/miroir.mp4"
+    },
+    "wo": {
+     "titre": "Seetu bi",
+     "etapes": [
+      "Filmeel ba jëkk.",
+      "Filmeel ginaaw: ba jëkk dina des ni takkandeer ngir gindi la.",
+      "La Forge dafay boole ñaar ñi ak jàll bu am juroom-benni wet, ci ritmu bi."
+     ],
+     "mp4": "wo/miroir.mp4"
+    },
+    "bm": {
+     "titre": "Dugalen",
+     "etapes": [
+      "Fɔlɔ ja ta.",
+      "Kɔfɛta ja ta: fɔlɔta bɛ to i n'a fɔ jaa walasa ka i bilasira.",
+      "La Forge bɛ u fila fara ɲɔgɔn kan ni yɛlɛmali ye min ye kɔɔrɔ wɔɔrɔ ye, ka bɛn fɔlisen ma."
+     ],
+     "mp4": "bm/miroir.mp4"
+    },
+    "ln": {
+     "titre": "Talatala",
+     "etapes": [
+      "Kanga liboso.",
+      "Kanga sima: liboso etikali lokola elili mpo na kokamba yo.",
+      "La Forge esangisaka yango mibale na bobaluki ya ngambo motoba, na rythme."
+     ],
+     "mp4": "ln/miroir.mp4"
+    }
+   }
+  },
+  "tresse": {
+   "module": "Tresse",
+   "scene": "tresse",
+   "couleurs": [
+    "#ffc531",
+    "#16e0d4"
+   ],
+   "fond": "tresse_fond.mp4",
+   "affiche": "tresse.jpg",
+   "langues": {
+    "fr": {
+     "titre": "La Tresse du monde",
+     "etapes": [
+      "Regardez la tresse passer de pays en pays sur le globe.",
+      "Filmez votre maille de 5 secondes : reprenez le geste du pays précédent.",
+      "L’équipe la relit, puis votre pays rejoint le fil d’or."
+     ],
+     "mp4": "fr/tresse.mp4"
+    },
+    "en": {
+     "titre": "The World Braid",
+     "etapes": [
+      "Watch the braid travel from country to country on the globe.",
+      "Film your 5-second strand: pick up the gesture of the previous country.",
+      "The team reviews it, then your country joins the golden thread."
+     ],
+     "mp4": "en/tresse.mp4"
+    },
+    "es": {
+     "titre": "La Trenza del mundo",
+     "etapes": [
+      "Mira cómo la trenza pasa de país en país sobre el globo.",
+      "Graba tu malla de 5 segundos: retoma el gesto del país anterior.",
+      "El equipo la revisa y tu país se une al hilo de oro."
+     ],
+     "mp4": "es/tresse.mp4"
+    },
+    "pt": {
+     "titre": "A Trança do mundo",
+     "etapes": [
+      "Veja a trança passar de país em país no globo.",
+      "Filme a sua malha de 5 segundos: retome o gesto do país anterior.",
+      "A equipa revê-a e o seu país junta-se ao fio de ouro."
+     ],
+     "mp4": "pt/tresse.mp4"
+    },
+    "ar": {
+     "titre": "ضفيرة العالم",
+     "etapes": [
+      "شاهد الضفيرة تنتقل من بلد إلى بلد على الكرة الأرضية.",
+      "صوّر غرزتك ذات الخمس ثوانٍ: أكمل حركة البلد السابق.",
+      "يراجعها الفريق، ثم ينضم بلدك إلى الخيط الذهبي."
+     ],
+     "mp4": "ar/tresse.mp4"
+    },
+    "sw": {
+     "titre": "Msuko wa Dunia",
+     "etapes": [
+      "Tazama msuko ukipita kutoka nchi hadi nchi kwenye dunia.",
+      "Rekodi kipande chako cha sekunde 5: endeleza ishara ya nchi iliyotangulia.",
+      "Timu inaipitia, kisha nchi yako inajiunga na uzi wa dhahabu."
+     ],
+     "mp4": "sw/tresse.mp4"
+    },
+    "ha": {
+     "titre": "Kitson Duniya",
+     "etapes": [
+      "Kalli kitson yana tafiya daga ƙasa zuwa ƙasa a duniya.",
+      "Ɗauki bidiyon ɗinkinka na daƙiƙa 5: ka ci gaba da motsin ƙasar da ta gabata.",
+      "Ƙungiyar tana duba shi, sannan ƙasarka ta shiga zaren zinariya."
+     ],
+     "mp4": "ha/tresse.mp4"
+    },
+    "yo": {
+     "titre": "Ìdì Irun Àgbáyé",
+     "etapes": [
+      "Wo bí irun dídì ṣe ń kọjá láti orílẹ̀-èdè dé orílẹ̀-èdè lórí àgbáyé.",
+      "Ya fídíò ìdì rẹ ti ìṣẹ́jú-àáyá 5: tẹ̀síwájú pẹ̀lú ìṣesí orílẹ̀-èdè tó ṣáájú.",
+      "Ẹgbẹ́ náà á yẹ̀ ẹ́ wò, lẹ́yìn náà orílẹ̀-èdè rẹ á darapọ̀ mọ́ okùn wúrà."
+     ],
+     "mp4": "yo/tresse.mp4"
+    },
+    "wo": {
+     "titre": "Létt bu Àdduna",
+     "etapes": [
+      "Seetal létt bi muy jóge réew ba ci beneen ci àddina si.",
+      "Filmeel sa bànqaas bu 5 saa: jàppal jëf ji réew mi jiitu def.",
+      "Ekib bi dafay ko seet, ba noppi sa réew boole ci bënn wurus bi."
+     ],
+     "mp4": "wo/tresse.mp4"
+    },
+    "bm": {
+     "titre": "Diɲɛ Tresse",
+     "etapes": [
+      "Filɛ dadalan bɛ tɛmɛ jamana ni jamana cɛ dugukolo kan cogo min na.",
+      "I ka segondi 5 kɔlɔ ja ta: ka jamana tɛmɛnnen ka taamacogo taa ka taa a fɛ.",
+      "Ekipu b'a lajɛ, o kɔfɛ i ka jamana bɛ fara sanu juru kan."
+     ],
+     "mp4": "bm/tresse.mp4"
+    },
+    "ln": {
+     "titre": "Lisuku ya Mokili",
+     "etapes": [
+      "Tala nsuki etambolaka na ekolo na ekolo na mokili mobimba.",
+      "Kanga video ya eteni na yo ya basekɔndɛ 5: kokoba likambo oyo ekolo ya liboso esalaki.",
+      "Ekipi etali yango, sima ekolo na yo ekoti na nsinga ya wolo."
+     ],
+     "mp4": "ln/tresse.mp4"
+    }
+   }
+  },
+  "cote": {
+   "module": "Cote",
+   "scene": "cote",
+   "couleurs": [
+    "#ff4f9e",
+    "#16e0d4"
+   ],
+   "fond": "cote_fond.mp4",
+   "affiche": "cote.jpg",
+   "langues": {
+    "fr": {
+     "titre": "Côte à côte",
+     "etapes": [
+      "Filmez votre moitié du duo.",
+      "Invitez une personne : elle filme la sienne à côté de la vôtre, où qu’elle soit.",
+      "Vous publiez ensemble seulement quand les deux sont d’accord."
+     ],
+     "mp4": "fr/cote.mp4"
+    },
+    "en": {
+     "titre": "Side by Side",
+     "etapes": [
+      "Film your half of the duet.",
+      "Invite someone: they film theirs next to yours, wherever they are.",
+      "You publish together only when both agree."
+     ],
+     "mp4": "en/cote.mp4"
+    },
+    "es": {
+     "titre": "Lado a lado",
+     "etapes": [
+      "Graba tu mitad del dúo.",
+      "Invita a alguien: graba su parte junto a la tuya, esté donde esté.",
+      "Publicáis juntos solo cuando los dos estáis de acuerdo."
+     ],
+     "mp4": "es/cote.mp4"
+    },
+    "pt": {
+     "titre": "Lado a lado",
+     "etapes": [
+      "Filme a sua metade do dueto.",
+      "Convide alguém: filma a sua parte ao lado da sua, onde quer que esteja.",
+      "Publicam juntos só quando os dois estão de acordo."
+     ],
+     "mp4": "pt/cote.mp4"
+    },
+    "ar": {
+     "titre": "جنبًا إلى جنب",
+     "etapes": [
+      "صوّر نصفك من الثنائي.",
+      "ادعُ شخصًا: يصوّر نصفه بجانب نصفك، أينما كان.",
+      "تنشران معًا فقط عندما يوافق الطرفان."
+     ],
+     "mp4": "ar/cote.mp4"
+    },
+    "sw": {
+     "titre": "Bega kwa Bega",
+     "etapes": [
+      "Rekodi nusu yako ya duo.",
+      "Mwalike mtu: anarekodi yake kando ya yako, popote alipo.",
+      "Mnachapisha pamoja tu wakati wote wawili mmekubali."
+     ],
+     "mp4": "sw/cote.mp4"
+    },
+    "ha": {
+     "titre": "Kafaɗa da Kafaɗa",
+     "etapes": [
+      "Ɗauki rabin naka na duet ɗin.",
+      "Gayyaci wani: zai ɗauki nasa kusa da naka, ko'ina yake.",
+      "Kuna wallafawa tare ne kawai idan ku biyu kun yarda."
+     ],
+     "mp4": "ha/cote.mp4"
+    },
+    "yo": {
+     "titre": "Ẹ̀gbẹ́ sí Ẹ̀gbẹ́",
+     "etapes": [
+      "Ya ìdajì tìrẹ nínú àjọṣe náà.",
+      "Pe ẹnìkan: yóò ya tirẹ̀ lẹ́gbẹ̀ẹ́ tìrẹ, ibikíbi tí ó bá wà.",
+      "Ẹ máa tẹ̀ ẹ́ jáde pọ̀ nígbà tí ẹ̀yin méjèèjì bá fọwọ́ sí i nìkan."
+     ],
+     "mp4": "yo/cote.mp4"
+    },
+    "wo": {
+     "titre": "Wet ak Wet",
+     "etapes": [
+      "Filmeel sa wàll ci ñaar ñi.",
+      "Woo kenn: dina filme wàllam ci wetu sa bos, fu mu mënti nekk.",
+      "Dangeen koy siiwal ñoo ñaar rekk bu ñaar ñépp nanguwee."
+     ],
+     "mp4": "wo/cote.mp4"
+    },
+    "bm": {
+     "titre": "Kɛrɛ ni Kɛrɛ",
+     "etapes": [
+      "I ka fila baara tilancɛ ja ta.",
+      "Mɔgɔ dɔ wele: a bɛ a ta ja ta i ta kɛrɛ fɛ, a mana kɛ yɔrɔ o yɔrɔ.",
+      "Aw bɛ a bɔ ɲɔgɔn fɛ dɔrɔn ni aw fila bɛɛ sɔnna."
+     ],
+     "mp4": "bm/cote.mp4"
+    },
+    "ln": {
+     "titre": "Pembeni na Pembeni",
+     "etapes": [
+      "Kanga video ya ndambo na yo ya duo.",
+      "Bengisa moto: akanga ya ye pembeni ya oyo ya yo, esika nyonso azali.",
+      "Bobimisaka yango elongo kaka soki bino mibale bondimi."
+     ],
+     "mp4": "ln/cote.mp4"
+    }
+   }
+  },
+  "savoir": {
+   "module": "Savoir",
+   "scene": "savoir",
+   "couleurs": [
+    "#16e0d4",
+    "#ffc531"
+   ],
+   "fond": "savoir_fond.mp4",
+   "affiche": "savoir.jpg",
+   "langues": {
+    "fr": {
+     "titre": "Le Savoir-faire",
+     "etapes": [
+      "Filmez votre savoir-faire avec La Forge, jusqu’à 10 minutes.",
+      "Ajoutez la fiche : le matériel, les étapes, les astuces.",
+      "Les autres apprennent, disent « J’ai réussi » et peuvent vous dire merci."
+     ],
+     "mp4": "fr/savoir.mp4"
+    },
+    "en": {
+     "titre": "Know-How",
+     "etapes": [
+      "Film your know-how with La Forge, up to 10 minutes.",
+      "Add the guide sheet: materials, steps, tips.",
+      "Others learn, say “I did it” and can thank you."
+     ],
+     "mp4": "en/savoir.mp4"
+    },
+    "es": {
+     "titre": "El Saber Hacer",
+     "etapes": [
+      "Graba tu saber hacer con La Forge, hasta 10 minutos.",
+      "Añade la ficha: el material, los pasos, los trucos.",
+      "Los demás aprenden, dicen «¡Lo logré!» y pueden darte las gracias."
+     ],
+     "mp4": "es/savoir.mp4"
+    },
+    "pt": {
+     "titre": "O Saber-Fazer",
+     "etapes": [
+      "Filme o seu saber-fazer com La Forge, até 10 minutos.",
+      "Adicione a ficha: o material, os passos, as dicas.",
+      "Os outros aprendem, dizem «Consegui» e podem agradecer-lhe."
+     ],
+     "mp4": "pt/savoir.mp4"
+    },
+    "ar": {
+     "titre": "الدراية",
+     "etapes": [
+      "صوّر مهارتك باستخدام La Forge، حتى 10 دقائق.",
+      "أضف البطاقة: الأدوات والخطوات والنصائح.",
+      "يتعلّم الآخرون، ويقولون «نجحت» ويمكنهم شكرك."
+     ],
+     "mp4": "ar/savoir.mp4"
+    },
+    "sw": {
+     "titre": "Ujuzi",
+     "etapes": [
+      "Rekodi ujuzi wako kwa La Forge, hadi dakika 10.",
+      "Ongeza kadi: vifaa, hatua, vidokezo.",
+      "Wengine wanajifunza, wanasema «Nimefaulu» na wanaweza kukushukuru."
+     ],
+     "mp4": "sw/savoir.mp4"
+    },
+    "ha": {
+     "titre": "Ƙwarewa",
+     "etapes": [
+      "Ɗauki bidiyon gwanintarka da La Forge, har zuwa minti 10.",
+      "Ƙara takardar: kayan aiki, matakai, dabaru.",
+      "Wasu suna koyo, suna cewa «Na yi nasara» kuma suna iya gode maka."
+     ],
+     "mp4": "ha/savoir.mp4"
+    },
+    "yo": {
+     "titre": "Ìmọ̀-ọwọ́",
+     "etapes": [
+      "Ya ìmọ̀ iṣẹ́ rẹ pẹ̀lú La Forge, títí dé ìṣẹ́jú 10.",
+      "Fi ìwé àlàyé kún un: àwọn ohun èlò, àwọn ìgbésẹ̀, àwọn ọgbọ́n.",
+      "Àwọn mìíràn ń kọ́, wọ́n ń sọ pé «Mo ṣe é» wọ́n sì lè dúpẹ́ lọ́wọ́ rẹ."
+     ],
+     "mp4": "yo/savoir.mp4"
+    },
+    "wo": {
+     "titre": "Xam-def",
+     "etapes": [
+      "Filmeel sa xam-xam ak La Forge, ba 10 simili.",
+      "Yokkal kayit bi: jumtukaay yi, tappaliku yi, pexe yi.",
+      "Ñeneen ñi dañuy jàng, wax «Am naa ko» te mën nañu la sant."
+     ],
+     "mp4": "wo/savoir.mp4"
+    },
+    "bm": {
+     "titre": "Dɔnniya",
+     "etapes": [
+      "I ka seko ja ta ni La Forge ye, fo miniti 10.",
+      "Sɛbɛn fara a kan: minɛnw, taabolow, hakilinanw.",
+      "Tɔw bɛ a kalan, k'a fɔ ko «N y'a sɔrɔ» ani u bɛ se ka i fo."
+     ],
+     "mp4": "bm/savoir.mp4"
+    },
+    "ln": {
+     "titre": "Mayele ya Misala",
+     "etapes": [
+      "Kanga mayele na yo na La Forge, kino miniti 10.",
+      "Bakisa fishe: bisaleli, bitambe, mayele.",
+      "Basusu bayekolaka, balobaka «Nalongi» mpe bakoki kopesa yo matondi."
+     ],
+     "mp4": "ln/savoir.mp4"
+    }
+   }
+  },
+  "aines": {
+   "module": "Aines",
+   "scene": "aines",
+   "couleurs": [
+    "#ffc531",
+    "#ff8a5c"
+   ],
+   "fond": "aines_fond.mp4",
+   "affiche": "aines.jpg",
+   "langues": {
+    "fr": {
+     "titre": "Le Cercle des aînées",
+     "etapes": [
+      "Une aînée validée par l’équipe programme un cercle.",
+      "Vous vous inscrivez et posez vos questions à l’avance, sans votre nom.",
+      "Le cercle a lieu en direct, en petit groupe, dans la Salle Baobab."
+     ],
+     "mp4": "fr/aines.mp4"
+    },
+    "en": {
+     "titre": "The Elders’ Circle",
+     "etapes": [
+      "An elder approved by the team schedules a circle.",
+      "You sign up and ask your questions in advance, without your name.",
+      "The circle takes place live, in a small group, in the Salle Baobab."
+     ],
+     "mp4": "en/aines.mp4"
+    },
+    "es": {
+     "titre": "El Círculo de las Mayores",
+     "etapes": [
+      "Una mayor validada por el equipo programa un círculo.",
+      "Te inscribes y haces tus preguntas de antemano, sin tu nombre.",
+      "El círculo se celebra en directo, en grupo pequeño, en la Salle Baobab."
+     ],
+     "mp4": "es/aines.mp4"
+    },
+    "pt": {
+     "titre": "O Círculo das Veteranas",
+     "etapes": [
+      "Uma veterana validada pela equipa marca um círculo.",
+      "Inscreve-se e faz as suas perguntas antecipadamente, sem o seu nome.",
+      "O círculo decorre em direto, em pequeno grupo, na Salle Baobab."
+     ],
+     "mp4": "pt/aines.mp4"
+    },
+    "ar": {
+     "titre": "حلقة الحكيمات",
+     "etapes": [
+      "تبرمج حكيمة معتمدة من الفريق دائرة.",
+      "تسجّل وتطرح أسئلتك مسبقًا، دون اسمك.",
+      "تُقام الدائرة مباشرة، في مجموعة صغيرة، في Salle Baobab."
+     ],
+     "mp4": "ar/aines.mp4"
+    },
+    "sw": {
+     "titre": "Mduara wa Wazee",
+     "etapes": [
+      "Mzee aliyeidhinishwa na timu anapanga duara.",
+      "Unajisajili na kuuliza maswali yako mapema, bila jina lako.",
+      "Duara hufanyika moja kwa moja, kwa kikundi kidogo, katika Salle Baobab."
+     ],
+     "mp4": "sw/aines.mp4"
+    },
+    "ha": {
+     "titre": "Da’irar Dattijai",
+     "etapes": [
+      "Wata dattijuwa da ƙungiyar ta amince da ita tana shirya da'ira.",
+      "Ka yi rajista ka kuma yi tambayoyinka tun da wuri, ba tare da sunanka ba.",
+      "Da'irar tana gudana kai tsaye, a ƙaramin rukuni, a cikin Salle Baobab."
+     ],
+     "mp4": "ha/aines.mp4"
+    },
+    "yo": {
+     "titre": "Àyíká Àwọn Àgbà",
+     "etapes": [
+      "Àgbà kan tí ẹgbẹ́ fọwọ́ sí máa ń ṣètò àwùjọ kan.",
+      "O forúkọ sílẹ̀, o sì béèrè àwọn ìbéèrè rẹ ṣáájú, láìsí orúkọ rẹ.",
+      "Àwùjọ náà máa ń wáyé ní tààràtà, ní ẹgbẹ́ kékeré, nínú Salle Baobab."
+     ],
+     "mp4": "yo/aines.mp4"
+    },
+    "wo": {
+     "titre": "Mbooloo Mag ñi",
+     "etapes": [
+      "Mag bu ekib bi nangu dafay waajal ab mbooloo.",
+      "Dangay bind sa tur te laaj say laaj ci kanam, te sa tur du feeñ.",
+      "Mbooloo mi ci saa si lay am, ci ab mbooloo bu ndaw, ci Salle Baobab."
+     ],
+     "mp4": "wo/aines.mp4"
+    },
+    "bm": {
+     "titre": "Mɔgɔkɔrɔw ka Kulu",
+     "etapes": [
+      "Mɔgɔkɔrɔba min ekipu sɔnna a ma, o bɛ kulu dɔ labɛn.",
+      "I b'i tɔgɔ sɛbɛn ka i ka ɲininkaliw kɛ ka kɔn, i tɔgɔ tɛ jira.",
+      "Kulu bɛ kɛ sisan, jɛkulu fitinin na, Salle Baobab kɔnɔ."
+     ],
+     "mp4": "bm/aines.mp4"
+    },
+    "ln": {
+     "titre": "Lisanga ya Bankulutu",
+     "etapes": [
+      "Mokolo oyo ekipi endimaki abongisaka lisanga moko.",
+      "Okomikomisa mpe otuna mituna na yo liboso, kozanga nkombo na yo.",
+      "Lisanga esalemaka na mbala moko, na etuluku moke, na Salle Baobab."
+     ],
+     "mp4": "ln/aines.mp4"
+    }
+   }
+  },
+  "pagne": {
+   "module": "Pagne",
+   "scene": "pagne",
+   "couleurs": [
+    "#ffc531",
+    "#ff4f9e"
+   ],
+   "fond": "pagne_fond.mp4",
+   "affiche": "pagne.jpg",
+   "langues": {
+    "fr": {
+     "titre": "Mon pagne, ma nation",
+     "etapes": [
+      "Filmez le pagne de votre nation (30 secondes) et racontez son histoire.",
+      "L’équipe relit chaque tissu avant le défilé.",
+      "Votez pour les plus beaux : 3 voix, jamais pour votre propre nation."
+     ],
+     "mp4": "fr/pagne.mp4"
+    },
+    "en": {
+     "titre": "My cloth, my nation",
+     "etapes": [
+      "Film your nation's cloth (30 seconds) and tell its story.",
+      "The team reviews every fabric before the parade.",
+      "Vote for the most beautiful: 3 votes, never for your own nation."
+     ],
+     "mp4": "en/pagne.mp4"
+    },
+    "es": {
+     "titre": "Mi tela, mi nación",
+     "etapes": [
+      "Graba la tela de tu nación (30 segundos) y cuenta su historia.",
+      "El equipo revisa cada tela antes del desfile.",
+      "Vota por las más bonitas: 3 votos, nunca por tu propia nación."
+     ],
+     "mp4": "es/pagne.mp4"
+    },
+    "pt": {
+     "titre": "Meu pano, minha nação",
+     "etapes": [
+      "Filme o tecido da sua nação (30 segundos) e conte a sua história.",
+      "A equipa revê cada tecido antes do desfile.",
+      "Vote nos mais bonitos: 3 votos, nunca na sua própria nação."
+     ],
+     "mp4": "pt/pagne.mp4"
+    },
+    "ar": {
+     "titre": "قماشي، أمّتي",
+     "etapes": [
+      "صوّر قماش أمّتك (30 ثانية) واحكِ قصته.",
+      "يراجع الفريق كل قماش قبل العرض.",
+      "صوّت للأجمل: 3 أصوات، وليس لأمّتك أبدًا."
+     ],
+     "mp4": "ar/pagne.mp4"
+    },
+    "sw": {
+     "titre": "Kitenge changu, taifa langu",
+     "etapes": [
+      "Rekodi kitenge cha taifa lako (sekunde 30) na usimulie hadithi yake.",
+      "Timu inapitia kila kitambaa kabla ya maonyesho.",
+      "Pigia kura vilivyo vizuri zaidi: kura 3, kamwe si kwa taifa lako."
+     ],
+     "mp4": "sw/pagne.mp4"
+    },
+    "ha": {
+     "titre": "Zanina, ƙasata",
+     "etapes": [
+      "Ɗauki bidiyon zanin ƙasarka (daƙiƙa 30) ka ba da labarinsa.",
+      "Ƙungiyar tana duba kowane yadi kafin nunin.",
+      "Ka zaɓi mafi kyau: ƙuri'a 3, ba ga ƙasarka ba."
+     ],
+     "mp4": "ha/pagne.mp4"
+    },
+    "yo": {
+     "titre": "Aṣọ mi, orílẹ̀-èdè mi",
+     "etapes": [
+      "Ya aṣọ orílẹ̀-èdè rẹ (ìṣẹ́jú-àáyá 30) kí o sì sọ ìtàn rẹ̀.",
+      "Ẹgbẹ́ náà máa ń yẹ aṣọ kọ̀ọ̀kan wò ṣáájú ìfihàn.",
+      "Dìbò fún àwọn tó rẹwà jù: ìbò 3, kì í ṣe fún orílẹ̀-èdè tìrẹ láéláé."
+     ],
+     "mp4": "yo/pagne.mp4"
+    },
+    "wo": {
+     "titre": "Sama sér, sama réew",
+     "etapes": [
+      "Filmeel malaanu sa réew (30 saa) te nettali taariixam.",
+      "Ekib bi dafay seet malaan bu nekk laata wone wi.",
+      "Tànnal yi gën a rafet: 3 baat, du mukk sa réew."
+     ],
+     "mp4": "wo/pagne.mp4"
+    },
+    "bm": {
+     "titre": "N ka fini, n ka jamana",
+     "etapes": [
+      "I ka jamana fini ja ta (segondi 30) ka a ko lakali.",
+      "Ekipu bɛ fini kelen-kelen bɛɛ lajɛ sani jirali ka kɛ.",
+      "Kalata ta minnu cɛɲi kosɛbɛ: kalata 3, i yɛrɛ ka jamana tɛ abada."
+     ],
+     "mp4": "bm/pagne.mp4"
+    },
+    "ln": {
+     "titre": "Liputa na ngai, ekolo na ngai",
+     "etapes": [
+      "Kanga video ya liputa ya ekolo na yo (basekɔndɛ 30) mpe lobela lisolo na yango.",
+      "Ekipi etalaka elamba nyonso liboso ya molakisi.",
+      "Pona oyo eleki kitoko: ba vote 3, ata mokolo moko te mpo na ekolo na yo."
+     ],
+     "mp4": "ln/pagne.mp4"
+    }
+   }
+  }
+ }
+}

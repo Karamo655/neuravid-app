@@ -116,6 +116,7 @@ jobs:
       - name: Embarquer le site (copie hors connexion)
         run: |
           cp -r web projet/assets/web
+          rm -rf projet/assets/web/films   # 17 nov. 2026 : les films de présentation restent en ligne (trop lourds pour l'application)
           python3 - <<'EOF'
           import os
           dossiers = sorted(set(os.path.relpath(d, 'projet') + '/' for d, _, f in os.walk('projet/assets/web') if f))
@@ -339,6 +340,7 @@ jobs:
       - name: Embarquer le site (copie hors connexion)
         run: |
           cp -r web projet/assets/web
+          rm -rf projet/assets/web/films   # 17 nov. 2026 : les films de présentation restent en ligne (trop lourds pour l'application)
           python3 - <<'EOF'
           import os
           dossiers = sorted(set(os.path.relpath(d, 'projet') + '/' for d, _, f in os.walk('projet/assets/web') if f))

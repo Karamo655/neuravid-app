@@ -40,6 +40,7 @@ jobs:
         run: |
           mkdir -p app/assets
           cp -r web app/assets/web
+          rm -rf app/assets/web/films   # 17 nov. 2026 : les films de présentation restent en ligne (trop lourds pour l'application)
           rm -f app/assets/web/nv-config.js && cp web/nv-config.js app/assets/web/nv-config.js
           python3 - <<'EOF'
           import os
