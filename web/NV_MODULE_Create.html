@@ -904,7 +904,7 @@ body.nx-grands .durees button,body.nx-grands .modes button{min-height:40px;font-
     var d = el.querySelector('details'); d.addEventListener('toggle', function(){ el._ouvertUtilisateur = d.open; });
     if(o.apres && el.previousElementSibling !== o.apres) o.apres.parentNode.insertBefore(el, o.apres.nextSibling);
     film(el.querySelector('canvas'), o.scene, o.couleurs); }
-  window.NVPresente = {poser:poser, html:html, animer:animer, style:style, scenes:Object.keys(SCENES)};
+  window.NVPresente = {poser:poser, html:html, animer:animer, style:style, scenes:Object.keys(SCENES), dessins:SCENES, hex:hex};   /* dessins, hex : pour les films (defis/films) */
 })();
 
 (function(){
@@ -4469,7 +4469,7 @@ function lireContextes(){
   var d = lireCtx('nv_duo_ctx', 3600000); if(d && urlSure(d.url)){ CTX.duo = {url:urlSure(d.url), auteur:txt(d.auteur || d.author, 40), id:d.id || null}; effacerCle('nv_duo_ctx'); }
   /* 4. un autre module nous a ouverts avec un contexte (Le Griot ouvert seul, la Récolte…) */
   var o = null; try{ o = JSON.parse(sessionStorage.getItem('nv_ctx_' + MOI) || 'null'); sessionStorage.removeItem('nv_ctx_' + MOI); }catch(e){ dbg(e); }
-  if(o && typeof o === 'object'){ if(o.son) CTX.son = o.son; if(typeof o.decor === 'string' && estDecorAnime(o.decor)) CTX.decor = o.decor; if(o.media && o.media.echange) CTX.media = o.media; if(o.duo && urlSure(o.duo.url)) CTX.duo = o.duo; if(o.defi && !CTX.defi) CTX.defi = {defi:txt(o.defi.defi || o.defi.id, 80), titre:txt(o.defi.titre || o.defi.name, 80), tag:txt(o.defi.tag, 40) || null}; if(o.recette) CTX.recette = String(o.recette); if(o.stitch && urlSure(o.stitch.url)) CTX.stitch = o.stitch; if(o.ecran) CTX.ecran = o.ecran; }
+  if(o && typeof o === 'object'){ if(o.son) CTX.son = o.son; if(typeof o.decor === 'string' && estDecorAnime(o.decor)) CTX.decor = o.decor; if(o.media && o.media.echange) CTX.media = o.media; if(o.duo && urlSure(o.duo.url)) CTX.duo = o.duo; if(o.defi && !CTX.defi) CTX.defi = {defi:txt(o.defi.defi || o.defi.id, 80), titre:txt(o.defi.titre || o.defi.name, 80), tag:txt(o.defi.tag, 40) || null}; if(o.recette) CTX.recette = String(o.recette); if(o.stitch && urlSure(o.stitch.url)) CTX.stitch = o.stitch; if(o.ecran) CTX.ecran = o.ecran; if(o.nouveaute === 'miroir' || o.nouveaute === 'teint') CTX.nouveaute = o.nouveaute; }
   /* 5. le son choisi juste avant dans la bibliothèque (v22 : nv_sound_current) */
   var s = lire('nv_sound_current', null); if(!CTX.son && s && (s.src || s.id) && s.at && Date.now() - s.at < 3600000) CTX.son = s;
   /* 6. l'adresse */
@@ -8635,6 +8635,13 @@ ACTIONS['miroir'] = function(){ var avant = MIR.actif, r = _mirDec.apply(this, a
 /* Teint juste : quand « Mon teint » paraît dans l'outil Beauté */
 var _majTiroirDec = majTiroir;
 majTiroir = function(){ var r = _majTiroirDec.apply(this, arguments); if(!DEC.vus.teint && document.querySelector('#camTiroir .tj-zone')) setTimeout(function(){ decouvrir('teint'); }, 250); return r; };
+/* 17 nov. 2026 (étape 6 des 8 nouveautés) : « Découvrir » sous le film de l'accueil ouvre la nouveauté elle-même :
+   le Miroir choisi, ou « Mon teint » dans l'outil Beauté, dès que la caméra est ouverte (jamais pendant une prise). */
+(function(){ var n = 0, t = setInterval(function(){ if(++n > 120){ clearInterval(t); return; } if(!CTX.nouveaute || !CAM.ouvert || CAM.enreg) return; clearInterval(t);
+  var k = CTX.nouveaute; CTX.nouveaute = null;
+  if(k === 'miroir'){ if(!MIR.actif && ACTIONS['miroir']) ACTIONS['miroir'](); }
+  else if(k === 'teint' && typeof ouvrirTiroir === 'function') ouvrirTiroir('beaute');
+  emit('nouveaute_ouverte', {cle:k}); }, 250); })();
 
 /* ════════════════════════════════════════════════════════════════════
  LA FORGE EN ONZE LANGUES : FR · EN · ES · PT · AR (de droite à gauche) · SW · HA · YO · WO · BM · LN
