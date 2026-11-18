@@ -1,6 +1,6 @@
 {
- "version": "2026.11.18-6a882e130dde",
- "date": "2026-11-18T07:12:22Z",
+ "version": "2026.11.18-dc0d33ad8fb2",
+ "date": "2026-11-18T08:08:02Z",
  "entree": "index.html",
  "modules": [
   "NV_MODULE_Academie.html",
@@ -13,6 +13,7 @@
   "NV_MODULE_Battle.html",
   "NV_MODULE_CallUniverse.html",
   "NV_MODULE_ChallengeUniverse.html",
+  "NV_MODULE_Champions.html",
   "NV_MODULE_CinemaWorld.html",
   "NV_MODULE_Conditions.html",
   "NV_MODULE_Conteur.html",
@@ -72,8 +73,8 @@
    "taille": 283617
   },
   "NV_MODULE_Arena.html": {
-   "sha256": "eea93562155af98096519696985d2f4f2c9e348feb4280420279a8c1e9294472",
-   "taille": 1894838
+   "sha256": "2dcafd5a3ae6442b72ebd32eaf61422cb7d75b02b39e2c070b919423308ca0e9",
+   "taille": 1895925
   },
   "NV_MODULE_ArenaArts.html": {
    "sha256": "213b3f06654cbb88e88d315cc01ffbdd3b4ea1286fb946bc487fd548f8c36b65",
@@ -100,8 +101,12 @@
    "taille": 1303461
   },
   "NV_MODULE_ChallengeUniverse.html": {
-   "sha256": "5a9f79441cfb4b512f7686f1a771e6bac26aa53efa4a200546ec14142d278718",
-   "taille": 1898495
+   "sha256": "b5d4a25dd699b33de4c3788e5465d9644e4be429d7223298df2c370e775bbcf4",
+   "taille": 1911129
+  },
+  "NV_MODULE_Champions.html": {
+   "sha256": "9e194a7b9a40dc6a47d9f33013e128396c8cda42c04bca35c24414cb82f76cad",
+   "taille": 335790
   },
   "NV_MODULE_CinemaWorld.html": {
    "sha256": "01f2c4abf4febf2f1d4f3d1080a8bba49729142d5e0842d7a00e1594381fd168",
@@ -152,8 +157,8 @@
    "taille": 305261
   },
   "NV_MODULE_Home.html": {
-   "sha256": "3d0c7fd8e5e82520890691a92f963c1ec47e09c7390a51afb6482f28d1bd38fe",
-   "taille": 2064207
+   "sha256": "62468a3d0061959a0d04913728fbcb5295fb5860e2deaad40b77768eeacb0b8e",
+   "taille": 2066935
   },
   "NV_MODULE_Iris.html": {
    "sha256": "a225e17fc0329d5b1cf74b7390e4ea5c992799150d9ec90fceb0f9bcceaa51e9",
@@ -176,8 +181,8 @@
    "taille": 952760
   },
   "NV_MODULE_Notifications.html": {
-   "sha256": "19f024498d21ae7e36c54c8d9fdde1bfda9e087eb0784839bbd854865159a949",
-   "taille": 635224
+   "sha256": "0e8cfcd74a3fc48f9e080838ea0ea87acf050ada10249f3b3376f3a47f4afd17",
+   "taille": 642968
   },
   "NV_MODULE_Orbite.html": {
    "sha256": "34912e014397c5d4f08617deabb2278383804a7e416dae92c6526b2380ee96e1",
