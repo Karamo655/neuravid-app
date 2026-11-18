@@ -1,6 +1,6 @@
 {
- "version": "2026.11.18-e26d5582bce9",
- "date": "2026-11-18T02:37:24Z",
+ "version": "2026.11.18-ed5de70e6853",
+ "date": "2026-11-18T03:37:36Z",
  "entree": "index.html",
  "modules": [
   "NV_MODULE_Academie.html",
@@ -23,6 +23,7 @@
   "NV_MODULE_Etendard.html",
   "NV_MODULE_Etendard_leger.html",
   "NV_MODULE_Events.html",
+  "NV_MODULE_Festival.html",
   "NV_MODULE_Griot.html",
   "NV_MODULE_Home.html",
   "NV_MODULE_Iris.html",
@@ -95,8 +96,8 @@
    "taille": 1303461
   },
   "NV_MODULE_ChallengeUniverse.html": {
-   "sha256": "45be32bd38d3633cbf9d4e178039976418bc8712b9986a53a438323bc32dc0aa",
-   "taille": 1876443
+   "sha256": "cb6ecc26116431f21e106bbd79f75cd7a8254d828c3e0ccd48593cc94d2394ca",
+   "taille": 1889314
   },
   "NV_MODULE_CinemaWorld.html": {
    "sha256": "01f2c4abf4febf2f1d4f3d1080a8bba49729142d5e0842d7a00e1594381fd168",
@@ -138,13 +139,17 @@
    "sha256": "9969fe3919503893e426b56e2f7d689597a258cfab39022388e927ab81bb8500",
    "taille": 1702061
   },
+  "NV_MODULE_Festival.html": {
+   "sha256": "7f06cb168c68c5615418d57647dca8ccaf8e368e51b8d3d9ced4f29124084a2d",
+   "taille": 262868
+  },
   "NV_MODULE_Griot.html": {
    "sha256": "748c52debfd49ac0ee96bca1ec77639de1a4b0a8f62dab50e658786a108f86d3",
    "taille": 305261
   },
   "NV_MODULE_Home.html": {
-   "sha256": "d6462fd9f190e33228591d23dda91a87d60b865733468a90c967ce9c867e3592",
-   "taille": 2046326
+   "sha256": "b8bc8bca95c33886b184b00c1859ae96f95053c01c0999e4770d489cc56cf52b",
+   "taille": 2050802
   },
   "NV_MODULE_Iris.html": {
    "sha256": "004bcd3c50d2de4cde4936321dab94fef4b7a56cf58f7d3c4276d79478fe08e8",
@@ -167,8 +172,8 @@
    "taille": 952760
   },
   "NV_MODULE_Notifications.html": {
-   "sha256": "b384bab25870cc8c1337cbe8d1ddca986dcadbbda3afb5f1b1f7d6f72de4de2f",
-   "taille": 586653
+   "sha256": "c835b0624bb20588fddf43f0e4c9328ac02d6e361999a43fa4b785def1127838",
+   "taille": 594897
   },
   "NV_MODULE_Orbite.html": {
    "sha256": "34912e014397c5d4f08617deabb2278383804a7e416dae92c6526b2380ee96e1",
