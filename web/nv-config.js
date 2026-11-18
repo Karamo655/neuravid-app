@@ -10,7 +10,7 @@
      de la page (script injecté au démarrage du document) : ce fichier ne remplace jamais une valeur déjà posée. */
 (function(){
   var CONFIG = {
-    api: '',                 /* adresse du serveur, sans « / » final. Vide = aucune adresse. */
+    api: 'https://api.neuravid.com',   /* 18 nov. 2026 : le site et l'application parlent au vrai serveur (essai réussi de Karamo). Sans « / » final. */
     avatarOrigines: [],      /* origines autorisées pour les photos des créateurs (ex. 'https://cdn.neuravid.com') */
     iaServeur: '',           /* serveur d'IA (idées de défis de La Ruche : POST /v1/ia/idees-defi). Vide = les idées du guide de chaque défi. */
     modules: './',           /* où sont les autres modules : './' = à côté de cette page (site web). L'application peut poser NV_MODULES_BASE elle-même. */
