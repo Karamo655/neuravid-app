@@ -1,6 +1,6 @@
 {
- "version": "2026.11.18-2c831f7fa392",
- "date": "2026-11-18T06:24:45Z",
+ "version": "2026.11.18-6a882e130dde",
+ "date": "2026-11-18T07:12:22Z",
  "entree": "index.html",
  "modules": [
   "NV_MODULE_Academie.html",
@@ -56,6 +56,7 @@
   "NV_MODULE_Studio.html",
   "NV_MODULE_StyleUniverse.html",
   "NV_MODULE_TalentJour.html",
+  "NV_MODULE_TalentMatch.html",
   "NV_MODULE_Transformation.html",
   "NV_MODULE_Tresse.html",
   "NV_MODULE_ViralStorm.html"
@@ -115,8 +116,8 @@
    "taille": 1450420
   },
   "NV_MODULE_Cote.html": {
-   "sha256": "cc0eaef90ef1217d3fea6ba93f60dcac050e0dca76b20727680d6a27910c1568",
-   "taille": 164186
+   "sha256": "9e0d2361fc7bb0acdacb49d363d69e5bf0a1888be6c133ec2835a9be50ce5a91",
+   "taille": 175685
   },
   "NV_MODULE_Create.html": {
    "sha256": "6d24db70b3d6fd80b423ee78d05e4266acf8705997aa7357b330c86bd326e5b5",
@@ -151,8 +152,8 @@
    "taille": 305261
   },
   "NV_MODULE_Home.html": {
-   "sha256": "1eea23d9e85e4c234ceaa0bfbcba7203c603da236790c6ca9b5f4e818cc61e15",
-   "taille": 2061006
+   "sha256": "3d0c7fd8e5e82520890691a92f963c1ec47e09c7390a51afb6482f28d1bd38fe",
+   "taille": 2064207
   },
   "NV_MODULE_Iris.html": {
    "sha256": "a225e17fc0329d5b1cf74b7390e4ea5c992799150d9ec90fceb0f9bcceaa51e9",
@@ -175,8 +176,8 @@
    "taille": 952760
   },
   "NV_MODULE_Notifications.html": {
-   "sha256": "b359b13531705daa90936646bf5339f6935f4ce1162d1de5cc17f95b1ac91974",
-   "taille": 630181
+   "sha256": "19f024498d21ae7e36c54c8d9fdde1bfda9e087eb0784839bbd854865159a949",
+   "taille": 635224
   },
   "NV_MODULE_Orbite.html": {
    "sha256": "34912e014397c5d4f08617deabb2278383804a7e416dae92c6526b2380ee96e1",
@@ -243,8 +244,8 @@
    "taille": 112359
   },
   "NV_MODULE_SansFrontieres.html": {
-   "sha256": "14f5901ed5fb1b92288abc8fd91f9c6ec8213833a2e95b84a05fec0a466fc342",
-   "taille": 284737
+   "sha256": "d00f069b53db7dbab9fc4ee7ff3359cdb1e0f96e3186f234202475ff1a5b365a",
+   "taille": 286542
   },
   "NV_MODULE_Savoir.html": {
    "sha256": "14c6d8467ff5523378cf5d561c9eda91f5282b341497eb2d91d364d7c88f18c6",
@@ -273,6 +274,10 @@
   "NV_MODULE_TalentJour.html": {
    "sha256": "8e0d9ed2949fd85a9e2f47cc913ef0753d9c35440b9753c7126933e380aa7f5e",
    "taille": 177188
+  },
+  "NV_MODULE_TalentMatch.html": {
+   "sha256": "e42ce98a58a7c59541057cd93efccc492c7b6ac72bf7ab09376954545566b0d0",
+   "taille": 201727
   },
   "NV_MODULE_Transformation.html": {
    "sha256": "404d211b531b67874c5214ae2f10279e7866f319bb68f4723c863be9d6d1b767",

@@ -760,6 +760,14 @@ input:disabled{opacity:.5}
       g.globalAlpha = 1;
       if(m > 0){ g.globalAlpha = m; g.fillStyle = 'rgba(255,255,255,.12)'; hex(g, cx, cy, R * .7); g.fill(); g.strokeStyle = c[1]; g.lineWidth = 3; hex(g, cx, cy, R * .7); g.stroke();
         g.fillStyle = '#fff'; g.beginPath(); g.moveTo(cx - R * .14, cy - R * .2); g.lineTo(cx + R * .22, cy); g.lineTo(cx - R * .14, cy + R * .2); g.closePath(); g.fill(); g.globalAlpha = 1; } },
+    /* Les rencontres de talents (18 nov. 2026) : deux hexagones de talents, leurs points communs s'allument, puis un fil les relie */
+    talentmatch: function(g, w, h, t, c){ var cx = w / 2, cy = h / 2, R = Math.min(w, h) * .3, cyc = t % 6, k = Math.min(3, Math.floor(cyc / 1.2)), m = Math.max(0, Math.min(1, (cyc - 3.8) / 1)), i;
+      var a = [cx - R * .95, cy], b = [cx + R * .95, cy];
+      g.fillStyle = c[0]; hex(g, a[0], a[1], R * .42); g.fill(); g.fillStyle = c[1]; hex(g, b[0], b[1], R * .42); g.fill();
+      g.font = Math.round(R * .38) + 'px sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('🎤', a[0], a[1] + 1); g.fillText('💃', b[0], b[1] + 1);
+      for(i = 0; i < 3; i++){ var y = cy - R * .55 + i * R * .55, on = i < k; g.fillStyle = on ? '#fff' : 'rgba(255,255,255,.16)'; hex(g, cx, y, R * .13); g.fill(); }
+      if(m > 0){ g.strokeStyle = '#ffd36b'; g.lineWidth = 3; g.globalAlpha = m; g.beginPath(); g.moveTo(a[0] + R * .42, a[1]); g.lineTo(a[0] + R * .42 + (b[0] - a[0] - R * .84) * m, a[1]); g.stroke(); g.globalAlpha = 1; }
+      g.textBaseline = 'alphabetic'; },
     /* La Révélation (18 nov. 2026) : trois indices s'allument un à un, puis un rideau doré s'ouvre sur le talent */
     revelation: function(g, w, h, t, c){ var cx = w / 2, cy = h / 2, R = Math.min(w, h) * .34, cyc = t % 6, k = Math.min(3, Math.floor(cyc / 1.1)), o = Math.max(0, Math.min(1, (cyc - 3.6) / 1.2));
       for(var i = 0; i < 3; i++){ var x = cx - R * .9 + i * R * .9, y = cy + R * .95, on = i < k; g.fillStyle = on ? (i % 2 ? c[1] : c[0]) : 'rgba(255,255,255,.16)'; hex(g, x, y, R * .16); g.fill();
@@ -1417,7 +1425,7 @@ function decider(pt, oui){
 function inviter(){
   var v = String(($('iInviter') || {}).value || '').trim(); if(v.replace('@', '').length < 2){ toast(T('Écrivez un pseudo.')); return; }
   geste('inv' + v, base() + '/inviter', {pseudo:v}, function(){ ST.un.invitations = (ST.un.invitations || []).concat([{handle:v.replace(/^@/, ''), pays:''}]); return ST.un; },
-    function(o){ ST.un = o; ST.saisies.iInviter = ''; toast(T('Invitation envoyée.')); rendre(); });
+    function(o){ ST.un = o; ST.saisies.iInviter = ''; try{ sessionStorage.removeItem('nv_sf_inviter'); }catch(e){} toast(T('Invitation envoyée.')); rendre(); });
 }
 function desinviter(h){ geste('des' + h, base() + '/invitations/retirer', {pseudo:'@' + h}, function(){ ST.un.invitations = (ST.un.invitations || []).filter(function(q){ return q.handle !== h; }); return ST.un; }, function(o){ ST.un = o; rendre(); }); }
 function decliner(){ var x = ST.un; geste('decl', base() + '/quitter-invitation', {}, function(){ return {ok:true}; }, function(){ toast(T('C’est fait.')); if(ST.apercu){ x.moi.role = 'visiteur'; } chargerListe('mes'); }); }
@@ -1519,6 +1527,10 @@ function demarrer(){
   if(ST.apercu && !utilisateur()){ try{ window.NV_USER = {id:'demo', handle:'visiteur', prenom:'Aya', age:25, majeur:true, iso:'GN'}; }catch(e){} }
   var ctx = null;
   try{ ctx = JSON.parse(sessionStorage.getItem('nv_ctx_' + MOI) || 'null'); sessionStorage.removeItem('nv_ctx_' + MOI); }catch(e){}
+  /* venu de l'assistant des rencontres : le pseudo est prêt à inviter dès que la chaîne est ouverte */
+  /* gardé pour la session : il survit au passage par La Forge (filmer le début), oublié une fois l'invitation envoyée */
+  if(ctx && typeof ctx.inviter === 'string' && /^@?[\w.]{2,40}$/.test(ctx.inviter)){ ST.saisies.iInviter = '@' + ctx.inviter.replace(/^@/, ''); try{ sessionStorage.setItem('nv_sf_inviter', ST.saisies.iInviter); }catch(e){} }
+  else if(!ST.saisies.iInviter){ try{ var gi = sessionStorage.getItem('nv_sf_inviter'); if(gi && /^@[\w.]{2,40}$/.test(gi)) ST.saisies.iInviter = gi; }catch(e){} }
   rendre();
   chargerCap().catch(function(e){ ST.cap = null; ST.etat = e && e.status && e.status < 500 ? 'indisponible' : navigator.onLine === false ? 'horsligne' : 'erreur'; })
     .then(function(){ if(!ST.cap) return null; return reprendrePrise(); })

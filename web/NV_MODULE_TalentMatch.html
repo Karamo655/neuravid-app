@@ -1,0 +1,1019 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<!--NV_VITESSE--><script>/* NEURAVID — la vitesse commune (14 novembre 2026). Injectée en tête de chaque module par injecter_vitesse.py.
+   Rien n'est retiré : chaque animation reste, elle travaille seulement quand on la voit, et au rythme que le téléphone peut tenir.
+   1. La cadence des images (requestAnimationFrame) suit le téléphone et la personne :
+      - téléphone modeste (≤ 4 cœurs, ≤ 2 Go, ou économie de données) : 30 images/s au plus ;
+      - personne qui ne touche à rien depuis 15 s : 30 images/s (20 sur un téléphone modeste) ; tout geste rend la pleine cadence ;
+      - jamais pendant une capture (caméra, micro ou enregistrement en cours) : pleine cadence, rien n'est touché.
+   2. Les animations CSS sans fin s'arrêtent quand elles sortent de l'écran, et reprennent dès qu'elles reviennent.
+   3. (deuxième vague) Quand la cadence est réduite, les animations CSS sans fin et les animations SVG à l'écran avancent AU MÊME
+      rythme que le reste (elles sont « pilotées » : même mouvement, même vitesse, mais une image calculée 30 ou 20 fois par seconde
+      au lieu de 60). Sans cela, une seule petite animation obligeait le téléphone à recomposer tout l'écran 60 fois par seconde.
+      Tout geste les rend à elles-mêmes. Une animation mise en pause par le module n'est jamais relancée.
+   window.NVVitesse = {faible, cadence(), cran(), repos(), capture(), pilotees()} pour les essais. */
+(function(){ 'use strict';
+  if(window.NVVitesse || typeof window.requestAnimationFrame !== 'function') return;
+  var N = navigator, cx = N.connection || {}, coeurs = N.hardwareConcurrency || 8, mem = N.deviceMemory || 8;
+  var faible = coeurs <= 4 || mem <= 2 || !!cx.saveData;
+  var REPOS_MS = 15000, IV_FAIBLE = 1000 / 30, IV_REPOS = 1000 / (faible ? 20 : 30);
+  var natRAF = window.requestAnimationFrame.bind(window), natCAF = window.cancelAnimationFrame.bind(window);
+  var maintenant = function(){ return (window.performance && performance.now) ? performance.now() : Date.now(); };
+  var file = new Map(), suivant = 1, demande = 0, dernier = -1e9, geste = maintenant();
+
+  /* ── la capture : flux de la caméra ou du micro encore vivants, ou enregistrement en cours ── */
+  var flux = [], enregistreurs = [], capCache = {t:0, v:false}, md = null;
+  function enCapture(){ var t = maintenant(); if(t - capCache.t < 400) return capCache.v; capCache.t = t; var v = false;
+    try{
+      flux = flux.filter(function(s){ return s.getTracks().some(function(k){ return k.readyState === 'live'; }); }); if(flux.length) v = true;
+      enregistreurs = enregistreurs.filter(function(r){ return r.state !== 'inactive'; }); if(enregistreurs.length) v = true;
+    }catch(e){ v = true; }
+    return (capCache.v = v); }
+  try{ md = N.mediaDevices; if(md && md.getUserMedia){ var gum = md.getUserMedia.bind(md);
+    md.getUserMedia = function(){ return gum.apply(null, arguments).then(function(s){ flux.push(s); capCache.t = 0; return s; }); }; } }catch(e){}
+  try{ if(md && md.getDisplayMedia){ var gdm = md.getDisplayMedia.bind(md);
+    md.getDisplayMedia = function(){ return gdm.apply(null, arguments).then(function(s){ flux.push(s); capCache.t = 0; return s; }); }; } }catch(e){}
+  try{ if(window.MediaRecorder && MediaRecorder.prototype.start){ var dem = MediaRecorder.prototype.start;
+    MediaRecorder.prototype.start = function(){ enregistreurs.push(this); capCache.t = 0; return dem.apply(this, arguments); }; } }catch(e){}
+
+  function repos(){ return maintenant() - geste > REPOS_MS; }
+  /* 4. la cadence qui s'adapte : si le téléphone n'arrive pas à tenir la cadence voulue (les images arrivent 1,6 fois trop tard
+     pendant 2 s), on descend d'un cran (60 → 30 → 20, ou 30 → 20 → 15 sur un téléphone modeste) ; quand il respire de nouveau
+     pendant 8 s, on remonte. Une cadence tenue est plus fluide, et les touchers sont servis plus vite, qu'une cadence ratée. */
+  var CRANS = faible ? [30, 20, 15] : [60, 30, 20], cran = 0, ema = 0, lent = 0, aise = 0, derniereImage = 0;
+  function voulue(){ var c = CRANS[cran]; if(repos()) c = Math.min(c, faible ? 20 : 30); return c; }
+  function intervalle(){ if(enCapture()) return 0; var c = voulue(); return c >= 60 ? 0 : 1000 / c; }
+  function mesurer(ts){ var d = ts - derniereImage; derniereImage = ts; if(d <= 0 || d > 250){ ema = 0; return; }
+    ema = ema ? ema * .9 + d * .1 : d; var cible = 1000 / voulue();
+    if(ema > cible * 1.6){ lent += d; aise = 0; if(lent > 2000 && cran < CRANS.length - 1){ cran++; lent = 0; ema = 0; } }
+    else if(ema < cible * 1.15){ aise += d; lent = 0; if(aise > 8000 && cran > 0){ cran--; aise = 0; ema = 0; } }
+    else { lent = 0; aise = 0; } }
+
+  /* ── les animations pilotées (CSS sans fin et SVG à l'écran, seulement quand la cadence est réduite) ── */
+  var pilotes = [], svgs = [], gouverne = false;
+  function piloter(ts){
+    for(var i = 0; i < pilotes.length; i++){ var p = pilotes[i]; try{ p.a.currentTime = p.base + (ts - p.t0) * (p.a.playbackRate || 1); }catch(e){} }
+    for(i = 0; i < svgs.length; i++){ var q = svgs[i]; try{ q.s.setCurrentTime(q.base + (ts - q.t0) / 1000); }catch(e){} } }
+  function relancer(){ if(!demande && (file.size || pilotes.length || svgs.length)) demande = natRAF(tour); }
+  function prendre(a){ for(var i = 0; i < pilotes.length; i++) if(pilotes[i].a === a) return;
+    try{ var ct = a.currentTime || 0; a.pause(); a.currentTime = ct; pilotes.push({a:a, base:ct, t0:maintenant()}); relancer(); }catch(e){} }
+  function prendreSvg(s){ for(var i = 0; i < svgs.length; i++) if(svgs[i].s === s) return;
+    try{ if(s.animationsPaused()) return; var ct = s.getCurrentTime(); s.pauseAnimations(); svgs.push({s:s, base:ct, t0:maintenant()}); relancer(); }catch(e){} }
+  function lacher(){ var l = pilotes; pilotes = [];
+    l.forEach(function(p){ try{ var t = p.a.effect && p.a.effect.target; if(p.a.playState === 'paused' && t && t.isConnected) p.a.play(); }catch(e){} });
+    var m = svgs; svgs = []; m.forEach(function(q){ try{ q.s.unpauseAnimations(); }catch(e){} }); }
+  function lacherA(a){ pilotes = pilotes.filter(function(p){ return p.a !== a; }); }
+
+  function tour(ts){ demande = 0; if(!file.size && !pilotes.length && !svgs.length) return;
+    var iv = intervalle(); if(iv && ts - dernier < iv - 3){ demande = natRAF(tour); return; }
+    if(!iv && (pilotes.length || svgs.length)) lacher();
+    dernier = ts; if(!enCapture()) mesurer(ts); if(iv) piloter(ts);
+    var lot = file; file = new Map();
+    lot.forEach(function(cb){ try{ cb(ts); }catch(e){ setTimeout(function(){ throw e; }, 0); } });
+    relancer(); }
+  window.requestAnimationFrame = function(cb){ if(typeof cb !== 'function') return natRAF(cb); var id = suivant++; file.set(id, cb); if(!demande) demande = natRAF(tour); return id; };
+  window.cancelAnimationFrame = function(id){ file.delete(id); if(!file.size && !pilotes.length && !svgs.length && demande){ natCAF(demande); demande = 0; } };
+  function bouge(){ var r = repos(); geste = maintenant(); if(r) dernier = -1e9; if(gouverne && !intervalle()){ gouverne = false; lacher(); } }
+  ['pointerdown', 'touchstart', 'keydown', 'wheel', 'scroll'].forEach(function(n){ window.addEventListener(n, bouge, {capture:true, passive:true}); });
+
+  /* ── les animations CSS sans fin hors de l'écran ── */
+  var suivis = typeof WeakMap === 'function' ? new WeakMap() : null, arretees = [], io = null;
+  function sansFin(a){ try{ return a.effect && a.effect.getTiming && a.effect.getTiming().iterations === Infinity; }catch(e){ return false; } }
+  function voulueEnPause(el){ try{ return /paused/.test(getComputedStyle(el).animationPlayState || ''); }catch(e){ return false; } }
+  function estCSS(a){ return !!(window.CSSAnimation && a instanceof CSSAnimation); }
+  if(suivis && 'IntersectionObserver' in window && document.getAnimations){
+    io = new IntersectionObserver(function(es){ es.forEach(function(e){ var el = e.target, s = suivis.get(el); if(!s) return; s.vu = e.isIntersecting;
+      if(s.vu){ var reste = []; arretees.forEach(function(a){ var t = a.effect && a.effect.target;
+          if(t === el){ if(a.playState === 'paused' && !voulueEnPause(el)){ if(gouverne) prendre(a); else try{ a.play(); }catch(x){} } } else reste.push(a); }); arretees = reste; }
+      else { try{ el.getAnimations().forEach(function(a){ if(!estCSS(a) || !sansFin(a)) return; var pil = pilotes.some(function(p){ return p.a === a; });
+          if(pil){ lacherA(a); arretees.push(a); } else if(a.playState === 'running'){ try{ a.pause(); arretees.push(a); }catch(x){} } }); }catch(x){} } }); }, {rootMargin:'120px'});
+    var balayer = function(){ if(document.hidden) return;
+      arretees = arretees.filter(function(a){ var t = a.effect && a.effect.target; return t && t.isConnected; });
+      pilotes = pilotes.filter(function(p){ var t = p.a.effect && p.a.effect.target; return t && t.isConnected && p.a.playState !== 'idle'; });
+      gouverne = intervalle() > 0; if(!gouverne && (pilotes.length || svgs.length)) lacher();
+      try{ document.getAnimations().forEach(function(a){ if(!estCSS(a) || !sansFin(a)) return; var t = a.effect && a.effect.target; if(!t || t.nodeType !== 1) return;
+        var s = suivis.get(t); if(!s){ suivis.set(t, {vu:true}); io.observe(t); return; }
+        if(!s.vu){ if(a.playState === 'running'){ try{ a.pause(); arretees.push(a); }catch(x){} } return; }
+        if(gouverne && a.playState === 'running' && !voulueEnPause(t)) prendre(a); }); }catch(e){}
+      /* les SVG animés : endormis hors de l'écran, pilotés à l'écran quand la cadence est réduite */
+      try{ [].forEach.call(document.querySelectorAll('svg'), function(s){ if(s.ownerSVGElement || !s.pauseAnimations) return;
+          if(!s.querySelector('animate,animateTransform,animateMotion,set')) return; var r = s.getBoundingClientRect(), vu = !!(r.width && r.bottom > -120 && r.top < innerHeight + 120);
+          if(!vu){ var pil = svgs.some(function(q){ return q.s === s; });
+            if(pil){ svgs = svgs.filter(function(q){ return q.s !== s; }); s.__nvDort = true; }
+            else if(!s.animationsPaused()){ try{ s.pauseAnimations(); s.__nvDort = true; }catch(e){} } return; }
+          if(s.__nvDort){ s.__nvDort = false; try{ s.unpauseAnimations(); }catch(e){} }
+          if(gouverne) prendreSvg(s); }); }catch(e){}
+      svgs = svgs.filter(function(q){ return q.s.isConnected; }); };
+    var lancer = function(){ balayer(); setInterval(balayer, 2000); };
+    if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', function(){ setTimeout(lancer, 1500); }); else setTimeout(lancer, 1500);
+  }
+  window.NVVitesse = {faible:faible, repos:repos, capture:enCapture, cadence:function(){ var iv = intervalle(); return iv ? Math.round(1000 / iv) : 60; }, cran:function(){ return cran; },
+    pilotees:function(){ return {css:pilotes.length, svg:svgs.length}; }};
+})();</script><!--/NV_VITESSE-->
+<!--NV_CONFIG--><script src="nv-config.js"></script><!--/NV_CONFIG-->
+<!--NV_DEMO--><script id="nv-demo">
+/* NEURAVID — LA DÉMONSTRATION dans chaque module (injectée en tête de page, avant le module).
+   Jamais avec un serveur (NV_API_BASE) ; sans serveur, partout (17 nov. 2026, voir plus bas). Allumée si l'accueil l'a allumée pour la session
+   (sessionStorage « nv_demo » = 1), ou « #demo » dans l'adresse, ou une page ouverte comme fichier (file:, content:).
+   Elle permet seulement d'ouvrir les autres modules à côté (NV_MODULES_BASE) avec le même visiteur de démonstration ;
+   chaque module garde ses propres règles (rien d'inventé hors de la démonstration).
+   Seule exception à « jamais dans l'application » : l'APK « NEURAVID Aperçu » pose window.NV_APERCU = true (3 nov. 2026) ;
+   l'application de production ne le pose jamais. */
+(function(){ try{ var h = location.hash || '', s = null; try{ s = sessionStorage.getItem('nv_demo'); }catch(e){ s = null; }
+  /* 17 nov. 2026 (Karamo : « ne plus dépendre l'affichage… uniquement par la présence d'un serveur ») : SANS SERVEUR, l'aperçu
+     s'allume partout, aussi dans l'application et sur le site officiel (toujours marqué « Aperçu ») ; « #demo=0 » ou « Quitter
+     la démonstration » l'éteignent ; dès qu'un serveur est branché (NV_API_BASE), jamais. */
+  if((typeof window.NV_API_BASE === 'string' && window.NV_API_BASE) || s === '0' || /(^#|&)demo=0(&|$)/.test(h)) return;
+  /* L'Entrée, Nos conditions et Le signalement : seulement une démonstration demandée (jamais d'office) ; un faux compte, une
+     fausse acceptation ou un faux signalement tromperaient. */
+  var explicite = s === '1' || /(^#|&)demo(=1)?(&|$)/.test(h) || /^(file|content):$/.test(location.protocol);
+  if(!explicite && /NV_MODULE_(Entree|Conditions|Report)\.html/.test(location.pathname || '')) return;
+  window.NV_DEMO = true; try{ sessionStorage.setItem('nv_demo', '1'); }catch(e){ /* rien */ }
+  if(!window.NV_MODULES_BASE) window.NV_MODULES_BASE = './';
+  if(!window.NV_USER) window.NV_USER = {id:'demo', handle:'visiteur', prenom:'Aya', age:25, majeur:true, iso:'GN'};
+}catch(e){ /* rien */ } })();
+</script><!--/NV_DEMO-->
+
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#140b33">
+<title>Les rencontres de talents · NEURAVID</title>
+<style>
+/* Les rencontres de talents : un assistant qui suggère des partenaires de collaboration (18 novembre 2026).
+   Aucune ressource extérieure : les vidéos viennent des serveurs (univers et publication). */
+:root{
+  --nuit:#140b33; --nuit2:#1c1147; --alv:#241657; --craie:#f6f1ff; --brume:rgba(236,228,255,.74); --trait:rgba(255,255,255,.16);
+  --or:#ffc531; --argent:#d7dbe6; --bronze:#e0995a; --cyan:#16e0d4; --rose:#ff4f9e; --rouge:#ff7a7a;
+  --hex:polygon(25% 0,75% 0,100% 50%,75% 100%,25% 100%,0 50%);
+  --sans:system-ui,-apple-system,"Segoe UI",Roboto,"Noto Sans",sans-serif;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%;text-size-adjust:100%}
+body{margin:0;background:var(--nuit);color:var(--craie);font:16px/1.45 var(--sans);min-height:100vh}
+main{max-width:768px;margin:0 auto;padding:12px 16px calc(32px + env(safe-area-inset-bottom,0px))}
+header{display:flex;align-items:center;gap:10px;padding:6px 0 10px}
+.hex{width:34px;height:30px;flex:0 0 auto;clip-path:var(--hex);background:linear-gradient(135deg,var(--cyan),#6c2bd9);display:grid;place-items:center}
+.hex i{width:14px;height:14px;border-radius:50%;background:var(--nuit);box-shadow:inset 0 0 0 4px var(--craie)}
+h1{font-size:1.2rem;margin:0;line-height:1.2}
+h2{font-size:1rem;margin:0 0 8px;display:flex;align-items:center;gap:8px}
+h2::before{content:"";width:12px;height:11px;clip-path:var(--hex);background:var(--cyan);flex:0 0 auto}
+.sous{margin:0;color:var(--brume);font-size:.88rem}
+.apercu{display:inline-block;margin-inline-start:6px;padding:1px 8px;border-radius:999px;background:var(--or);color:#2a1a00;font-size:.75rem;font-weight:800;vertical-align:middle}
+#etat{margin:0 0 12px;padding:8px 12px;border-radius:10px;background:var(--nuit2);border:1px solid var(--trait);font-size:.9rem}
+#etat.hl{border-color:var(--or)}
+#etat.ok{border-color:rgba(22,224,212,.5)}
+section{background:var(--nuit2);border:1px solid var(--trait);border-radius:14px;padding:12px 14px;margin:0 0 12px}
+ul{list-style:none;margin:0;padding:0}
+li{padding:7px 0;border-top:1px solid var(--trait)}
+li:first-child{border-top:0}
+.l1{display:flex;justify-content:space-between;gap:10px;align-items:baseline;flex-wrap:wrap}
+.d{color:var(--brume);font-size:.86rem}
+.puce{display:inline-block;padding:0 7px;border-radius:999px;font-size:.75rem;font-weight:700;border:1px solid var(--trait);white-space:nowrap}
+.puce.an{color:var(--rouge);border-color:var(--rouge)}
+.puce.re{color:var(--or);border-color:var(--or)}
+.puce.co{color:var(--cyan);border-color:var(--cyan)}
+.chiffres{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;text-align:center}
+.chiffres b{display:block;font-size:1.25rem}
+.chiffres span{font-size:.75rem;color:var(--brume)}
+.med{display:inline-flex;align-items:center;gap:3px;margin-inline-end:8px;white-space:nowrap}
+.med i{width:12px;height:11px;clip-path:var(--hex);display:inline-block}
+.or i{background:var(--or)} .ar i{background:var(--argent)} .br i{background:var(--bronze)}
+table{width:100%;border-collapse:collapse;font-size:.92rem}
+td,th{padding:5px 4px;text-align:center;border-top:1px solid var(--trait)}
+td:first-child,th:first-child{text-align:start}
+th{font-size:.75rem;color:var(--brume);font-weight:600;border-top:0}
+button,select,.lien{font:inherit;color:inherit}
+button{min-height:44px;padding:8px 14px;border-radius:12px;border:1px solid var(--trait);background:var(--alv);cursor:pointer}
+button:focus-visible,select:focus-visible,.lien:focus-visible{outline:2px solid var(--or);outline-offset:2px}
+button[disabled]{opacity:.55;cursor:default}
+.actions{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 12px}
+.actions button{flex:1 1 140px}
+.lien{background:none;border:0;padding:6px 0;min-height:36px;color:var(--cyan);text-decoration:underline;cursor:pointer;font-size:.88rem}
+.jours button{min-height:40px;margin-block:4px 0;margin-inline:0 6px;padding:6px 10px;font-size:.88rem}
+.jours button[aria-current="true"]{border-color:var(--or)}
+footer{color:var(--brume);font-size:.8rem;display:grid;gap:8px;margin-top:4px}
+footer label{display:flex;gap:8px;align-items:center}
+select{min-height:40px;border-radius:10px;background:var(--alv);border:1px solid var(--trait);padding:4px 8px}
+#toast{position:fixed;left:50%;bottom:calc(16px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--craie);color:var(--nuit);padding:8px 14px;border-radius:10px;font-weight:700;opacity:0;pointer-events:none;max-width:calc(100% - 32px)}
+#toast.on{opacity:1}
+.vide{color:var(--brume);margin:0}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+[dir="rtl"] .l1{direction:rtl}
+@media (prefers-reduced-motion:no-preference){#toast{transition:opacity .2s}}
+@media (min-width:560px){h1{font-size:1.35rem}}
+
+.chips{display:flex;gap:6px;flex-wrap:wrap;margin:0 0 10px}
+.chips button{min-height:40px;padding:4px 12px;font-size:.88rem;border-radius:999px}
+.chips button[aria-pressed="true"]{border-color:var(--or);color:var(--or)}
+.form{display:grid;gap:10px}
+.form label{display:grid;gap:4px;font-size:.88rem;color:var(--brume)}
+input,textarea{font:inherit;color:var(--craie);background:var(--alv);border:1px solid var(--trait);border-radius:10px;padding:8px 10px;min-height:44px;width:100%}
+input:focus-visible,textarea:focus-visible{outline:2px solid var(--or);outline-offset:2px}
+.btn-or{background:linear-gradient(135deg,var(--or),#ff9f1c);color:#2a1a00;border:0;font-weight:800}
+
+
+.astuce{margin:0 0 8px;padding:8px 10px;border-radius:10px;background:rgba(255,197,49,.1);border:1px solid rgba(255,197,49,.35)}
+.retour{margin:0 0 10px}
+.regle{font-size:.82rem;color:var(--brume);margin:6px 0 0}
+select.plein{width:100%;min-height:44px}
+/* le défi du jour : un grand hexagone */
+.jour{display:grid;grid-template-columns:minmax(96px,130px) 1fr;gap:14px;align-items:center}
+.jour-hex{aspect-ratio:1/1.1;clip-path:var(--hex);background:linear-gradient(140deg,var(--id1),var(--id2));display:grid;place-items:center;position:relative}
+.jour-hex::after{content:"";position:absolute;inset:5px;clip-path:var(--hex);background:var(--nuit2)}
+.jour-hex span{position:relative;z-index:1;font-size:2.6rem;line-height:1}
+.jour h3{margin:0 0 4px;font-size:1.15rem;line-height:1.25}
+.jour .cons{margin:0 0 6px}
+@media (max-width:360px){.jour{grid-template-columns:84px 1fr;gap:10px}.jour-hex span{font-size:2rem}}
+.grille{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px}
+.part{background:var(--alv);border:1px solid var(--trait);border-radius:14px;padding:8px;display:grid;gap:6px;align-content:start;position:relative}
+.part.vedette{border-color:var(--or);box-shadow:0 0 0 1px var(--or) inset}
+.part video,.part canvas{width:100%;aspect-ratio:9/16;border-radius:10px;background:#000;display:block}
+.part .vide-v{width:100%;aspect-ratio:9/16;border-radius:10px;background:repeating-linear-gradient(45deg,var(--nuit2),var(--nuit2) 8px,var(--alv) 8px,var(--alv) 16px);display:grid;place-items:center;color:var(--brume);font-size:.8rem;text-align:center;padding:8px}
+.part p{margin:0;font-size:.82rem;color:var(--brume)}
+.part button{min-height:40px;padding:4px 10px;font-size:.86rem}
+.etoile{display:inline-flex;align-items:center;gap:5px;font-size:.78rem;font-weight:800;color:var(--or)}
+.etoile i{width:13px;height:12px;clip-path:var(--hex);background:var(--or);display:inline-block}
+.nv-cree{display:inline-flex;align-items:center;gap:5px;font-size:.75rem;color:var(--or)}
+.nv-cree i{width:11px;height:10px;clip-path:var(--hex);background:var(--or);display:inline-block}
+.passe{display:grid;grid-template-columns:44px 1fr;gap:10px;align-items:start;padding:10px 0;border-top:1px solid var(--trait)}
+.passe:first-of-type{border-top:0}
+.passe h3 button{min-height:44px;display:inline-flex!important;align-items:center}
+.interrupteur{flex-wrap:wrap}
+.passe .mini{width:40px;height:44px;clip-path:var(--hex);background:var(--alv);display:grid;place-items:center;font-size:1.2rem}
+.passe h3{margin:0;font-size:.95rem}
+.passe h3 button{all:unset;cursor:pointer;color:var(--craie);font-weight:700}
+.passe h3 button:focus-visible{outline:2px solid var(--or);outline-offset:2px}
+.prise{width:100%;max-width:260px;aspect-ratio:9/16;border-radius:12px;background:#000;display:block;margin:0 0 10px}
+.interrupteur{display:flex;gap:10px;align-items:center;justify-content:space-between}
+.interrupteur button[aria-pressed="true"]{border-color:var(--cyan);color:var(--cyan)}
+/* Identité de la nouveauté : le violet des rencontres et le turquoise des collaborations */
+:root{--id1:#9b7bff;--id2:#16e0d4}
+header{position:relative}
+header::after{content:"";position:absolute;inset-inline:0;bottom:0;height:3px;border-radius:3px;background:linear-gradient(90deg,var(--id1),var(--id2))}
+.hex{background:linear-gradient(135deg,var(--id1),var(--id2))}
+h2::before{background:linear-gradient(135deg,var(--id1),var(--id2))}
+
+
+.case{display:flex!important;flex-direction:row!important;align-items:flex-start;gap:8px;color:var(--craie)!important;font-size:.88rem}
+.case input{width:22px;height:22px;min-height:0;flex:none;margin-top:2px}
+.choix{display:flex;flex-wrap:wrap;gap:6px}
+.choix label{display:inline-flex!important;flex-direction:row!important;align-items:center;gap:6px;min-height:44px;padding:4px 12px;border:1px solid var(--trait);border-radius:999px;color:var(--craie)!important;cursor:pointer}
+.choix input{width:18px;height:18px;min-height:0}
+.choix label:has(input:checked){border-color:var(--id2);color:var(--id2)!important}
+fieldset{border:1px solid var(--trait);border-radius:10px;padding:6px 10px;min-width:0;margin:0}
+fieldset legend{font-size:.88rem;color:var(--brume);padding:0 4px}
+[aria-invalid=true]{outline:2px solid #ff6b6b}
+details summary{cursor:pointer;min-height:40px;display:flex;align-items:center;font-size:.88rem;color:var(--id2);font-weight:700}
+.qui{font-weight:700;color:var(--craie)!important}
+/* Les duos sans frontières : la chaîne de pays (hexagones reliés par un fil), les parties, les versions */
+.chaine{display:flex;align-items:center;gap:0;overflow-x:auto;padding:6px 2px 10px;scrollbar-width:thin}
+.chaine .pt{flex:none;display:grid;justify-items:center;gap:3px;width:78px;text-align:center;font-size:.72rem;line-height:1.15;color:var(--brume);min-width:0}
+.chaine .pt b{color:var(--craie);font-size:.74rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:76px}
+.chaine .hx{width:52px;height:46px;clip-path:var(--hex);background:linear-gradient(135deg,var(--id1),var(--id2));display:grid;place-items:center;font-size:1.35rem}
+.chaine .hx.vide{background:var(--alv);color:var(--brume);font-size:1rem}
+.chaine .hx.moi{box-shadow:0 0 0 3px var(--or) inset}
+.chaine .fil{flex:none;width:18px;height:3px;border-radius:3px;background:linear-gradient(90deg,var(--id1),var(--id2));margin-bottom:28px}
+.chaine .fil.vide{background:var(--trait)}
+[dir="rtl"] .chaine .fil{background:linear-gradient(270deg,var(--id1),var(--id2))}
+.sf-carte{background:var(--alv);border:1px solid var(--trait);border-radius:14px;padding:10px 12px;display:grid;gap:6px;min-width:0}
+.sf-carte h3{margin:0;font-size:.98rem;line-height:1.25}
+.sf-carte h3 button{all:unset;cursor:pointer;color:var(--craie);font-weight:700;min-height:44px;display:inline-flex;align-items:center;overflow-wrap:anywhere}
+.sf-carte h3 button:focus-visible{outline:2px solid var(--or);outline-offset:2px}
+.sf-carte p{margin:0;font-size:.84rem}
+.liste-c{display:grid;gap:10px}
+.lecteur{display:grid;gap:6px;justify-items:start}
+.lecteur video,.lecteur canvas,.vv video,.vv canvas,.prop video,.prop canvas{width:100%;max-width:300px;aspect-ratio:9/16;border-radius:12px;background:#000;display:block}
+.lecteur .leg{font-size:.84rem;color:var(--brume);margin:0}
+.prop,.vv{padding:10px 0;border-top:1px solid var(--trait);display:grid;gap:6px}
+.prop:first-of-type,.vv:first-of-type{border-top:0}
+.prop p,.vv p{margin:0}
+.accords{list-style:none;margin:4px 0;padding:0;display:flex;flex-wrap:wrap;gap:6px}
+.accords li{border:1px solid var(--trait)!important;border-radius:999px;padding:2px 10px;font-size:.78rem}
+.accords li.oui{color:var(--cyan);border-color:var(--cyan)!important} .accords li.non{color:var(--rouge);border-color:var(--rouge)!important}
+.remix{border:1px solid var(--id1);border-radius:12px;padding:8px 10px;background:rgba(22,224,212,.07)}
+.etat-c.ouverte,.etat-c.approuvee{color:var(--cyan);border-color:var(--cyan)} .etat-c.publiee,.etat-c.a_approuver{color:var(--id2);border-color:var(--id2)}
+.etat-c.fermee,.etat-c.expiree,.etat-c.perimee,.etat-c.retiree{color:var(--brume)}
+.badge.role{color:var(--id1);border-color:var(--id1)}
+.ms-carte{background:var(--alv);border:1px solid var(--trait);border-radius:14px;padding:8px;display:grid;gap:6px;align-content:start;min-width:0}
+.ms-carte video,.ms-carte canvas,.ms-carte .vide-v,.un video,.un canvas,.un .vide-v{width:100%;aspect-ratio:9/16;border-radius:10px;background:#000;display:block;max-width:320px}
+.vide-v{background:repeating-linear-gradient(45deg,var(--nuit2),var(--nuit2) 8px,var(--alv) 8px,var(--alv) 16px)!important;display:grid!important;place-items:center;color:var(--brume);font-size:.8rem;text-align:center;padding:8px}
+.ms-carte .corps{display:grid;gap:4px;min-width:0}
+.ms-carte p{margin:0;font-size:.82rem}
+.ms-carte h3{margin:0;font-size:.95rem;line-height:1.25}
+.ms-carte h3 button{all:unset;cursor:pointer;color:var(--craie);font-weight:700;min-height:44px;display:inline-flex;align-items:center;overflow-wrap:anywhere}
+.ms-carte h3 button:focus-visible{outline:2px solid var(--or);outline-offset:2px}
+.badge{justify-self:start;display:inline-flex;align-items:center;gap:5px;padding:1px 9px;border-radius:999px;font-size:.72rem;font-weight:800;border:1px solid var(--trait);color:var(--brume)}
+.badge::before{content:"";width:10px;height:9px;clip-path:var(--hex);background:currentColor}
+.badge.invites{color:var(--id2);border-color:var(--id2)} .badge.abonnes{color:var(--cyan);border-color:var(--cyan)} .badge.tous{color:var(--id1);border-color:var(--id1)}
+.un{display:grid;gap:8px}
+.un>h2{margin:0}
+.cejour{border:1px solid var(--id1);border-radius:12px;padding:8px 12px;margin:0 0 10px;background:linear-gradient(160deg,rgba(255,197,49,.14),var(--nuit2) 60%)}
+.cejour h3{margin:0 0 4px;font-size:.95rem;color:var(--id1)}
+.cejour p{margin:0}
+.sensible{display:flex;gap:6px;align-items:flex-start;padding:6px 8px;border-radius:8px;background:rgba(255,159,107,.1);border:1px solid rgba(255,159,107,.45);font-size:.84rem;margin:0}
+.sensible i{width:12px;height:11px;clip-path:var(--hex);background:var(--id2);flex:none;margin-top:4px}
+.items{list-style:none;margin:6px 0;padding:0;display:grid;gap:6px}
+.items li{display:flex;align-items:center;gap:6px;border:1px solid var(--trait);border-radius:10px;padding:4px 6px;min-width:0}
+.items .vign{width:44px;height:44px;clip-path:var(--hex);background:var(--alv);display:grid;place-items:center;flex:none;overflow:hidden}
+.items .vign img{width:100%;height:100%;object-fit:cover}
+.items .nom{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:.86rem}
+.mini{min-height:40px;min-width:40px;padding:4px 8px}
+.fichier{position:relative;display:inline-flex;align-items:center;justify-content:center;min-height:44px;padding:8px 14px;border-radius:12px;border:1px solid var(--trait);background:var(--alv);cursor:pointer;flex:1 1 140px;color:var(--craie)!important;font-size:.95rem!important}
+.fichier.btn-or{color:#2a1a00!important}
+.fichier input{position:absolute;inset:0;opacity:0;cursor:pointer;min-height:0}
+.fichier:focus-within{outline:2px solid var(--or);outline-offset:2px}
+.barre{height:14px;border-radius:999px;background:var(--alv);overflow:hidden;margin:8px 0}
+.barre i{display:block;height:100%;background:linear-gradient(90deg,var(--id1),var(--id2))}
+.partages{display:grid;gap:6px}
+.partages button{display:grid;text-align:start;gap:2px;padding:8px 12px}
+.partages button[aria-checked="true"]{border-color:var(--id1);box-shadow:0 0 0 1px var(--id1) inset}
+.partages button span{font-size:.8rem;color:var(--brume)}
+.form.ligne{grid-template-columns:1fr auto;align-items:end}
+.accord{border:1px solid var(--id2);border-radius:12px;padding:8px 12px}
+.danger{color:var(--rouge)!important;border-color:var(--rouge)!important}
+.danger-zone summary{color:var(--rouge)}
+.etat-c.accepte{color:var(--cyan);border-color:var(--cyan)} .etat-c.attente,.etat-c.expire{color:var(--brume)}
+.retour-p{padding:10px 0;border-top:1px solid var(--trait)}
+.retour-p:first-of-type{border-top:0}
+.retour-p p{margin:4px 0}
+.retour-p video,.retour-p canvas{width:100%;max-width:220px;aspect-ratio:9/16;border-radius:10px;background:#000;display:block;margin:6px 0}
+.etat-c{display:inline-block;padding:0 8px;border-radius:999px;font-size:.74rem;font-weight:700;border:1px solid var(--trait)}
+.etat-c.publie{color:var(--cyan);border-color:var(--cyan)} .etat-c.verification,.etat-c.close{color:var(--brume)} .etat-c.revue,.etat-c.masque,.etat-c.refuse{color:var(--rouge);border-color:var(--rouge)}
+.actions select{flex:1 1 140px;min-width:0;max-width:100%;width:100%}
+input:disabled{opacity:.5}
+/* Les rencontres de talents : profil en pastilles, suggestions avec leurs raisons */
+.pastilles{display:flex;flex-wrap:wrap;gap:6px}
+.pastilles label{display:inline-flex!important;flex-direction:row!important;align-items:center;gap:6px;min-height:40px;padding:4px 12px;border:1px solid var(--trait);border-radius:999px;color:var(--craie)!important;cursor:pointer;font-size:.86rem}
+.pastilles input{width:16px;height:16px;min-height:0}
+.pastilles label:has(input:checked){border-color:var(--id1);color:var(--id1)!important;background:rgba(155,123,255,.12)}
+.pastilles label:has(input:focus-visible){outline:2px solid var(--or);outline-offset:2px}
+.sug{background:var(--alv);border:1px solid var(--trait);border-radius:14px;padding:10px 12px;display:grid;gap:6px;min-width:0}
+.sug .tete{display:flex;align-items:center;gap:10px}
+.sug .av{width:44px;height:40px;clip-path:var(--hex);background:linear-gradient(135deg,var(--id1),var(--id2));display:grid;place-items:center;font-size:1.2rem;flex:none}
+.sug b{overflow-wrap:anywhere}
+.sug p{margin:0;font-size:.84rem}
+.raisons{list-style:none;margin:0;padding:0;display:grid;gap:3px}
+.raisons li{border:0!important;padding:0!important;font-size:.84rem;display:flex;gap:6px;align-items:flex-start}
+.raisons li::before{content:"";width:10px;height:9px;clip-path:var(--hex);background:var(--id2);flex:none;margin-top:5px}
+.mots{display:flex;flex-wrap:wrap;gap:4px}
+.mots span{border:1px solid var(--trait);border-radius:999px;padding:0 8px;font-size:.76rem;color:var(--brume)}
+.consent{border:1px solid var(--id1);border-radius:12px;padding:10px 12px;background:rgba(155,123,255,.08)}
+.consent ul{list-style:disc;padding-inline-start:20px}
+.consent li{border:0;padding:2px 0}
+</style>
+</head>
+<body>
+<main id="app">
+<header><div class="hex" aria-hidden="true"><i></i></div><div><h1 id="titre">Les rencontres de talents</h1><p class="sous" id="soustitre"></p></div></header>
+<p id="etat" role="status" aria-live="polite"></p>
+<div id="contenu"></div>
+<footer id="pied"></footer>
+</main>
+<div id="toast" role="status" aria-live="polite"></div>
+<script type="application/json" id="nvI18n-en">{"Accepter":"Accept","Annuler":"Cancel","Aperçu":"Preview","Aperçu : ce serveur ne propose pas encore cette fonction. Rien n’est envoyé.":"Preview: this server does not offer this feature yet. Nothing is sent.","Artisanat":"Crafts","Cette action a déjà été envoyée. Rechargez la page.":"This action has already been sent. Reload the page.","Cette action n’est pas ouverte à votre âge.":"This action is not open at your age.","Cette demande n’a pas été acceptée.":"This request was not accepted.","Chant":"Singing","Chargement…":"Loading…","Coiffure":"Hairdressing","Connectez-vous pour continuer.":"Sign in to continue.","Couture":"Sewing","Cuisine":"Cooking","Culture":"Culture","C’est fait.":"Done.","Danse":"Dance","Dessin":"Drawing","Dès 16 ans. Ni vote ni argent.":"From age 16. No vote, no money.","En attente":"Pending","Famille":"Family","Fête":"Celebration","Humour":"Comedy","Impossible de joindre NEURAVID pour le moment.":"Unable to reach NEURAVID right now.","Jardinage":"Gardening","Langue":"Language","Langues":"Languages","Le service est momentanément indisponible. Réessayez dans un instant.":"The service is temporarily unavailable. Try again in a moment.","Musique":"Music","Pas de connexion pour le moment.":"No connection right now.","Photo":"Photo","Refuser":"Decline","Retirée":"Withdrawn","Sport":"Sport","Toucher encore pour refuser":"Tap again to decline","Toucher encore pour retirer":"Tap again to remove","Traduction en cours de relecture.":"Translation being reviewed.","Un mot (facultatif)":"A word (optional)","Un texte n’a pas été accepté. Changez-le.":"A text was not accepted. Change it.","Une personne de NEURAVID":"Someone on NEURAVID","Vidéo":"Video","Votre texte ne peut pas être vérifié pour le moment. Réessayez dans un instant.":"Your text cannot be checked right now. Try again in a moment.","Voyage":"Trip","Vérifiez le formulaire : un champ n’est pas rempli comme il faut.":"Check the form: a field is not filled in correctly.","Les rencontres de talents":"Talent Match","Les rencontres de talents ne sont pas encore ouvertes.":"Talent Match is not open yet.","Trouvez avec qui créer, selon vos talents et vos langues.":"Find who to create with, based on your talents and languages.","Aperçu : des suggestions d’exemple, pour découvrir la page. Rien n’est envoyé.":"Preview: example suggestions, to discover the page. Nothing is sent.","Suggestions":"Suggestions","Mes demandes":"My requests","Mon profil de collaboration":"My collaboration profile","Pourquoi cette suggestion":"Why this suggestion","Fait ce que vous cherchez : {0}":"Does what you are looking for: {0}","Cherche votre talent : {0}":"Is looking for your talent: {0}","Un intérêt commun : {0}":"A shared interest: {0}","Veut aussi faire : {0}":"Also wants to do: {0}","Une langue commune : {0}":"A shared language: {0}","Un autre pays : {0}":"Another country: {0}","Pour faire quoi ?":"To do what?","Proposer une collaboration":"Propose a collaboration","Envoyer la demande":"Send the request","Pas pour moi":"Not for me","Bloquer":"Block","Toucher encore pour bloquer":"Tap again to block","Avant de commencer":"Before you start","Vous n’êtes suggéré à personne tant que vous n’ouvrez pas votre profil de collaboration.":"You are suggested to no one until you open your collaboration profile.","Les suggestions viennent seulement de ce que vous choisissez : talents, langues, intérêts, envies. Jamais votre âge, votre genre, votre origine ni votre apparence.":"Suggestions come only from what you choose: talents, languages, interests, wishes. Never your age, gender, origin or appearance.","Vous pouvez mettre en pause, bloquer ou tout supprimer à tout moment.":"You can pause, block or delete everything at any time.","Ouvrir mon profil de collaboration":"Open my collaboration profile","Votre profil est en pause : personne ne vous est suggéré, et vous n’êtes suggéré à personne.":"Your profile is paused: no one is suggested to you, and you are suggested to no one.","Reprendre":"Resume","Des personnes qui partagent une langue avec vous et dont les talents répondent aux vôtres. Rien n’est envoyé sans votre choix.":"People who share a language with you and whose talents match yours. Nothing is sent without your choice.","Aucune suggestion pour le moment. Ajoutez des talents ou des langues à votre profil.":"No suggestion for now. Add talents or languages to your profile.","Acceptée":"Accepted","Sans suite":"No follow-up","Reçues":"Received","Envoyées":"Sent","Aucune demande reçue.":"No request received.","Aucune demande envoyée.":"No request sent.","Mes collaborations":"My collaborations","Aucune collaboration pour l’instant.":"No collaboration yet.","Sans réponse, elle s’arrête le {0}.":"Without an answer, it ends on {0}.","Retirer ma demande":"Withdraw my request","Commencer une chaîne ensemble":"Start a chain together","Faire un duo":"Make a duet","Voir son profil":"See their profile","Arrêter cette collaboration":"End this collaboration","Toucher encore pour arrêter":"Tap again to end","Un refus n’est jamais affiché : une demande sans réponse s’arrête d’elle-même après 14 jours.":"A refusal is never shown: a request without an answer ends by itself after 14 days.","Mes talents":"My talents","Ce que je cherche chez une partenaire ou un partenaire":"What I look for in a partner","Mes intérêts":"My interests","Mes langues":"My languages","Ce que j’aimerais faire":"What I would like to do","Seulement des personnes d’autres pays":"Only people from other countries","J’accepte d’être suggéré à d’autres personnes à partir de ces choix.":"I agree to be suggested to other people based on these choices.","Enregistrer":"Save","Mon profil est visible dans les suggestions.":"My profile is visible in suggestions.","Mon profil est en pause.":"My profile is paused.","Mettre en pause":"Pause","Revoir les personnes que j’ai écartées ({0})":"See again the people I set aside ({0})","Supprimer mon profil de collaboration":"Delete my collaboration profile","Votre profil, vos demandes et vos choix sont effacés tout de suite.":"Your profile, your requests and your choices are deleted right away.","Toucher encore pour tout supprimer":"Tap again to delete everything","Tout supprimer":"Delete everything","Cochez votre accord pour continuer.":"Tick your agreement to continue.","Choisissez au moins une langue.":"Choose at least one language.","Choisissez au moins un talent, ou ce que vous cherchez.":"Choose at least one talent, or what you are looking for.","Vous en avez choisi trop.":"You chose too many.","{0} choix au plus dans cette liste.":"{0} choices at most in this list.","Cette personne n’est plus proposée.":"This person is no longer suggested.","Une demande est déjà en cours avec cette personne.":"A request is already open with this person.","Vous avez déjà 5 demandes en attente.":"You already have 5 requests waiting.","Cette demande n’est plus disponible.":"This request is no longer available.","Ouvrez d’abord votre profil de collaboration.":"Open your collaboration profile first.","Votre profil de collaboration est enregistré.":"Your collaboration profile is saved.","Votre demande est envoyée.":"Your request is sent.","Cette personne ne vous sera plus suggérée.":"This person will no longer be suggested to you.","Cette personne est bloquée.":"This person is blocked.","C’est une collaboration ! Vous pouvez commencer ensemble.":"It’s a collaboration! You can start together.","Votre profil est de nouveau visible.":"Your profile is visible again.","Votre profil est en pause.":"Your profile is paused.","Votre profil de collaboration est supprimé.":"Your collaboration profile is deleted.","Une chaîne sans frontières":"A chain without borders","Un duo côte à côte":"A side-by-side duet","Un tutoriel à deux":"A tutorial for two","Un direct à deux":"A live for two","Comédie":"Comedy","Théâtre":"Theatre","Conte":"Storytelling","Poésie":"Poetry","Rap":"Rap","Mode":"Fashion","Maquillage":"Make-up","Peinture":"Painting","Montage":"Editing","Animation":"Animation","Technologie":"Technology","Nature":"Nature","Patrimoine":"Heritage","Innovation":"Innovation","Solidarité":"Solidarity","Spectacle":"Show","Éducation":"Education","Comment ça marche":"How it works","Ce qui vous protège":"What protects you","Bientôt ouvert ici. Voici ce qui vous attend.":"Opening here soon. Here is what awaits you.","Choisissez vos talents, vos langues et ce que vous cherchez.":"Choose your talents, your languages and what you are looking for.","L’assistant vous suggère des partenaires et dit pourquoi.":"The assistant suggests partners and says why.","Proposez une collaboration, si vous le voulez.":"Propose a collaboration, if you want to.","Rien sans votre accord : vous choisissez d’être suggéré.":"Nothing without your consent: you choose to be suggested.","Jamais votre âge, votre genre ni votre origine pour choisir.":"Never your age, gender or origin to choose.","Pas pour moi, bloquer, pause ou tout supprimer, à tout moment.":"Not for me, block, pause or delete everything, at any time."}</script>
+<script type="application/json" id="nvI18n-es">{"Accepter":"Aceptar","Annuler":"Cancelar","Aperçu":"Vista previa","Aperçu : ce serveur ne propose pas encore cette fonction. Rien n’est envoyé.":"Vista previa: este servidor todavía no ofrece esta función. No se envía nada.","Artisanat":"Artesanía","Cette action a déjà été envoyée. Rechargez la page.":"Esta acción ya se envió. Recarga la página.","Cette action n’est pas ouverte à votre âge.":"Esta acción no está disponible para tu edad.","Cette demande n’a pas été acceptée.":"Esta solicitud no fue aceptada.","Chant":"Canto","Chargement…":"Cargando…","Coiffure":"Peluquería","Connectez-vous pour continuer.":"Inicia sesión para continuar.","Couture":"Costura","Cuisine":"Cocina","Culture":"Cultura","C’est fait.":"Hecho.","Danse":"Danza","Dessin":"Dibujo","Dès 16 ans. Ni vote ni argent.":"Desde los 16 años. Ni voto ni dinero.","En attente":"Pendiente","Famille":"Familia","Fête":"Fiesta","Humour":"Humor","Impossible de joindre NEURAVID pour le moment.":"No se puede contactar con NEURAVID por ahora.","Jardinage":"Jardinería","Langue":"Idioma","Langues":"Idiomas","Le service est momentanément indisponible. Réessayez dans un instant.":"El servicio no está disponible por el momento. Inténtalo de nuevo en un instante.","Musique":"Música","Pas de connexion pour le moment.":"Sin conexión por ahora.","Photo":"Foto","Refuser":"Rechazar","Retirée":"Retirada","Sport":"Deporte","Toucher encore pour refuser":"Toca de nuevo para rechazar","Toucher encore pour retirer":"Toca de nuevo para retirar","Traduction en cours de relecture.":"Traducción en revisión.","Un mot (facultatif)":"Una palabra (opcional)","Un texte n’a pas été accepté. Changez-le.":"Un texto no fue aceptado. Cámbialo.","Une personne de NEURAVID":"Una persona de NEURAVID","Vidéo":"Vídeo","Votre texte ne peut pas être vérifié pour le moment. Réessayez dans un instant.":"Tu texto no se puede verificar por ahora. Inténtalo de nuevo en un momento.","Voyage":"Viaje","Vérifiez le formulaire : un champ n’est pas rempli comme il faut.":"Revisa el formulario: un campo no está bien rellenado.","Les rencontres de talents":"Encuentros de talentos","Les rencontres de talents ne sont pas encore ouvertes.":"Encuentros de talentos aún no está abierto.","Trouvez avec qui créer, selon vos talents et vos langues.":"Encuentra con quién crear, según tus talentos y tus idiomas.","Aperçu : des suggestions d’exemple, pour découvrir la page. Rien n’est envoyé.":"Vista previa: sugerencias de ejemplo, para descubrir la página. No se envía nada.","Suggestions":"Sugerencias","Mes demandes":"Mis solicitudes","Mon profil de collaboration":"Mi perfil de colaboración","Pourquoi cette suggestion":"Por qué esta sugerencia","Fait ce que vous cherchez : {0}":"Hace lo que buscas: {0}","Cherche votre talent : {0}":"Busca tu talento: {0}","Un intérêt commun : {0}":"Un interés común: {0}","Veut aussi faire : {0}":"También quiere hacer: {0}","Une langue commune : {0}":"Un idioma común: {0}","Un autre pays : {0}":"Otro país: {0}","Pour faire quoi ?":"¿Para hacer qué?","Proposer une collaboration":"Proponer una colaboración","Envoyer la demande":"Enviar la solicitud","Pas pour moi":"No es para mí","Bloquer":"Bloquear","Toucher encore pour bloquer":"Toca de nuevo para bloquear","Avant de commencer":"Antes de empezar","Vous n’êtes suggéré à personne tant que vous n’ouvrez pas votre profil de collaboration.":"No se te sugiere a nadie mientras no abras tu perfil de colaboración.","Les suggestions viennent seulement de ce que vous choisissez : talents, langues, intérêts, envies. Jamais votre âge, votre genre, votre origine ni votre apparence.":"Las sugerencias vienen solo de lo que eliges: talentos, idiomas, intereses, deseos. Nunca tu edad, tu género, tu origen ni tu apariencia.","Vous pouvez mettre en pause, bloquer ou tout supprimer à tout moment.":"Puedes pausar, bloquear o borrarlo todo en cualquier momento.","Ouvrir mon profil de collaboration":"Abrir mi perfil de colaboración","Votre profil est en pause : personne ne vous est suggéré, et vous n’êtes suggéré à personne.":"Tu perfil está en pausa: no se te sugiere nadie y no se te sugiere a nadie.","Reprendre":"Reanudar","Des personnes qui partagent une langue avec vous et dont les talents répondent aux vôtres. Rien n’est envoyé sans votre choix.":"Personas que comparten un idioma contigo y cuyos talentos responden a los tuyos. No se envía nada sin tu elección.","Aucune suggestion pour le moment. Ajoutez des talents ou des langues à votre profil.":"Ninguna sugerencia por ahora. Añade talentos o idiomas a tu perfil.","Acceptée":"Aceptada","Sans suite":"Sin respuesta","Reçues":"Recibidas","Envoyées":"Enviadas","Aucune demande reçue.":"Ninguna solicitud recibida.","Aucune demande envoyée.":"Ninguna solicitud enviada.","Mes collaborations":"Mis colaboraciones","Aucune collaboration pour l’instant.":"Ninguna colaboración por ahora.","Sans réponse, elle s’arrête le {0}.":"Sin respuesta, se detiene el {0}.","Retirer ma demande":"Retirar mi solicitud","Commencer une chaîne ensemble":"Empezar una cadena juntos","Faire un duo":"Hacer un dúo","Voir son profil":"Ver su perfil","Arrêter cette collaboration":"Terminar esta colaboración","Toucher encore pour arrêter":"Toca de nuevo para terminar","Un refus n’est jamais affiché : une demande sans réponse s’arrête d’elle-même après 14 jours.":"Un rechazo nunca se muestra: una solicitud sin respuesta se detiene sola después de 14 días.","Mes talents":"Mis talentos","Ce que je cherche chez une partenaire ou un partenaire":"Lo que busco en una pareja creativa","Mes intérêts":"Mis intereses","Mes langues":"Mis idiomas","Ce que j’aimerais faire":"Lo que me gustaría hacer","Seulement des personnes d’autres pays":"Solo personas de otros países","J’accepte d’être suggéré à d’autres personnes à partir de ces choix.":"Acepto que se me sugiera a otras personas a partir de estas elecciones.","Enregistrer":"Guardar","Mon profil est visible dans les suggestions.":"Mi perfil es visible en las sugerencias.","Mon profil est en pause.":"Mi perfil está en pausa.","Mettre en pause":"Pausar","Revoir les personnes que j’ai écartées ({0})":"Volver a ver a las personas que descarté ({0})","Supprimer mon profil de collaboration":"Borrar mi perfil de colaboración","Votre profil, vos demandes et vos choix sont effacés tout de suite.":"Tu perfil, tus solicitudes y tus elecciones se borran al instante.","Toucher encore pour tout supprimer":"Toca de nuevo para borrarlo todo","Tout supprimer":"Borrarlo todo","Cochez votre accord pour continuer.":"Marca tu acuerdo para continuar.","Choisissez au moins une langue.":"Elige al menos un idioma.","Choisissez au moins un talent, ou ce que vous cherchez.":"Elige al menos un talento, o lo que buscas.","Vous en avez choisi trop.":"Elegiste demasiados.","{0} choix au plus dans cette liste.":"{0} opciones como máximo en esta lista.","Cette personne n’est plus proposée.":"Esta persona ya no se propone.","Une demande est déjà en cours avec cette personne.":"Ya hay una solicitud en curso con esta persona.","Vous avez déjà 5 demandes en attente.":"Ya tienes 5 solicitudes en espera.","Cette demande n’est plus disponible.":"Esta solicitud ya no está disponible.","Ouvrez d’abord votre profil de collaboration.":"Abre primero tu perfil de colaboración.","Votre profil de collaboration est enregistré.":"Tu perfil de colaboración está guardado.","Votre demande est envoyée.":"Tu solicitud se ha enviado.","Cette personne ne vous sera plus suggérée.":"Ya no se te sugerirá esta persona.","Cette personne est bloquée.":"Esta persona está bloqueada.","C’est une collaboration ! Vous pouvez commencer ensemble.":"¡Es una colaboración! Podéis empezar juntos.","Votre profil est de nouveau visible.":"Tu perfil vuelve a ser visible.","Votre profil est en pause.":"Tu perfil está en pausa.","Votre profil de collaboration est supprimé.":"Tu perfil de colaboración se ha borrado.","Une chaîne sans frontières":"Una cadena sin fronteras","Un duo côte à côte":"Un dúo lado a lado","Un tutoriel à deux":"Un tutorial a dos","Un direct à deux":"Un directo a dos","Comédie":"Comedia","Théâtre":"Teatro","Conte":"Cuentos","Poésie":"Poesía","Rap":"Rap","Mode":"Moda","Maquillage":"Maquillaje","Peinture":"Pintura","Montage":"Edición","Animation":"Animación","Technologie":"Tecnología","Nature":"Naturaleza","Patrimoine":"Patrimonio","Innovation":"Innovación","Solidarité":"Solidaridad","Spectacle":"Espectáculo","Éducation":"Educación","Comment ça marche":"Cómo funciona","Ce qui vous protège":"Lo que te protege","Bientôt ouvert ici. Voici ce qui vous attend.":"Pronto abrirá aquí. Esto es lo que te espera.","Choisissez vos talents, vos langues et ce que vous cherchez.":"Elige tus talentos, tus idiomas y lo que buscas.","L’assistant vous suggère des partenaires et dit pourquoi.":"El asistente te sugiere compañeros y dice por qué.","Proposez une collaboration, si vous le voulez.":"Propón una colaboración, si quieres.","Rien sans votre accord : vous choisissez d’être suggéré.":"Nada sin tu consentimiento: tú eliges ser sugerido.","Jamais votre âge, votre genre ni votre origine pour choisir.":"Nunca tu edad, tu género ni tu origen para elegir.","Pas pour moi, bloquer, pause ou tout supprimer, à tout moment.":"No es para mí, bloquear, pausar o borrarlo todo, en cualquier momento."}</script>
+<script type="application/json" id="nvI18n-pt">{"Accepter":"Aceitar","Annuler":"Cancelar","Aperçu":"Pré-visualização","Aperçu : ce serveur ne propose pas encore cette fonction. Rien n’est envoyé.":"Pré-visualização: este servidor ainda não oferece esta função. Nada é enviado.","Artisanat":"Artesanato","Cette action a déjà été envoyée. Rechargez la page.":"Esta ação já foi enviada. Recarregue a página.","Cette action n’est pas ouverte à votre âge.":"Esta ação não está disponível para a sua idade.","Cette demande n’a pas été acceptée.":"Este pedido não foi aceite.","Chant":"Canto","Chargement…":"Carregando…","Coiffure":"Cabeleireiro","Connectez-vous pour continuer.":"Entre na sua conta para continuar.","Couture":"Costura","Cuisine":"Culinária","Culture":"Cultura","C’est fait.":"Feito.","Danse":"Dança","Dessin":"Desenho","Dès 16 ans. Ni vote ni argent.":"A partir dos 16 anos. Nem voto nem dinheiro.","En attente":"Pendente","Famille":"Família","Fête":"Festa","Humour":"Humor","Impossible de joindre NEURAVID pour le moment.":"Não é possível contactar a NEURAVID no momento.","Jardinage":"Jardinagem","Langue":"Idioma","Langues":"Línguas","Le service est momentanément indisponible. Réessayez dans un instant.":"O serviço está temporariamente indisponível. Tente novamente daqui a pouco.","Musique":"Música","Pas de connexion pour le moment.":"Sem conexão no momento.","Photo":"Foto","Refuser":"Recusar","Retirée":"Retirada","Sport":"Esporte","Toucher encore pour refuser":"Toque novamente para recusar","Toucher encore pour retirer":"Toque novamente para retirar","Traduction en cours de relecture.":"Tradução em revisão.","Un mot (facultatif)":"Uma palavra (opcional)","Un texte n’a pas été accepté. Changez-le.":"Um texto não foi aceito. Altere-o.","Une personne de NEURAVID":"Uma pessoa do NEURAVID","Vidéo":"Vídeo","Votre texte ne peut pas être vérifié pour le moment. Réessayez dans un instant.":"O seu texto não pode ser verificado de momento. Tente de novo dentro de instantes.","Voyage":"Viagem","Vérifiez le formulaire : un champ n’est pas rempli comme il faut.":"Verifique o formulário: um campo não está preenchido corretamente.","Les rencontres de talents":"Encontros de talentos","Les rencontres de talents ne sont pas encore ouvertes.":"Encontros de talentos ainda não está aberto.","Trouvez avec qui créer, selon vos talents et vos langues.":"Encontre com quem criar, segundo os seus talentos e as suas línguas.","Aperçu : des suggestions d’exemple, pour découvrir la page. Rien n’est envoyé.":"Pré-visualização: sugestões de exemplo, para descobrir a página. Nada é enviado.","Suggestions":"Sugestões","Mes demandes":"Os meus pedidos","Mon profil de collaboration":"O meu perfil de colaboração","Pourquoi cette suggestion":"Porquê esta sugestão","Fait ce que vous cherchez : {0}":"Faz o que procura: {0}","Cherche votre talent : {0}":"Procura o seu talento: {0}","Un intérêt commun : {0}":"Um interesse comum: {0}","Veut aussi faire : {0}":"Também quer fazer: {0}","Une langue commune : {0}":"Uma língua comum: {0}","Un autre pays : {0}":"Outro país: {0}","Pour faire quoi ?":"Para fazer o quê?","Proposer une collaboration":"Propor uma colaboração","Envoyer la demande":"Enviar o pedido","Pas pour moi":"Não é para mim","Bloquer":"Bloquear","Toucher encore pour bloquer":"Toque de novo para bloquear","Avant de commencer":"Antes de começar","Vous n’êtes suggéré à personne tant que vous n’ouvrez pas votre profil de collaboration.":"Não é sugerido a ninguém enquanto não abrir o seu perfil de colaboração.","Les suggestions viennent seulement de ce que vous choisissez : talents, langues, intérêts, envies. Jamais votre âge, votre genre, votre origine ni votre apparence.":"As sugestões vêm só do que escolhe: talentos, línguas, interesses, vontades. Nunca a sua idade, o seu género, a sua origem nem a sua aparência.","Vous pouvez mettre en pause, bloquer ou tout supprimer à tout moment.":"Pode pausar, bloquear ou apagar tudo a qualquer momento.","Ouvrir mon profil de collaboration":"Abrir o meu perfil de colaboração","Votre profil est en pause : personne ne vous est suggéré, et vous n’êtes suggéré à personne.":"O seu perfil está em pausa: ninguém lhe é sugerido e não é sugerido a ninguém.","Reprendre":"Retomar","Des personnes qui partagent une langue avec vous et dont les talents répondent aux vôtres. Rien n’est envoyé sans votre choix.":"Pessoas que partilham uma língua consigo e cujos talentos respondem aos seus. Nada é enviado sem a sua escolha.","Aucune suggestion pour le moment. Ajoutez des talents ou des langues à votre profil.":"Nenhuma sugestão por agora. Acrescente talentos ou línguas ao seu perfil.","Acceptée":"Aceite","Sans suite":"Sem seguimento","Reçues":"Recebidos","Envoyées":"Enviados","Aucune demande reçue.":"Nenhum pedido recebido.","Aucune demande envoyée.":"Nenhum pedido enviado.","Mes collaborations":"As minhas colaborações","Aucune collaboration pour l’instant.":"Nenhuma colaboração por agora.","Sans réponse, elle s’arrête le {0}.":"Sem resposta, termina a {0}.","Retirer ma demande":"Retirar o meu pedido","Commencer une chaîne ensemble":"Começar uma corrente juntos","Faire un duo":"Fazer um dueto","Voir son profil":"Ver o perfil","Arrêter cette collaboration":"Terminar esta colaboração","Toucher encore pour arrêter":"Toque de novo para terminar","Un refus n’est jamais affiché : une demande sans réponse s’arrête d’elle-même après 14 jours.":"Uma recusa nunca é mostrada: um pedido sem resposta termina sozinho após 14 dias.","Mes talents":"Os meus talentos","Ce que je cherche chez une partenaire ou un partenaire":"O que procuro numa parceira ou num parceiro","Mes intérêts":"Os meus interesses","Mes langues":"As minhas línguas","Ce que j’aimerais faire":"O que gostaria de fazer","Seulement des personnes d’autres pays":"Só pessoas de outros países","J’accepte d’être suggéré à d’autres personnes à partir de ces choix.":"Aceito ser sugerido a outras pessoas a partir destas escolhas.","Enregistrer":"Guardar","Mon profil est visible dans les suggestions.":"O meu perfil está visível nas sugestões.","Mon profil est en pause.":"O meu perfil está em pausa.","Mettre en pause":"Pausar","Revoir les personnes que j’ai écartées ({0})":"Voltar a ver as pessoas que pus de lado ({0})","Supprimer mon profil de collaboration":"Apagar o meu perfil de colaboração","Votre profil, vos demandes et vos choix sont effacés tout de suite.":"O seu perfil, os seus pedidos e as suas escolhas são apagados de imediato.","Toucher encore pour tout supprimer":"Toque de novo para apagar tudo","Tout supprimer":"Apagar tudo","Cochez votre accord pour continuer.":"Marque o seu acordo para continuar.","Choisissez au moins une langue.":"Escolha pelo menos uma língua.","Choisissez au moins un talent, ou ce que vous cherchez.":"Escolha pelo menos um talento, ou o que procura.","Vous en avez choisi trop.":"Escolheu demasiados.","{0} choix au plus dans cette liste.":"{0} escolhas no máximo nesta lista.","Cette personne n’est plus proposée.":"Esta pessoa já não é proposta.","Une demande est déjà en cours avec cette personne.":"Já há um pedido em curso com esta pessoa.","Vous avez déjà 5 demandes en attente.":"Já tem 5 pedidos à espera.","Cette demande n’est plus disponible.":"Este pedido já não está disponível.","Ouvrez d’abord votre profil de collaboration.":"Abra primeiro o seu perfil de colaboração.","Votre profil de collaboration est enregistré.":"O seu perfil de colaboração está guardado.","Votre demande est envoyée.":"O seu pedido foi enviado.","Cette personne ne vous sera plus suggérée.":"Esta pessoa já não lhe será sugerida.","Cette personne est bloquée.":"Esta pessoa está bloqueada.","C’est une collaboration ! Vous pouvez commencer ensemble.":"É uma colaboração! Podem começar juntos.","Votre profil est de nouveau visible.":"O seu perfil está de novo visível.","Votre profil est en pause.":"O seu perfil está em pausa.","Votre profil de collaboration est supprimé.":"O seu perfil de colaboração foi apagado.","Une chaîne sans frontières":"Uma corrente sem fronteiras","Un duo côte à côte":"Um dueto lado a lado","Un tutoriel à deux":"Um tutorial a dois","Un direct à deux":"Um direto a dois","Comédie":"Comédia","Théâtre":"Teatro","Conte":"Contos","Poésie":"Poesia","Rap":"Rap","Mode":"Moda","Maquillage":"Maquilhagem","Peinture":"Pintura","Montage":"Montagem","Animation":"Animação","Technologie":"Tecnologia","Nature":"Natureza","Patrimoine":"Património","Innovation":"Inovação","Solidarité":"Solidariedade","Spectacle":"Espetáculo","Éducation":"Educação","Comment ça marche":"Como funciona","Ce qui vous protège":"O que o protege","Bientôt ouvert ici. Voici ce qui vous attend.":"Abre aqui em breve. Eis o que o espera.","Choisissez vos talents, vos langues et ce que vous cherchez.":"Escolha os seus talentos, as suas línguas e o que procura.","L’assistant vous suggère des partenaires et dit pourquoi.":"O assistente sugere-lhe parceiros e diz porquê.","Proposez une collaboration, si vous le voulez.":"Proponha uma colaboração, se quiser.","Rien sans votre accord : vous choisissez d’être suggéré.":"Nada sem o seu acordo: escolhe ser sugerido.","Jamais votre âge, votre genre ni votre origine pour choisir.":"Nunca a sua idade, o seu género nem a sua origem para escolher.","Pas pour moi, bloquer, pause ou tout supprimer, à tout moment.":"Não é para mim, bloquear, pausar ou apagar tudo, a qualquer momento."}</script>
+<script type="application/json" id="nvI18n-ar">{"Accepter":"قبول","Annuler":"إلغاء","Aperçu":"معاينة","Aperçu : ce serveur ne propose pas encore cette fonction. Rien n’est envoyé.":"معاينة: هذا الخادم لا يوفّر هذه الميزة بعد. لا يُرسَل أي شيء.","Artisanat":"الحِرَف","Cette action a déjà été envoyée. Rechargez la page.":"سبق إرسال هذا الإجراء. أعد تحميل الصفحة.","Cette action n’est pas ouverte à votre âge.":"هذا الإجراء غير متاح لعمرك.","Cette demande n’a pas été acceptée.":"لم يُقبل هذا الطلب.","Chant":"الغناء","Chargement…":"جارٍ التحميل…","Coiffure":"تصفيف الشعر","Connectez-vous pour continuer.":"سجّل الدخول للمتابعة.","Couture":"الخياطة","Cuisine":"الطبخ","Culture":"الثقافة","C’est fait.":"تمّ.","Danse":"الرقص","Dessin":"الرسم","Dès 16 ans. Ni vote ni argent.":"من سن 16. لا تصويت ولا مال.","En attente":"قيد الانتظار","Famille":"العائلة","Fête":"احتفال","Humour":"الفكاهة","Impossible de joindre NEURAVID pour le moment.":"تعذّر الوصول إلى NEURAVID حاليًا.","Jardinage":"البستنة","Langue":"اللغة","Langues":"اللغات","Le service est momentanément indisponible. Réessayez dans un instant.":"الخدمة غير متاحة مؤقتًا. أعد المحاولة بعد قليل.","Musique":"الموسيقى","Pas de connexion pour le moment.":"لا يوجد اتصال حاليًا.","Photo":"صورة","Refuser":"ارفض","Retirée":"مسحوبة","Sport":"الرياضة","Toucher encore pour refuser":"المس مرة أخرى للرفض","Toucher encore pour retirer":"المس مرة أخرى للسحب","Traduction en cours de relecture.":"الترجمة قيد المراجعة.","Un mot (facultatif)":"كلمة (اختياري)","Un texte n’a pas été accepté. Changez-le.":"لم يُقبل أحد النصوص. غيّره.","Une personne de NEURAVID":"شخص من NEURAVID","Vidéo":"فيديو","Votre texte ne peut pas être vérifié pour le moment. Réessayez dans un instant.":"لا يمكن التحقق من نصّك الآن. أعد المحاولة بعد لحظة.","Voyage":"سفر","Vérifiez le formulaire : un champ n’est pas rempli comme il faut.":"تحقّق من النموذج: أحد الحقول غير مملوء كما ينبغي.","Les rencontres de talents":"لقاءات المواهب","Les rencontres de talents ne sont pas encore ouvertes.":"لقاءات المواهب غير مفتوحة بعد.","Trouvez avec qui créer, selon vos talents et vos langues.":"اعثر على من تبدع معه، حسب مواهبك ولغاتك.","Aperçu : des suggestions d’exemple, pour découvrir la page. Rien n’est envoyé.":"معاينة: اقتراحات نموذجية لاكتشاف الصفحة. لا يُرسَل شيء.","Suggestions":"اقتراحات","Mes demandes":"طلباتي","Mon profil de collaboration":"ملف التعاون الخاص بي","Pourquoi cette suggestion":"لماذا هذا الاقتراح","Fait ce que vous cherchez : {0}":"يقوم بما تبحث عنه: {0}","Cherche votre talent : {0}":"يبحث عن موهبتك: {0}","Un intérêt commun : {0}":"اهتمام مشترك: {0}","Veut aussi faire : {0}":"يريد أيضًا أن يفعل: {0}","Une langue commune : {0}":"لغة مشتركة: {0}","Un autre pays : {0}":"بلد آخر: {0}","Pour faire quoi ?":"لفعل ماذا؟","Proposer une collaboration":"اقترح تعاونًا","Envoyer la demande":"أرسل الطلب","Pas pour moi":"ليس لي","Bloquer":"حظر","Toucher encore pour bloquer":"المس مرة أخرى للحظر","Avant de commencer":"قبل أن تبدأ","Vous n’êtes suggéré à personne tant que vous n’ouvrez pas votre profil de collaboration.":"لن تُقترح على أحد ما لم تفتح ملف التعاون الخاص بك.","Les suggestions viennent seulement de ce que vous choisissez : talents, langues, intérêts, envies. Jamais votre âge, votre genre, votre origine ni votre apparence.":"تأتي الاقتراحات فقط مما تختاره: المواهب واللغات والاهتمامات والرغبات. أبدًا عمرك أو جنسك أو أصلك أو مظهرك.","Vous pouvez mettre en pause, bloquer ou tout supprimer à tout moment.":"يمكنك الإيقاف المؤقت أو الحظر أو حذف كل شيء في أي وقت.","Ouvrir mon profil de collaboration":"افتح ملف التعاون الخاص بي","Votre profil est en pause : personne ne vous est suggéré, et vous n’êtes suggéré à personne.":"ملفك متوقف مؤقتًا: لا يُقترح عليك أحد، ولا تُقترح على أحد.","Reprendre":"استئناف","Des personnes qui partagent une langue avec vous et dont les talents répondent aux vôtres. Rien n’est envoyé sans votre choix.":"أشخاص يشاركونك لغة وتتوافق مواهبهم مع مواهبك. لا يُرسَل شيء دون اختيارك.","Aucune suggestion pour le moment. Ajoutez des talents ou des langues à votre profil.":"لا توجد اقتراحات حاليًا. أضف مواهب أو لغات إلى ملفك.","Acceptée":"مقبولة","Sans suite":"دون متابعة","Reçues":"المستلمة","Envoyées":"المرسلة","Aucune demande reçue.":"لا توجد طلبات مستلمة.","Aucune demande envoyée.":"لا توجد طلبات مرسلة.","Mes collaborations":"تعاوناتي","Aucune collaboration pour l’instant.":"لا يوجد تعاون حتى الآن.","Sans réponse, elle s’arrête le {0}.":"إن لم يكن هناك رد، تتوقف في {0}.","Retirer ma demande":"اسحب طلبي","Commencer une chaîne ensemble":"ابدآ سلسلة معًا","Faire un duo":"قم بثنائي","Voir son profil":"اطّلع على ملفه","Arrêter cette collaboration":"أنهِ هذا التعاون","Toucher encore pour arrêter":"المس مرة أخرى للإنهاء","Un refus n’est jamais affiché : une demande sans réponse s’arrête d’elle-même après 14 jours.":"لا يُعرض الرفض أبدًا: يتوقف الطلب دون رد من تلقاء نفسه بعد 14 يومًا.","Mes talents":"مواهبي","Ce que je cherche chez une partenaire ou un partenaire":"ما أبحث عنه لدى الشريك","Mes intérêts":"اهتماماتي","Mes langues":"لغاتي","Ce que j’aimerais faire":"ما أودّ فعله","Seulement des personnes d’autres pays":"أشخاص من بلدان أخرى فقط","J’accepte d’être suggéré à d’autres personnes à partir de ces choix.":"أوافق على اقتراحي على أشخاص آخرين بناءً على هذه الاختيارات.","Enregistrer":"حفظ","Mon profil est visible dans les suggestions.":"ملفي مرئي في الاقتراحات.","Mon profil est en pause.":"ملفي متوقف مؤقتًا.","Mettre en pause":"إيقاف مؤقت","Revoir les personnes que j’ai écartées ({0})":"إعادة رؤية الأشخاص الذين استبعدتهم ({0})","Supprimer mon profil de collaboration":"احذف ملف التعاون الخاص بي","Votre profil, vos demandes et vos choix sont effacés tout de suite.":"يُحذف ملفك وطلباتك واختياراتك فورًا.","Toucher encore pour tout supprimer":"المس مرة أخرى لحذف كل شيء","Tout supprimer":"احذف كل شيء","Cochez votre accord pour continuer.":"ضع علامة على موافقتك للمتابعة.","Choisissez au moins une langue.":"اختر لغة واحدة على الأقل.","Choisissez au moins un talent, ou ce que vous cherchez.":"اختر موهبة واحدة على الأقل، أو ما تبحث عنه.","Vous en avez choisi trop.":"لقد اخترت الكثير.","{0} choix au plus dans cette liste.":"{0} اختيارات على الأكثر في هذه القائمة.","Cette personne n’est plus proposée.":"لم يعد هذا الشخص مقترحًا.","Une demande est déjà en cours avec cette personne.":"هناك طلب جارٍ بالفعل مع هذا الشخص.","Vous avez déjà 5 demandes en attente.":"لديك بالفعل 5 طلبات بالانتظار.","Cette demande n’est plus disponible.":"هذا الطلب لم يعد متاحًا.","Ouvrez d’abord votre profil de collaboration.":"افتح ملف التعاون الخاص بك أولًا.","Votre profil de collaboration est enregistré.":"تم حفظ ملف التعاون الخاص بك.","Votre demande est envoyée.":"أُرسل طلبك.","Cette personne ne vous sera plus suggérée.":"لن يُقترح عليك هذا الشخص بعد الآن.","Cette personne est bloquée.":"تم حظر هذا الشخص.","C’est une collaboration ! Vous pouvez commencer ensemble.":"إنه تعاون! يمكنكما البدء معًا.","Votre profil est de nouveau visible.":"ملفك مرئي من جديد.","Votre profil est en pause.":"ملفك متوقف مؤقتًا.","Votre profil de collaboration est supprimé.":"تم حذف ملف التعاون الخاص بك.","Une chaîne sans frontières":"سلسلة بلا حدود","Un duo côte à côte":"ثنائي جنبًا إلى جنب","Un tutoriel à deux":"درس تعليمي لشخصين","Un direct à deux":"بث مباشر لشخصين","Comédie":"كوميديا","Théâtre":"مسرح","Conte":"حكايات","Poésie":"شعر","Rap":"راب","Mode":"موضة","Maquillage":"مكياج","Peinture":"رسم زيتي","Montage":"مونتاج","Animation":"رسوم متحركة","Technologie":"تكنولوجيا","Nature":"الطبيعة","Patrimoine":"التراث","Innovation":"الابتكار","Solidarité":"التضامن","Spectacle":"العروض","Éducation":"التعليم","Comment ça marche":"كيف يعمل","Ce qui vous protège":"ما يحميك","Bientôt ouvert ici. Voici ce qui vous attend.":"سيُفتح هنا قريبًا. إليك ما ينتظرك.","Choisissez vos talents, vos langues et ce que vous cherchez.":"اختر مواهبك ولغاتك وما تبحث عنه.","L’assistant vous suggère des partenaires et dit pourquoi.":"يقترح عليك المساعد شركاء ويقول لماذا.","Proposez une collaboration, si vous le voulez.":"اقترح تعاونًا، إن أردت.","Rien sans votre accord : vous choisissez d’être suggéré.":"لا شيء دون موافقتك: أنت من يختار أن يُقترح.","Jamais votre âge, votre genre ni votre origine pour choisir.":"لا عمرك ولا جنسك ولا أصلك للاختيار، أبدًا.","Pas pour moi, bloquer, pause ou tout supprimer, à tout moment.":"ليس لي، أو حظر، أو إيقاف مؤقت، أو حذف كل شيء، في أي وقت."}</script>
+<script type="application/json" id="nvI18n-sw">{"Accepter":"Kubali","Annuler":"Ghairi","Aperçu":"Onyesho","Aperçu : ce serveur ne propose pas encore cette fonction. Rien n’est envoyé.":"Onyesho: seva hii bado haitoi kipengele hiki. Hakuna kinachotumwa.","Artisanat":"Ufundi","Cette action a déjà été envoyée. Rechargez la page.":"Kitendo hiki kimeshatumwa. Pakia ukurasa upya.","Cette action n’est pas ouverte à votre âge.":"Kitendo hiki hakipatikani kwa umri wako.","Cette demande n’a pas été acceptée.":"Ombi hili halikukubaliwa.","Chant":"Uimbaji","Chargement…":"Inapakia…","Coiffure":"Usukaji wa nywele","Connectez-vous pour continuer.":"Ingia ili kuendelea.","Couture":"Ushonaji","Cuisine":"Upishi","Culture":"Utamaduni","C’est fait.":"Imefanyika.","Danse":"Ngoma","Dessin":"Kuchora","Dès 16 ans. Ni vote ni argent.":"Kuanzia miaka 16. Hakuna kura wala pesa.","En attente":"Inasubiri","Famille":"Familia","Fête":"Sherehe","Humour":"Ucheshi","Impossible de joindre NEURAVID pour le moment.":"Haiwezekani kufikia NEURAVID kwa sasa.","Jardinage":"Bustani","Langue":"Lugha","Langues":"Lugha","Le service est momentanément indisponible. Réessayez dans un instant.":"Huduma haipatikani kwa muda. Jaribu tena baada ya muda mfupi.","Musique":"Muziki","Pas de connexion pour le moment.":"Hakuna muunganisho kwa sasa.","Photo":"Picha","Refuser":"Kataa","Retirée":"Imeondolewa","Sport":"Michezo","Toucher encore pour refuser":"Gusa tena kukataa","Toucher encore pour retirer":"Gusa tena ili kuondoa","Traduction en cours de relecture.":"Tafsiri inakaguliwa.","Un mot (facultatif)":"Neno (si lazima)","Un texte n’a pas été accepté. Changez-le.":"Maandishi fulani hayakukubaliwa. Yabadilishe.","Une personne de NEURAVID":"Mtu wa NEURAVID","Vidéo":"Video","Votre texte ne peut pas être vérifié pour le moment. Réessayez dans un instant.":"Maandishi yako hayawezi kukaguliwa sasa. Jaribu tena baada ya muda mfupi.","Voyage":"Safari","Vérifiez le formulaire : un champ n’est pas rempli comme il faut.":"Kagua fomu: sehemu moja haijajazwa ipasavyo.","Les rencontres de talents":"Makutano ya vipaji","Les rencontres de talents ne sont pas encore ouvertes.":"Makutano ya vipaji bado hayajafunguliwa.","Trouvez avec qui créer, selon vos talents et vos langues.":"Tafuta wa kuunda naye, kulingana na vipaji na lugha zako.","Aperçu : des suggestions d’exemple, pour découvrir la page. Rien n’est envoyé.":"Onyesho: mapendekezo ya mfano, kugundua ukurasa. Hakuna kinachotumwa.","Suggestions":"Mapendekezo","Mes demandes":"Maombi yangu","Mon profil de collaboration":"Wasifu wangu wa ushirikiano","Pourquoi cette suggestion":"Kwa nini pendekezo hili","Fait ce que vous cherchez : {0}":"Anafanya unachotafuta: {0}","Cherche votre talent : {0}":"Anatafuta kipaji chako: {0}","Un intérêt commun : {0}":"Hamu ya pamoja: {0}","Veut aussi faire : {0}":"Anataka pia kufanya: {0}","Une langue commune : {0}":"Lugha ya pamoja: {0}","Un autre pays : {0}":"Nchi nyingine: {0}","Pour faire quoi ?":"Kufanya nini?","Proposer une collaboration":"Pendekeza ushirikiano","Envoyer la demande":"Tuma ombi","Pas pour moi":"Si kwa ajili yangu","Bloquer":"Zuia","Toucher encore pour bloquer":"Gusa tena kuzuia","Avant de commencer":"Kabla ya kuanza","Vous n’êtes suggéré à personne tant que vous n’ouvrez pas votre profil de collaboration.":"Hupendekezwi kwa mtu yeyote mpaka ufungue wasifu wako wa ushirikiano.","Les suggestions viennent seulement de ce que vous choisissez : talents, langues, intérêts, envies. Jamais votre âge, votre genre, votre origine ni votre apparence.":"Mapendekezo yanatokana tu na unachochagua: vipaji, lugha, mapendeleo, matamanio. Kamwe si umri, jinsia, asili wala sura yako.","Vous pouvez mettre en pause, bloquer ou tout supprimer à tout moment.":"Unaweza kusitisha, kuzuia au kufuta kila kitu wakati wowote.","Ouvrir mon profil de collaboration":"Fungua wasifu wangu wa ushirikiano","Votre profil est en pause : personne ne vous est suggéré, et vous n’êtes suggéré à personne.":"Wasifu wako umesitishwa: hakuna anayependekezwa kwako, na hupendekezwi kwa yeyote.","Reprendre":"Endelea","Des personnes qui partagent une langue avec vous et dont les talents répondent aux vôtres. Rien n’est envoyé sans votre choix.":"Watu wanaoshiriki lugha nawe na ambao vipaji vyao vinaendana na vyako. Hakuna kinachotumwa bila chaguo lako.","Aucune suggestion pour le moment. Ajoutez des talents ou des langues à votre profil.":"Hakuna pendekezo kwa sasa. Ongeza vipaji au lugha kwenye wasifu wako.","Acceptée":"Imekubaliwa","Sans suite":"Bila jibu","Reçues":"Zilizopokelewa","Envoyées":"Zilizotumwa","Aucune demande reçue.":"Hakuna ombi lililopokelewa.","Aucune demande envoyée.":"Hakuna ombi lililotumwa.","Mes collaborations":"Ushirikiano wangu","Aucune collaboration pour l’instant.":"Hakuna ushirikiano bado.","Sans réponse, elle s’arrête le {0}.":"Bila jibu, linaisha tarehe {0}.","Retirer ma demande":"Ondoa ombi langu","Commencer une chaîne ensemble":"Anzisheni mnyororo pamoja","Faire un duo":"Fanya ushirikiano wa wawili","Voir son profil":"Ona wasifu wake","Arrêter cette collaboration":"Maliza ushirikiano huu","Toucher encore pour arrêter":"Gusa tena kumaliza","Un refus n’est jamais affiché : une demande sans réponse s’arrête d’elle-même après 14 jours.":"Kukataa hakuonyeshwi kamwe: ombi lisilojibiwa linaisha lenyewe baada ya siku 14.","Mes talents":"Vipaji vyangu","Ce que je cherche chez une partenaire ou un partenaire":"Ninachotafuta kwa mshirika","Mes intérêts":"Mapendeleo yangu","Mes langues":"Lugha zangu","Ce que j’aimerais faire":"Ningependa kufanya nini","Seulement des personnes d’autres pays":"Watu wa nchi nyingine tu","J’accepte d’être suggéré à d’autres personnes à partir de ces choix.":"Nakubali kupendekezwa kwa watu wengine kulingana na chaguo hizi.","Enregistrer":"Hifadhi","Mon profil est visible dans les suggestions.":"Wasifu wangu unaonekana kwenye mapendekezo.","Mon profil est en pause.":"Wasifu wangu umesitishwa.","Mettre en pause":"Sitisha","Revoir les personnes que j’ai écartées ({0})":"Ona tena watu niliowaweka kando ({0})","Supprimer mon profil de collaboration":"Futa wasifu wangu wa ushirikiano","Votre profil, vos demandes et vos choix sont effacés tout de suite.":"Wasifu wako, maombi yako na chaguo zako vinafutwa mara moja.","Toucher encore pour tout supprimer":"Gusa tena kufuta kila kitu","Tout supprimer":"Futa kila kitu","Cochez votre accord pour continuer.":"Weka alama ya idhini yako ili kuendelea.","Choisissez au moins une langue.":"Chagua angalau lugha moja.","Choisissez au moins un talent, ou ce que vous cherchez.":"Chagua angalau kipaji kimoja, au unachotafuta.","Vous en avez choisi trop.":"Umechagua mengi mno.","{0} choix au plus dans cette liste.":"Chaguo {0} zaidi katika orodha hii.","Cette personne n’est plus proposée.":"Mtu huyu hapendekezwi tena.","Une demande est déjà en cours avec cette personne.":"Tayari kuna ombi linaloendelea na mtu huyu.","Vous avez déjà 5 demandes en attente.":"Tayari una maombi 5 yanayosubiri.","Cette demande n’est plus disponible.":"Ombi hili halipatikani tena.","Ouvrez d’abord votre profil de collaboration.":"Fungua wasifu wako wa ushirikiano kwanza.","Votre profil de collaboration est enregistré.":"Wasifu wako wa ushirikiano umehifadhiwa.","Votre demande est envoyée.":"Ombi lako limetumwa.","Cette personne ne vous sera plus suggérée.":"Mtu huyu hatapendekezwa kwako tena.","Cette personne est bloquée.":"Mtu huyu amezuiwa.","C’est une collaboration ! Vous pouvez commencer ensemble.":"Ni ushirikiano! Mnaweza kuanza pamoja.","Votre profil est de nouveau visible.":"Wasifu wako unaonekana tena.","Votre profil est en pause.":"Wasifu wako umesitishwa.","Votre profil de collaboration est supprimé.":"Wasifu wako wa ushirikiano umefutwa.","Une chaîne sans frontières":"Mnyororo bila mipaka","Un duo côte à côte":"Wawili bega kwa bega","Un tutoriel à deux":"Mafunzo ya watu wawili","Un direct à deux":"Mubashara wa watu wawili","Comédie":"Vichekesho","Théâtre":"Tamthilia","Conte":"Hadithi","Poésie":"Ushairi","Rap":"Rap","Mode":"Mitindo","Maquillage":"Vipodozi","Peinture":"Uchoraji","Montage":"Uhariri","Animation":"Uhuishaji","Technologie":"Teknolojia","Nature":"Mazingira","Patrimoine":"Urithi","Innovation":"Ubunifu","Solidarité":"Mshikamano","Spectacle":"Maonyesho","Éducation":"Elimu","Comment ça marche":"Jinsi inavyofanya kazi","Ce qui vous protège":"Kinachokulinda","Bientôt ouvert ici. Voici ce qui vous attend.":"Itafunguliwa hapa hivi karibuni. Hiki ndicho kinachokusubiri.","Choisissez vos talents, vos langues et ce que vous cherchez.":"Chagua vipaji vyako, lugha zako na unachotafuta.","L’assistant vous suggère des partenaires et dit pourquoi.":"Msaidizi anakupendekezea washirika na anasema kwa nini.","Proposez une collaboration, si vous le voulez.":"Pendekeza ushirikiano, ukitaka.","Rien sans votre accord : vous choisissez d’être suggéré.":"Hakuna bila idhini yako: wewe unachagua kupendekezwa.","Jamais votre âge, votre genre ni votre origine pour choisir.":"Kamwe si umri, jinsia wala asili yako kwa kuchagua.","Pas pour moi, bloquer, pause ou tout supprimer, à tout moment.":"Si kwa ajili yangu, zuia, sitisha au futa kila kitu, wakati wowote."}</script>
+<script type="application/json" id="nvI18n-ha">{"Accepter":"Yarda","Annuler":"Soke","Aperçu":"Samfoti","Aperçu : ce serveur ne propose pas encore cette fonction. Rien n’est envoyé.":"Samfoti: wannan sabar ba ta bayar da wannan aiki ba tukuna. Ba a aika komai ba.","Artisanat":"Sana’a","Cette action a déjà été envoyée. Rechargez la page.":"An riga an aika wannan aikin. Sake loda shafin.","Cette action n’est pas ouverte à votre âge.":"Wannan aikin ba a buɗe yake ga shekarunka ba.","Cette demande n’a pas été acceptée.":"Ba a karɓi wannan buƙatar ba.","Chant":"Waƙa","Chargement…":"Ana lodawa…","Coiffure":"Kitso","Connectez-vous pour continuer.":"Shiga don ci gaba.","Couture":"Ɗinki","Cuisine":"Girki","Culture":"Al’ada","C’est fait.":"An gama.","Danse":"Rawa","Dessin":"Zane","Dès 16 ans. Ni vote ni argent.":"Daga shekara 16. Babu ƙuri’a babu kuɗi.","En attente":"Ana jira","Famille":"Iyali","Fête":"Biki","Humour":"Barkwanci","Impossible de joindre NEURAVID pour le moment.":"Ba za a iya isa ga NEURAVID a yanzu ba.","Jardinage":"Lambu","Langue":"Harshe","Langues":"Harsuna","Le service est momentanément indisponible. Réessayez dans un instant.":"Sabis ɗin ba ya samuwa na ɗan lokaci. Sake gwadawa nan da ɗan lokaci.","Musique":"Kiɗa","Pas de connexion pour le moment.":"Babu haɗi a yanzu.","Photo":"Hoto","Refuser":"Ƙi","Retirée":"An janye","Sport":"Wasanni","Toucher encore pour refuser":"Taɓa kuma don ƙi","Toucher encore pour retirer":"Sake taɓawa don cirewa","Traduction en cours de relecture.":"Ana duba fassarar.","Un mot (facultatif)":"Kalma (ba dole ba)","Un texte n’a pas été accepté. Changez-le.":"Ba a karɓi wani rubutu ba. Canza shi.","Une personne de NEURAVID":"Wani daga NEURAVID","Vidéo":"Bidiyo","Votre texte ne peut pas être vérifié pour le moment. Réessayez dans un instant.":"Ba za a iya duba rubutunka yanzu ba. Sake gwadawa nan ba da jimawa ba.","Voyage":"Tafiya","Vérifiez le formulaire : un champ n’est pas rempli comme il faut.":"Duba fom: wani wuri ba a cike shi yadda ya kamata ba.","Les rencontres de talents":"Haɗuwar baiwa","Les rencontres de talents ne sont pas encore ouvertes.":"Haɗuwar baiwa ba ta buɗe ba tukuna.","Trouvez avec qui créer, selon vos talents et vos langues.":"Nemo wanda za ka ƙirƙira da shi, bisa baiwarka da harsunanka.","Aperçu : des suggestions d’exemple, pour découvrir la page. Rien n’est envoyé.":"Samfoti: shawarwarin misali, don gano shafin. Ba a aika komai ba.","Suggestions":"Shawarwari","Mes demandes":"Buƙatuna","Mon profil de collaboration":"Bayanan haɗin gwiwata","Pourquoi cette suggestion":"Me yasa wannan shawarar","Fait ce que vous cherchez : {0}":"Yana yin abin da kake nema: {0}","Cherche votre talent : {0}":"Yana neman baiwarka: {0}","Un intérêt commun : {0}":"Abin sha’awa ɗaya: {0}","Veut aussi faire : {0}":"Shi ma yana son yin: {0}","Une langue commune : {0}":"Harshe ɗaya: {0}","Un autre pays : {0}":"Wata ƙasa: {0}","Pour faire quoi ?":"Don yin me?","Proposer une collaboration":"Ba da shawarar haɗin gwiwa","Envoyer la demande":"Aika buƙata","Pas pour moi":"Ba nawa ba","Bloquer":"Toshe","Toucher encore pour bloquer":"Taɓa kuma don toshewa","Avant de commencer":"Kafin ka fara","Vous n’êtes suggéré à personne tant que vous n’ouvrez pas votre profil de collaboration.":"Ba za a ba kowa shawararka ba har sai ka buɗe bayanan haɗin gwiwarka.","Les suggestions viennent seulement de ce que vous choisissez : talents, langues, intérêts, envies. Jamais votre âge, votre genre, votre origine ni votre apparence.":"Shawarwari suna fitowa ne kawai daga abin da ka zaɓa: baiwa, harsuna, abubuwan sha’awa, buri. Ba shekarunka, jinsinka, asalinka ko kamanninka ba.","Vous pouvez mettre en pause, bloquer ou tout supprimer à tout moment.":"Kana iya dakatarwa, toshewa ko goge komai a kowane lokaci.","Ouvrir mon profil de collaboration":"Buɗe bayanan haɗin gwiwata","Votre profil est en pause : personne ne vous est suggéré, et vous n’êtes suggéré à personne.":"An dakatar da bayananka: ba a ba ka shawarar kowa ba, kuma ba a ba kowa shawararka ba.","Reprendre":"Ci gaba","Des personnes qui partagent une langue avec vous et dont les talents répondent aux vôtres. Rien n’est envoyé sans votre choix.":"Mutanen da kuke da harshe ɗaya kuma baiwarsu ta dace da taka. Ba a aika komai ba tare da zaɓinka ba.","Aucune suggestion pour le moment. Ajoutez des talents ou des langues à votre profil.":"Babu shawara a yanzu. Ƙara baiwa ko harsuna a bayananka.","Acceptée":"An karɓa","Sans suite":"Ba tare da amsa ba","Reçues":"Waɗanda aka karɓa","Envoyées":"Waɗanda aka aika","Aucune demande reçue.":"Babu buƙatar da aka karɓa.","Aucune demande envoyée.":"Babu buƙatar da aka aika.","Mes collaborations":"Haɗin gwiwata","Aucune collaboration pour l’instant.":"Babu haɗin gwiwa tukuna.","Sans réponse, elle s’arrête le {0}.":"Idan babu amsa, za ta tsaya a ranar {0}.","Retirer ma demande":"Janye buƙatata","Commencer une chaîne ensemble":"Ku fara sarƙa tare","Faire un duo":"Yi duo","Voir son profil":"Duba bayanansa","Arrêter cette collaboration":"Dakatar da wannan haɗin gwiwa","Toucher encore pour arrêter":"Taɓa kuma don dakatarwa","Un refus n’est jamais affiché : une demande sans réponse s’arrête d’elle-même après 14 jours.":"Ba a taɓa nuna ƙin yarda ba: buƙatar da ba a amsa ba tana tsayawa da kanta bayan kwanaki 14.","Mes talents":"Baiwata","Ce que je cherche chez une partenaire ou un partenaire":"Abin da nake nema a abokin aiki","Mes intérêts":"Abubuwan sha’awata","Mes langues":"Harsunana","Ce que j’aimerais faire":"Abin da zan so yi","Seulement des personnes d’autres pays":"Mutane daga wasu ƙasashe kawai","J’accepte d’être suggéré à d’autres personnes à partir de ces choix.":"Na yarda a ba wasu shawarata bisa waɗannan zaɓuɓɓuka.","Enregistrer":"Ajiye","Mon profil est visible dans les suggestions.":"Ana ganin bayanana a cikin shawarwari.","Mon profil est en pause.":"An dakatar da bayanana.","Mettre en pause":"Dakatar","Revoir les personnes que j’ai écartées ({0})":"Sake ganin mutanen da na ware ({0})","Supprimer mon profil de collaboration":"Goge bayanan haɗin gwiwata","Votre profil, vos demandes et vos choix sont effacés tout de suite.":"Ana goge bayananka, buƙatunka da zaɓuɓɓukanka nan take.","Toucher encore pour tout supprimer":"Taɓa kuma don goge komai","Tout supprimer":"Goge komai","Cochez votre accord pour continuer.":"Yi alamar yardarka don ci gaba.","Choisissez au moins une langue.":"Zaɓi aƙalla harshe ɗaya.","Choisissez au moins un talent, ou ce que vous cherchez.":"Zaɓi aƙalla baiwa ɗaya, ko abin da kake nema.","Vous en avez choisi trop.":"Ka zaɓi da yawa.","{0} choix au plus dans cette liste.":"Zaɓi {0} a mafi yawa a wannan jerin.","Cette personne n’est plus proposée.":"Ba a ba da shawarar wannan mutumin kuma.","Une demande est déjà en cours avec cette personne.":"Akwai buƙata da ke gudana da wannan mutumin tuni.","Vous avez déjà 5 demandes en attente.":"Kana da buƙatu 5 da ke jira tuni.","Cette demande n’est plus disponible.":"Wannan buƙatar ba ta samuwa kuma.","Ouvrez d’abord votre profil de collaboration.":"Ka fara buɗe bayanan haɗin gwiwarka.","Votre profil de collaboration est enregistré.":"An ajiye bayanan haɗin gwiwarka.","Votre demande est envoyée.":"An aika buƙatarka.","Cette personne ne vous sera plus suggérée.":"Ba za a ƙara ba ka shawarar wannan mutumin ba.","Cette personne est bloquée.":"An toshe wannan mutumin.","C’est une collaboration ! Vous pouvez commencer ensemble.":"Haɗin gwiwa ne! Za ku iya farawa tare.","Votre profil est de nouveau visible.":"Ana sake ganin bayananka.","Votre profil est en pause.":"An dakatar da bayananka.","Votre profil de collaboration est supprimé.":"An goge bayanan haɗin gwiwarka.","Une chaîne sans frontières":"Sarƙa babu iyaka","Un duo côte à côte":"Duo gefe da gefe","Un tutoriel à deux":"Darasi na mutum biyu","Un direct à deux":"Kai tsaye na mutum biyu","Comédie":"Barkwanci","Théâtre":"Wasan kwaikwayo","Conte":"Tatsuniya","Poésie":"Waƙoƙi","Rap":"Rap","Mode":"Kayan ado","Maquillage":"Kwalliya","Peinture":"Zane da launi","Montage":"Gyaran bidiyo","Animation":"Zane mai motsi","Technologie":"Fasaha","Nature":"Yanayi","Patrimoine":"Gado","Innovation":"Ƙirƙira","Solidarité":"Haɗin kai","Spectacle":"Nuni","Éducation":"Ilimi","Comment ça marche":"Yadda yake aiki","Ce qui vous protège":"Abin da ke kare ka","Bientôt ouvert ici. Voici ce qui vous attend.":"Za a buɗe nan ba da daɗewa ba. Ga abin da ke jiranka.","Choisissez vos talents, vos langues et ce que vous cherchez.":"Zaɓi baiwarka, harsunanka da abin da kake nema.","L’assistant vous suggère des partenaires et dit pourquoi.":"Mataimakin yana ba ka shawarar abokan aiki kuma yana faɗin dalili.","Proposez une collaboration, si vous le voulez.":"Ba da shawarar haɗin gwiwa, idan kana so.","Rien sans votre accord : vous choisissez d’être suggéré.":"Babu komai ba tare da yardarka ba: kai ne ke zaɓar a ba da shawararka.","Jamais votre âge, votre genre ni votre origine pour choisir.":"Ba shekarunka, jinsinka ko asalinka ba wajen zaɓi.","Pas pour moi, bloquer, pause ou tout supprimer, à tout moment.":"Ba nawa ba, toshe, dakatar ko goge komai, a kowane lokaci."}</script>
+<script type="application/json" id="nvI18n-yo">{"Accepter":"Gbà","Annuler":"Fagilé","Aperçu":"Àyẹ̀wò","Aperçu : ce serveur ne propose pas encore cette fonction. Rien n’est envoyé.":"Àyẹ̀wò: olùpèsè yìí kò tíì pèsè iṣẹ́ yìí. Kò sí ohun tí a fi ránṣẹ́.","Artisanat":"Iṣẹ́ ọwọ́","Cette action a déjà été envoyée. Rechargez la page.":"A ti fi ìgbésẹ̀ yìí ránṣẹ́. Tún ojú-ìwé náà gbé.","Cette action n’est pas ouverte à votre âge.":"Ìgbésẹ̀ yìí kò ṣí sílẹ̀ fún ọjọ́-orí rẹ.","Cette demande n’a pas été acceptée.":"A kò gba ìbéèrè yìí.","Chant":"Orin kíkọ","Chargement…":"Ń gbé e wọlé…","Coiffure":"Irun dídì","Connectez-vous pour continuer.":"Wọlé láti tẹ̀síwájú.","Couture":"Ìránṣọ","Cuisine":"Oúnjẹ sísè","Culture":"Àṣà","C’est fait.":"Ó ti ṣe.","Danse":"Ijó","Dessin":"Yíyà àwòrán","Dès 16 ans. Ni vote ni argent.":"Láti ọmọ ọdún 16. Kò sí ìbò, kò sí owó.","En attente":"Ó ń dúró","Famille":"Ẹbí","Fête":"Ayẹyẹ","Humour":"Àwàdà","Impossible de joindre NEURAVID pour le moment.":"Kò ṣeé ṣe láti dé NEURAVID báyìí.","Jardinage":"Ọgbà","Langue":"Èdè","Langues":"Àwọn èdè","Le service est momentanément indisponible. Réessayez dans un instant.":"Iṣẹ́ náà kò sí fún ìgbà díẹ̀. Tún gbìyànjú láìpẹ́.","Musique":"Orin","Pas de connexion pour le moment.":"Kò sí ìsopọ̀ báyìí.","Photo":"Fọ́tò","Refuser":"Kọ̀ ọ́","Retirée":"A ti yọ ọ́ kúrò","Sport":"Eré ìdárayá","Toucher encore pour refuser":"Fọwọ́ kàn án lẹ́ẹ̀kan sí i láti kọ̀","Toucher encore pour retirer":"Fọwọ́ kàn án lẹ́ẹ̀kan sí i láti yọ ọ́","Traduction en cours de relecture.":"A ń yẹ ìtumọ̀ wò.","Un mot (facultatif)":"Ọ̀rọ̀ kan (kò pọndandan)","Un texte n’a pas été accepté. Changez-le.":"A kò gba ọ̀rọ̀ kan. Yí i padà.","Une personne de NEURAVID":"Ẹnì kan lórí NEURAVID","Vidéo":"Fídíò","Votre texte ne peut pas être vérifié pour le moment. Réessayez dans un instant.":"A kò lè ṣàyẹ̀wò ọ̀rọ̀ rẹ báyìí. Gbìyànjú lẹ́ẹ̀kan sí i láìpẹ́.","Voyage":"Ìrìn àjò","Vérifiez le formulaire : un champ n’est pas rempli comme il faut.":"Ṣàyẹ̀wò fọ́ọ̀mù náà: àyè kan kò kún bó ṣe yẹ.","Les rencontres de talents":"Ìpàdé àwọn ẹ̀bùn","Les rencontres de talents ne sont pas encore ouvertes.":"Ìpàdé àwọn ẹ̀bùn kò tíì ṣí sílẹ̀.","Trouvez avec qui créer, selon vos talents et vos langues.":"Wá ẹni tí o lè ṣẹ̀dá pẹ̀lú, gẹ́gẹ́ bí ẹ̀bùn àti èdè rẹ.","Aperçu : des suggestions d’exemple, pour découvrir la page. Rien n’est envoyé.":"Àyẹ̀wò: àwọn àbá àpẹẹrẹ, láti mọ ojú-ìwé náà. A kò fi nǹkan kan ránṣẹ́.","Suggestions":"Àwọn àbá","Mes demandes":"Àwọn ìbéèrè mi","Mon profil de collaboration":"Àkọsílẹ̀ ìfọwọ́sowọ́pọ̀ mi","Pourquoi cette suggestion":"Ìdí tí a fi dábàá èyí","Fait ce que vous cherchez : {0}":"Ó ń ṣe ohun tí o ń wá: {0}","Cherche votre talent : {0}":"Ó ń wá ẹ̀bùn rẹ: {0}","Un intérêt commun : {0}":"Ìfẹ́ kan náà: {0}","Veut aussi faire : {0}":"Ó tún fẹ́ ṣe: {0}","Une langue commune : {0}":"Èdè kan náà: {0}","Un autre pays : {0}":"Orílẹ̀-èdè mìíràn: {0}","Pour faire quoi ?":"Láti ṣe kí ni?","Proposer une collaboration":"Dábàá ìfọwọ́sowọ́pọ̀","Envoyer la demande":"Fi ìbéèrè ránṣẹ́","Pas pour moi":"Kì í ṣe fún mi","Bloquer":"Dí i","Toucher encore pour bloquer":"Fọwọ́ kàn án lẹ́ẹ̀kan sí i láti dí i","Avant de commencer":"Kí o tó bẹ̀rẹ̀","Vous n’êtes suggéré à personne tant que vous n’ouvrez pas votre profil de collaboration.":"A kò ní dábàá rẹ fún ẹnikẹ́ni títí o fi ṣí àkọsílẹ̀ ìfọwọ́sowọ́pọ̀ rẹ.","Les suggestions viennent seulement de ce que vous choisissez : talents, langues, intérêts, envies. Jamais votre âge, votre genre, votre origine ni votre apparence.":"Àwọn àbá wá láti inú ohun tí o yàn nìkan: ẹ̀bùn, èdè, ìfẹ́, àfẹ́rí. Kì í ṣe ọjọ́ orí rẹ, ẹ̀yà ara rẹ, orísun rẹ tàbí ìrísí rẹ.","Vous pouvez mettre en pause, bloquer ou tout supprimer à tout moment.":"O lè dá dúró, dí tàbí pa gbogbo rẹ̀ rẹ́ nígbàkigbà.","Ouvrir mon profil de collaboration":"Ṣí àkọsílẹ̀ ìfọwọ́sowọ́pọ̀ mi","Votre profil est en pause : personne ne vous est suggéré, et vous n’êtes suggéré à personne.":"Àkọsílẹ̀ rẹ dúró fún ìgbà díẹ̀: a kò dábàá ẹnikẹ́ni fún ọ, a kò sì dábàá rẹ fún ẹnikẹ́ni.","Reprendre":"Tẹ̀síwájú","Des personnes qui partagent une langue avec vous et dont les talents répondent aux vôtres. Rien n’est envoyé sans votre choix.":"Àwọn ènìyàn tí ẹ jọ ní èdè kan, tí ẹ̀bùn wọn sì bá tìrẹ mu. A kò fi nǹkan kan ránṣẹ́ láìjẹ́ pé o yàn án.","Aucune suggestion pour le moment. Ajoutez des talents ou des langues à votre profil.":"Kò sí àbá báyìí. Fi ẹ̀bùn tàbí èdè kún àkọsílẹ̀ rẹ.","Acceptée":"A ti gbà á","Sans suite":"Láìsí ìdáhùn","Reçues":"Èyí tí a gbà","Envoyées":"Èyí tí a fi ránṣẹ́","Aucune demande reçue.":"Kò sí ìbéèrè tí a gbà.","Aucune demande envoyée.":"Kò sí ìbéèrè tí a fi ránṣẹ́.","Mes collaborations":"Àwọn ìfọwọ́sowọ́pọ̀ mi","Aucune collaboration pour l’instant.":"Kò sí ìfọwọ́sowọ́pọ̀ kankan síbẹ̀.","Sans réponse, elle s’arrête le {0}.":"Láìsí ìdáhùn, ó dúró ní {0}.","Retirer ma demande":"Yọ ìbéèrè mi kúrò","Commencer une chaîne ensemble":"Ẹ jọ bẹ̀rẹ̀ ẹ̀wọ̀n kan","Faire un duo":"Ṣe àjọṣe méjì","Voir son profil":"Wo àkọsílẹ̀ rẹ̀","Arrêter cette collaboration":"Fòpin sí ìfọwọ́sowọ́pọ̀ yìí","Toucher encore pour arrêter":"Fọwọ́ kàn án lẹ́ẹ̀kan sí i láti fòpin sí i","Un refus n’est jamais affiché : une demande sans réponse s’arrête d’elle-même après 14 jours.":"A kì í fi kíkọ̀ hàn: ìbéèrè tí kò ní ìdáhùn ń dúró fúnra rẹ̀ lẹ́yìn ọjọ́ 14.","Mes talents":"Àwọn ẹ̀bùn mi","Ce que je cherche chez une partenaire ou un partenaire":"Ohun tí mo ń wá lọ́dọ̀ alábàáṣiṣẹ́pọ̀","Mes intérêts":"Àwọn ìfẹ́ mi","Mes langues":"Àwọn èdè mi","Ce que j’aimerais faire":"Ohun tí mo fẹ́ ṣe","Seulement des personnes d’autres pays":"Àwọn ènìyàn láti orílẹ̀-èdè mìíràn nìkan","J’accepte d’être suggéré à d’autres personnes à partir de ces choix.":"Mo gbà kí a dábàá mi fún àwọn ènìyàn mìíràn gẹ́gẹ́ bí àwọn àṣàyàn wọ̀nyí.","Enregistrer":"Fi pamọ́","Mon profil est visible dans les suggestions.":"Àkọsílẹ̀ mi hàn nínú àwọn àbá.","Mon profil est en pause.":"Àkọsílẹ̀ mi dúró fún ìgbà díẹ̀.","Mettre en pause":"Dá dúró","Revoir les personnes que j’ai écartées ({0})":"Tún wo àwọn ènìyàn tí mo yà sọ́tọ̀ ({0})","Supprimer mon profil de collaboration":"Pa àkọsílẹ̀ ìfọwọ́sowọ́pọ̀ mi rẹ́","Votre profil, vos demandes et vos choix sont effacés tout de suite.":"A ó pa àkọsílẹ̀ rẹ, àwọn ìbéèrè rẹ àti àwọn àṣàyàn rẹ rẹ́ lẹ́sẹ̀kẹsẹ̀.","Toucher encore pour tout supprimer":"Fọwọ́ kàn án lẹ́ẹ̀kan sí i láti pa gbogbo rẹ̀ rẹ́","Tout supprimer":"Pa gbogbo rẹ̀ rẹ́","Cochez votre accord pour continuer.":"Sàmì sí ìfọwọ́sí rẹ láti tẹ̀síwájú.","Choisissez au moins une langue.":"Yan ó kéré tán èdè kan.","Choisissez au moins un talent, ou ce que vous cherchez.":"Yan ó kéré tán ẹ̀bùn kan, tàbí ohun tí o ń wá.","Vous en avez choisi trop.":"O ti yan púpọ̀ jù.","{0} choix au plus dans cette liste.":"Àṣàyàn {0} ní ọ̀pọ̀ jù nínú àkójọ yìí.","Cette personne n’est plus proposée.":"A kò dábàá ẹni yìí mọ́.","Une demande est déjà en cours avec cette personne.":"Ìbéèrè kan ti ń lọ lọ́wọ́ pẹ̀lú ẹni yìí.","Vous avez déjà 5 demandes en attente.":"O ti ní ìbéèrè 5 tó ń dúró.","Cette demande n’est plus disponible.":"Ìbéèrè yìí kò sí mọ́.","Ouvrez d’abord votre profil de collaboration.":"Kọ́kọ́ ṣí àkọsílẹ̀ ìfọwọ́sowọ́pọ̀ rẹ.","Votre profil de collaboration est enregistré.":"A ti fi àkọsílẹ̀ ìfọwọ́sowọ́pọ̀ rẹ pamọ́.","Votre demande est envoyée.":"A ti fi ìbéèrè rẹ ránṣẹ́.","Cette personne ne vous sera plus suggérée.":"A kò ní dábàá ẹni yìí fún ọ mọ́.","Cette personne est bloquée.":"A ti dí ẹni yìí.","C’est une collaboration ! Vous pouvez commencer ensemble.":"Ìfọwọ́sowọ́pọ̀ ni! Ẹ lè bẹ̀rẹ̀ papọ̀.","Votre profil est de nouveau visible.":"Àkọsílẹ̀ rẹ tún hàn.","Votre profil est en pause.":"Àkọsílẹ̀ rẹ dúró fún ìgbà díẹ̀.","Votre profil de collaboration est supprimé.":"A ti pa àkọsílẹ̀ ìfọwọ́sowọ́pọ̀ rẹ rẹ́.","Une chaîne sans frontières":"Ẹ̀wọ̀n láìsí ààlà","Un duo côte à côte":"Àjọṣe méjì ẹ̀gbẹ́ sí ẹ̀gbẹ́","Un tutoriel à deux":"Ẹ̀kọ́ fún ènìyàn méjì","Un direct à deux":"Ìgbéjáde tààrà fún ènìyàn méjì","Comédie":"Ẹ̀fẹ̀","Théâtre":"Eré oníṣe","Conte":"Àlọ́","Poésie":"Ewì","Rap":"Rap","Mode":"Àṣà ìmúra","Maquillage":"Ìmúra ojú","Peinture":"Àwọ̀ kíkùn","Montage":"Àtúnṣe fídíò","Animation":"Àwòrán gbígbé","Technologie":"Ìmọ̀ ẹ̀rọ","Nature":"Ẹ̀dá","Patrimoine":"Àjogúnbá","Innovation":"Ìmọ̀tuntun","Solidarité":"Ìrẹ́pọ̀","Spectacle":"Ìfihàn","Éducation":"Ẹ̀kọ́","Comment ça marche":"Bí ó ṣe ń ṣiṣẹ́","Ce qui vous protège":"Ohun tí ó ń dáàbò bò ọ́","Bientôt ouvert ici. Voici ce qui vous attend.":"Yóò ṣí síbí láìpẹ́. Èyí ni ohun tí ń dúró dè ọ́.","Choisissez vos talents, vos langues et ce que vous cherchez.":"Yan àwọn ẹ̀bùn rẹ, àwọn èdè rẹ àti ohun tí o ń wá.","L’assistant vous suggère des partenaires et dit pourquoi.":"Olùrànlọ́wọ́ ń dábàá àwọn alábàáṣiṣẹ́pọ̀ fún ọ ó sì ń sọ ìdí.","Proposez une collaboration, si vous le voulez.":"Dábàá ìfọwọ́sowọ́pọ̀, bí o bá fẹ́.","Rien sans votre accord : vous choisissez d’être suggéré.":"Kò sí nǹkan láìsí àṣẹ rẹ: ìwọ ni o yàn kí a dábàá rẹ.","Jamais votre âge, votre genre ni votre origine pour choisir.":"Kì í ṣe ọjọ́ orí rẹ, ẹ̀yà ara rẹ tàbí orísun rẹ fún yíyàn.","Pas pour moi, bloquer, pause ou tout supprimer, à tout moment.":"Kì í ṣe fún mi, dí, dá dúró tàbí pa gbogbo rẹ̀ rẹ́, nígbàkigbà."}</script>
+<script type="application/json" id="nvI18n-wo">{"Accepter":"Nangu","Annuler":"Neenal","Aperçu":"Wone","Aperçu : ce serveur ne propose pas encore cette fonction. Rien n’est envoyé.":"Wone: serwëur bii joxagul liggéey bii ba léegi. Dara yónniwul.","Artisanat":"Liggéeyu loxo","Cette action a déjà été envoyée. Rechargez la page.":"Jëf jii yónnee nañu ko ba pare. Yeesalal xët wi.","Cette action n’est pas ouverte à votre âge.":"Jëf jii ubbeeku ci sa at.","Cette demande n’a pas été acceptée.":"Ñaan wii nanguñu ko.","Chant":"Woy","Chargement…":"Mi ngi yeb…","Coiffure":"Létt","Connectez-vous pour continuer.":"Duggal ngir wéy.","Couture":"Ñaw","Cuisine":"Togg","Culture":"Aada","C’est fait.":"Def nañu ko.","Danse":"Fecc","Dessin":"Nataal","Dès 16 ans. Ni vote ni argent.":"Li dale 16 at. Amul fal amul xaalis.","En attente":"Mu ngi xaar","Famille":"Njaboot","Fête":"Xew","Humour":"Kaf","Impossible de joindre NEURAVID pour le moment.":"Mënuñu jot NEURAVID léegi.","Jardinage":"Tóokër","Langue":"Làkk","Langues":"Làkk yi","Le service est momentanément indisponible. Réessayez dans un instant.":"Liggéey bi amul fi ab diir. Jéemaatal ci kanam tuuti.","Musique":"Musig","Pas de connexion pour le moment.":"Amul connexion léegi.","Photo":"Nataal","Refuser":"Gàntu","Retirée":"Dindi nañu ko","Sport":"Po","Toucher encore pour refuser":"Bësal ci kaw ngir gàntu","Toucher encore pour retirer":"Bësaatal ngir dindi","Traduction en cours de relecture.":"Tekki gi, ñu ngi koy xool.","Un mot (facultatif)":"Benn baat (warul)","Un texte n’a pas été accepté. Changez-le.":"Am na mbind mu ñu nanguwul. Soppil ko.","Une personne de NEURAVID":"Benn nit ci NEURAVID","Vidéo":"Widewo","Votre texte ne peut pas être vérifié pour le moment. Réessayez dans un instant.":"Sa bind mënuñu ko seet léegi. Jéemaatal ci kanam tuuti.","Voyage":"Tukki","Vérifiez le formulaire : un champ n’est pas rempli comme il faut.":"Seetal formulaire bi: am na bérab bu ñu fesalul bu baax.","Les rencontres de talents":"Ndajeem mën-mën yi","Les rencontres de talents ne sont pas encore ouvertes.":"Ndajeem mën-mën yi ubbeegul ba leegi.","Trouvez avec qui créer, selon vos talents et vos langues.":"Wutal ku ngay sos ak moom, ci say mën-mën ak say làkk.","Aperçu : des suggestions d’exemple, pour découvrir la page. Rien n’est envoyé.":"Wone: ay digle yu misaal, ngir xam xët wi. Dara yónnewul.","Suggestions":"Digle yi","Mes demandes":"Samay laaj","Mon profil de collaboration":"Sama mbiru liggéey ànd","Pourquoi cette suggestion":"Lu tax digle bii","Fait ce que vous cherchez : {0}":"Def na li ngay seet: {0}","Cherche votre talent : {0}":"Mu ngi seet sa mën-mën: {0}","Un intérêt commun : {0}":"Benn bëgg-bëgg bu ñu bokk: {0}","Veut aussi faire : {0}":"Moom itam bëgg na def: {0}","Une langue commune : {0}":"Benn làkk bu ñu bokk: {0}","Un autre pays : {0}":"Beneen réew: {0}","Pour faire quoi ?":"Ngir def lan?","Proposer une collaboration":"Digle benn liggéey ànd","Envoyer la demande":"Yónnee laaj bi","Pas pour moi":"Du ngir man","Bloquer":"Tëj","Toucher encore pour bloquer":"Laalaatal ngir tëj","Avant de commencer":"Laata ngay tàmbali","Vous n’êtes suggéré à personne tant que vous n’ouvrez pas votre profil de collaboration.":"Kenn duñu la digle ba nga ubbi sa mbiru liggéey ànd.","Les suggestions viennent seulement de ce que vous choisissez : talents, langues, intérêts, envies. Jamais votre âge, votre genre, votre origine ni votre apparence.":"Digle yi ci li nga tànn rekk lañuy jóge: mën-mën, làkk, bëgg-bëgg, yéene. Du sa at, du sa jëmm, du sa cosaan, du sa melo.","Vous pouvez mettre en pause, bloquer ou tout supprimer à tout moment.":"Mën nga taxawal, tëj walla far lépp saa su la neexee.","Ouvrir mon profil de collaboration":"Ubbi sama mbiru liggéey ànd","Votre profil est en pause : personne ne vous est suggéré, et vous n’êtes suggéré à personne.":"Sa mbiru taxaw na: kenn duñu la ko digle, te duñu la digle kenn.","Reprendre":"Dooraat","Des personnes qui partagent une langue avec vous et dont les talents répondent aux vôtres. Rien n’est envoyé sans votre choix.":"Ay nit ñu ngeen bokk benn làkk te seen mën-mën dëppoo ak yos. Dara du dem te tànnoo ko.","Aucune suggestion pour le moment. Ajoutez des talents ou des langues à votre profil.":"Amul digle fi mu nekk. Yokkal ay mën-mën walla ay làkk ci sa mbiru.","Acceptée":"Nangu nañu ko","Sans suite":"Amul tontu","Reçues":"Yi ñu jot","Envoyées":"Yi ñu yónnee","Aucune demande reçue.":"Amul laaj bu ñu jot.","Aucune demande envoyée.":"Amul laaj bu ñu yónnee.","Mes collaborations":"Samay liggéey ànd","Aucune collaboration pour l’instant.":"Amul liggéey ànd ba leegi.","Sans réponse, elle s’arrête le {0}.":"Su amul tontu, dina taxaw {0}.","Retirer ma demande":"Dindi sama laaj","Commencer une chaîne ensemble":"Tàmbali leen benn jaar ñoom ñaar","Faire un duo":"Def benn ñaari ñaari","Voir son profil":"Seet mbiram","Arrêter cette collaboration":"Taxawal liggéey ànd bii","Toucher encore pour arrêter":"Laalaatal ngir taxawal","Un refus n’est jamais affiché : une demande sans réponse s’arrête d’elle-même après 14 jours.":"Bañ du feeñ mukk: laaj bu amul tontu dafay taxaw boppam ginnaaw 14 fan.","Mes talents":"Samay mën-mën","Ce que je cherche chez une partenaire ou un partenaire":"Li may seet ci ab nawle","Mes intérêts":"Samay bëgg-bëgg","Mes langues":"Samay làkk","Ce que j’aimerais faire":"Li ma bëgg def","Seulement des personnes d’autres pays":"Nit ñu jóge ci yeneen réew rekk","J’accepte d’être suggéré à d’autres personnes à partir de ces choix.":"Nangu naa ñu digle ma ñeneen ñi ci li ma tànn.","Enregistrer":"Denc","Mon profil est visible dans les suggestions.":"Sama mbiru dafay feeñ ci digle yi.","Mon profil est en pause.":"Sama mbiru taxaw na.","Mettre en pause":"Taxawal","Revoir les personnes que j’ai écartées ({0})":"Gisaat ñi ma bàyyi ({0})","Supprimer mon profil de collaboration":"Far sama mbiru liggéey ànd","Votre profil, vos demandes et vos choix sont effacés tout de suite.":"Sa mbiru, say laaj ak li nga tànn dañu leen di far ci saa si.","Toucher encore pour tout supprimer":"Laalaatal ngir far lépp","Tout supprimer":"Far lépp","Cochez votre accord pour continuer.":"Tànnal sa nangu ngir topp.","Choisissez au moins une langue.":"Tànnal lu mu néew néew benn làkk.","Choisissez au moins un talent, ou ce que vous cherchez.":"Tànnal lu mu néew néew benn mën-mën, walla li ngay seet.","Vous en avez choisi trop.":"Tànn nga lu ëpp.","{0} choix au plus dans cette liste.":"{0} tànn lu ëpp ci lim bii.","Cette personne n’est plus proposée.":"Nit kii digleetuñu ko.","Une demande est déjà en cours avec cette personne.":"Am na benn laaj buy dox ak nit kii ba noppi.","Vous avez déjà 5 demandes en attente.":"Am nga 5 laaj yuy xaar ba noppi.","Cette demande n’est plus disponible.":"Laaj bii nekkatul.","Ouvrez d’abord votre profil de collaboration.":"Ubbil sa mbiru liggéey ànd ba jëkk.","Votre profil de collaboration est enregistré.":"Sa mbiru liggéey ànd denc nañu ko.","Votre demande est envoyée.":"Sa laaj yónnee nañu ko.","Cette personne ne vous sera plus suggérée.":"Duñu la ko digleeti.","Cette personne est bloquée.":"Nit kii tëj nañu ko.","C’est une collaboration ! Vous pouvez commencer ensemble.":"Liggéey ànd la! Mën ngeen tàmbali ñoom ñaar.","Votre profil est de nouveau visible.":"Sa mbiru feeñaat na.","Votre profil est en pause.":"Sa mbiru taxaw na.","Votre profil de collaboration est supprimé.":"Sa mbiru liggéey ànd far nañu ko.","Une chaîne sans frontières":"Benn jaar bu amul dig","Un duo côte à côte":"Benn ñaari ñaari wet ak wet","Un tutoriel à deux":"Benn njàngale ñoom ñaar","Un direct à deux":"Benn dal ñoom ñaar","Comédie":"Kaf","Théâtre":"Teyaatar","Conte":"Léeb","Poésie":"Taalif","Rap":"Rap","Mode":"Moodu","Maquillage":"Maquillage","Peinture":"Pentiir","Montage":"Montaas","Animation":"Animaasioŋ","Technologie":"Teknoloji","Nature":"Ndombo","Patrimoine":"Ndono","Innovation":"Bees-bees","Solidarité":"Dimbalante","Spectacle":"Woneel","Éducation":"Njàng","Comment ça marche":"Naka lay doxe","Ce qui vous protège":"Li lay aar","Bientôt ouvert ici. Voici ce qui vous attend.":"Dina ubbiku fii ci kanam. Lii mooy li lay xaar.","Choisissez vos talents, vos langues et ce que vous cherchez.":"Tànnal say mën-mën, say làkk ak li ngay seet.","L’assistant vous suggère des partenaires et dit pourquoi.":"Ndimbal bi dafay digle ay nawle te wax lu tax.","Proposez une collaboration, si vous le voulez.":"Digleel benn liggéey ànd, su la neexee.","Rien sans votre accord : vous choisissez d’être suggéré.":"Dara te sa nangu: yow yaa tànn ñu digle la.","Jamais votre âge, votre genre ni votre origine pour choisir.":"Du sa at, du sa jëmm, du sa cosaan ngir tànn.","Pas pour moi, bloquer, pause ou tout supprimer, à tout moment.":"Du ngir man, tëj, taxawal walla far lépp, saa su la neexee."}</script>
+<script type="application/json" id="nvI18n-bm">{"Accepter":"Sɔn","Annuler":"A dabila","Aperçu":"Jirali","Aperçu : ce serveur ne propose pas encore cette fonction. Rien n’est envoyé.":"Jirali: sɛriwɛri in ma nin baara di fɔlɔ. Foyi tɛ ci.","Artisanat":"Bololabaara","Cette action a déjà été envoyée. Rechargez la page.":"Nin kɛwale cira kaban. Ɲɛ in lajɛ kokura.","Cette action n’est pas ouverte à votre âge.":"Nin kɛwale ma yɛlɛ i ka si ma.","Cette demande n’a pas été acceptée.":"Ɲinini in ma sɔn.","Chant":"Dɔnkili","Chargement…":"A bɛ ka doni…","Coiffure":"Kunsigi","Connectez-vous pour continuer.":"Don walasa k’a taa a fɛ.","Couture":"Karali","Cuisine":"Tobili","Culture":"Laada","C’est fait.":"A kɛra.","Danse":"Dɔnkɛ","Dessin":"Ja","Dès 16 ans. Ni vote ni argent.":"K’a ta san 16 la. Kalata ni wari tɛ.","En attente":"A bɛ makɔnɔ","Famille":"Denbaya","Fête":"Seli","Humour":"Tulonkɛ","Impossible de joindre NEURAVID pour le moment.":"A tɛ se ka NEURAVID sɔrɔ sisan.","Jardinage":"Nakɔ baara","Langue":"Kan","Langues":"Kanw","Le service est momentanément indisponible. Réessayez dans un instant.":"Baara in tɛ sɔrɔ sisan. A lajɛ tugun waati dɔɔnin kɔ.","Musique":"Fɔli","Pas de connexion pour le moment.":"Ɲɔgɔnsira tɛ yen sisan.","Photo":"Ja","Refuser":"A ban","Retirée":"A bɔra yen","Sport":"Farikoloɲɛnajɛ","Toucher encore pour refuser":"A digi tugun walasa ka ban","Toucher encore pour retirer":"A digi tugun walasa k'a bɔ","Traduction en cours de relecture.":"Bayɛlɛmali bɛ lajɛ la.","Un mot (facultatif)":"Kuma dɔ (a tɛ wajibi ye)","Un texte n’a pas été accepté. Changez-le.":"Sɛbɛn dɔ ma sɔn. A yɛlɛma.","Une personne de NEURAVID":"NEURAVID mɔgɔ dɔ","Vidéo":"Widewo","Votre texte ne peut pas être vérifié pour le moment. Réessayez dans un instant.":"I ka sɛbɛn tɛ se ka lajɛ sisan. A kɛ tugun dɔɔnin kɔfɛ.","Voyage":"Taama","Vérifiez le formulaire : un champ n’est pas rempli comme il faut.":"Formulɛri lajɛ: yɔrɔ dɔ ma fa ka ɲɛ.","Les rencontres de talents":"Seko ɲɔgɔnsɔrɔw","Les rencontres de talents ne sont pas encore ouvertes.":"Seko ɲɔgɔnsɔrɔw ma dayɛlɛ fɔlɔ.","Trouvez avec qui créer, selon vos talents et vos langues.":"Mɔgɔ ɲini i bɛ se ka fɛn dilan ni min ye, i ka sekow ni i ka kanw kɔrɔ.","Aperçu : des suggestions d’exemple, pour découvrir la page. Rien n’est envoyé.":"Jiracogo: misali jiraliw, ka sɛbɛn in dɔn. Foyi tɛ ci.","Suggestions":"Jiraliw","Mes demandes":"N ka ɲininkaliw","Mon profil de collaboration":"N ka baarajɛ jirali","Pourquoi cette suggestion":"Mun na jirali in kɛra","Fait ce que vous cherchez : {0}":"A bɛ i bɛ min ɲini o kɛ: {0}","Cherche votre talent : {0}":"A bɛ i ka seko ɲini: {0}","Un intérêt commun : {0}":"Diyanye kelen: {0}","Veut aussi faire : {0}":"A fana b’a fɛ ka nin kɛ: {0}","Une langue commune : {0}":"Kan kelen: {0}","Un autre pays : {0}":"Jamana wɛrɛ: {0}","Pour faire quoi ?":"Ka mun kɛ?","Proposer une collaboration":"Baara ɲɔgɔn fɛ jira","Envoyer la demande":"Ɲininkali ci","Pas pour moi":"A tɛ ne ta ye","Bloquer":"A bali","Toucher encore pour bloquer":"A digi tugun k’a bali","Avant de commencer":"Sani i ka daminɛ","Vous n’êtes suggéré à personne tant que vous n’ouvrez pas votre profil de collaboration.":"I tɛ jira mɔgɔ si la fo i ka i ka baarajɛ jirali dayɛlɛ.","Les suggestions viennent seulement de ce que vous choisissez : talents, langues, intérêts, envies. Jamais votre âge, votre genre, votre origine ni votre apparence.":"Jiraliw bɛ bɔ i ka sugandiliw dɔrɔn na: sekow, kanw, diyanyew, negew. I ka san, i ka cɛya walima musoya, i bɔyɔrɔ ni i cogoya tɛ.","Vous pouvez mettre en pause, bloquer ou tout supprimer à tout moment.":"I bɛ se k’a jɔ, ka bali walima ka fɛn bɛɛ jɔsi waati o waati.","Ouvrir mon profil de collaboration":"N ka baarajɛ jirali dayɛlɛ","Votre profil est en pause : personne ne vous est suggéré, et vous n’êtes suggéré à personne.":"I ka jirali jɔlen don: mɔgɔ si tɛ jira i la, i fana tɛ jira mɔgɔ si la.","Reprendre":"A daminɛ tugun","Des personnes qui partagent une langue avec vous et dont les talents répondent aux vôtres. Rien n’est envoyé sans votre choix.":"Mɔgɔ minnu ni i bɛ kan kelen fɔ, u ka sekow bɛ bɛn i ta ma. Foyi tɛ ci ni i ma sugandi.","Aucune suggestion pour le moment. Ajoutez des talents ou des langues à votre profil.":"Jirali si tɛ sisan. Sekow walima kanw fara i ka jirali kan.","Acceptée":"A minɛna","Sans suite":"Jaabi tɛ","Reçues":"Sɔrɔlenw","Envoyées":"Cilenw","Aucune demande reçue.":"Ɲininkali si ma sɔrɔ.","Aucune demande envoyée.":"Ɲininkali si ma ci.","Mes collaborations":"N ka baaraw ɲɔgɔn fɛ","Aucune collaboration pour l’instant.":"Baara ɲɔgɔn fɛ si tɛ fɔlɔ.","Sans réponse, elle s’arrête le {0}.":"Ni jaabi ma sɔrɔ, a bɛ jɔ {0}.","Retirer ma demande":"N ka ɲininkali bɔ yen","Commencer une chaîne ensemble":"Jɔlɔkɔ dɔ daminɛ ɲɔgɔn fɛ","Faire un duo":"Duwo kɛ","Voir son profil":"A ka jirali lajɛ","Arrêter cette collaboration":"Baara in jɔ","Toucher encore pour arrêter":"A digi tugun k’a jɔ","Un refus n’est jamais affiché : une demande sans réponse s’arrête d’elle-même après 14 jours.":"Banni tɛ jira abada: ɲininkali min ma jaabi, o bɛ jɔ a yɛrɛ ma tile 14 kɔ.","Mes talents":"N ka sekow","Ce que je cherche chez une partenaire ou un partenaire":"Ne bɛ min ɲini baaraɲɔgɔn na","Mes intérêts":"N ka diyanyew","Mes langues":"N ka kanw","Ce que j’aimerais faire":"Ne b’a fɛ ka min kɛ","Seulement des personnes d’autres pays":"Jamana wɛrɛw mɔgɔw dɔrɔn","J’accepte d’être suggéré à d’autres personnes à partir de ces choix.":"N sɔnna ka jira mɔgɔ wɛrɛw la nin sugandiliw kɔrɔ.","Enregistrer":"A mara","Mon profil est visible dans les suggestions.":"N ka jirali bɛ ye jiraliw la.","Mon profil est en pause.":"N ka jirali jɔlen don.","Mettre en pause":"A jɔ","Revoir les personnes que j’ai écartées ({0})":"Mɔgɔ minnu n y’u bila, olu ye tugun ({0})","Supprimer mon profil de collaboration":"N ka baarajɛ jirali jɔsi","Votre profil, vos demandes et vos choix sont effacés tout de suite.":"I ka jirali, i ka ɲininkaliw ani i ka sugandiliw bɛ jɔsi o yɔrɔnin bɛɛ.","Toucher encore pour tout supprimer":"A digi tugun ka fɛn bɛɛ jɔsi","Tout supprimer":"Fɛn bɛɛ jɔsi","Cochez votre accord pour continuer.":"I sɔnni taamasyɛn kɛ walasa ka taa a fɛ.","Choisissez au moins une langue.":"Kan kelen sugandi ka dɔgɔya.","Choisissez au moins un talent, ou ce que vous cherchez.":"Seko kelen sugandi ka dɔgɔya, walima i bɛ min ɲini.","Vous en avez choisi trop.":"I ye caman sugandi.","{0} choix au plus dans cette liste.":"Sugandili {0} ka kɔrɔ nin lisi in na.","Cette personne n’est plus proposée.":"Mɔgɔ in tɛ jira tugun.","Une demande est déjà en cours avec cette personne.":"Ɲininkali dɔ bɛ taa mɔgɔ in fɛ kaban.","Vous avez déjà 5 demandes en attente.":"Ɲininkali 5 bɛ makɔnɔni na i fɛ kaban.","Cette demande n’est plus disponible.":"Ɲininkali in tɛ sɔrɔ tugun.","Ouvrez d’abord votre profil de collaboration.":"I ka baarajɛ jirali dayɛlɛ fɔlɔ.","Votre profil de collaboration est enregistré.":"I ka baarajɛ jirali marala.","Votre demande est envoyée.":"I ka ɲininkali cira.","Cette personne ne vous sera plus suggérée.":"Mɔgɔ in tɛna jira i la tugun.","Cette personne est bloquée.":"Mɔgɔ in balila.","C’est une collaboration ! Vous pouvez commencer ensemble.":"Baara ɲɔgɔn fɛ don! Aw bɛ se ka daminɛ ɲɔgɔn fɛ.","Votre profil est de nouveau visible.":"I ka jirali bɛ ye tugun.","Votre profil est en pause.":"I ka jirali jɔlen don.","Votre profil de collaboration est supprimé.":"I ka baarajɛ jirali jɔsira.","Une chaîne sans frontières":"Jɔlɔkɔ dancɛ tɛ","Un duo côte à côte":"Duwo kɛrɛ ni kɛrɛ","Un tutoriel à deux":"Kalan mɔgɔ fila fɛ","Un direct à deux":"Ladilan mɔgɔ fila fɛ","Comédie":"Tulonkɛ","Théâtre":"Tiyatiri","Conte":"Nsiirin","Poésie":"Poyezi","Rap":"Rap","Mode":"Moda","Maquillage":"Mashilan","Peinture":"Jaa ladonni","Montage":"Labɛnni","Animation":"Ja lamaga","Technologie":"Fɛɛrɛ kura","Nature":"Dafɛ","Patrimoine":"Ciyɛn","Innovation":"Kuraya","Solidarité":"Dɛmɛɲɔgɔnya","Spectacle":"Jirali","Éducation":"Kalan","Comment ça marche":"A bɛ baara cogo min na","Ce qui vous protège":"Min bɛ i lakana","Bientôt ouvert ici. Voici ce qui vous attend.":"A bɛna da yan sɔɔni. Nin ye min bɛ i makɔnɔ.","Choisissez vos talents, vos langues et ce que vous cherchez.":"I ka sekow, i ka kanw ani i bɛ min ɲini, olu sugandi.","L’assistant vous suggère des partenaires et dit pourquoi.":"Dɛmɛbaga bɛ baaraɲɔgɔnw jira i la k’a kun fɔ.","Proposez une collaboration, si vous le voulez.":"Baara ɲɔgɔn fɛ jira, n’i b’a fɛ.","Rien sans votre accord : vous choisissez d’être suggéré.":"Foyi tɛ ni i ma sɔn: i yɛrɛ de bɛ sugandi ka jira.","Jamais votre âge, votre genre ni votre origine pour choisir.":"I ka san, i cɛya walima musoya ani i bɔyɔrɔ tɛ ta ka sugandi, abada.","Pas pour moi, bloquer, pause ou tout supprimer, à tout moment.":"A tɛ ne ta ye, ka bali, ka jɔ walima ka fɛn bɛɛ jɔsi, waati o waati."}</script>
+<script type="application/json" id="nvI18n-ln">{"Accepter":"Ndima","Annuler":"Tika","Aperçu":"Emoniseli","Aperçu : ce serveur ne propose pas encore cette fonction. Rien n’est envoyé.":"Emoniseli: serveur oyo epesi naino mosala oyo te. Eloko moko te etindami.","Artisanat":"Misala ya maboko","Cette action a déjà été envoyée. Rechargez la page.":"Likambo oyo etindamaki kala. Fungola lokasa lisusu.","Cette action n’est pas ouverte à votre âge.":"Likambo oyo efungwami te mpo na mbula na yo.","Cette demande n’a pas été acceptée.":"Bosengi oyo endimami te.","Chant":"Koyemba","Chargement…":"Ezali kofungola…","Coiffure":"Kokanga nsuki","Connectez-vous pour continuer.":"Kota mpo na kokoba.","Couture":"Kotonga","Cuisine":"Kolamba","Culture":"Bonkoko","C’est fait.":"Esalemi.","Danse":"Bobini","Dessin":"Kobenda","Dès 16 ans. Ni vote ni argent.":"Kobanda mbula 16. Kopona te mpe mbongo te.","En attente":"Ezali kozela","Famille":"Libota","Fête":"Fɛti","Humour":"Masano","Impossible de joindre NEURAVID pour le moment.":"Ekoki te kokutana na NEURAVID sikoyo.","Jardinage":"Bilanga","Langue":"Lokota","Langues":"Minoko","Le service est momentanément indisponible. Réessayez dans un instant.":"Mosala oyo ezali te mpo na mwa ntango. Meka lisusu mwa moke.","Musique":"Miziki","Pas de connexion pour le moment.":"Boyokani ezali te sikoyo.","Photo":"Foto","Refuser":"Boya","Retirée":"Elongolami","Sport":"Lisano","Toucher encore pour refuser":"Finá lisusu mpo na koboya","Toucher encore pour retirer":"Finá lisusu mpo na kolongola","Traduction en cours de relecture.":"Libongoli ezali kotalama.","Un mot (facultatif)":"Liloba moko (ya kopona)","Un texte n’a pas été accepté. Changez-le.":"Makomi moko endimami te. Bongola yango.","Une personne de NEURAVID":"Moto moko ya NEURAVID","Vidéo":"Video","Votre texte ne peut pas être vérifié pour le moment. Réessayez dans un instant.":"Makomi na yo ekoki kotalelama sikoyo te. Meka lisusu na mwa ntango.","Voyage":"Mobembo","Vérifiez le formulaire : un champ n’est pas rempli comme il faut.":"Tala formulaire: esika moko etondisami malamu te.","Les rencontres de talents":"Bokutani ya makabo","Les rencontres de talents ne sont pas encore ouvertes.":"Bokutani ya makabo efungwami naino te.","Trouvez avec qui créer, selon vos talents et vos langues.":"Luka moto ya kosala na ye, engebene makabo mpe minoko na yo.","Aperçu : des suggestions d’exemple, pour découvrir la page. Rien n’est envoyé.":"Emoniseli: makanisi ya ndakisa, mpo na koyeba lokasa. Eloko moko te etindami.","Suggestions":"Makanisi","Mes demandes":"Masɛngi na ngai","Mon profil de collaboration":"Profil na ngai ya kosala elongo","Pourquoi cette suggestion":"Mpo na nini likanisi oyo","Fait ce que vous cherchez : {0}":"Asalaka oyo ozali koluka: {0}","Cherche votre talent : {0}":"Azali koluka likabo na yo: {0}","Un intérêt commun : {0}":"Mposa moko ya bango mibale: {0}","Veut aussi faire : {0}":"Alingi mpe kosala: {0}","Une langue commune : {0}":"Monoko moko ya bango mibale: {0}","Un autre pays : {0}":"Mboka mosusu: {0}","Pour faire quoi ?":"Mpo na kosala nini?","Proposer une collaboration":"Pesa likanisi ya kosala elongo","Envoyer la demande":"Tinda lisɛngi","Pas pour moi":"Ezali mpo na ngai te","Bloquer":"Kanga","Toucher encore pour bloquer":"Simba lisusu mpo na kokanga","Avant de commencer":"Liboso ya kobanda","Vous n’êtes suggéré à personne tant que vous n’ouvrez pas votre profil de collaboration.":"Bakopesa yo likanisi na moto moko te tii ofungola profil na yo ya kosala elongo.","Les suggestions viennent seulement de ce que vous choisissez : talents, langues, intérêts, envies. Jamais votre âge, votre genre, votre origine ni votre apparence.":"Makanisi ewutaka kaka na oyo ozali kopona: makabo, minoko, mposa, bolingo. Ata mokolo te mbula, mobali to mwasi, ebandeli to lolenge na yo.","Vous pouvez mettre en pause, bloquer ou tout supprimer à tout moment.":"Okoki kotelemisa, kokanga to kolongola nyonso ntango nyonso.","Ouvrir mon profil de collaboration":"Fungola profil na ngai ya kosala elongo","Votre profil est en pause : personne ne vous est suggéré, et vous n’êtes suggéré à personne.":"Profil na yo etelemi: moto moko te apesameli yo, mpe opesamaka na moto moko te.","Reprendre":"Kobanda lisusu","Des personnes qui partagent une langue avec vous et dont les talents répondent aux vôtres. Rien n’est envoyé sans votre choix.":"Bato oyo bozali na monoko moko mpe makabo na bango ekokani na oyo ya yo. Eloko moko te etindami kozanga boponi na yo.","Aucune suggestion pour le moment. Ajoutez des talents ou des langues à votre profil.":"Likanisi moko te sikoyo. Bakisa makabo to minoko na profil na yo.","Acceptée":"Endimami","Sans suite":"Eyano ezali te","Reçues":"Oyo ekomeli","Envoyées":"Oyo etindami","Aucune demande reçue.":"Lisɛngi moko te ekomeli.","Aucune demande envoyée.":"Lisɛngi moko te etindami.","Mes collaborations":"Mosala na ngai elongo na basusu","Aucune collaboration pour l’instant.":"Mosala elongo ezali naino te.","Sans réponse, elle s’arrête le {0}.":"Soki eyano ezali te, ekosila na {0}.","Retirer ma demande":"Longola lisɛngi na ngai","Commencer une chaîne ensemble":"Bobanda monyololo elongo","Faire un duo":"Sala duo","Voir son profil":"Tala profil na ye","Arrêter cette collaboration":"Silisa mosala oyo","Toucher encore pour arrêter":"Simba lisusu mpo na kosilisa","Un refus n’est jamais affiché : une demande sans réponse s’arrête d’elle-même après 14 jours.":"Koboya emonisamaka ata mokolo te: lisɛngi oyo ezangi eyano esilaka yango moko sima ya mikolo 14.","Mes talents":"Makabo na ngai","Ce que je cherche chez une partenaire ou un partenaire":"Oyo nazali koluka epai ya moninga ya mosala","Mes intérêts":"Mposa na ngai","Mes langues":"Minoko na ngai","Ce que j’aimerais faire":"Oyo nalingi kosala","Seulement des personnes d’autres pays":"Kaka bato ya bikolo mosusu","J’accepte d’être suggéré à d’autres personnes à partir de ces choix.":"Nandimi ete bapesa ngai likanisi na bato mosusu engebene maponi oyo.","Enregistrer":"Bomba","Mon profil est visible dans les suggestions.":"Profil na ngai emonanaka na makanisi.","Mon profil est en pause.":"Profil na ngai etelemi.","Mettre en pause":"Telemisa","Revoir les personnes que j’ai écartées ({0})":"Komona lisusu bato oyo natiaki pembeni ({0})","Supprimer mon profil de collaboration":"Longola profil na ngai ya kosala elongo","Votre profil, vos demandes et vos choix sont effacés tout de suite.":"Profil na yo, masɛngi na yo mpe maponi na yo elongolami mbala moko.","Toucher encore pour tout supprimer":"Simba lisusu mpo na kolongola nyonso","Tout supprimer":"Longola nyonso","Cochez votre accord pour continuer.":"Bika bondimi na yo mpo na kokoba.","Choisissez au moins une langue.":"Pona ata monoko moko.","Choisissez au moins un talent, ou ce que vous cherchez.":"Pona ata likabo moko, to oyo ozali koluka.","Vous en avez choisi trop.":"Oponi mingi koleka.","{0} choix au plus dans cette liste.":"Maponi {0} koleka te na liste oyo.","Cette personne n’est plus proposée.":"Moto oyo apesamaka lisusu te.","Une demande est déjà en cours avec cette personne.":"Lisɛngi moko ezali kala na moto oyo.","Vous avez déjà 5 demandes en attente.":"Ozali kala na masɛngi 5 oyo ezali kozela.","Cette demande n’est plus disponible.":"Lisɛngi oyo ezali lisusu te.","Ouvrez d’abord votre profil de collaboration.":"Fungola profil na yo ya kosala elongo liboso.","Votre profil de collaboration est enregistré.":"Profil na yo ya kosala elongo ebombami.","Votre demande est envoyée.":"Lisɛngi na yo etindami.","Cette personne ne vous sera plus suggérée.":"Bakopesa yo moto oyo lisusu te.","Cette personne est bloquée.":"Moto oyo akangami.","C’est une collaboration ! Vous pouvez commencer ensemble.":"Ezali mosala elongo! Bokoki kobanda elongo.","Votre profil est de nouveau visible.":"Profil na yo emonani lisusu.","Votre profil est en pause.":"Profil na yo etelemi.","Votre profil de collaboration est supprimé.":"Profil na yo ya kosala elongo elongolami.","Une chaîne sans frontières":"Monyololo kozanga ndelo","Un duo côte à côte":"Duo pembeni na pembeni","Un tutoriel à deux":"Liteya ya bato mibale","Un direct à deux":"Live ya bato mibale","Comédie":"Komedi","Théâtre":"Teyatre","Conte":"Masapo","Poésie":"Poezi","Rap":"Rap","Mode":"Mode","Maquillage":"Maquillage","Peinture":"Kokoba langi","Montage":"Kobongisa video","Animation":"Animation","Technologie":"Teknoloji","Nature":"Bozalisi","Patrimoine":"Libula","Innovation":"Bosoli ya sika","Solidarité":"Bosangani","Spectacle":"Lisano","Éducation":"Boyekoli","Comment ça marche":"Ndenge esalaka","Ce qui vous protège":"Oyo ebatelaka yo","Bientôt ouvert ici. Voici ce qui vous attend.":"Ekofungwama awa mosika te. Tala oyo ezali kozela yo.","Choisissez vos talents, vos langues et ce que vous cherchez.":"Pona makabo na yo, minoko na yo mpe oyo ozali koluka.","L’assistant vous suggère des partenaires et dit pourquoi.":"Mosungi apesaka yo bamoninga ya mosala mpe alobaka mpo na nini.","Proposez une collaboration, si vous le voulez.":"Pesa likanisi ya kosala elongo, soki olingi.","Rien sans votre accord : vous choisissez d’être suggéré.":"Eloko te kozanga ndingisa na yo: yo nde oponaka ete bapesa yo.","Jamais votre âge, votre genre ni votre origine pour choisir.":"Ata mokolo te mbula, mobali to mwasi, to ebandeli na yo mpo na kopona.","Pas pour moi, bloquer, pause ou tout supprimer, à tout moment.":"Ezali mpo na ngai te, kokanga, kotelemisa to kolongola nyonso, ntango nyonso."}</script>
+
+<script>
+(function(){
+/* NEURAVID — la présentation d'une nouveauté (17 novembre 2026, plan des 8 nouveautés, étape 2, confirmé par Karamo).
+   Un petit film animé (dessiné, aucune image extérieure, aucune personne réelle), « Comment ça marche » en 3 étapes et
+   « Ce qui vous protège ». Ouverte en grand quand la nouveauté n'est pas encore ouverte sur le serveur ; repliée sinon.
+   Les textes arrivent déjà traduits par le module. Aucun chiffre, aucun contenu inventé. */
+(function(){
+  if(window.NVPresente) return;
+  var CSS = '.nvp{margin:0 0 14px;border-radius:18px;overflow:hidden;background:#1b1145;border:1px solid rgba(255,255,255,.12)}' +
+    '.nvp canvas{display:block;width:100%;height:150px}' +
+    '.nvp .nvp-intro{margin:12px 14px 4px;font-size:15px;line-height:1.45;color:#f6f1ff}' +
+    '.nvp details{padding:4px 14px 12px}.nvp summary{cursor:pointer;min-height:44px;display:flex;align-items:center;gap:8px;font-weight:700;color:var(--nvp-c1,#ffc531);list-style:none}' +
+    '.nvp summary::-webkit-details-marker{display:none}.nvp summary:before{content:"";width:14px;height:16px;background:currentColor;clip-path:polygon(50% 0,100% 25%,100% 75%,50% 100%,0 75%,0 25%);transition:transform .2s}' +
+    '.nvp details[open] summary:before{transform:rotate(90deg)}' +
+    '.nvp ol{list-style:none;margin:4px 0 10px;padding:0;display:grid;gap:8px}.nvp ol li{display:flex;gap:10px;align-items:flex-start;line-height:1.4;color:#f6f1ff}' +
+    '.nvp ol li b{flex:0 0 28px;height:32px;display:grid;place-items:center;font-size:14px;color:#140b33;background:var(--nvp-c1,#ffc531);clip-path:polygon(50% 0,100% 25%,100% 75%,50% 100%,0 75%,0 25%)}' +
+    '.nvp h3{margin:10px 0 6px;font-size:14px;color:var(--nvp-c2,#16e0d4)}.nvp ul{margin:0;padding:0;list-style:none;display:grid;gap:6px}' +
+    '.nvp ul li{position:relative;padding-left:20px;line-height:1.4;color:#e9e3f5;font-size:14px}.nvp ul li:before{content:"";position:absolute;left:2px;top:.45em;width:10px;height:11px;background:var(--nvp-c2,#16e0d4);clip-path:polygon(50% 0,100% 25%,100% 75%,50% 100%,0 75%,0 25%)}' +
+    '[dir="rtl"] .nvp ul li{padding-left:0;padding-right:20px}[dir="rtl"] .nvp ul li:before{left:auto;right:2px}' +
+    '@media (prefers-reduced-motion:reduce){.nvp summary:before{transition:none}}';
+  function style(){ if(document.getElementById('nvpStyle')) return; var s = document.createElement('style'); s.id = 'nvpStyle'; s.textContent = CSS; document.head.appendChild(s); }
+  function esc(t){ return String(t == null ? '' : t).replace(/[&<>"']/g, function(c){ return {'&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;'}[c]; }); }
+  function hex(g, x, y, r, rot){ g.beginPath(); for(var i = 0; i < 6; i++){ var a = (rot || 0) + Math.PI / 3 * i + Math.PI / 6; g[i ? 'lineTo' : 'moveTo'](x + r * Math.cos(a), y + r * Math.sin(a)); } g.closePath(); }
+  function oeil(g, w, h){ var x = w - 22, y = h - 20; g.globalAlpha = .85; g.fillStyle = 'rgba(20,11,51,.7)'; hex(g, x, y, 13); g.fill(); g.strokeStyle = '#ffc531'; g.lineWidth = 1.5; g.stroke();
+    g.beginPath(); g.ellipse(x, y, 7, 4.2, 0, 0, Math.PI * 2); g.fillStyle = '#f6f1ff'; g.fill(); g.beginPath(); g.arc(x, y, 2.4, 0, Math.PI * 2); g.fillStyle = '#140b33'; g.fill(); g.globalAlpha = 1; }
+  var SCENES = {
+    tresse: function(g, w, h, t, c){ var cx = w / 2, cy = h / 2 + 6, R = Math.min(w, h) * .42;
+      var gr = g.createRadialGradient(cx - R * .3, cy - R * .3, R * .1, cx, cy, R); gr.addColorStop(0, '#2c5fb3'); gr.addColorStop(1, '#0c1840'); g.fillStyle = gr; g.beginPath(); g.arc(cx, cy, R, 0, Math.PI * 2); g.fill();
+      var pts = []; for(var la = -60; la <= 60; la += 15) for(var lo = 0; lo < 360; lo += 15){ var a = (lo + t * 12) * Math.PI / 180, b = la * Math.PI / 180, z = Math.cos(b) * Math.cos(a); if(z < 0) continue;
+        var x = cx + R * Math.cos(b) * Math.sin(a), y = cy - R * Math.sin(b); g.fillStyle = 'rgba(160,210,255,' + (.25 + z * .5) + ')'; g.fillRect(x - 1, y - 1, 2, 2); }
+      var n = 5; for(var i = 0; i < n; i++){ var a1 = (i * 70 + t * 12) * Math.PI / 180, b1 = ((i * 37) % 80 - 40) * Math.PI / 180; pts.push([cx + R * Math.cos(b1) * Math.sin(a1), cy - R * Math.sin(b1), Math.cos(b1) * Math.cos(a1)]); }
+      g.lineWidth = 2.2; g.strokeStyle = c[0]; g.shadowColor = c[0]; g.shadowBlur = 8; var k = (t * .6) % (n - 1);
+      for(var j = 0; j < n - 1; j++){ var p = pts[j], q = pts[j + 1]; if(p[2] < 0 || q[2] < 0) continue; var f = j < Math.floor(k) ? 1 : j === Math.floor(k) ? k % 1 : 0; if(!f) continue;
+        var mx = (p[0] + q[0]) / 2, my = Math.min(p[1], q[1]) - 26; g.beginPath(); g.moveTo(p[0], p[1]); for(var s = 1; s <= 20 * f; s++){ var u = s / 20; g.lineTo((1 - u) * (1 - u) * p[0] + 2 * (1 - u) * u * mx + u * u * q[0], (1 - u) * (1 - u) * p[1] + 2 * (1 - u) * u * my + u * u * q[1]); } g.stroke(); }
+      g.shadowBlur = 0; pts.forEach(function(p){ if(p[2] < 0) return; g.fillStyle = c[0]; hex(g, p[0], p[1], 5); g.fill(); }); },
+    cote: function(g, w, h, t, c){ var m = w / 2, o = Math.sin(t * 1.4) * 6;
+      g.fillStyle = c[0]; g.globalAlpha = .28; g.fillRect(0, 0, m - 2, h); g.fillStyle = c[1]; g.fillRect(m + 2, 0, m - 2, h); g.globalAlpha = 1;
+      [[m / 2, c[0]], [m + m / 2, c[1]]].forEach(function(s, i){ var y = h * .5 + (i ? -o : o); g.fillStyle = s[1]; g.beginPath(); g.arc(s[0], y - 24, 16, 0, Math.PI * 2); g.fill();
+        g.beginPath(); g.moveTo(s[0] - 28, y + 46); g.quadraticCurveTo(s[0], y - 18, s[0] + 28, y + 46); g.fill();
+        g.strokeStyle = s[1]; g.lineWidth = 4; g.lineCap = 'round'; g.beginPath(); g.moveTo(s[0] + (i ? -20 : 20), y + 6); g.lineTo(s[0] + (i ? -38 : 38) , y - 14 + o * (i ? 1 : -1)); g.stroke(); });
+      var pu = 1 + Math.sin(t * 3) * .08; g.fillStyle = '#140b33'; hex(g, m, h / 2, 22 * pu); g.fill(); g.strokeStyle = '#ffc531'; g.lineWidth = 2.5; g.stroke();
+      g.fillStyle = '#ffc531'; g.font = '700 15px system-ui,sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('+', m, h / 2 + 1); },
+    savoir: function(g, w, h, t, c){ var n = 3, e = w / (n + 1), y = h / 2, k = (t * .5) % (n + 1);
+      g.strokeStyle = 'rgba(255,255,255,.2)'; g.lineWidth = 4; g.beginPath(); g.moveTo(e, y); g.lineTo(e * n, y); g.stroke();
+      g.strokeStyle = c[0]; g.beginPath(); g.moveTo(e, y); g.lineTo(e + Math.min(k, n - 1) * e, y); g.stroke();
+      for(var i = 0; i < n; i++){ var x = e * (i + 1), on = k >= i, r = 24 + (on && k - i < .4 ? (1 - (k - i) / .4) * 6 : 0);
+        g.fillStyle = on ? c[0] : '#2a1c63'; hex(g, x, y, r); g.fill(); g.strokeStyle = on ? '#fff' : 'rgba(255,255,255,.3)'; g.lineWidth = 2; g.stroke();
+        g.strokeStyle = on ? '#140b33' : 'rgba(255,255,255,.35)'; g.lineWidth = 3; g.lineCap = 'round'; g.beginPath();
+        if(on){ g.moveTo(x - 9, y); g.lineTo(x - 2, y + 7); g.lineTo(x + 10, y - 7); } else { g.moveTo(x - 7, y); g.lineTo(x + 7, y); } g.stroke(); }
+      for(var s = 0; s < 14; s++){ var a = s * 2.4 + t, rr = (t * 30 + s * 23) % (w * .6); g.fillStyle = s % 2 ? c[1] : c[0]; g.globalAlpha = .5 * (1 - rr / (w * .6)); g.fillRect(w / 2 + Math.cos(a) * rr, y + Math.sin(a) * rr * .35, 3, 3); } g.globalAlpha = 1; },
+    aines: function(g, w, h, t, c){ var cx = w / 2, cy = h / 2, R = Math.min(w, h) * .36;
+      var gr = g.createRadialGradient(cx, cy, 2, cx, cy, R * 1.4); gr.addColorStop(0, c[0]); gr.addColorStop(.35, 'rgba(255,197,49,.25)'); gr.addColorStop(1, 'rgba(255,197,49,0)'); g.fillStyle = gr; g.fillRect(0, 0, w, h);
+      g.fillStyle = c[0]; hex(g, cx, cy, 20 + Math.sin(t * 2) * 2); g.fill();
+      for(var i = 0; i < 8; i++){ var a = i / 8 * Math.PI * 2 + t * .25, x = cx + Math.cos(a) * R * 1.35, y = cy + Math.sin(a) * R * .8;
+        g.strokeStyle = 'rgba(255,255,255,' + (.12 + .1 * Math.sin(t * 2 + i)) + ')'; g.lineWidth = 1.5; g.beginPath(); g.moveTo(cx, cy); g.lineTo(x, y); g.stroke();
+        g.fillStyle = i % 2 ? c[1] : '#f6f1ff'; hex(g, x, y, 9); g.fill(); } },
+    cercle: function(g, w, h, t, c){ var cx = w / 2, cy = h / 2, R = Math.min(w, h) * .34;
+      g.strokeStyle = c[0]; g.lineWidth = 3; g.globalAlpha = .9; hex(g, cx, cy, R * 1.25, t * .15); g.stroke(); g.globalAlpha = 1;
+      for(var i = 0; i < 6; i++){ var a = i / 6 * Math.PI * 2 + t * .15 + Math.PI / 6, x = cx + Math.cos(a) * R * 1.25, y = cy + Math.sin(a) * R * 1.25;
+        g.fillStyle = i % 2 ? c[1] : '#f6f1ff'; g.beginPath(); g.arc(x, y, 8, 0, Math.PI * 2); g.fill(); }
+      var p = 1 + Math.sin(t * 2.2) * .06; g.save(); g.translate(cx, cy); g.scale(p, p); g.fillStyle = c[0]; g.beginPath(); g.moveTo(0, 14);
+      g.bezierCurveTo(-26, -4, -14, -26, 0, -12); g.bezierCurveTo(14, -26, 26, -4, 0, 14); g.fill(); g.restore();
+      for(var k = 0; k < 4; k++){ var a2 = t * .9 + k * 1.6, r2 = R * 2.1, x2 = cx + Math.cos(a2) * r2, y2 = cy + Math.sin(a2) * r2 * .5; g.fillStyle = 'rgba(255,255,255,.25)'; g.beginPath(); g.arc(x2, y2, 4, 0, Math.PI * 2); g.fill(); } },
+    teint: function(g, w, h, t, c){ var T = ['#f3d2b8', '#e0b28f', '#c68a62', '#9c6440', '#74452a', '#4a2b1a'], n = T.length, e = w / (n + 1), k = Math.floor(t * .8) % n;
+      for(var i = 0; i < n; i++){ var x = e * (i + 1), y = h / 2 + (i === k ? -8 : 0), r = i === k ? 24 : 19; g.fillStyle = T[i]; hex(g, x, y, r); g.fill();
+        if(i === k){ g.strokeStyle = c[0]; g.lineWidth = 3; g.stroke(); g.fillStyle = c[0]; g.font = '700 12px system-ui,sans-serif'; g.textAlign = 'center'; g.fillText('✓', x, y + r + 16); } }
+      var lx = (t * 60) % (w + 120) - 60, gr = g.createLinearGradient(lx - 50, 0, lx + 50, 0); gr.addColorStop(0, 'rgba(255,255,255,0)'); gr.addColorStop(.5, 'rgba(255,255,255,.12)'); gr.addColorStop(1, 'rgba(255,255,255,0)'); g.fillStyle = gr; g.fillRect(0, 0, w, h); },
+    miroir: function(g, w, h, t, c){ var f = (Math.sin(t * .9) + 1) / 2, m = w * (.15 + .7 * f);
+      g.fillStyle = '#2b2448'; g.fillRect(0, 0, w, h); g.fillStyle = 'rgba(255,255,255,.05)'; for(var v = 0; v < w; v += 10) g.fillRect(v, 0, 1, h); g.fillStyle = '#a49cc0'; g.beginPath(); g.arc(w / 2, h / 2 - 8, 26, 0, Math.PI * 2); g.fill(); g.fillStyle = '#7d7699'; g.beginPath(); g.ellipse(w / 2, h / 2 + 44, 40, 20, 0, Math.PI, 0); g.fill();
+      g.save(); g.beginPath(); g.rect(m, 0, w - m, h); g.clip(); var gr = g.createLinearGradient(0, 0, w, h); gr.addColorStop(0, c[0]); gr.addColorStop(1, c[1]); g.fillStyle = gr; g.fillRect(0, 0, w, h);
+      g.fillStyle = '#fff'; g.beginPath(); g.arc(w / 2, h / 2 - 8, 26, 0, Math.PI * 2); g.fill(); g.fillStyle = 'rgba(255,255,255,.85)'; g.beginPath(); g.ellipse(w / 2, h / 2 + 44, 40, 20, 0, Math.PI, 0); g.fill(); for(var s2 = 0; s2 < 6; s2++){ var a = s2 + t * 2; g.fillStyle = 'rgba(255,255,255,.8)'; hex(g, w / 2 + Math.cos(a) * 46, h / 2 - 8 + Math.sin(a) * 30, 3); g.fill(); } g.restore();
+      g.strokeStyle = '#fff'; g.lineWidth = 2; g.beginPath(); g.moveTo(m, 0); g.lineTo(m, h); g.stroke(); g.fillStyle = '#140b33'; hex(g, m, h / 2, 14); g.fill(); g.strokeStyle = c[0]; g.stroke(); },
+    pagne: function(g, w, h, t, c){ var pal = [c[0], c[1], '#ff4f9e', '#16e0d4', '#ffc531', '#7a5cff'], s = 34, dec = (t * 18) % (s * 2);
+      for(var r = -1; r * s * .87 < h + s; r++) for(var q = -2; q * s < w + s * 2; q++){ var x = q * s + (r % 2 ? s / 2 : 0) - dec, y = r * s * .87, col = pal[(q + r * 2 + 60) % pal.length];
+        g.fillStyle = col; g.globalAlpha = .85; hex(g, x, y, s * .5); g.fill(); g.globalAlpha = 1; g.fillStyle = '#140b33'; g.beginPath(); g.arc(x, y, s * .18, 0, Math.PI * 2); g.fill();
+        g.strokeStyle = 'rgba(255,255,255,.55)'; g.lineWidth = 1.2; g.beginPath(); g.arc(x, y, s * .3, 0, Math.PI * 2); g.stroke(); }
+      var lx = ((t * 80) % (w * 1.6)) - w * .3, gr = g.createLinearGradient(lx - 60, 0, lx + 60, 0); gr.addColorStop(0, 'rgba(255,255,255,0)'); gr.addColorStop(.5, 'rgba(255,255,255,.35)'); gr.addColorStop(1, 'rgba(255,255,255,0)');
+      g.fillStyle = gr; g.fillRect(0, 0, w, h); var v = g.createLinearGradient(0, 0, 0, h); v.addColorStop(0, 'rgba(20,11,51,.15)'); v.addColorStop(1, 'rgba(20,11,51,.55)'); g.fillStyle = v; g.fillRect(0, 0, w, h); },
+    /* Talent du Jour (17 nov. 2026) : le soleil du jour, un projecteur, et le cadran des 15 à 60 secondes */
+    talent: function(g, w, h, t, c){ var cx = w / 2, cy = h / 2, R = Math.min(w, h) * .26;
+      var bg = g.createRadialGradient(cx, cy, 4, cx, cy, Math.max(w, h) * .7); bg.addColorStop(0, 'rgba(255,197,49,.18)'); bg.addColorStop(1, 'rgba(20,11,51,0)'); g.fillStyle = bg; g.fillRect(0, 0, w, h);
+      for(var k = 0; k < 12; k++){ var a = t * .25 + k * Math.PI / 6; g.strokeStyle = k % 2 ? 'rgba(22,224,212,.28)' : 'rgba(255,197,49,.32)'; g.lineWidth = 3; g.beginPath();
+        g.moveTo(cx + Math.cos(a) * R * 1.2, cy + Math.sin(a) * R * 1.2); g.lineTo(cx + Math.cos(a) * R * 1.75, cy + Math.sin(a) * R * 1.75); g.stroke(); }
+      var f = (t % 6) / 6; g.strokeStyle = 'rgba(255,255,255,.15)'; g.lineWidth = 7; g.beginPath(); g.arc(cx, cy, R * 1.05, 0, Math.PI * 2); g.stroke();
+      g.strokeStyle = c[1]; g.lineCap = 'round'; g.beginPath(); g.arc(cx, cy, R * 1.05, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * (.25 + .75 * f)); g.stroke(); g.lineCap = 'butt';
+      var gr = g.createLinearGradient(cx - R, cy - R, cx + R, cy + R); gr.addColorStop(0, c[0]); gr.addColorStop(1, c[1]); g.fillStyle = gr; hex(g, cx, cy, R * .9); g.fill();
+      g.fillStyle = '#140b33'; hex(g, cx, cy, R * .78); g.fill();
+      var e = 1 + Math.sin(t * 2.4) * .08; g.fillStyle = c[0]; g.beginPath(); for(var i = 0; i < 10; i++){ var r = (i % 2 ? R * .2 : R * .48) * e, b = -Math.PI / 2 + i * Math.PI / 5; g[i ? 'lineTo' : 'moveTo'](cx + Math.cos(b) * r, cy + Math.sin(b) * r); } g.closePath(); g.fill();
+      for(var m = 0; m < 5; m++){ var a2 = t * .7 + m * 1.26, x2 = cx + Math.cos(a2) * R * 2.05, y2 = cy + Math.sin(a2) * R * .95; g.globalAlpha = .75; g.fillStyle = m % 2 ? c[1] : '#ff4f9e'; hex(g, x2, y2, 7); g.fill(); g.globalAlpha = 1; } },
+    /* Le Projecteur du monde (17 nov. 2026) : un faisceau qui balaie une rangée d'hexagones de toutes les couleurs ; chacun s'allume quand la lumière passe */
+    projecteur: function(g, w, h, t, c){ var n = 7, s = Math.min(w / (n + 1), h * .2), y = h * .68, pal = ['#ffc531', '#16e0d4', '#ff4f9e', '#7a5cff', '#2ad17d', '#ff9f1c', '#4fc3ff'];
+      var bx = w / 2 + Math.sin(t * .8) * w * .38, sx = w / 2, sy = -10;
+      var fx = g.createLinearGradient(sx, sy, bx, y); fx.addColorStop(0, 'rgba(255,240,190,.55)'); fx.addColorStop(1, 'rgba(255,240,190,.06)'); g.fillStyle = fx;
+      g.beginPath(); g.moveTo(sx - 10, sy); g.lineTo(sx + 10, sy); g.lineTo(bx + s * 1.3, y + s * .5); g.lineTo(bx - s * 1.3, y + s * .5); g.closePath(); g.fill();
+      for(var i = 0; i < n; i++){ var x = (i + 1) * w / (n + 1), d = Math.abs(x - bx) / (s * 1.4), on = Math.max(0, 1 - d);
+        g.globalAlpha = .28 + .72 * on; g.fillStyle = pal[i % pal.length]; hex(g, x, y + Math.sin(t * 1.6 + i) * 3, s * (.42 + .1 * on)); g.fill(); g.globalAlpha = 1;
+        if(on > .5){ g.strokeStyle = c[0]; g.lineWidth = 2; hex(g, x, y, s * .62); g.stroke(); } }
+      g.fillStyle = c[0]; hex(g, sx, 14, 12); g.fill(); g.fillStyle = '#140b33'; g.beginPath(); g.arc(sx, 14, 4, 0, Math.PI * 2); g.fill(); },
+    /* Le Chemin du progrès (18 nov. 2026) : un chemin d'hexagones qui s'allument jour après jour, une petite flamme qui avance */
+    progres: function(g, w, h, t, c){ var n = 7, pas = Math.min(w / (n + 1), 40), x0 = w / 2 - pas * (n - 1) / 2, cy = h / 2, k = Math.floor((t * .9) % (n + 2));
+      g.strokeStyle = 'rgba(255,255,255,.18)'; g.lineWidth = 3; g.beginPath(); g.moveTo(x0, cy); g.lineTo(x0 + pas * (n - 1), cy); g.stroke();
+      for(var i = 0; i < n; i++){ var x = x0 + i * pas, y = cy + Math.sin(i * .9) * pas * .5, on = i < k;
+        g.fillStyle = on ? (i === n - 1 ? c[1] : c[0]) : 'rgba(255,255,255,.14)'; hex(g, x, y, pas * .34 * (on ? 1 : .8)); g.fill();
+        if(on && i === k - 1){ g.fillStyle = c[1]; g.beginPath(); g.arc(x, y - pas * .55, 4 + 2 * Math.sin(t * 6), 0, Math.PI * 2); g.fill(); } }
+      g.fillStyle = c[1]; g.font = 'bold ' + Math.round(pas * .45) + 'px sans-serif'; g.textAlign = 'center'; g.fillText(Math.min(k, n) + ' / ' + n, w / 2, cy + pas * 1.4); },
+    /* L'Académie des talents (18 nov. 2026) : un tableau hexagonal, des leçons qui se cochent une à une, un diplôme doré à la fin */
+    academie: function(g, w, h, t, c){ var n = 4, R = Math.min(w, h) * .3, cx = w / 2, cy = h / 2, k = Math.floor((t * .8) % (n + 2));
+      g.fillStyle = 'rgba(255,255,255,.08)'; hex(g, cx, cy, R * 1.15); g.fill(); g.strokeStyle = c[0]; g.lineWidth = 2; hex(g, cx, cy, R * 1.15); g.stroke();
+      for(var i = 0; i < n; i++){ var y = cy - R * .55 + i * R * .37, on = i < k;
+        g.fillStyle = on ? c[0] : 'rgba(255,255,255,.18)'; hex(g, cx - R * .55, y, R * .11); g.fill();
+        g.fillStyle = on ? 'rgba(255,255,255,.75)' : 'rgba(255,255,255,.25)'; g.fillRect(cx - R * .35, y - 3, R * (.75 - (i % 2) * .2), 6); }
+      if(k > n){ var s = R * (.22 + .03 * Math.sin(t * 5)); g.fillStyle = c[1]; hex(g, cx + R * .62, cy + R * .62, s); g.fill(); g.fillStyle = '#140b33'; hex(g, cx + R * .62, cy + R * .62, s * .45); g.fill(); } },
+    /* Le Festival des cultures du monde (18 nov. 2026) : six cultures en hexagones autour d'un passeport, qui reçoit un tampon à chaque découverte */
+    festival: function(g, w, h, t, c){ var cx = w / 2, cy = h / 2, R = Math.min(w, h) * .32, n = 6, k = Math.floor((t * .9) % (n + 1)), gl = ['🗣️', '👘', '🍲', '🎨', '💃', '📜'];
+      g.strokeStyle = 'rgba(255,255,255,.18)'; g.lineWidth = 1.5; g.beginPath(); g.arc(cx, cy, R, 0, Math.PI * 2); g.stroke();
+      for(var i = 0; i < n; i++){ var a = -Math.PI / 2 + i * Math.PI * 2 / n + t * .12, x = cx + R * Math.cos(a), y = cy + R * Math.sin(a), on = i < k;
+        g.fillStyle = on ? (i % 2 ? c[1] : c[0]) : 'rgba(255,255,255,.14)'; hex(g, x, y, R * .24); g.fill();
+        g.font = Math.round(R * .2) + 'px sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillStyle = '#fff'; g.fillText(gl[i], x, y + 1); }
+      g.fillStyle = 'rgba(255,255,255,.1)'; hex(g, cx, cy, R * .42); g.fill(); g.strokeStyle = c[0]; g.lineWidth = 2; hex(g, cx, cy, R * .42); g.stroke();
+      for(var j = 0; j < Math.min(k, 6); j++){ g.fillStyle = j % 2 ? c[1] : c[0]; hex(g, cx - R * .2 + (j % 3) * R * .2, cy - R * .1 + Math.floor(j / 3) * R * .22, R * .07); g.fill(); }
+      g.textBaseline = 'alphabetic'; },
+    /* Le Cinéma des souvenirs (18 nov. 2026) : des photos en hexagones glissent vers une pellicule qui devient un film, puis un cœur doré */
+    souvenirs: function(g, w, h, t, c){ var cx = w / 2, cy = h / 2, R = Math.min(w, h) * .32, cyc = t % 6, k = Math.min(4, Math.floor(cyc / .9)), i;
+      g.fillStyle = 'rgba(255,255,255,.08)'; g.fillRect(cx - R * 1.2, cy + R * .45, R * 2.4, R * .5);
+      for(i = 0; i < 6; i++){ g.fillStyle = 'rgba(255,255,255,.25)'; g.fillRect(cx - R * 1.1 + i * R * .42, cy + R * .5, R * .2, R * .08); g.fillRect(cx - R * 1.1 + i * R * .42, cy + R * .82, R * .2, R * .08); }
+      for(i = 0; i < 4; i++){ var on = i < k, x = on ? cx - R * .9 + i * R * .6 : cx - R * .9 + i * R * .6, y = on ? cy + R * .7 : cy - R * .5 + Math.sin(t * 2 + i) * R * .08;
+        g.fillStyle = on ? (i % 2 ? c[1] : c[0]) : 'rgba(255,255,255,.18)'; hex(g, x, y, R * .2); g.fill(); }
+      if(cyc > 4){ var s = R * (.18 + .03 * Math.sin(t * 6)); g.fillStyle = c[0]; g.beginPath(); g.moveTo(cx, cy - R * .2 + s); g.bezierCurveTo(cx - s * 2, cy - R * .2 - s * .5, cx - s, cy - R * .2 - s * 1.6, cx, cy - R * .2 - s * .7);
+        g.bezierCurveTo(cx + s, cy - R * .2 - s * 1.6, cx + s * 2, cy - R * .2 - s * .5, cx, cy - R * .2 + s); g.fill(); } },
+    /* Les duos sans frontières (18 nov. 2026) : trois hexagones de trois pays s'allument tour à tour, reliés par un fil d'or, puis forment un seul film */
+    sansfrontieres: function(g, w, h, t, c){ var cx = w / 2, cy = h / 2, R = Math.min(w, h) * .3, cyc = t % 6, k = Math.min(3, Math.floor(cyc / 1.1)), m = Math.max(0, Math.min(1, (cyc - 3.6) / 1.2)), i;
+      var pts = [[cx - R * 1.05, cy + R * .35], [cx, cy - R * .45], [cx + R * 1.05, cy + R * .35]];
+      g.strokeStyle = c[1]; g.lineWidth = 3; g.globalAlpha = 1 - m;
+      for(i = 1; i < Math.min(k + 1, 3); i++){ g.beginPath(); g.moveTo(pts[i - 1][0], pts[i - 1][1]); g.lineTo(pts[i][0], pts[i][1]); g.stroke(); }
+      for(i = 0; i < 3; i++){ var x = pts[i][0] + (cx - pts[i][0]) * m, y = pts[i][1] + (cy - pts[i][1]) * m, on = i < k;
+        g.fillStyle = on ? (i % 2 ? c[1] : c[0]) : 'rgba(255,255,255,.16)'; hex(g, x, y, R * .28 * (1 - m * .4)); g.fill(); }
+      g.globalAlpha = 1;
+      if(m > 0){ g.globalAlpha = m; g.fillStyle = 'rgba(255,255,255,.12)'; hex(g, cx, cy, R * .7); g.fill(); g.strokeStyle = c[1]; g.lineWidth = 3; hex(g, cx, cy, R * .7); g.stroke();
+        g.fillStyle = '#fff'; g.beginPath(); g.moveTo(cx - R * .14, cy - R * .2); g.lineTo(cx + R * .22, cy); g.lineTo(cx - R * .14, cy + R * .2); g.closePath(); g.fill(); g.globalAlpha = 1; } },
+    /* Les rencontres de talents (18 nov. 2026) : deux hexagones de talents, leurs points communs s'allument, puis un fil les relie */
+    talentmatch: function(g, w, h, t, c){ var cx = w / 2, cy = h / 2, R = Math.min(w, h) * .3, cyc = t % 6, k = Math.min(3, Math.floor(cyc / 1.2)), m = Math.max(0, Math.min(1, (cyc - 3.8) / 1)), i;
+      var a = [cx - R * .95, cy], b = [cx + R * .95, cy];
+      g.fillStyle = c[0]; hex(g, a[0], a[1], R * .42); g.fill(); g.fillStyle = c[1]; hex(g, b[0], b[1], R * .42); g.fill();
+      g.font = Math.round(R * .38) + 'px sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('🎤', a[0], a[1] + 1); g.fillText('💃', b[0], b[1] + 1);
+      for(i = 0; i < 3; i++){ var y = cy - R * .55 + i * R * .55, on = i < k; g.fillStyle = on ? '#fff' : 'rgba(255,255,255,.16)'; hex(g, cx, y, R * .13); g.fill(); }
+      if(m > 0){ g.strokeStyle = '#ffd36b'; g.lineWidth = 3; g.globalAlpha = m; g.beginPath(); g.moveTo(a[0] + R * .42, a[1]); g.lineTo(a[0] + R * .42 + (b[0] - a[0] - R * .84) * m, a[1]); g.stroke(); g.globalAlpha = 1; }
+      g.textBaseline = 'alphabetic'; },
+    /* La Révélation (18 nov. 2026) : trois indices s'allument un à un, puis un rideau doré s'ouvre sur le talent */
+    revelation: function(g, w, h, t, c){ var cx = w / 2, cy = h / 2, R = Math.min(w, h) * .34, cyc = t % 6, k = Math.min(3, Math.floor(cyc / 1.1)), o = Math.max(0, Math.min(1, (cyc - 3.6) / 1.2));
+      for(var i = 0; i < 3; i++){ var x = cx - R * .9 + i * R * .9, y = cy + R * .95, on = i < k; g.fillStyle = on ? (i % 2 ? c[1] : c[0]) : 'rgba(255,255,255,.16)'; hex(g, x, y, R * .16); g.fill();
+        g.font = Math.round(R * .16) + 'px sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillStyle = '#fff'; g.fillText('?', x, y + 1); }
+      g.fillStyle = 'rgba(255,255,255,.08)'; hex(g, cx, cy - R * .15, R * .62); g.fill();
+      g.font = Math.round(R * .5) + 'px sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillStyle = '#fff'; g.fillText(o > .5 ? '✨' : '❓', cx, cy - R * .13);
+      var l = R * .62 * (1 - o); g.save(); hex(g, cx, cy - R * .15, R * .62); g.clip();
+      g.fillStyle = c[0]; g.fillRect(cx - R * .7, cy - R * .9, l, R * 1.6); g.fillRect(cx + R * .7 - l, cy - R * .9, l, R * 1.6);
+      g.fillStyle = 'rgba(0,0,0,.18)'; for(var j = 0; j < 6; j++){ g.fillRect(cx - R * .7 + j * l / 6, cy - R * .9, 2, R * 1.6); g.fillRect(cx + R * .7 - l + j * l / 6, cy - R * .9, 2, R * 1.6); }
+      g.restore(); g.strokeStyle = c[1]; g.lineWidth = 2; hex(g, cx, cy - R * .15, R * .62); g.stroke(); g.textBaseline = 'alphabetic'; },
+    /* Le Défi Transformation (18 nov. 2026) : un rideau doré découvre l'après, une pousse grandit, trois étapes s'allument */
+    transformation: function(g, w, h, t, c){ var cx = w / 2, cy = h / 2, R = Math.min(w, h) * .3, ph = (t * .35) % 1, m = cx - R + ph * 2 * R;
+      g.save(); hex(g, cx, cy, R); g.clip(); g.fillStyle = '#3b2f24'; g.fillRect(0, 0, w, h); g.fillStyle = '#5a4632'; g.fillRect(0, cy + R * .35, w, h);
+      g.save(); g.beginPath(); g.rect(0, 0, m, h); g.clip(); var gr = g.createLinearGradient(0, cy - R, 0, cy + R); gr.addColorStop(0, '#1c3a2a'); gr.addColorStop(1, '#2e5a2e'); g.fillStyle = gr; g.fillRect(0, 0, w, h);
+        for(var i = 0; i < 4; i++){ var x = cx - R * .6 + i * R * .4, hh = R * (.45 + .1 * Math.sin(t + i)); g.strokeStyle = c[0]; g.lineWidth = 3; g.beginPath(); g.moveTo(x, cy + R * .4); g.lineTo(x, cy + R * .4 - hh); g.stroke();
+          g.fillStyle = c[0]; hex(g, x - 7, cy + R * .4 - hh * .7, 6); g.fill(); hex(g, x + 7, cy + R * .4 - hh * .5, 6); g.fill(); g.fillStyle = c[1]; hex(g, x, cy + R * .4 - hh, 7); g.fill(); } g.restore();
+      g.restore(); g.fillStyle = c[1]; g.fillRect(m - 2, cy - R, 4, 2 * R); hex(g, m, cy, 10); g.fill();
+      g.strokeStyle = c[0]; g.lineWidth = 3; hex(g, cx, cy, R); g.stroke();
+      for(var k = 0; k < 3; k++){ var on = ((t * .6) % 3) > k; g.fillStyle = on ? c[1] : 'rgba(255,255,255,.25)'; hex(g, cx - R * .6 + k * R * .6, cy + R * 1.3, 8); g.fill(); } },
+    /* Style Universe (17 nov. 2026) : un hexagone partagé avant/après, un fil de couture qui court, des étapes qui s'allument */
+    style: function(g, w, h, t, c){ var cx = w / 2, cy = h / 2, R = Math.min(w, h) * .3, m = cx + Math.sin(t * .9) * R * .55;
+      g.save(); hex(g, cx, cy, R); g.clip(); g.fillStyle = '#3a2a6a'; g.fillRect(0, 0, m, h); var gr = g.createLinearGradient(m, 0, cx + R, 0); gr.addColorStop(0, c[0]); gr.addColorStop(1, c[1]);
+      g.fillStyle = gr; g.fillRect(m, 0, w, h); for(var i = 0; i < 6; i++){ g.strokeStyle = 'rgba(255,255,255,.35)'; g.lineWidth = 2; g.setLineDash([6, 6]); g.lineDashOffset = -t * 30;
+        g.beginPath(); g.moveTo(cx - R, cy - R + i * R * .4); g.quadraticCurveTo(cx, cy - R * .6 + i * R * .4 + Math.sin(t + i) * 8, cx + R, cy - R + i * R * .4); g.stroke(); } g.setLineDash([]); g.restore();
+      g.strokeStyle = '#fff'; g.lineWidth = 2; g.beginPath(); g.moveTo(m, cy - R); g.lineTo(m, cy + R); g.stroke(); g.fillStyle = '#140b33'; hex(g, m, cy, 11); g.fill(); g.strokeStyle = c[1]; g.stroke();
+      g.strokeStyle = c[0]; g.lineWidth = 3; hex(g, cx, cy, R); g.stroke();
+      for(var k = 0; k < 3; k++){ var on = ((t * .6) % 3) > k; g.fillStyle = on ? c[1] : 'rgba(255,255,255,.25)'; hex(g, cx - R * .6 + k * R * .6, cy + R * 1.3, 8); g.fill(); } }
+  };
+  var FILMS = [];
+  function dessiner(f, t){ var c = f.c, r = c.getBoundingClientRect(), d = Math.min(window.devicePixelRatio || 1, 2), w = Math.max(1, Math.round(r.width)), h = Math.max(1, Math.round(r.height));
+    if(c.width !== w * d || c.height !== h * d){ c.width = w * d; c.height = h * d; } var g = c.getContext('2d'); g.setTransform(d, 0, 0, d, 0, 0);
+    var bg = g.createLinearGradient(0, 0, w, h); bg.addColorStop(0, '#1b1145'); bg.addColorStop(1, '#2a1260'); g.fillStyle = bg; g.fillRect(0, 0, w, h);
+    try{ (SCENES[f.scene] || SCENES.savoir)(g, w, h, t, f.couleurs); }catch(e){ /* rien */ } oeil(g, w, h); }
+  var calme = false; try{ calme = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches; }catch(e){ calme = false; }
+  var t0 = performance.now(), dernier = 0, roule = false;
+  /* 17 nov. 2026 (étape 7, la vitesse) : un film joue 12 s quand il paraît, puis s'arrête sur son image ; toucher le film le rejoue.
+     Au repos, la page ne dessine plus rien (le film coûtait de 18 à 44 % du processeur d'un téléphone modeste). */
+  var DUREE_JEU = 12000;
+  function jouer(f){ f.fin = performance.now() + DUREE_JEU; relancer(); }
+  function boucle(now){ roule = false; var vus = FILMS.filter(function(f){ return f.vu && now < (f.fin || 0) && document.body.contains(f.c); }); FILMS = FILMS.filter(function(f){ return document.body.contains(f.c); });
+    if(!vus.length || calme || document.hidden) return; if(now - dernier >= 33){ dernier = now; vus.forEach(function(f){ dessiner(f, (now - t0) / 1000); }); } roule = true; requestAnimationFrame(boucle); }
+  function relancer(){ if(!roule && !calme){ roule = true; requestAnimationFrame(boucle); } }
+  document.addEventListener('visibilitychange', relancer);
+  var io = window.IntersectionObserver ? new IntersectionObserver(function(es){ es.forEach(function(e){ FILMS.forEach(function(f){ if(f.c === e.target){ var avant = f.vu; f.vu = e.isIntersecting; if(f.vu && !avant && !f.joue){ f.joue = 1; jouer(f); } } }); }); relancer(); }) : null;
+  function film(c, scene, couleurs){ var f = {c:c, scene:scene, couleurs:couleurs || ['#ffc531', '#16e0d4'], vu:!io, fin:0}; FILMS.push(f); dessiner(f, calme ? 2.2 : 0); if(io) io.observe(c); else jouer(f);
+    c.addEventListener('click', function(){ if(!calme) jouer(f); });
+    var d = c.parentNode && c.parentNode.querySelector && c.parentNode.querySelector('details'); if(d) d.addEventListener('toggle', function(){ if(d.open && !calme) jouer(f); });
+    relancer(); }
+  function rejouer(){ FILMS.forEach(function(f){ if(f.vu) jouer(f); }); }
+  function html(o){ return '<section class="nvp" style="--nvp-c1:' + esc(o.couleurs[0]) + ';--nvp-c2:' + esc(o.couleurs[1]) + '" aria-label="' + esc(o.titreFilm || o.comment) + '">' +
+    '<canvas aria-hidden="true" data-nvp-scene="' + esc(o.scene) + '" data-nvp-c="' + esc(o.couleurs.join(',')) + '"></canvas>' + (o.intro ? '<p class="nvp-intro">' + esc(o.intro) + '</p>' : '') +
+    '<details' + (o.ouvert ? ' open' : '') + (o.cle ? ' data-nvp-cle="' + esc(o.cle) + '"' : '') + '><summary>' + esc(o.comment) + '</summary><ol>' +
+    o.etapes.map(function(s, i){ return '<li><b>' + (i + 1) + '</b><span>' + esc(s) + '</span></li>'; }).join('') + '</ol>' +
+    (o.protections && o.protections.length ? '<h3>' + esc(o.protege) + '</h3><ul>' + o.protections.map(function(s){ return '<li>' + esc(s) + '</li>'; }).join('') + '</ul>' : '') + '</details></section>'; }
+  /* toute toile « data-nvp-scene » posée dans la page (par html()) reçoit son film */
+  function animer(racine){ style(); Array.prototype.forEach.call((racine || document).querySelectorAll('canvas[data-nvp-scene]'), function(c){ if(c._nvp) return; c._nvp = 1;
+    film(c, c.getAttribute('data-nvp-scene'), (c.getAttribute('data-nvp-c') || '').split(',')); }); }
+  if(window.MutationObserver){ var mo = new MutationObserver(function(){ if(document.querySelector('canvas[data-nvp-scene]:not([data-nvp-vu])')){ Array.prototype.forEach.call(document.querySelectorAll('canvas[data-nvp-scene]:not([data-nvp-vu])'), function(c){ c.setAttribute('data-nvp-vu', '1'); }); animer(); } });
+    var go = function(){ if(document.body) mo.observe(document.body, {childList:true, subtree:true}); }; if(document.body) go(); else document.addEventListener('DOMContentLoaded', go); }
+  /* o : {cle, scene, couleurs:[c1, c2], ouvert, intro, comment, protege, etapes:[3], protections:[3], titreFilm, apres:element} */
+  function poser(o){ style(); var el = document.getElementById('nvPres');
+    if(!o){ if(el) el.remove(); return; }
+    var cle = [o.cle, o.ouvert ? 1 : 0, o.intro || '', o.comment, o.etapes.join('|'), o.protections.join('|')].join('§');
+    if(el && el._cle === cle){ if(o.apres && el.previousElementSibling !== o.apres) o.apres.parentNode.insertBefore(el, o.apres.nextSibling); return; }
+    var ouvertAvant = el && el._ouvertUtilisateur;
+    if(!el){ el = document.createElement('section'); el.id = 'nvPres'; el.className = 'nvp'; }
+    el._cle = cle; el.style.setProperty('--nvp-c1', o.couleurs[0]); el.style.setProperty('--nvp-c2', o.couleurs[1]);
+    el.setAttribute('aria-label', o.titreFilm || o.comment);
+    el.innerHTML = '<canvas aria-hidden="true"></canvas>' + (o.intro ? '<p class="nvp-intro">' + esc(o.intro) + '</p>' : '') +
+      '<details' + (o.ouvert || ouvertAvant ? ' open' : '') + '><summary>' + esc(o.comment) + '</summary><ol>' +
+      o.etapes.map(function(s, i){ return '<li><b>' + (i + 1) + '</b><span>' + esc(s) + '</span></li>'; }).join('') + '</ol>' +
+      '<h3>' + esc(o.protege) + '</h3><ul>' + o.protections.map(function(s){ return '<li>' + esc(s) + '</li>'; }).join('') + '</ul></details>';
+    var d = el.querySelector('details'); d.addEventListener('toggle', function(){ el._ouvertUtilisateur = d.open; });
+    if(o.apres && el.previousElementSibling !== o.apres) o.apres.parentNode.insertBefore(el, o.apres.nextSibling);
+    film(el.querySelector('canvas'), o.scene, o.couleurs); }
+  window.NVPresente = {poser:poser, html:html, animer:animer, style:style, scenes:Object.keys(SCENES), dessins:SCENES, hex:hex, rejouer:rejouer, dureeJeu:DUREE_JEU};   /* dessins, hex : pour les films (defis/films) */
+})();
+
+/* ════════════════════════════════════════════════════════════════════
+ LES RENCONTRES DE TALENTS (18 novembre 2026, innovation 14 du plan des 16 : « Talent Match AI »)
+ Un assistant qui SUGGÈRE des partenaires de collaboration selon les compétences, les langues, les intérêts et les envies que
+ chacun a choisis, avec des demandes de contact FACULTATIVES. Rien sans consentement ; aucun critère sensible (seulement des
+ listes fermées) ; chaque suggestion dit pourquoi ; « Pas pour moi », bloquer, mettre en pause, tout supprimer.
+ Une demande acceptée mène vers Les duos sans frontières, Côte à côte ou le profil de la personne.
+ Serveur : /v1/talentmatch (univers), capacité /v1/talentmatch/capacites.
+ Rien n'est inventé : une valeur inconnue s'écrit « — » ; les exemples n'existent que dans l'aperçu, marqués « Aperçu ».
+ ════════════════════════════════════════════════════════════════════ */
+'use strict';
+var MOI = 'TalentMatch';
+var RT = '/v1/talentmatch';
+var LANGUES_UI = {fr:{nom:'Français', loc:'fr-FR'}, en:{nom:'English', loc:'en-GB'}, es:{nom:'Español', loc:'es-ES'}, pt:{nom:'Português', loc:'pt-BR'},
+  ar:{nom:'العربية', loc:'ar-u-nu-latn', rtl:true}, sw:{nom:'Kiswahili', loc:'sw-KE', relire:true}, ha:{nom:'Hausa', loc:'ha-NG', relire:true},
+  yo:{nom:'Yorùbá', loc:'yo-NG', relire:true}, wo:{nom:'Wolof', loc:'fr-SN', relire:true}, bm:{nom:'Bamanankan', loc:'fr-ML', relire:true},
+  ln:{nom:'Lingála', loc:'fr-CD', relire:true}};
+function N(s){ return s; }
+var COMP = {chant:N('Chant'), danse:N('Danse'), musique:N('Musique'), rap:N('Rap'), comedie:N('Comédie'), theatre:N('Théâtre'), conte:N('Conte'), poesie:N('Poésie'),
+  cuisine:N('Cuisine'), couture:N('Couture'), mode:N('Mode'), coiffure:N('Coiffure'), maquillage:N('Maquillage'), dessin:N('Dessin'), peinture:N('Peinture'),
+  photo:N('Photo'), video:N('Vidéo'), montage:N('Montage'), animation:N('Animation'), sport:N('Sport'), langues:N('Langues'), artisanat:N('Artisanat'),
+  jardinage:N('Jardinage'), tech:N('Technologie')};
+var INT = {culture:N('Culture'), humour:N('Humour'), education:N('Éducation'), nature:N('Nature'), voyage:N('Voyage'), famille:N('Famille'), fete:N('Fête'),
+  patrimoine:N('Patrimoine'), innovation:N('Innovation'), solidarite:N('Solidarité'), sport:N('Sport'), spectacle:N('Spectacle')};
+var FMT = {chaine:N('Une chaîne sans frontières'), duo:N('Un duo côte à côte'), tutoriel:N('Un tutoriel à deux'), direct:N('Un direct à deux')};
+var LANG_CODES = ['fr', 'en', 'es', 'pt', 'ar', 'sw', 'ha', 'yo', 'wo', 'bm', 'ln', 'ff', 'zu', 'am', 'it', 'de', 'zh', 'hi', 'ru', 'tr', 'ja', 'ko'];
+
+function $(id){ return document.getElementById(id); }
+function esc(s){ return String(s == null ? '' : s).replace(/[&<>"']/g, function(c){ return {'&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;'}[c]; }); }
+function brut(k){ try{ return localStorage.getItem(k); }catch(e){ return null; } }
+function ecrire(k, v){ try{ localStorage.setItem(k, JSON.stringify(v)); return true; }catch(e){ return false; } }
+function api(){ return window.NV_API_BASE ? String(window.NV_API_BASE).replace(/\/$/, '') : null; }
+function majeur(){ var u = utilisateur(); return !!(u && (u.majeur === true || (typeof u.age === 'number' && u.age >= 18))); }
+function jeton(){ return window.NV_TOKEN ? String(window.NV_TOKEN) : ''; }
+function utilisateur(){ return window.NV_USER && typeof window.NV_USER === 'object' ? window.NV_USER : null; }
+function langueDetectee(){
+  var l = null; try{ l = JSON.parse(brut('nv_ui_langue') || 'null'); }catch(e){}
+  if(!l || !LANGUES_UI[l]){ var n = (navigator.language || 'fr').slice(0, 2).toLowerCase(); l = LANGUES_UI[n] ? n : 'fr'; }
+  return l;
+}
+var L = 'fr', LOC = 'fr-FR', DICO = {};
+function poserLangue(l){
+  L = LANGUES_UI[l] ? l : 'fr'; LOC = LANGUES_UI[L].loc;
+  var s = document.getElementById('nvI18n-' + L); DICO = {}; if(s && L !== 'fr'){ try{ DICO = JSON.parse(s.textContent); }catch(e){} }
+  document.documentElement.lang = L; document.documentElement.dir = LANGUES_UI[L].rtl ? 'rtl' : 'ltr';
+}
+function T(s){ var t = DICO[s] || s, a = arguments; return t.replace(/\{(\d)\}/g, function(m, i){ var v = a[+i + 1]; return v == null ? '—' : String(v); }); }
+function drapeau(iso){ iso = String(iso || '').toUpperCase(); if(!/^[A-Z]{2}$/.test(iso)) return '🌐'; return String.fromCodePoint(0x1F1E6 + iso.charCodeAt(0) - 65, 0x1F1E6 + iso.charCodeAt(1) - 65); }
+function locale(){ return LOC.split('-u-')[0]; }
+function paysNom(iso){ if(!/^[A-Za-z]{2}$/.test(iso || '')) return '—'; try{ return new Intl.DisplayNames([locale(), 'fr'], {type:'region'}).of(String(iso).toUpperCase()) || '—'; }catch(e){ return String(iso).toUpperCase(); } }
+function langueNom(c){ try{ var n = new Intl.DisplayNames([locale(), 'fr'], {type:'language'}).of(c); return n && n !== c ? n.charAt(0).toUpperCase() + n.slice(1) : c; }catch(e){ return c; } }
+function lib(d, k){ return d[k] ? T(d[k]) : '—'; }
+function quiTexte(q){ return q && q.handle ? '@' + esc(q.handle) : esc(T('Une personne de NEURAVID')); }
+function dateTexte(iso){ var d = new Date(iso); if(isNaN(d)) return '—'; try{ return d.toLocaleDateString(LOC, {day:'numeric', month:'long'}); }catch(e){ return String(iso).slice(0, 10); } }
+
+var ST = {apercu:false, repli:false, cap:null, etat:'', vue:'suggestions', moi:null, sugg:null, raison:null, dem:null, sur:{}, occupe:{}, cles:{}, focusVers:null,
+  form:null, demander:null};
+
+function appeler(methode, chemin, corps, cle){
+  var h = {Accept:'application/json'}; if(jeton()) h.Authorization = 'Bearer ' + jeton();
+  if(methode !== 'GET') h['Idempotency-Key'] = cle || ('tm-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8));
+  var o = {method:methode, headers:h, mode:'cors', cache:'no-cache'};
+  if(corps){ h['Content-Type'] = 'application/json'; o.body = JSON.stringify(corps); }
+  return fetch(api() + chemin, o).then(function(r){
+    return r.text().then(function(t){ var j = null; try{ j = t ? JSON.parse(t) : null; }catch(e){ j = null; }
+      if(!r.ok){ var err = new Error('http ' + r.status); err.status = r.status; err.code = j && (j.erreur || j.code); err.params = j && j.params || {}; throw err; } return j; });
+  });
+}
+function cleGeste(k){ return ST.cles[k] || (ST.cles[k] = 'tm-' + k.replace(/[^\w-]/g, '').slice(0, 40) + '-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6)); }
+function finGeste(k, e){ if(!e || (e.status && e.status < 500 && e.status !== 408 && e.status !== 429)) delete ST.cles[k]; }
+function emit(type, payload){
+  var msg = {source:'neuravid', module:MOI, type:type, payload:payload || {}};
+  if(window.NVemit && !window.NVemit.__nvLocal){ try{ window.NVemit(type, msg.payload); }catch(e){} }
+  try{ if(window.flutter_inappwebview) window.flutter_inappwebview.callHandler('nvEvent', msg); }catch(e){}
+  try{ window.dispatchEvent(new CustomEvent('nv:' + type, {detail:msg.payload})); }catch(e){}
+}
+var toastT = 0;
+function toast(t){ var el = $('toast'); el.textContent = t; el.classList.add('on'); clearTimeout(toastT); toastT = setTimeout(function(){ el.classList.remove('on'); }, 3400); }
+var ERREURS = {age:N('Cette action n’est pas ouverte à votre âge.'), age_minimum:N('Cette action n’est pas ouverte à votre âge.'), moderation:N('Un texte n’a pas été accepté. Changez-le.'),
+  consentement_requis:N('Cochez votre accord pour continuer.'), langue_requise:N('Choisissez au moins une langue.'), competence_requise:N('Choisissez au moins un talent, ou ce que vous cherchez.'),
+  trop:N('Vous en avez choisi trop.'), personne_inconnue:N('Cette personne n’est plus proposée.'), deja_demande:N('Une demande est déjà en cours avec cette personne.'),
+  trop_de_demandes:N('Vous avez déjà 5 demandes en attente.'), demande_inconnue:N('Cette demande n’est plus disponible.'), profil_inconnu:N('Ouvrez d’abord votre profil de collaboration.'),
+  moderation_indisponible:N('Votre texte ne peut pas être vérifié pour le moment. Réessayez dans un instant.'), cle_reutilisee:N('Cette action a déjà été envoyée. Rechargez la page.'),
+  socle_injoignable:N('Le service est momentanément indisponible. Réessayez dans un instant.')};
+function erreurTexte(e){
+  var c = e && e.code;
+  if(c === 'champ_invalide') return T('Vérifiez le formulaire : un champ n’est pas rempli comme il faut.');
+  if(c && /^demande_/.test(c) && !ERREURS[c]) return T('Cette demande n’est plus disponible.');
+  if(c && ERREURS[c]) return T(ERREURS[c]);
+  if(e && e.status === 401) return T('Connectez-vous pour continuer.');
+  if(e && e.status >= 400 && e.status < 500 && e.status !== 408 && e.status !== 429) return T('Cette demande n’a pas été acceptée.');
+  return navigator.onLine === false ? T('Pas de connexion pour le moment.') : T('Impossible de joindre NEURAVID pour le moment.');
+}
+function ouvrir(id, ctx){
+  var base = window.NV_MODULES_BASE ? String(window.NV_MODULES_BASE).replace(/\/?$/, '/') : '', url = base + 'NV_MODULE_' + id + '.html';
+  emit('open_module', {target:'NV' + id, url:url, contexte:ctx || null});
+  try{ if(ctx) sessionStorage.setItem('nv_ctx_' + id, JSON.stringify(ctx)); }catch(e){}
+  if(window.flutter_inappwebview) return;
+  if(window.NVLien && typeof window.NVLien.ouvrir === 'function'){ try{ window.NVLien.ouvrir('NV' + id, ctx); return; }catch(e){} }
+  try{ location.href = url; }catch(e){}
+}
+function raisonTexte(r){
+  if(r.type === 'il_sait') return T('Fait ce que vous cherchez : {0}', lib(COMP, r.valeur));
+  if(r.type === 'il_cherche') return T('Cherche votre talent : {0}', lib(COMP, r.valeur));
+  if(r.type === 'interet') return T('Un intérêt commun : {0}', lib(INT, r.valeur));
+  if(r.type === 'format') return T('Veut aussi faire : {0}', lib(FMT, r.valeur));
+  if(r.type === 'langue') return T('Une langue commune : {0}', langueNom(r.valeur));
+  if(r.type === 'autre_pays') return T('Un autre pays : {0}', paysNom(r.valeur));
+  return '—';
+}
+
+/* ════════ LES DONNÉES ════════ */
+function chargerCap(){
+  if(ST.apercu){ ST.cap = {talentmatch:true, ageMin:16, maxi:{competences:8, cherche:8, interets:8, langues:6, formats:4}, demandesOuvertes:5, joursDemande:14}; return Promise.resolve(); }
+  if(!api()){ ST.cap = null; ST.etat = 'sansserveur'; return Promise.resolve(); }
+  return appeler('GET', RT + '/capacites').then(function(c){ ST.cap = c && c.talentmatch === true ? c : null; if(!ST.cap) ST.etat = 'indisponible'; });
+}
+function chargerMoi(){
+  if(ST.apercu){ if(!ST.moi) ST.moi = demo().moi; ST.etat = 'ok'; return Promise.resolve(); }
+  if(!jeton()) return Promise.resolve();
+  return appeler('GET', RT + '/moi').then(function(o){ ST.moi = o; ST.etat = 'ok'; }, function(e){ ST.moi = null; ST.etat = e && e.status === 403 ? 'age' : e && e.status === 401 ? 'session' : navigator.onLine === false ? 'horsligne' : 'erreur'; });
+}
+function chargerSugg(){
+  ST.vue = 'suggestions'; ST.sur = {};
+  if(ST.apercu){ ST.sugg = demo().sugg.filter(function(s){ return !(ST._masques || {})[s.personne.id]; }); ST.raison = ST.moi && ST.moi.profil ? (ST.moi.profil.actif ? null : 'pause') : 'profil_requis'; ST.focusVers = 'hSugg'; rendre(); return Promise.resolve(); }
+  if(!jeton() || ST.etat === 'age' || ST.etat === 'session'){ rendre(); return Promise.resolve(); }
+  ST.etat = 'charge'; rendre();
+  return appeler('GET', RT + '/suggestions').then(function(o){ ST.sugg = o.suggestions || []; ST.raison = o.raison || null; ST.etat = 'ok'; },
+    function(e){ ST.sugg = []; ST.etat = e && e.status === 403 ? 'age' : 'ok'; if(ST.etat === 'ok') toast(erreurTexte(e)); }).then(function(){ ST.focusVers = 'hSugg'; rendre(); });
+}
+function chargerDem(){
+  ST.vue = 'demandes'; ST.sur = {};
+  if(ST.apercu){ ST.dem = demo().dem; ST.focusVers = 'hDem'; rendre(); return Promise.resolve(); }
+  if(!jeton()){ rendre(); return Promise.resolve(); }
+  ST.etat = 'charge'; rendre();
+  return appeler('GET', RT + '/demandes').then(function(o){ ST.dem = o; ST.etat = 'ok'; }, function(e){ ST.dem = {recues:[], envoyees:[], liens:[]}; ST.etat = 'ok'; toast(erreurTexte(e)); })
+    .then(function(){ ST.focusVers = 'hDem'; rendre(); });
+}
+function chargerProfil(){ ST.vue = 'profil'; ST.sur = {}; ST.form = null; ST.focusVers = 'hProfil'; rendre(); return Promise.resolve(); }
+
+/* ════════ L'AFFICHAGE ════════ */
+function rendreEtat(){
+  var el = $('etat'), t = '';
+  if(ST.apercu) t = ST.repli ? T('Aperçu : ce serveur ne propose pas encore cette fonction. Rien n’est envoyé.') : T('Aperçu : des suggestions d’exemple, pour découvrir la page. Rien n’est envoyé.');
+  else if(ST.etat === 'charge') t = T('Chargement…');
+  else if(ST.etat === 'sansserveur' || ST.etat === 'indisponible') t = T('Les rencontres de talents ne sont pas encore ouvertes.');
+  else if(ST.etat === 'horsligne') t = T('Pas de connexion pour le moment.');
+  else if(ST.etat === 'session') t = T('Connectez-vous pour continuer.');
+  else if(ST.etat === 'erreur') t = T('Impossible de joindre NEURAVID pour le moment.');
+  el.textContent = t; el.hidden = !t;
+}
+function onglets(){
+  var o = [['suggestions', T('Suggestions')], ['demandes', T('Mes demandes')], ['profil', T('Mon profil de collaboration')]];
+  return '<nav class="chips" aria-label="' + esc(T('Les rencontres de talents')) + '">' + o.map(function(x){
+    return '<button type="button" data-vue="' + x[0] + '" aria-pressed="' + (ST.vue === x[0]) + '">' + esc(x[1]) + '</button>'; }).join('') + '</nav>';
+}
+function apercuPuce(){ return ST.apercu ? '<span class="apercu">' + esc(T('Aperçu')) + '</span>' : ''; }
+function mots(l, d){ return (l || []).length ? '<div class="mots">' + l.map(function(k){ return '<span>' + esc(d === 'lang' ? langueNom(k) : lib(d, k)) + '</span>'; }).join('') + '</div>' : ''; }
+function carteSugg(s){
+  var q = s.personne || {}, id = q.id || '';
+  var h = '<article class="sug"><div class="tete"><span class="av" aria-hidden="true">' + drapeau(q.pays) + '</span><div><b>' + quiTexte(q) + '</b><p class="d">' + esc(paysNom(q.pays)) + '</p></div></div>';
+  h += '<p class="d">' + esc(T('Pourquoi cette suggestion')) + '</p><ul class="raisons">' + (s.raisons || []).map(function(r){ return '<li>' + esc(raisonTexte(r)) + '</li>'; }).join('') + '</ul>';
+  h += mots(s.competences, COMP);
+  if(ST.demander === id){
+    h += '<form class="form" data-form-demande="' + esc(id) + '"><label>' + esc(T('Pour faire quoi ?')) + '<select id="dFormat" class="plein">' + Object.keys(FMT).filter(function(f){ return (s.formats || []).indexOf(f) >= 0; }).map(function(f){
+      return '<option value="' + f + '">' + esc(T(FMT[f])) + '</option>'; }).join('') + '</select></label><label>' + esc(T('Un mot (facultatif)')) + '<input id="dMot" maxlength="140" value="' + esc(ST.dMot || '') + '"></label>' +
+      '<div class="actions"><button type="submit" class="btn-or"' + (ST.occupe['d' + id] ? ' disabled' : '') + '>' + esc(T('Envoyer la demande')) + '</button><button type="button" data-annuler="1">' + esc(T('Annuler')) + '</button></div></form>';
+  } else h += '<div class="actions"><button type="button" class="btn-or" data-demander="' + esc(id) + '">' + esc(T('Proposer une collaboration')) + '</button>' +
+    '<button type="button" data-masquer="' + esc(id) + '">' + esc(T('Pas pour moi')) + '</button>' +
+    '<button type="button" class="danger" data-bloquer="' + esc(id) + '">' + esc(ST.sur['b' + id] ? T('Toucher encore pour bloquer') : T('Bloquer')) + '</button></div>';
+  return h + '</article>';
+}
+function consentHtml(){
+  return '<div class="consent"><p><b>' + esc(T('Avant de commencer')) + '</b></p><ul>' +
+    '<li>' + esc(T('Vous n’êtes suggéré à personne tant que vous n’ouvrez pas votre profil de collaboration.')) + '</li>' +
+    '<li>' + esc(T('Les suggestions viennent seulement de ce que vous choisissez : talents, langues, intérêts, envies. Jamais votre âge, votre genre, votre origine ni votre apparence.')) + '</li>' +
+    '<li>' + esc(T('Vous pouvez mettre en pause, bloquer ou tout supprimer à tout moment.')) + '</li></ul></div>';
+}
+function rendreSugg(){
+  var h = '<section aria-labelledby="hSugg"><h2 id="hSugg" tabindex="-1">' + esc(T('Suggestions')) + apercuPuce() + '</h2>';
+  if(!jeton() && !ST.apercu) return h + '<p class="d">' + esc(T('Connectez-vous pour continuer.')) + '</p></section>';
+  if(ST.etat === 'age') return h + '<p class="d">' + esc(T('Cette action n’est pas ouverte à votre âge.')) + '</p></section>';
+  if(ST.raison === 'profil_requis') return h + consentHtml() + '<div class="actions"><button type="button" class="btn-or" data-vue="profil">' + esc(T('Ouvrir mon profil de collaboration')) + '</button></div></section>';
+  if(ST.raison === 'pause') return h + '<p>' + esc(T('Votre profil est en pause : personne ne vous est suggéré, et vous n’êtes suggéré à personne.')) + '</p><div class="actions"><button type="button" class="btn-or" id="bReprendre">' + esc(T('Reprendre')) + '</button></div></section>';
+  var l = ST.sugg || [];
+  h += '<p class="regle">' + esc(T('Des personnes qui partagent une langue avec vous et dont les talents répondent aux vôtres. Rien n’est envoyé sans votre choix.')) + '</p>';
+  h += l.length ? '<div class="liste-c">' + l.map(carteSugg).join('') + '</div>' : '<p class="vide">' + esc(T('Aucune suggestion pour le moment. Ajoutez des talents ou des langues à votre profil.')) + '</p>';
+  return h + '</section>';
+}
+function etatDem(e){ return T({attente:N('En attente'), acceptee:N('Acceptée'), sans_suite:N('Sans suite'), retiree:N('Retirée')}[e] || '—'); }
+function rendreDem(){
+  var h = '<section aria-labelledby="hDem"><h2 id="hDem" tabindex="-1">' + esc(T('Mes demandes')) + apercuPuce() + '</h2>';
+  if(!jeton() && !ST.apercu) return h + '<p class="d">' + esc(T('Connectez-vous pour continuer.')) + '</p></section>';
+  var d = ST.dem || {recues:[], envoyees:[], liens:[]};
+  h += '<h3>' + esc(T('Reçues')) + '</h3>' + (d.recues.length ? d.recues.map(function(x){
+    return '<div class="prop"><p><b>' + quiTexte(x.personne) + '</b> ' + drapeau(x.personne.pays) + ' · ' + (FMT[x.format] ? esc(T(FMT[x.format])) : '—') + '</p>' + (x.message ? '<p class="d">« ' + esc(x.message) + ' »</p>' : '') +
+      '<div class="actions"><button type="button" class="btn-or" data-repondre="' + esc(x.id) + '" data-oui="1">' + esc(T('Accepter')) + '</button><button type="button" data-repondre="' + esc(x.id) + '" data-oui="0">' + esc(ST.sur['n' + x.id] ? T('Toucher encore pour refuser') : T('Refuser')) + '</button></div></div>'; }).join('')
+    : '<p class="vide">' + esc(T('Aucune demande reçue.')) + '</p>');
+  h += '<h3>' + esc(T('Envoyées')) + '</h3>' + (d.envoyees.length ? d.envoyees.map(function(x){
+    return '<div class="prop"><p><b>' + quiTexte(x.personne) + '</b> · <span class="etat-c">' + esc(etatDem(x.etat)) + '</span></p>' + (x.etat === 'attente' && x.expire ? '<p class="d">' + esc(T('Sans réponse, elle s’arrête le {0}.', dateTexte(x.expire))) + '</p>' : '') +
+      (x.etat === 'attente' ? '<div class="actions"><button type="button" data-retirer="' + esc(x.id) + '">' + esc(ST.sur['r' + x.id] ? T('Toucher encore pour retirer') : T('Retirer ma demande')) + '</button></div>' : '') + '</div>'; }).join('')
+    : '<p class="vide">' + esc(T('Aucune demande envoyée.')) + '</p>');
+  h += '<h3>' + esc(T('Mes collaborations')) + '</h3>' + (d.liens.length ? d.liens.map(function(x){
+    var hd = x.personne && x.personne.handle;
+    return '<div class="prop"><p><b>' + quiTexte(x.personne) + '</b> ' + drapeau(x.personne.pays) + ' · ' + (FMT[x.format] ? esc(T(FMT[x.format])) : '—') + '</p><div class="actions">' +
+      (hd && majeur() ? '<button type="button" class="btn-or" data-chaine="' + esc(hd) + '">' + esc(T('Commencer une chaîne ensemble')) + '</button>' : '') + (hd ? '<button type="button" data-duo="' + esc(hd) + '">' + esc(T('Faire un duo')) + '</button>' : '') +
+      '<button type="button" data-profil="' + esc((x.personne && x.personne.id) || '') + '|' + esc(hd || '') + '">' + esc(T('Voir son profil')) + '</button>' +
+      '<button type="button" class="danger" data-retirer="' + esc(x.id) + '">' + esc(ST.sur['r' + x.id] ? T('Toucher encore pour arrêter') : T('Arrêter cette collaboration')) + '</button></div></div>'; }).join('')
+    : '<p class="vide">' + esc(T('Aucune collaboration pour l’instant.')) + '</p>');
+  h += '<p class="regle">' + esc(T('Un refus n’est jamais affiché : une demande sans réponse s’arrête d’elle-même après 14 jours.')) + '</p>';
+  return h + '</section>';
+}
+function cases(nom, dict, choisis, libelle){
+  return '<fieldset><legend>' + esc(libelle) + '</legend><div class="pastilles">' + Object.keys(dict).map(function(k){
+    return '<label><input type="checkbox" name="' + nom + '" value="' + k + '"' + (choisis.indexOf(k) >= 0 ? ' checked' : '') + '> ' + esc(dict === 'lang' ? '' : T(dict[k])) + '</label>'; }).join('') + '</div></fieldset>';
+}
+function rendreProfil(){
+  var h = '<section aria-labelledby="hProfil"><h2 id="hProfil" tabindex="-1">' + esc(T('Mon profil de collaboration')) + apercuPuce() + '</h2>';
+  if(!jeton() && !ST.apercu) return h + '<p class="d">' + esc(T('Connectez-vous pour continuer.')) + '</p></section>';
+  if(ST.etat === 'age') return h + '<p class="d">' + esc(T('Cette action n’est pas ouverte à votre âge.')) + '</p></section>';
+  var p = (ST.moi && ST.moi.profil) || null;
+  var f = ST.form || (ST.form = p ? {competences:p.competences.slice(), cherche:p.cherche.slice(), interets:p.interets.slice(), langues:p.langues.slice(), formats:p.formats.slice(), autresPays:!!p.autresPays, consent:true}
+    : {competences:[], cherche:[], interets:[], langues:[L], formats:Object.keys(FMT), autresPays:false, consent:false});
+  if(!p) h += consentHtml();
+  var langs = {}; LANG_CODES.forEach(function(c){ langs[c] = c; });
+  h += '<form id="fProfil" class="form" novalidate>' + cases('competences', COMP, f.competences, T('Mes talents')) + cases('cherche', COMP, f.cherche, T('Ce que je cherche chez une partenaire ou un partenaire')) +
+    cases('interets', INT, f.interets, T('Mes intérêts')) +
+    '<fieldset><legend>' + esc(T('Mes langues')) + '</legend><div class="pastilles">' + LANG_CODES.map(function(c){ return '<label><input type="checkbox" name="langues" value="' + c + '"' + (f.langues.indexOf(c) >= 0 ? ' checked' : '') + '> ' + esc(langueNom(c)) + '</label>'; }).join('') + '</div></fieldset>' +
+    cases('formats', FMT, f.formats, T('Ce que j’aimerais faire')) +
+    '<label class="case"><input type="checkbox" id="pAutres"' + (f.autresPays ? ' checked' : '') + '> ' + esc(T('Seulement des personnes d’autres pays')) + '</label>' +
+    '<label class="case"><input type="checkbox" id="pConsent"' + (f.consent ? ' checked' : '') + '> ' + esc(T('J’accepte d’être suggéré à d’autres personnes à partir de ces choix.')) + '</label>' +
+    '<div class="actions"><button type="submit" class="btn-or"' + (ST.occupe.profil ? ' disabled' : '') + '>' + esc(p ? T('Enregistrer') : T('Ouvrir mon profil de collaboration')) + '</button></div></form>';
+  if(p){
+    h += '<div class="interrupteur"><span>' + esc(p.actif ? T('Mon profil est visible dans les suggestions.') : T('Mon profil est en pause.')) + '</span><button type="button" id="bPause" aria-pressed="' + (!p.actif) + '">' + esc(p.actif ? T('Mettre en pause') : T('Reprendre')) + '</button></div>';
+    if(ST.moi.masques) h += '<div class="actions"><button type="button" id="bVider">' + esc(T('Revoir les personnes que j’ai écartées ({0})', ST.moi.masques)) + '</button></div>';
+    h += '<details class="danger-zone"' + (ST.sur.supprimer ? ' open' : '') + '><summary>' + esc(T('Supprimer mon profil de collaboration')) + '</summary><p class="d">' + esc(T('Votre profil, vos demandes et vos choix sont effacés tout de suite.')) + '</p>' +
+      '<div class="actions"><button type="button" class="danger" id="bSupprimer">' + esc(ST.sur.supprimer ? T('Toucher encore pour tout supprimer') : T('Tout supprimer')) + '</button></div></details>';
+  }
+  return h + '</section>';
+}
+function rendrePied(){
+  var h = '<label>' + esc(T('Langue')) + ' <select id="langue">' + Object.keys(LANGUES_UI).map(function(k){ return '<option value="' + k + '"' + (k === L ? ' selected' : '') + '>' + esc(LANGUES_UI[k].nom) + '</option>'; }).join('') + '</select></label>';
+  if(LANGUES_UI[L].relire) h += '<span>' + esc(T('Traduction en cours de relecture.')) + '</span>';
+  h += '<span>' + esc(T('Dès 16 ans. Ni vote ni argent.')) + '</span>';
+  $('pied').innerHTML = h;
+}
+function rendre(){
+  document.title = T('Les rencontres de talents') + ' · NEURAVID';
+  $('titre').textContent = T('Les rencontres de talents');
+  $('soustitre').textContent = T('Trouvez avec qui créer, selon vos talents et vos langues.');
+  rendreEtat();
+  var h = '';
+  if(ST.cap){ h = onglets(); h += ST.vue === 'demandes' ? rendreDem() : ST.vue === 'profil' ? rendreProfil() : rendreSugg(); }
+  var ae = document.activeElement, focus = null;
+  if(ae && $('contenu').contains(ae) && ae.id) focus = '#' + ae.id;
+  $('contenu').innerHTML = h;
+  if(focus){ try{ var fe = document.querySelector(focus); if(fe) fe.focus({preventScroll:true}); }catch(e){} }
+  if(ST.focusVers){ var fv = $(ST.focusVers); if(fv){ try{ fv.focus({preventScroll:false}); }catch(e){} } ST.focusVers = null; }
+  rendrePied();
+}
+
+/* ════════ LES GESTES ════════ */
+function deuxTouchers(cle){ if(ST.sur[cle]){ delete ST.sur[cle]; return true; } ST.sur[cle] = true; rendre(); setTimeout(function(){ if(ST.sur[cle]){ delete ST.sur[cle]; rendre(); } }, 5000); return false; }
+function geste(k, methode, chemin, corps, apercu, ok){
+  if(ST.occupe[k]) return; ST.occupe[k] = true; rendre();
+  var p = ST.apercu ? Promise.resolve(apercu()) : appeler(methode, chemin, corps, cleGeste(k));
+  p.then(function(o){ delete ST.occupe[k]; finGeste(k); ok(o); }, function(e){ delete ST.occupe[k]; finGeste(k, e); toast(erreurTexte(e)); rendre(); });
+}
+function lireProfil(){
+  var f = ST.form; if(!f || !$('fProfil')) return;
+  ['competences', 'cherche', 'interets', 'langues', 'formats'].forEach(function(n){ f[n] = Array.prototype.map.call(document.querySelectorAll('#fProfil input[name="' + n + '"]:checked'), function(i){ return i.value; }); });
+  f.autresPays = !!($('pAutres') && $('pAutres').checked); f.consent = !!($('pConsent') && $('pConsent').checked);
+}
+function enregistrer(){
+  lireProfil(); var f = ST.form, m = (ST.cap && ST.cap.maxi) || {};
+  if(!f.consent){ toast(T('Cochez votre accord pour continuer.')); var c = $('pConsent'); if(c) c.focus(); return; }
+  if(!f.langues.length){ toast(T('Choisissez au moins une langue.')); return; }
+  if(!f.competences.length && !f.cherche.length){ toast(T('Choisissez au moins un talent, ou ce que vous cherchez.')); return; }
+  var trop = ['competences', 'cherche', 'interets', 'langues'].filter(function(n){ return m[n] && f[n].length > m[n]; })[0];
+  if(trop){ toast(T('{0} choix au plus dans cette liste.', m[trop])); return; }
+  var corps = {consentement:true, competences:f.competences, cherche:f.cherche, interets:f.interets, langues:f.langues, formats:f.formats, autresPays:f.autresPays, actif:ST.moi && ST.moi.profil ? ST.moi.profil.actif !== false : true};
+  geste('profil', 'POST', RT + '/moi', corps, function(){ return {profil:Object.assign({}, corps)}; },
+    function(o){ ST.moi = Object.assign({}, ST.moi || {}, {profil:o.profil}); ST.form = null; emit('tm_profil', {competences:f.competences.length}); toast(T('Votre profil de collaboration est enregistré.')); chargerSugg(); });
+}
+function trouverSugg(id){ return (ST.sugg || []).filter(function(s){ return s.personne && s.personne.id === id; })[0]; }
+function demander(id){
+  var s = trouverSugg(id); if(!s) return;
+  var fmt = ($('dFormat') || {}).value, mot = String(($('dMot') || {}).value || '').trim();
+  geste('d' + id, 'POST', RT + '/demandes', {personne:id, format:fmt, message:mot || undefined}, function(){ return {ok:true}; },
+    function(){ emit('tm_demander', {format:fmt}); ST.demander = null; ST.dMot = ''; ST.sugg = (ST.sugg || []).filter(function(x){ return x !== s; });
+      if(ST.apercu) ST.dem = Object.assign({}, demo().dem, {envoyees:[{id:'tm_apx', etat:'attente', format:fmt, personne:s.personne, expire:new Date(Date.now() + 14 * 864e5).toISOString()}].concat(demo().dem.envoyees)});
+      toast(T('Votre demande est envoyée.')); rendre(); });
+}
+function masquer(id){
+  geste('m' + id, 'POST', RT + '/masquer', {personne:id}, function(){ ST._masques = ST._masques || {}; ST._masques[id] = 1; return {ok:true}; },
+    function(){ ST.sugg = (ST.sugg || []).filter(function(x){ return !(x.personne && x.personne.id === id); }); if(ST.moi) ST.moi.masques = (ST.moi.masques || 0) + 1; toast(T('Cette personne ne vous sera plus suggérée.')); rendre(); });
+}
+function bloquer(id){
+  if(!deuxTouchers('b' + id)) return;
+  geste('b' + id, 'POST', '/v1/users/' + encodeURIComponent(id) + '/block', {}, function(){ return {ok:true}; },
+    function(){ emit('tm_bloquer', {}); ST.sugg = (ST.sugg || []).filter(function(x){ return !(x.personne && x.personne.id === id); }); toast(T('Cette personne est bloquée.')); rendre(); });
+}
+function repondre(id, oui){
+  if(!oui && !deuxTouchers('n' + id)) return;                  /* un refus est définitif (90 jours) : deux touchers */
+  geste('r' + id, 'POST', RT + '/demandes/' + encodeURIComponent(id) + '/repondre', {accepter:oui}, function(){
+    var d = ST.dem, x = d.recues.filter(function(y){ return y.id === id; })[0]; d.recues = d.recues.filter(function(y){ return y.id !== id; }); if(oui && x) d.liens.unshift(Object.assign({}, x, {etat:'acceptee'})); return {ok:true}; },
+    function(){ emit('tm_repondre', {accepter:oui}); toast(oui ? T('C’est une collaboration ! Vous pouvez commencer ensemble.') : T('C’est fait.')); if(ST.apercu) rendre(); else chargerDem(); });
+}
+function retirer(id){
+  if(!deuxTouchers('r' + id)) return;
+  geste('x' + id, 'POST', RT + '/demandes/' + encodeURIComponent(id) + '/retirer', {}, function(){ var d = ST.dem; d.liens = d.liens.filter(function(y){ return y.id !== id; }); d.envoyees = d.envoyees.filter(function(y){ return y.id !== id; }); return {ok:true}; },
+    function(){ toast(T('C’est fait.')); if(ST.apercu) rendre(); else chargerDem(); });
+}
+function pause(){
+  var p = ST.moi && ST.moi.profil; if(!p) return;
+  geste('pause', 'POST', RT + '/moi/pause', {pause:!!p.actif}, function(){ return {profil:Object.assign({}, p, {actif:!p.actif})}; },
+    function(o){ ST.moi.profil = o.profil; toast(o.profil.actif ? T('Votre profil est de nouveau visible.') : T('Votre profil est en pause.')); if(ST.vue === 'suggestions') chargerSugg(); else rendre(); });
+}
+function supprimer(){
+  if(!deuxTouchers('supprimer')) return;
+  geste('suppr', 'POST', RT + '/moi/supprimer', {}, function(){ ST._masques = {}; return {ok:true}; },
+    function(){ emit('tm_supprimer', {}); ST.moi = {profil:null, demandesRecues:0, masques:0}; ST.form = null; ST.dem = {recues:[], envoyees:[], liens:[]}; toast(T('Votre profil de collaboration est supprimé.')); chargerSugg(); });
+}
+
+/* ════════ L'APERÇU (seulement sans serveur, ou serveur sans la fonction) ════════ */
+function demo(){
+  if(ST._demo) return ST._demo;
+  var q = function(h, pays){ return {id:'u_' + h, handle:h, nom:'@' + h, pays:pays, drapeau:drapeau(pays)}; };
+  var j = function(n){ return new Date(Date.now() + n * 864e5).toISOString(); };
+  ST._demo = {moi:{profil:{actif:true, competences:['chant', 'poesie'], cherche:['danse', 'musique'], interets:['culture', 'patrimoine'], langues:['fr', 'en'], formats:['chaine', 'duo'], autresPays:false}, demandesRecues:1, masques:0},
+    sugg:[{personne:q('lea.danse', 'FR'), competences:['danse', 'theatre'], langues:['fr'], formats:['chaine', 'duo'], raisons:[{type:'il_sait', valeur:'danse'}, {type:'il_cherche', valeur:'chant'}, {type:'interet', valeur:'culture'}, {type:'langue', valeur:'fr'}, {type:'autre_pays', valeur:'FR'}]},
+      {personne:q('kwame_beats', 'GH'), competences:['musique', 'rap'], langues:['en'], formats:['duo', 'direct'], raisons:[{type:'il_sait', valeur:'musique'}, {type:'format', valeur:'duo'}, {type:'langue', valeur:'en'}, {type:'autre_pays', valeur:'GH'}]},
+      {personne:q('ana.samba', 'BR'), competences:['danse'], langues:['pt', 'en'], formats:['chaine'], raisons:[{type:'il_sait', valeur:'danse'}, {type:'langue', valeur:'en'}, {type:'autre_pays', valeur:'BR'}]}],
+    dem:{recues:[{id:'tm_ap1', sens:'recue', etat:'attente', format:'chaine', message:'Une chaîne de chants du soir ?', personne:q('amina.voix', 'SN')}],
+      envoyees:[{id:'tm_ap2', sens:'envoyee', etat:'attente', format:'duo', personne:q('yuki_t', 'JP'), expire:j(9)}],
+      liens:[{id:'tm_ap3', sens:'envoyee', etat:'acceptee', format:'chaine', personne:q('omar_d', 'MA')}]}};
+  return ST._demo;
+}
+
+/* ════════ LE DÉMARRAGE ════════ */
+function changerVue(v){ ST.sur = {}; ST.demander = null; if(v === 'demandes') return chargerDem(); if(v === 'profil') return chargerProfil(); return chargerSugg(); }
+function demarrer(){
+  poserLangue(langueDetectee());
+  ST.apercu = !api();
+  if(ST.apercu && !utilisateur()){ try{ window.NV_USER = {id:'demo', handle:'visiteur', prenom:'Aya', age:25, majeur:true, iso:'GN'}; }catch(e){} }
+  var ctx = null;
+  try{ ctx = JSON.parse(sessionStorage.getItem('nv_ctx_' + MOI) || 'null'); sessionStorage.removeItem('nv_ctx_' + MOI); }catch(e){}
+  rendre();
+  chargerCap().catch(function(e){ ST.cap = null; ST.etat = e && e.status && e.status < 500 ? 'indisponible' : navigator.onLine === false ? 'horsligne' : 'erreur'; })
+    .then(function(){ if(!ST.cap) return rendre(); return chargerMoi().then(function(){
+      if(ctx && (ctx.vue === 'demandes' || ctx.vue === 'profil')) return changerVue(ctx.vue);
+      return chargerSugg(); }); });
+  document.addEventListener('click', function(ev){
+    var b = ev.target && ev.target.closest ? ev.target.closest('button') : null; if(!b) return;
+    var a = function(k){ return b.getAttribute(k); };
+    if(a('data-vue')) changerVue(a('data-vue'));
+    else if(a('data-demander')){ ST.demander = a('data-demander'); rendre(); var s = $('dFormat'); if(s) s.focus(); }
+    else if(a('data-annuler')){ ST.demander = null; ST.dMot = ''; rendre(); }
+    else if(a('data-masquer')) masquer(a('data-masquer'));
+    else if(a('data-bloquer')) bloquer(a('data-bloquer'));
+    else if(a('data-repondre')) repondre(a('data-repondre'), a('data-oui') === '1');
+    else if(a('data-retirer')) retirer(a('data-retirer'));
+    else if(a('data-chaine')){ emit('tm_ouvrir', {vers:'SansFrontieres'}); ouvrir('SansFrontieres', {vue:'commencer', inviter:a('data-chaine'), depuis:MOI}); }
+    else if(a('data-duo')){ emit('tm_ouvrir', {vers:'Cote'}); ouvrir('Cote', {invite:a('data-duo'), depuis:MOI}); }
+    else if(a('data-profil')){ var pp = a('data-profil').split('|'); ouvrir('Profile', {id:pp[0] || undefined, handle:pp[1] || undefined, depuis:MOI}); }
+    else if(b.id === 'bReprendre' || b.id === 'bPause') pause();
+    else if(b.id === 'bVider') geste('vider', 'POST', RT + '/masques/vider', {}, function(){ ST._masques = {}; return {ok:true}; }, function(){ ST.moi.masques = 0; toast(T('C’est fait.')); rendre(); });
+    else if(b.id === 'bSupprimer') supprimer();
+  });
+  document.addEventListener('change', function(ev){
+    var t = ev.target; if(!t) return;
+    if(t.id === 'langue'){ var l = t.value; if(!LANGUES_UI[l]) return; ecrire('nv_ui_langue', l); poserLangue(l); lireProfil(); rendre(); var s = $('langue'); if(s) s.focus(); }
+    else if(t.closest && t.closest('#fProfil')) lireProfil();
+  });
+  document.addEventListener('input', function(ev){ var t = ev.target; if(t && t.id === 'dMot') ST.dMot = t.value; });
+  document.addEventListener('toggle', function(ev){ var d = ev.target; if(d && d.classList && d.classList.contains('danger-zone') && !d.open) delete ST.sur.supprimer; }, true);
+  document.addEventListener('submit', function(ev){
+    var f = ev.target; if(!f) return; ev.preventDefault();
+    if(f.id === 'fProfil') enregistrer();
+    else if(f.getAttribute('data-form-demande')) demander(f.getAttribute('data-form-demande'));
+  });
+  window.NVTalentMatch = {etat:function(){ return {etat:ST.etat, vue:ST.vue, apercu:ST.apercu, repli:ST.repli, suggestions:(ST.sugg || []).length, profil:!!(ST.moi && ST.moi.profil), langue:L}; }};
+}
+
+/* ════════ La présentation ════════ */
+var _rendrePres = rendre;
+rendre = function(){ var r = _rendrePres.apply(this, arguments); presenterNouveaute(); return r; };
+function presenterNouveaute(){
+  if(!window.NVPresente) return;
+  var ferme = !ST.cap && !ST.apercu && (ST.etat === 'sansserveur' || ST.etat === 'indisponible');
+  if(!ferme && !((ST.cap || ST.apercu) && ST.vue === 'suggestions')){ NVPresente.poser(null); return; }
+  NVPresente.poser({cle:'talentmatch', scene:'talentmatch', couleurs:['#9b7bff', '#16e0d4'], ouvert:ferme, apres:$('etat'), titreFilm:T('Les rencontres de talents'),
+    intro:ferme ? T('Bientôt ouvert ici. Voici ce qui vous attend.') : '', comment:T('Comment ça marche'), protege:T('Ce qui vous protège'),
+    etapes:[T('Choisissez vos talents, vos langues et ce que vous cherchez.'), T('L’assistant vous suggère des partenaires et dit pourquoi.'), T('Proposez une collaboration, si vous le voulez.')],
+    protections:[T('Rien sans votre accord : vous choisissez d’être suggéré.'), T('Jamais votre âge, votre genre ni votre origine pour choisir.'), T('Pas pour moi, bloquer, pause ou tout supprimer, à tout moment.')]});
+}
+
+/* ════════ L'aperçu en repli : serveur sans la fonction → aperçu marqué « Aperçu », rien n'est envoyé ════════ */
+function repliApercu(){ if(ST.cap || ST.apercu) return false; ST.apercu = true; ST.repli = true;
+  if(!utilisateur()){ try{ window.NV_USER = {id:'demo', handle:'visiteur', prenom:'Aya', age:25, majeur:true, iso:'GN'}; }catch(e){} }
+  return true; }
+(function(){ var cc0 = chargerCap;
+  chargerCap = function(){ return cc0().then(function(){ if(repliApercu()) return cc0(); }, function(e){ if(repliApercu()) return cc0(); throw e; }); }; })();
+
+demarrer();
+})();
+
+</script>
+</body>
+</html>
