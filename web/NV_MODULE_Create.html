@@ -913,6 +913,39 @@ body.nx-grands .durees button,body.nx-grands .modes button{min-height:40px;font-
         g.globalAlpha = .28 + .72 * on; g.fillStyle = pal[i % pal.length]; hex(g, x, y + Math.sin(t * 1.6 + i) * 3, s * (.42 + .1 * on)); g.fill(); g.globalAlpha = 1;
         if(on > .5){ g.strokeStyle = c[0]; g.lineWidth = 2; hex(g, x, y, s * .62); g.stroke(); } }
       g.fillStyle = c[0]; hex(g, sx, 14, 12); g.fill(); g.fillStyle = '#140b33'; g.beginPath(); g.arc(sx, 14, 4, 0, Math.PI * 2); g.fill(); },
+    /* Le Chemin du progrès (18 nov. 2026) : un chemin d'hexagones qui s'allument jour après jour, une petite flamme qui avance */
+    progres: function(g, w, h, t, c){ var n = 7, pas = Math.min(w / (n + 1), 40), x0 = w / 2 - pas * (n - 1) / 2, cy = h / 2, k = Math.floor((t * .9) % (n + 2));
+      g.strokeStyle = 'rgba(255,255,255,.18)'; g.lineWidth = 3; g.beginPath(); g.moveTo(x0, cy); g.lineTo(x0 + pas * (n - 1), cy); g.stroke();
+      for(var i = 0; i < n; i++){ var x = x0 + i * pas, y = cy + Math.sin(i * .9) * pas * .5, on = i < k;
+        g.fillStyle = on ? (i === n - 1 ? c[1] : c[0]) : 'rgba(255,255,255,.14)'; hex(g, x, y, pas * .34 * (on ? 1 : .8)); g.fill();
+        if(on && i === k - 1){ g.fillStyle = c[1]; g.beginPath(); g.arc(x, y - pas * .55, 4 + 2 * Math.sin(t * 6), 0, Math.PI * 2); g.fill(); } }
+      g.fillStyle = c[1]; g.font = 'bold ' + Math.round(pas * .45) + 'px sans-serif'; g.textAlign = 'center'; g.fillText(Math.min(k, n) + ' / ' + n, w / 2, cy + pas * 1.4); },
+    /* L'Académie des talents (18 nov. 2026) : un tableau hexagonal, des leçons qui se cochent une à une, un diplôme doré à la fin */
+    academie: function(g, w, h, t, c){ var n = 4, R = Math.min(w, h) * .3, cx = w / 2, cy = h / 2, k = Math.floor((t * .8) % (n + 2));
+      g.fillStyle = 'rgba(255,255,255,.08)'; hex(g, cx, cy, R * 1.15); g.fill(); g.strokeStyle = c[0]; g.lineWidth = 2; hex(g, cx, cy, R * 1.15); g.stroke();
+      for(var i = 0; i < n; i++){ var y = cy - R * .55 + i * R * .37, on = i < k;
+        g.fillStyle = on ? c[0] : 'rgba(255,255,255,.18)'; hex(g, cx - R * .55, y, R * .11); g.fill();
+        g.fillStyle = on ? 'rgba(255,255,255,.75)' : 'rgba(255,255,255,.25)'; g.fillRect(cx - R * .35, y - 3, R * (.75 - (i % 2) * .2), 6); }
+      if(k > n){ var s = R * (.22 + .03 * Math.sin(t * 5)); g.fillStyle = c[1]; hex(g, cx + R * .62, cy + R * .62, s); g.fill(); g.fillStyle = '#140b33'; hex(g, cx + R * .62, cy + R * .62, s * .45); g.fill(); } },
+    /* Le Festival des cultures du monde (18 nov. 2026) : six cultures en hexagones autour d'un passeport, qui reçoit un tampon à chaque découverte */
+    festival: function(g, w, h, t, c){ var cx = w / 2, cy = h / 2, R = Math.min(w, h) * .32, n = 6, k = Math.floor((t * .9) % (n + 1)), gl = ['🗣️', '👘', '🍲', '🎨', '💃', '📜'];
+      g.strokeStyle = 'rgba(255,255,255,.18)'; g.lineWidth = 1.5; g.beginPath(); g.arc(cx, cy, R, 0, Math.PI * 2); g.stroke();
+      for(var i = 0; i < n; i++){ var a = -Math.PI / 2 + i * Math.PI * 2 / n + t * .12, x = cx + R * Math.cos(a), y = cy + R * Math.sin(a), on = i < k;
+        g.fillStyle = on ? (i % 2 ? c[1] : c[0]) : 'rgba(255,255,255,.14)'; hex(g, x, y, R * .24); g.fill();
+        g.font = Math.round(R * .2) + 'px sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillStyle = '#fff'; g.fillText(gl[i], x, y + 1); }
+      g.fillStyle = 'rgba(255,255,255,.1)'; hex(g, cx, cy, R * .42); g.fill(); g.strokeStyle = c[0]; g.lineWidth = 2; hex(g, cx, cy, R * .42); g.stroke();
+      for(var j = 0; j < Math.min(k, 6); j++){ g.fillStyle = j % 2 ? c[1] : c[0]; hex(g, cx - R * .2 + (j % 3) * R * .2, cy - R * .1 + Math.floor(j / 3) * R * .22, R * .07); g.fill(); }
+      g.textBaseline = 'alphabetic'; },
+    /* La Révélation (18 nov. 2026) : trois indices s'allument un à un, puis un rideau doré s'ouvre sur le talent */
+    revelation: function(g, w, h, t, c){ var cx = w / 2, cy = h / 2, R = Math.min(w, h) * .34, cyc = t % 6, k = Math.min(3, Math.floor(cyc / 1.1)), o = Math.max(0, Math.min(1, (cyc - 3.6) / 1.2));
+      for(var i = 0; i < 3; i++){ var x = cx - R * .9 + i * R * .9, y = cy + R * .95, on = i < k; g.fillStyle = on ? (i % 2 ? c[1] : c[0]) : 'rgba(255,255,255,.16)'; hex(g, x, y, R * .16); g.fill();
+        g.font = Math.round(R * .16) + 'px sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillStyle = '#fff'; g.fillText('?', x, y + 1); }
+      g.fillStyle = 'rgba(255,255,255,.08)'; hex(g, cx, cy - R * .15, R * .62); g.fill();
+      g.font = Math.round(R * .5) + 'px sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillStyle = '#fff'; g.fillText(o > .5 ? '✨' : '❓', cx, cy - R * .13);
+      var l = R * .62 * (1 - o); g.save(); hex(g, cx, cy - R * .15, R * .62); g.clip();
+      g.fillStyle = c[0]; g.fillRect(cx - R * .7, cy - R * .9, l, R * 1.6); g.fillRect(cx + R * .7 - l, cy - R * .9, l, R * 1.6);
+      g.fillStyle = 'rgba(0,0,0,.18)'; for(var j = 0; j < 6; j++){ g.fillRect(cx - R * .7 + j * l / 6, cy - R * .9, 2, R * 1.6); g.fillRect(cx + R * .7 - l + j * l / 6, cy - R * .9, 2, R * 1.6); }
+      g.restore(); g.strokeStyle = c[1]; g.lineWidth = 2; hex(g, cx, cy - R * .15, R * .62); g.stroke(); g.textBaseline = 'alphabetic'; },
     /* Le Défi Transformation (18 nov. 2026) : un rideau doré découvre l'après, une pousse grandit, trois étapes s'allument */
     transformation: function(g, w, h, t, c){ var cx = w / 2, cy = h / 2, R = Math.min(w, h) * .3, ph = (t * .35) % 1, m = cx - R + ph * 2 * R;
       g.save(); hex(g, cx, cy, R); g.clip(); g.fillStyle = '#3b2f24'; g.fillRect(0, 0, w, h); g.fillStyle = '#5a4632'; g.fillRect(0, cy + R * .35, w, h);
@@ -4539,6 +4572,7 @@ function lireCtxCamera(){
     if(c.mode === 'photo') CAM.mode = 'photo';
     if(typeof c.studioLite === 'string') CTX.studioLite = txt(c.studioLite, 20);   /* 17 nov. 2026 : Studio Lite (fg40) */
     if(c.nouveaute === 'miroir' || c.nouveaute === 'teint') CTX.nouveaute = c.nouveaute;
+    if(c.flouFond === true) CTX.flouFond = true;   /* 18 nov. 2026 : La Révélation propose le fond flouté (fg34) */
     if(['hexagone', 'rideau', 'comparaison', 'etapes'].indexOf(c.gabarit) >= 0) CTX.gabarit = c.gabarit;   /* 18 nov. 2026 : le gabarit avant/après proposé par un module */   /* 17 nov. 2026 : Style Universe ouvre le Miroir (avant/après) */
   return true;
 }
@@ -4562,7 +4596,7 @@ function lireContextes(){
   var d = lireCtx('nv_duo_ctx', 3600000); if(d && urlSure(d.url)){ CTX.duo = {url:urlSure(d.url), auteur:txt(d.auteur || d.author, 40), id:d.id || null}; effacerCle('nv_duo_ctx'); }
   /* 4. un autre module nous a ouverts avec un contexte (Le Griot ouvert seul, la Récolte…) */
   var o = null; try{ o = JSON.parse(sessionStorage.getItem('nv_ctx_' + MOI) || 'null'); sessionStorage.removeItem('nv_ctx_' + MOI); }catch(e){ dbg(e); }
-  if(o && typeof o === 'object'){ if(o.son) CTX.son = o.son; if(typeof o.decor === 'string' && estDecorAnime(o.decor)) CTX.decor = o.decor; if(o.media && o.media.echange) CTX.media = o.media; if(o.duo && urlSure(o.duo.url)) CTX.duo = o.duo; if(o.defi && !CTX.defi) CTX.defi = {defi:txt(o.defi.defi || o.defi.id, 80), titre:txt(o.defi.titre || o.defi.name, 80), tag:txt(o.defi.tag, 40) || null}; if(o.recette) CTX.recette = String(o.recette); if(o.stitch && urlSure(o.stitch.url)) CTX.stitch = o.stitch; if(o.ecran) CTX.ecran = o.ecran; if(o.nouveaute === 'miroir' || o.nouveaute === 'teint') CTX.nouveaute = o.nouveaute; if(['hexagone', 'rideau', 'comparaison', 'etapes'].indexOf(o.gabarit) >= 0) CTX.gabarit = o.gabarit; if(typeof o.studioLite === 'string') CTX.studioLite = txt(o.studioLite, 20); }
+  if(o && typeof o === 'object'){ if(o.son) CTX.son = o.son; if(typeof o.decor === 'string' && estDecorAnime(o.decor)) CTX.decor = o.decor; if(o.media && o.media.echange) CTX.media = o.media; if(o.duo && urlSure(o.duo.url)) CTX.duo = o.duo; if(o.defi && !CTX.defi) CTX.defi = {defi:txt(o.defi.defi || o.defi.id, 80), titre:txt(o.defi.titre || o.defi.name, 80), tag:txt(o.defi.tag, 40) || null}; if(o.recette) CTX.recette = String(o.recette); if(o.stitch && urlSure(o.stitch.url)) CTX.stitch = o.stitch; if(o.ecran) CTX.ecran = o.ecran; if(o.nouveaute === 'miroir' || o.nouveaute === 'teint') CTX.nouveaute = o.nouveaute; if(o.flouFond === true) CTX.flouFond = true; if(['hexagone', 'rideau', 'comparaison', 'etapes'].indexOf(o.gabarit) >= 0) CTX.gabarit = o.gabarit; if(typeof o.studioLite === 'string') CTX.studioLite = txt(o.studioLite, 20); }
   /* 5. le son choisi juste avant dans la bibliothèque (v22 : nv_sound_current) */
   var s = lire('nv_sound_current', null); if(!CTX.son && s && (s.src || s.id) && s.at && Date.now() - s.at < 3600000) CTX.son = s;
   /* 6. l'adresse */
@@ -8319,8 +8353,9 @@ function iaPreparerDirect(k){
    pour un partage d'écran, jamais à la place d'un décor déjà choisi, et seulement si le détourage existe sur ce téléphone.
    On peut l'enlever à chaque vidéo (le panneau « Décor » reste libre). Relu au serveur à chaque ouverture de la caméra
    (un changement du réglage compte tout de suite ; un échec de lecture est réessayé à l'ouverture suivante). La caméra
-   pas encore prête (première autorisation) : on attend, 20 s au plus. Le message ne paraît qu'une fois le flou posé. */
-var LIEU = {flou:null, lecture:null, pose:false, essais:0, minuterie:0};
+   pas encore prête (première autorisation) : on attend, 20 s au plus. Le message ne paraît qu'une fois le flou posé.
+   18 nov. 2026 : un module peut aussi le proposer pour une vidéo (`flouFond:true`, La Révélation) ; on peut toujours l'enlever. */
+var LIEU = {flou:null, lecture:null, pose:false, essais:0, minuterie:0, flouDonne:false};
 function lieuLire(){ if(!api() || !window.NV_TOKEN) return Promise.resolve(null); if(LIEU.lecture) return LIEU.lecture;
   LIEU.lecture = fetch(api() + '/v1/cercle/capacites', {mode:'cors', headers:entetes()}).then(function(r){ return r.ok ? r.json() : null; })
     .then(function(c){ if(!c || c.lieuFlou !== true) return null; return fetch(api() + '/v1/cercle', {mode:'cors', headers:entetes()}).then(function(r){ return r.ok ? r.json() : null; }); })
@@ -8347,7 +8382,8 @@ function lieuAppliquer(){
 (function(){
   var o0 = ouvrirCamera;
   ouvrirCamera = function(){ var r = o0.apply(this, arguments); LIEU.pose = false; LIEU.essais = 0; clearTimeout(LIEU.minuterie);
-    lieuLire().then(function(f){ if(f) LIEU.minuterie = setTimeout(lieuAppliquer, 300); }); return r; };
+    var propose = CTX.flouFond && !LIEU.flouDonne; if(propose) LIEU.flouDonne = true;   /* proposé UNE fois par le module : si la personne l'enlève, on ne le remet pas */
+    lieuLire().then(function(f){ if(f || propose) LIEU.minuterie = setTimeout(lieuAppliquer, 300); }); return r; };
 })();
 /* ════════ TEINT JUSTE (16 novembre 2026, recommandation 2 acceptée par Karamo) ════════
    La caméra de NEURAVID respecte toutes les peaux, et d'abord les peaux noires et métissées. Promesse : AUCUN filtre,

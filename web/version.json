@@ -1,6 +1,6 @@
 {
- "version": "2026.11.18-ed5de70e6853",
- "date": "2026-11-18T03:37:36Z",
+ "version": "2026.11.18-2857f25149f1",
+ "date": "2026-11-18T04:33:48Z",
  "entree": "index.html",
  "modules": [
   "NV_MODULE_Academie.html",
@@ -46,6 +46,7 @@
   "NV_MODULE_Recolte_leger.html",
   "NV_MODULE_Reglages.html",
   "NV_MODULE_Report.html",
+  "NV_MODULE_Revelation.html",
   "NV_MODULE_Saison.html",
   "NV_MODULE_Savoir.html",
   "NV_MODULE_Search.html",
@@ -96,8 +97,8 @@
    "taille": 1303461
   },
   "NV_MODULE_ChallengeUniverse.html": {
-   "sha256": "cb6ecc26116431f21e106bbd79f75cd7a8254d828c3e0ccd48593cc94d2394ca",
-   "taille": 1889314
+   "sha256": "5a9f79441cfb4b512f7686f1a771e6bac26aa53efa4a200546ec14142d278718",
+   "taille": 1898495
   },
   "NV_MODULE_CinemaWorld.html": {
    "sha256": "01f2c4abf4febf2f1d4f3d1080a8bba49729142d5e0842d7a00e1594381fd168",
@@ -116,8 +117,8 @@
    "taille": 164186
   },
   "NV_MODULE_Create.html": {
-   "sha256": "c9b441d815ab73cc568cb08fae6f93a570fc1d32126360cbe9c7e6544d754886",
-   "taille": 2197362
+   "sha256": "9c07ee38aa210e4e6ce2a42b3de62cbcde9e7b8f9bd48acd0902127eee84ace5",
+   "taille": 2202607
   },
   "NV_MODULE_Dashboard.html": {
    "sha256": "a7a192ec21fbc508b340ee55593199869f19866d6c9a917e2e17e87facb1303e",
@@ -148,8 +149,8 @@
    "taille": 305261
   },
   "NV_MODULE_Home.html": {
-   "sha256": "b8bc8bca95c33886b184b00c1859ae96f95053c01c0999e4770d489cc56cf52b",
-   "taille": 2050802
+   "sha256": "b37f6ba5fc4e97583afb611839726d03e61c60b038bde5bbe278f6e100c02731",
+   "taille": 2053612
   },
   "NV_MODULE_Iris.html": {
    "sha256": "004bcd3c50d2de4cde4936321dab94fef4b7a56cf58f7d3c4276d79478fe08e8",
@@ -172,8 +173,8 @@
    "taille": 952760
   },
   "NV_MODULE_Notifications.html": {
-   "sha256": "c835b0624bb20588fddf43f0e4c9328ac02d6e361999a43fa4b785def1127838",
-   "taille": 594897
+   "sha256": "cd909d11178ebf079b2aaf0168c9d0b5479d0bd0ed8d5f488be9343ca135dd44",
+   "taille": 606254
   },
   "NV_MODULE_Orbite.html": {
    "sha256": "34912e014397c5d4f08617deabb2278383804a7e416dae92c6526b2380ee96e1",
@@ -230,6 +231,10 @@
   "NV_MODULE_Report.html": {
    "sha256": "db28b2df20a7aec61a7b5b29e323da036796f2deb8434d6e54412ef8c97349bc",
    "taille": 123495
+  },
+  "NV_MODULE_Revelation.html": {
+   "sha256": "5a269ceb40309dc3ab5cac361830c47e1d81f85f45d0a20548b0835273b01402",
+   "taille": 279619
   },
   "NV_MODULE_Saison.html": {
    "sha256": "a3825ee516c483e426869488f2402ffad38c233328d5f5df9fdebb0021cf8320",
