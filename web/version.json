@@ -1,6 +1,6 @@
 {
- "version": "2026.11.18-1eaaa6ba7566",
- "date": "2026-11-18T10:03:16Z",
+ "version": "2026.11.18-a328f8b8ca1b",
+ "date": "2026-11-18T11:20:38Z",
  "entree": "index.html",
  "modules": [
   "NV_MODULE_Academie.html",
@@ -32,6 +32,7 @@
   "NV_MODULE_Live.html",
   "NV_MODULE_Live_leger.html",
   "NV_MODULE_LoveUniverse.html",
+  "NV_MODULE_Marche.html",
   "NV_MODULE_MissMaster.html",
   "NV_MODULE_Notifications.html",
   "NV_MODULE_Orbite.html",
@@ -162,32 +163,36 @@
    "taille": 305261
   },
   "NV_MODULE_Home.html": {
-   "sha256": "4f5adb1fe6dfc7aacd9d8870469a5c05c7bc7367fa89628c76cbadf56110b097",
-   "taille": 2071108
+   "sha256": "83043c10db0b3e277f354225b87a2e7f72989be4ceee8b97c06b0b6773442beb",
+   "taille": 2074317
   },
   "NV_MODULE_Iris.html": {
    "sha256": "a225e17fc0329d5b1cf74b7390e4ea5c992799150d9ec90fceb0f9bcceaa51e9",
    "taille": 1065232
   },
   "NV_MODULE_Live.html": {
-   "sha256": "42839bb4da3e785c0e5c5048c4ba3c506f063c7b1c8a2e8e14af265b90d13361",
-   "taille": 2571714
+   "sha256": "27e1057af8a34db16f95cf088109d2bebe6e1ba53ce686a658142ef510f0e895",
+   "taille": 2595696
   },
   "NV_MODULE_Live_leger.html": {
-   "sha256": "bd60b5c7e6382dafdbff091262def2a85e79ee14bf85a3d4d6c911236af833e4",
-   "taille": 2571720
+   "sha256": "c2270c50c7456c875b96c721e522d66193e0827309b4645eb08f7145e07e5b52",
+   "taille": 2595702
   },
   "NV_MODULE_LoveUniverse.html": {
    "sha256": "7348eed25fd08467f5e697567e3606e8500878b5caf0ab2fd11343634e21e0e8",
    "taille": 1491702
+  },
+  "NV_MODULE_Marche.html": {
+   "sha256": "6e92bf1d2c6eed3ffe7d1a1f60c81012b87ed9a44630f6de98bd510dcac35937",
+   "taille": 349962
   },
   "NV_MODULE_MissMaster.html": {
    "sha256": "afaa6d9f18b94a9586c867fdeab99138e1d047b94771009a9a836a7ef01b3830",
    "taille": 952760
   },
   "NV_MODULE_Notifications.html": {
-   "sha256": "6072d7220ad988dc827c5b0ca3abd3f220199e161a11189b0cfe019c18288d6e",
-   "taille": 650708
+   "sha256": "737cde240d3ec8946e6837ca6b7425e77f7a4e7890436903e24a54f9afd47eee",
+   "taille": 659999
   },
   "NV_MODULE_Orbite.html": {
    "sha256": "34912e014397c5d4f08617deabb2278383804a7e416dae92c6526b2380ee96e1",
