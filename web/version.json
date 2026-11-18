@@ -1,6 +1,6 @@
 {
- "version": "2026.11.18-1c1b7f118885",
- "date": "2026-11-18T05:20:39Z",
+ "version": "2026.11.18-2c831f7fa392",
+ "date": "2026-11-18T06:24:45Z",
  "entree": "index.html",
  "modules": [
   "NV_MODULE_Academie.html",
@@ -48,6 +48,7 @@
   "NV_MODULE_Report.html",
   "NV_MODULE_Revelation.html",
   "NV_MODULE_Saison.html",
+  "NV_MODULE_SansFrontieres.html",
   "NV_MODULE_Savoir.html",
   "NV_MODULE_Search.html",
   "NV_MODULE_Souvenirs.html",
@@ -118,8 +119,8 @@
    "taille": 164186
   },
   "NV_MODULE_Create.html": {
-   "sha256": "9c07ee38aa210e4e6ce2a42b3de62cbcde9e7b8f9bd48acd0902127eee84ace5",
-   "taille": 2202607
+   "sha256": "6d24db70b3d6fd80b423ee78d05e4266acf8705997aa7357b330c86bd326e5b5",
+   "taille": 2206979
   },
   "NV_MODULE_Dashboard.html": {
    "sha256": "a7a192ec21fbc508b340ee55593199869f19866d6c9a917e2e17e87facb1303e",
@@ -150,12 +151,12 @@
    "taille": 305261
   },
   "NV_MODULE_Home.html": {
-   "sha256": "a9a9636e9abaccfe556f291448e8e9a49d70212213c1793bda4959db0c5ae00d",
-   "taille": 2057198
+   "sha256": "1eea23d9e85e4c234ceaa0bfbcba7203c603da236790c6ca9b5f4e818cc61e15",
+   "taille": 2061006
   },
   "NV_MODULE_Iris.html": {
-   "sha256": "004bcd3c50d2de4cde4936321dab94fef4b7a56cf58f7d3c4276d79478fe08e8",
-   "taille": 1062837
+   "sha256": "a225e17fc0329d5b1cf74b7390e4ea5c992799150d9ec90fceb0f9bcceaa51e9",
+   "taille": 1065232
   },
   "NV_MODULE_Live.html": {
    "sha256": "42839bb4da3e785c0e5c5048c4ba3c506f063c7b1c8a2e8e14af265b90d13361",
@@ -174,8 +175,8 @@
    "taille": 952760
   },
   "NV_MODULE_Notifications.html": {
-   "sha256": "0768c963fc7faa061d7602775af7670df4b9dcabf06ea64203e7e6822ae7d343",
-   "taille": 614685
+   "sha256": "b359b13531705daa90936646bf5339f6935f4ce1162d1de5cc17f95b1ac91974",
+   "taille": 630181
   },
   "NV_MODULE_Orbite.html": {
    "sha256": "34912e014397c5d4f08617deabb2278383804a7e416dae92c6526b2380ee96e1",
@@ -240,6 +241,10 @@
   "NV_MODULE_Saison.html": {
    "sha256": "a3825ee516c483e426869488f2402ffad38c233328d5f5df9fdebb0021cf8320",
    "taille": 112359
+  },
+  "NV_MODULE_SansFrontieres.html": {
+   "sha256": "14f5901ed5fb1b92288abc8fd91f9c6ec8213833a2e95b84a05fec0a466fc342",
+   "taille": 284737
   },
   "NV_MODULE_Savoir.html": {
    "sha256": "14c6d8467ff5523378cf5d561c9eda91f5282b341497eb2d91d364d7c88f18c6",
