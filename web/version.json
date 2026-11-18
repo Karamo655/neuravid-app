@@ -1,6 +1,6 @@
 {
- "version": "2026.11.18-fdc7231e3617",
- "date": "2026-11-18T00:18:19Z",
+ "version": "2026.11.18-0789d728c285",
+ "date": "2026-11-18T01:27:43Z",
  "entree": "index.html",
  "modules": [
   "NV_MODULE_Aines.html",
@@ -38,6 +38,7 @@
   "NV_MODULE_Player.html",
   "NV_MODULE_Presse.html",
   "NV_MODULE_Profile.html",
+  "NV_MODULE_Progres.html",
   "NV_MODULE_Projecteur.html",
   "NV_MODULE_Recolte.html",
   "NV_MODULE_Recolte_leger.html",
@@ -89,8 +90,8 @@
    "taille": 1303461
   },
   "NV_MODULE_ChallengeUniverse.html": {
-   "sha256": "bbc6f2cb1292e9b17e10d18c4e8fd8d4c1ec3640eea9fc6334a732f0601780c8",
-   "taille": 1851809
+   "sha256": "9b7315173407ff86e02cd7511a3361f215bf1e34e254da5b4e86ee73ae47faea",
+   "taille": 1863932
   },
   "NV_MODULE_CinemaWorld.html": {
    "sha256": "01f2c4abf4febf2f1d4f3d1080a8bba49729142d5e0842d7a00e1594381fd168",
@@ -137,8 +138,8 @@
    "taille": 305261
   },
   "NV_MODULE_Home.html": {
-   "sha256": "145a3cd7bfeaf2e470624cb1e0dc53f86651a272889d2592bc63217f6dcb63bf",
-   "taille": 2039985
+   "sha256": "c8aa0b84373f36e8b9c8143debd523ed0c6069ada7e5764126f6035813272994",
+   "taille": 2043150
   },
   "NV_MODULE_Iris.html": {
    "sha256": "c238db178eb44bb290b42a0c865d9f32945e76289af24cddcd0a30dc78b2c1cd",
@@ -161,8 +162,8 @@
    "taille": 952760
   },
   "NV_MODULE_Notifications.html": {
-   "sha256": "ef8f11d35fe52ed062e84ad23a7e8731579337456fb46b40dc0d1c0175b2ace8",
-   "taille": 566550
+   "sha256": "10239bf854f7ec7a955bf5cd8fa9b647601698a27c40edcbf47036064295059a",
+   "taille": 571917
   },
   "NV_MODULE_Orbite.html": {
    "sha256": "34912e014397c5d4f08617deabb2278383804a7e416dae92c6526b2380ee96e1",
@@ -193,8 +194,12 @@
    "taille": 235585
   },
   "NV_MODULE_Profile.html": {
-   "sha256": "add43f49ea7c2559e562341074bf7764ea729f4c52eae8638e3515785b3205ad",
-   "taille": 886742
+   "sha256": "7ef8039e8e348a464d7ec60fe7297963db84b799e374965156cacaeb7b6dd3f9",
+   "taille": 894386
+  },
+  "NV_MODULE_Progres.html": {
+   "sha256": "7f5f038873a375dd646e5823bbf5ea61d19abf144312e0483345583737753d81",
+   "taille": 209723
   },
   "NV_MODULE_Projecteur.html": {
    "sha256": "cff1f8ccd3de8782e50eb0f4b33891e2dd9525808741741fa4fcde0cd46124ee",
