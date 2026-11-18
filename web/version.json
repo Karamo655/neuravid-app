@@ -1,8 +1,9 @@
 {
- "version": "2026.11.18-0789d728c285",
- "date": "2026-11-18T01:27:43Z",
+ "version": "2026.11.18-e26d5582bce9",
+ "date": "2026-11-18T02:37:24Z",
  "entree": "index.html",
  "modules": [
+  "NV_MODULE_Academie.html",
   "NV_MODULE_Aines.html",
   "NV_MODULE_Arena.html",
   "NV_MODULE_ArenaArts.html",
@@ -57,6 +58,10 @@
  ],
  "config": "nv-config.js (exclu de l'empreinte : il change selon le déploiement)",
  "fichiers": {
+  "NV_MODULE_Academie.html": {
+   "sha256": "9963f137be6cb68f50a231216d404ad1ebc002691061be823430e987d77609d1",
+   "taille": 344326
+  },
   "NV_MODULE_Aines.html": {
    "sha256": "e7a799102d09634d47812d14a8ea10b34a270fcb2f5ccdbc9e780ef19ee07bb9",
    "taille": 283617
@@ -90,8 +95,8 @@
    "taille": 1303461
   },
   "NV_MODULE_ChallengeUniverse.html": {
-   "sha256": "9b7315173407ff86e02cd7511a3361f215bf1e34e254da5b4e86ee73ae47faea",
-   "taille": 1863932
+   "sha256": "45be32bd38d3633cbf9d4e178039976418bc8712b9986a53a438323bc32dc0aa",
+   "taille": 1876443
   },
   "NV_MODULE_CinemaWorld.html": {
    "sha256": "01f2c4abf4febf2f1d4f3d1080a8bba49729142d5e0842d7a00e1594381fd168",
@@ -138,12 +143,12 @@
    "taille": 305261
   },
   "NV_MODULE_Home.html": {
-   "sha256": "c8aa0b84373f36e8b9c8143debd523ed0c6069ada7e5764126f6035813272994",
-   "taille": 2043150
+   "sha256": "d6462fd9f190e33228591d23dda91a87d60b865733468a90c967ce9c867e3592",
+   "taille": 2046326
   },
   "NV_MODULE_Iris.html": {
-   "sha256": "c238db178eb44bb290b42a0c865d9f32945e76289af24cddcd0a30dc78b2c1cd",
-   "taille": 1061511
+   "sha256": "004bcd3c50d2de4cde4936321dab94fef4b7a56cf58f7d3c4276d79478fe08e8",
+   "taille": 1062837
   },
   "NV_MODULE_Live.html": {
    "sha256": "42839bb4da3e785c0e5c5048c4ba3c506f063c7b1c8a2e8e14af265b90d13361",
@@ -162,8 +167,8 @@
    "taille": 952760
   },
   "NV_MODULE_Notifications.html": {
-   "sha256": "10239bf854f7ec7a955bf5cd8fa9b647601698a27c40edcbf47036064295059a",
-   "taille": 571917
+   "sha256": "b384bab25870cc8c1337cbe8d1ddca986dcadbbda3afb5f1b1f7d6f72de4de2f",
+   "taille": 586653
   },
   "NV_MODULE_Orbite.html": {
    "sha256": "34912e014397c5d4f08617deabb2278383804a7e416dae92c6526b2380ee96e1",
@@ -194,8 +199,8 @@
    "taille": 235585
   },
   "NV_MODULE_Profile.html": {
-   "sha256": "7ef8039e8e348a464d7ec60fe7297963db84b799e374965156cacaeb7b6dd3f9",
-   "taille": 894386
+   "sha256": "fc5227a05e3b499a86225511e9896610713ac16f32cc83593ce7265d23405f85",
+   "taille": 900477
   },
   "NV_MODULE_Progres.html": {
    "sha256": "7f5f038873a375dd646e5823bbf5ea61d19abf144312e0483345583737753d81",
