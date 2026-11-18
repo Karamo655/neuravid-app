@@ -1,0 +1,1228 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<!--NV_VITESSE--><script>/* NEURAVID — la vitesse commune (14 novembre 2026). Injectée en tête de chaque module par injecter_vitesse.py.
+   Rien n'est retiré : chaque animation reste, elle travaille seulement quand on la voit, et au rythme que le téléphone peut tenir.
+   1. La cadence des images (requestAnimationFrame) suit le téléphone et la personne :
+      - téléphone modeste (≤ 4 cœurs, ≤ 2 Go, ou économie de données) : 30 images/s au plus ;
+      - personne qui ne touche à rien depuis 15 s : 30 images/s (20 sur un téléphone modeste) ; tout geste rend la pleine cadence ;
+      - jamais pendant une capture (caméra, micro ou enregistrement en cours) : pleine cadence, rien n'est touché.
+   2. Les animations CSS sans fin s'arrêtent quand elles sortent de l'écran, et reprennent dès qu'elles reviennent.
+   3. (deuxième vague) Quand la cadence est réduite, les animations CSS sans fin et les animations SVG à l'écran avancent AU MÊME
+      rythme que le reste (elles sont « pilotées » : même mouvement, même vitesse, mais une image calculée 30 ou 20 fois par seconde
+      au lieu de 60). Sans cela, une seule petite animation obligeait le téléphone à recomposer tout l'écran 60 fois par seconde.
+      Tout geste les rend à elles-mêmes. Une animation mise en pause par le module n'est jamais relancée.
+   window.NVVitesse = {faible, cadence(), cran(), repos(), capture(), pilotees()} pour les essais. */
+(function(){ 'use strict';
+  if(window.NVVitesse || typeof window.requestAnimationFrame !== 'function') return;
+  var N = navigator, cx = N.connection || {}, coeurs = N.hardwareConcurrency || 8, mem = N.deviceMemory || 8;
+  var faible = coeurs <= 4 || mem <= 2 || !!cx.saveData;
+  var REPOS_MS = 15000, IV_FAIBLE = 1000 / 30, IV_REPOS = 1000 / (faible ? 20 : 30);
+  var natRAF = window.requestAnimationFrame.bind(window), natCAF = window.cancelAnimationFrame.bind(window);
+  var maintenant = function(){ return (window.performance && performance.now) ? performance.now() : Date.now(); };
+  var file = new Map(), suivant = 1, demande = 0, dernier = -1e9, geste = maintenant();
+
+  /* ── la capture : flux de la caméra ou du micro encore vivants, ou enregistrement en cours ── */
+  var flux = [], enregistreurs = [], capCache = {t:0, v:false}, md = null;
+  function enCapture(){ var t = maintenant(); if(t - capCache.t < 400) return capCache.v; capCache.t = t; var v = false;
+    try{
+      flux = flux.filter(function(s){ return s.getTracks().some(function(k){ return k.readyState === 'live'; }); }); if(flux.length) v = true;
+      enregistreurs = enregistreurs.filter(function(r){ return r.state !== 'inactive'; }); if(enregistreurs.length) v = true;
+    }catch(e){ v = true; }
+    return (capCache.v = v); }
+  try{ md = N.mediaDevices; if(md && md.getUserMedia){ var gum = md.getUserMedia.bind(md);
+    md.getUserMedia = function(){ return gum.apply(null, arguments).then(function(s){ flux.push(s); capCache.t = 0; return s; }); }; } }catch(e){}
+  try{ if(md && md.getDisplayMedia){ var gdm = md.getDisplayMedia.bind(md);
+    md.getDisplayMedia = function(){ return gdm.apply(null, arguments).then(function(s){ flux.push(s); capCache.t = 0; return s; }); }; } }catch(e){}
+  try{ if(window.MediaRecorder && MediaRecorder.prototype.start){ var dem = MediaRecorder.prototype.start;
+    MediaRecorder.prototype.start = function(){ enregistreurs.push(this); capCache.t = 0; return dem.apply(this, arguments); }; } }catch(e){}
+
+  function repos(){ return maintenant() - geste > REPOS_MS; }
+  /* 4. la cadence qui s'adapte : si le téléphone n'arrive pas à tenir la cadence voulue (les images arrivent 1,6 fois trop tard
+     pendant 2 s), on descend d'un cran (60 → 30 → 20, ou 30 → 20 → 15 sur un téléphone modeste) ; quand il respire de nouveau
+     pendant 8 s, on remonte. Une cadence tenue est plus fluide, et les touchers sont servis plus vite, qu'une cadence ratée. */
+  var CRANS = faible ? [30, 20, 15] : [60, 30, 20], cran = 0, ema = 0, lent = 0, aise = 0, derniereImage = 0;
+  function voulue(){ var c = CRANS[cran]; if(repos()) c = Math.min(c, faible ? 20 : 30); return c; }
+  function intervalle(){ if(enCapture()) return 0; var c = voulue(); return c >= 60 ? 0 : 1000 / c; }
+  function mesurer(ts){ var d = ts - derniereImage; derniereImage = ts; if(d <= 0 || d > 250){ ema = 0; return; }
+    ema = ema ? ema * .9 + d * .1 : d; var cible = 1000 / voulue();
+    if(ema > cible * 1.6){ lent += d; aise = 0; if(lent > 2000 && cran < CRANS.length - 1){ cran++; lent = 0; ema = 0; } }
+    else if(ema < cible * 1.15){ aise += d; lent = 0; if(aise > 8000 && cran > 0){ cran--; aise = 0; ema = 0; } }
+    else { lent = 0; aise = 0; } }
+
+  /* ── les animations pilotées (CSS sans fin et SVG à l'écran, seulement quand la cadence est réduite) ── */
+  var pilotes = [], svgs = [], gouverne = false;
+  function piloter(ts){
+    for(var i = 0; i < pilotes.length; i++){ var p = pilotes[i]; try{ p.a.currentTime = p.base + (ts - p.t0) * (p.a.playbackRate || 1); }catch(e){} }
+    for(i = 0; i < svgs.length; i++){ var q = svgs[i]; try{ q.s.setCurrentTime(q.base + (ts - q.t0) / 1000); }catch(e){} } }
+  function relancer(){ if(!demande && (file.size || pilotes.length || svgs.length)) demande = natRAF(tour); }
+  function prendre(a){ for(var i = 0; i < pilotes.length; i++) if(pilotes[i].a === a) return;
+    try{ var ct = a.currentTime || 0; a.pause(); a.currentTime = ct; pilotes.push({a:a, base:ct, t0:maintenant()}); relancer(); }catch(e){} }
+  function prendreSvg(s){ for(var i = 0; i < svgs.length; i++) if(svgs[i].s === s) return;
+    try{ if(s.animationsPaused()) return; var ct = s.getCurrentTime(); s.pauseAnimations(); svgs.push({s:s, base:ct, t0:maintenant()}); relancer(); }catch(e){} }
+  function lacher(){ var l = pilotes; pilotes = [];
+    l.forEach(function(p){ try{ var t = p.a.effect && p.a.effect.target; if(p.a.playState === 'paused' && t && t.isConnected) p.a.play(); }catch(e){} });
+    var m = svgs; svgs = []; m.forEach(function(q){ try{ q.s.unpauseAnimations(); }catch(e){} }); }
+  function lacherA(a){ pilotes = pilotes.filter(function(p){ return p.a !== a; }); }
+
+  function tour(ts){ demande = 0; if(!file.size && !pilotes.length && !svgs.length) return;
+    var iv = intervalle(); if(iv && ts - dernier < iv - 3){ demande = natRAF(tour); return; }
+    if(!iv && (pilotes.length || svgs.length)) lacher();
+    dernier = ts; if(!enCapture()) mesurer(ts); if(iv) piloter(ts);
+    var lot = file; file = new Map();
+    lot.forEach(function(cb){ try{ cb(ts); }catch(e){ setTimeout(function(){ throw e; }, 0); } });
+    relancer(); }
+  window.requestAnimationFrame = function(cb){ if(typeof cb !== 'function') return natRAF(cb); var id = suivant++; file.set(id, cb); if(!demande) demande = natRAF(tour); return id; };
+  window.cancelAnimationFrame = function(id){ file.delete(id); if(!file.size && !pilotes.length && !svgs.length && demande){ natCAF(demande); demande = 0; } };
+  function bouge(){ var r = repos(); geste = maintenant(); if(r) dernier = -1e9; if(gouverne && !intervalle()){ gouverne = false; lacher(); } }
+  ['pointerdown', 'touchstart', 'keydown', 'wheel', 'scroll'].forEach(function(n){ window.addEventListener(n, bouge, {capture:true, passive:true}); });
+
+  /* ── les animations CSS sans fin hors de l'écran ── */
+  var suivis = typeof WeakMap === 'function' ? new WeakMap() : null, arretees = [], io = null;
+  function sansFin(a){ try{ return a.effect && a.effect.getTiming && a.effect.getTiming().iterations === Infinity; }catch(e){ return false; } }
+  function voulueEnPause(el){ try{ return /paused/.test(getComputedStyle(el).animationPlayState || ''); }catch(e){ return false; } }
+  function estCSS(a){ return !!(window.CSSAnimation && a instanceof CSSAnimation); }
+  if(suivis && 'IntersectionObserver' in window && document.getAnimations){
+    io = new IntersectionObserver(function(es){ es.forEach(function(e){ var el = e.target, s = suivis.get(el); if(!s) return; s.vu = e.isIntersecting;
+      if(s.vu){ var reste = []; arretees.forEach(function(a){ var t = a.effect && a.effect.target;
+          if(t === el){ if(a.playState === 'paused' && !voulueEnPause(el)){ if(gouverne) prendre(a); else try{ a.play(); }catch(x){} } } else reste.push(a); }); arretees = reste; }
+      else { try{ el.getAnimations().forEach(function(a){ if(!estCSS(a) || !sansFin(a)) return; var pil = pilotes.some(function(p){ return p.a === a; });
+          if(pil){ lacherA(a); arretees.push(a); } else if(a.playState === 'running'){ try{ a.pause(); arretees.push(a); }catch(x){} } }); }catch(x){} } }); }, {rootMargin:'120px'});
+    var balayer = function(){ if(document.hidden) return;
+      arretees = arretees.filter(function(a){ var t = a.effect && a.effect.target; return t && t.isConnected; });
+      pilotes = pilotes.filter(function(p){ var t = p.a.effect && p.a.effect.target; return t && t.isConnected && p.a.playState !== 'idle'; });
+      gouverne = intervalle() > 0; if(!gouverne && (pilotes.length || svgs.length)) lacher();
+      try{ document.getAnimations().forEach(function(a){ if(!estCSS(a) || !sansFin(a)) return; var t = a.effect && a.effect.target; if(!t || t.nodeType !== 1) return;
+        var s = suivis.get(t); if(!s){ suivis.set(t, {vu:true}); io.observe(t); return; }
+        if(!s.vu){ if(a.playState === 'running'){ try{ a.pause(); arretees.push(a); }catch(x){} } return; }
+        if(gouverne && a.playState === 'running' && !voulueEnPause(t)) prendre(a); }); }catch(e){}
+      /* les SVG animés : endormis hors de l'écran, pilotés à l'écran quand la cadence est réduite */
+      try{ [].forEach.call(document.querySelectorAll('svg'), function(s){ if(s.ownerSVGElement || !s.pauseAnimations) return;
+          if(!s.querySelector('animate,animateTransform,animateMotion,set')) return; var r = s.getBoundingClientRect(), vu = !!(r.width && r.bottom > -120 && r.top < innerHeight + 120);
+          if(!vu){ var pil = svgs.some(function(q){ return q.s === s; });
+            if(pil){ svgs = svgs.filter(function(q){ return q.s !== s; }); s.__nvDort = true; }
+            else if(!s.animationsPaused()){ try{ s.pauseAnimations(); s.__nvDort = true; }catch(e){} } return; }
+          if(s.__nvDort){ s.__nvDort = false; try{ s.unpauseAnimations(); }catch(e){} }
+          if(gouverne) prendreSvg(s); }); }catch(e){}
+      svgs = svgs.filter(function(q){ return q.s.isConnected; }); };
+    var lancer = function(){ balayer(); setInterval(balayer, 2000); };
+    if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', function(){ setTimeout(lancer, 1500); }); else setTimeout(lancer, 1500);
+  }
+  window.NVVitesse = {faible:faible, repos:repos, capture:enCapture, cadence:function(){ var iv = intervalle(); return iv ? Math.round(1000 / iv) : 60; }, cran:function(){ return cran; },
+    pilotees:function(){ return {css:pilotes.length, svg:svgs.length}; }};
+})();</script><!--/NV_VITESSE-->
+<!--NV_CONFIG--><script src="nv-config.js"></script><!--/NV_CONFIG-->
+<!--NV_DEMO--><script id="nv-demo">
+/* NEURAVID — LA DÉMONSTRATION dans chaque module (injectée en tête de page, avant le module).
+   Jamais avec un serveur (NV_API_BASE) ; sans serveur, partout (17 nov. 2026, voir plus bas). Allumée si l'accueil l'a allumée pour la session
+   (sessionStorage « nv_demo » = 1), ou « #demo » dans l'adresse, ou une page ouverte comme fichier (file:, content:).
+   Elle permet seulement d'ouvrir les autres modules à côté (NV_MODULES_BASE) avec le même visiteur de démonstration ;
+   chaque module garde ses propres règles (rien d'inventé hors de la démonstration).
+   Seule exception à « jamais dans l'application » : l'APK « NEURAVID Aperçu » pose window.NV_APERCU = true (3 nov. 2026) ;
+   l'application de production ne le pose jamais. */
+(function(){ try{ var h = location.hash || '', s = null; try{ s = sessionStorage.getItem('nv_demo'); }catch(e){ s = null; }
+  /* 17 nov. 2026 (Karamo : « ne plus dépendre l'affichage… uniquement par la présence d'un serveur ») : SANS SERVEUR, l'aperçu
+     s'allume partout, aussi dans l'application et sur le site officiel (toujours marqué « Aperçu ») ; « #demo=0 » ou « Quitter
+     la démonstration » l'éteignent ; dès qu'un serveur est branché (NV_API_BASE), jamais. */
+  if((typeof window.NV_API_BASE === 'string' && window.NV_API_BASE) || s === '0' || /(^#|&)demo=0(&|$)/.test(h)) return;
+  /* L'Entrée, Nos conditions et Le signalement : seulement une démonstration demandée (jamais d'office) ; un faux compte, une
+     fausse acceptation ou un faux signalement tromperaient. */
+  var explicite = s === '1' || /(^#|&)demo(=1)?(&|$)/.test(h) || /^(file|content):$/.test(location.protocol);
+  if(!explicite && /NV_MODULE_(Entree|Conditions|Report)\.html/.test(location.pathname || '')) return;
+  window.NV_DEMO = true; try{ sessionStorage.setItem('nv_demo', '1'); }catch(e){ /* rien */ }
+  if(!window.NV_MODULES_BASE) window.NV_MODULES_BASE = './';
+  if(!window.NV_USER) window.NV_USER = {id:'demo', handle:'visiteur', prenom:'Aya', age:25, majeur:true, iso:'GN'};
+}catch(e){ /* rien */ } })();
+</script><!--/NV_DEMO-->
+
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#140b33">
+<title>Le Défi Transformation · NEURAVID</title>
+<style>
+/* Le Défi Transformation : un vrai avant, un vrai après (18 novembre 2026).
+   Aucune ressource extérieure : les vidéos viennent des serveurs (univers et publication). */
+:root{
+  --nuit:#140b33; --nuit2:#1c1147; --alv:#241657; --craie:#f6f1ff; --brume:rgba(236,228,255,.74); --trait:rgba(255,255,255,.16);
+  --or:#ffc531; --argent:#d7dbe6; --bronze:#e0995a; --cyan:#16e0d4; --rose:#ff4f9e; --rouge:#ff7a7a;
+  --hex:polygon(25% 0,75% 0,100% 50%,75% 100%,25% 100%,0 50%);
+  --sans:system-ui,-apple-system,"Segoe UI",Roboto,"Noto Sans",sans-serif;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%;text-size-adjust:100%}
+body{margin:0;background:var(--nuit);color:var(--craie);font:16px/1.45 var(--sans);min-height:100vh}
+main{max-width:768px;margin:0 auto;padding:12px 16px calc(32px + env(safe-area-inset-bottom,0px))}
+header{display:flex;align-items:center;gap:10px;padding:6px 0 10px}
+.hex{width:34px;height:30px;flex:0 0 auto;clip-path:var(--hex);background:linear-gradient(135deg,var(--cyan),#6c2bd9);display:grid;place-items:center}
+.hex i{width:14px;height:14px;border-radius:50%;background:var(--nuit);box-shadow:inset 0 0 0 4px var(--craie)}
+h1{font-size:1.2rem;margin:0;line-height:1.2}
+h2{font-size:1rem;margin:0 0 8px;display:flex;align-items:center;gap:8px}
+h2::before{content:"";width:12px;height:11px;clip-path:var(--hex);background:var(--cyan);flex:0 0 auto}
+.sous{margin:0;color:var(--brume);font-size:.88rem}
+.apercu{display:inline-block;margin-inline-start:6px;padding:1px 8px;border-radius:999px;background:var(--or);color:#2a1a00;font-size:.75rem;font-weight:800;vertical-align:middle}
+#etat{margin:0 0 12px;padding:8px 12px;border-radius:10px;background:var(--nuit2);border:1px solid var(--trait);font-size:.9rem}
+#etat.hl{border-color:var(--or)}
+#etat.ok{border-color:rgba(22,224,212,.5)}
+section{background:var(--nuit2);border:1px solid var(--trait);border-radius:14px;padding:12px 14px;margin:0 0 12px}
+ul{list-style:none;margin:0;padding:0}
+li{padding:7px 0;border-top:1px solid var(--trait)}
+li:first-child{border-top:0}
+.l1{display:flex;justify-content:space-between;gap:10px;align-items:baseline;flex-wrap:wrap}
+.d{color:var(--brume);font-size:.86rem}
+.puce{display:inline-block;padding:0 7px;border-radius:999px;font-size:.75rem;font-weight:700;border:1px solid var(--trait);white-space:nowrap}
+.puce.an{color:var(--rouge);border-color:var(--rouge)}
+.puce.re{color:var(--or);border-color:var(--or)}
+.puce.co{color:var(--cyan);border-color:var(--cyan)}
+.chiffres{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;text-align:center}
+.chiffres b{display:block;font-size:1.25rem}
+.chiffres span{font-size:.75rem;color:var(--brume)}
+.med{display:inline-flex;align-items:center;gap:3px;margin-inline-end:8px;white-space:nowrap}
+.med i{width:12px;height:11px;clip-path:var(--hex);display:inline-block}
+.or i{background:var(--or)} .ar i{background:var(--argent)} .br i{background:var(--bronze)}
+table{width:100%;border-collapse:collapse;font-size:.92rem}
+td,th{padding:5px 4px;text-align:center;border-top:1px solid var(--trait)}
+td:first-child,th:first-child{text-align:start}
+th{font-size:.75rem;color:var(--brume);font-weight:600;border-top:0}
+button,select,.lien{font:inherit;color:inherit}
+button{min-height:44px;padding:8px 14px;border-radius:12px;border:1px solid var(--trait);background:var(--alv);cursor:pointer}
+button:focus-visible,select:focus-visible,.lien:focus-visible{outline:2px solid var(--or);outline-offset:2px}
+button[disabled]{opacity:.55;cursor:default}
+.actions{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 12px}
+.actions button{flex:1 1 140px}
+.lien{background:none;border:0;padding:6px 0;min-height:36px;color:var(--cyan);text-decoration:underline;cursor:pointer;font-size:.88rem}
+.jours button{min-height:40px;margin-block:4px 0;margin-inline:0 6px;padding:6px 10px;font-size:.88rem}
+.jours button[aria-current="true"]{border-color:var(--or)}
+footer{color:var(--brume);font-size:.8rem;display:grid;gap:8px;margin-top:4px}
+footer label{display:flex;gap:8px;align-items:center}
+select{min-height:40px;border-radius:10px;background:var(--alv);border:1px solid var(--trait);padding:4px 8px}
+#toast{position:fixed;left:50%;bottom:calc(16px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--craie);color:var(--nuit);padding:8px 14px;border-radius:10px;font-weight:700;opacity:0;pointer-events:none;max-width:calc(100% - 32px)}
+#toast.on{opacity:1}
+.vide{color:var(--brume);margin:0}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+[dir="rtl"] .l1{direction:rtl}
+@media (prefers-reduced-motion:no-preference){#toast{transition:opacity .2s}}
+@media (min-width:560px){h1{font-size:1.35rem}}
+
+.chips{display:flex;gap:6px;flex-wrap:wrap;margin:0 0 10px}
+.chips button{min-height:40px;padding:4px 12px;font-size:.88rem;border-radius:999px}
+.chips button[aria-pressed="true"]{border-color:var(--or);color:var(--or)}
+.form{display:grid;gap:10px}
+.form label{display:grid;gap:4px;font-size:.88rem;color:var(--brume)}
+input,textarea{font:inherit;color:var(--craie);background:var(--alv);border:1px solid var(--trait);border-radius:10px;padding:8px 10px;min-height:44px;width:100%}
+input:focus-visible,textarea:focus-visible{outline:2px solid var(--or);outline-offset:2px}
+.btn-or{background:linear-gradient(135deg,var(--or),#ff9f1c);color:#2a1a00;border:0;font-weight:800}
+
+
+.astuce{margin:0 0 8px;padding:8px 10px;border-radius:10px;background:rgba(255,197,49,.1);border:1px solid rgba(255,197,49,.35)}
+.retour{margin:0 0 10px}
+.regle{font-size:.82rem;color:var(--brume);margin:6px 0 0}
+select.plein{width:100%;min-height:44px}
+/* le défi du jour : un grand hexagone */
+.jour{display:grid;grid-template-columns:minmax(96px,130px) 1fr;gap:14px;align-items:center}
+.jour-hex{aspect-ratio:1/1.1;clip-path:var(--hex);background:linear-gradient(140deg,var(--id1),var(--id2));display:grid;place-items:center;position:relative}
+.jour-hex::after{content:"";position:absolute;inset:5px;clip-path:var(--hex);background:var(--nuit2)}
+.jour-hex span{position:relative;z-index:1;font-size:2.6rem;line-height:1}
+.jour h3{margin:0 0 4px;font-size:1.15rem;line-height:1.25}
+.jour .cons{margin:0 0 6px}
+@media (max-width:360px){.jour{grid-template-columns:84px 1fr;gap:10px}.jour-hex span{font-size:2rem}}
+.grille{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px}
+.part{background:var(--alv);border:1px solid var(--trait);border-radius:14px;padding:8px;display:grid;gap:6px;align-content:start;position:relative}
+.part.vedette{border-color:var(--or);box-shadow:0 0 0 1px var(--or) inset}
+.part video,.part canvas{width:100%;aspect-ratio:9/16;border-radius:10px;background:#000;display:block}
+.part .vide-v{width:100%;aspect-ratio:9/16;border-radius:10px;background:repeating-linear-gradient(45deg,var(--nuit2),var(--nuit2) 8px,var(--alv) 8px,var(--alv) 16px);display:grid;place-items:center;color:var(--brume);font-size:.8rem;text-align:center;padding:8px}
+.part p{margin:0;font-size:.82rem;color:var(--brume)}
+.part button{min-height:40px;padding:4px 10px;font-size:.86rem}
+.etoile{display:inline-flex;align-items:center;gap:5px;font-size:.78rem;font-weight:800;color:var(--or)}
+.etoile i{width:13px;height:12px;clip-path:var(--hex);background:var(--or);display:inline-block}
+.nv-cree{display:inline-flex;align-items:center;gap:5px;font-size:.75rem;color:var(--or)}
+.nv-cree i{width:11px;height:10px;clip-path:var(--hex);background:var(--or);display:inline-block}
+.passe{display:grid;grid-template-columns:44px 1fr;gap:10px;align-items:start;padding:10px 0;border-top:1px solid var(--trait)}
+.passe:first-of-type{border-top:0}
+.passe h3 button{min-height:44px;display:inline-flex!important;align-items:center}
+.interrupteur{flex-wrap:wrap}
+.passe .mini{width:40px;height:44px;clip-path:var(--hex);background:var(--alv);display:grid;place-items:center;font-size:1.2rem}
+.passe h3{margin:0;font-size:.95rem}
+.passe h3 button{all:unset;cursor:pointer;color:var(--craie);font-weight:700}
+.passe h3 button:focus-visible{outline:2px solid var(--or);outline-offset:2px}
+.prise{width:100%;max-width:260px;aspect-ratio:9/16;border-radius:12px;background:#000;display:block;margin:0 0 10px}
+.interrupteur{display:flex;gap:10px;align-items:center;justify-content:space-between}
+.interrupteur button[aria-pressed="true"]{border-color:var(--cyan);color:var(--cyan)}
+/* Identité de la nouveauté : vert de la pousse et or du rideau */
+:root{--id1:#3fd47a;--id2:#ffc531}
+header{position:relative}
+header::after{content:"";position:absolute;inset-inline:0;bottom:0;height:3px;border-radius:3px;background:linear-gradient(90deg,var(--id1),var(--id2))}
+.hex{background:linear-gradient(135deg,var(--id1),var(--id2))}
+h2::before{background:linear-gradient(135deg,var(--id1),var(--id2))}
+
+/* Le Projecteur du monde : critères, raison, talent à découvrir, contrôle d'équité */
+.part{min-width:0}
+.part select{max-width:100%;min-width:0}
+.part.moi{border-color:var(--id2)}
+.qui{font-weight:700;color:var(--craie)!important}
+.qui .lien{min-height:44px;padding:0;font-size:inherit;display:inline-flex;align-items:center}
+.crits{display:flex;flex-wrap:wrap;gap:4px}
+.crit{display:inline-block;padding:1px 8px;border-radius:999px;border:1px solid rgba(255,197,49,.55);color:var(--or);font-size:.74rem;font-weight:700}
+.petit{display:inline-flex;align-items:center;gap:5px;font-size:.76rem;font-weight:800;color:var(--cyan)}
+.petit i{width:12px;height:11px;clip-path:var(--hex);background:var(--cyan);display:inline-block}
+.raison{color:var(--craie)!important;font-size:.84rem!important}
+.controle{margin:8px 0;padding:8px 10px;border-radius:10px;border:1px solid var(--rouge);background:rgba(255,122,122,.08)}
+.controle.ok{border-color:rgba(22,224,212,.6);background:rgba(22,224,212,.08)}
+.controle p{margin:2px 0}
+.crit-choix{border:1px solid var(--trait);border-radius:10px;padding:6px 10px;display:flex;flex-wrap:wrap;gap:4px 12px}
+.crit-choix legend{font-size:.88rem;color:var(--brume);padding:0 4px}
+.case{display:inline-flex!important;flex-direction:row;align-items:center;gap:6px;min-height:40px;color:var(--craie)!important}
+.case input{width:20px;height:20px;min-height:0}
+.sugg{border-color:var(--or)}
+.passe .mini{width:auto;min-width:44px;padding:0 6px;font-size:1rem;clip-path:none;border-radius:10px;background:transparent}
+
+/* Style Universe : défis, vignettes, technique, crédits */
+.defi{display:grid;grid-template-columns:44px 1fr;gap:10px;align-items:start;padding:10px 0;border-top:1px solid var(--trait)}
+.defi:first-of-type{border-top:0}
+.defi .mini{width:40px;height:44px;clip-path:var(--hex);background:linear-gradient(135deg,var(--id1),var(--id2));display:grid;place-items:center;font-size:1.2rem}
+.defi h3{margin:2px 0}
+.defi h3 button{all:unset;cursor:pointer;color:var(--craie);font-weight:700;min-height:44px;display:inline-flex;align-items:center}
+.defi h3 button:focus-visible{outline:2px solid var(--or);outline-offset:2px}
+.defi .cons{margin:0 0 4px;font-size:.9rem}
+.vignettes{display:flex;gap:6px;overflow-x:auto;margin-top:6px}
+.vg{flex:0 0 72px;padding:0;border:0;background:none;cursor:pointer;border-radius:8px}
+.vg:focus-visible{outline:2px solid var(--id2,#ffc531);outline-offset:2px}
+.vg video{pointer-events:none}
+.alerte{color:#ffb3b3}
+[aria-invalid=true]{outline:2px solid #ff6b6b}
+.vg video,.vg canvas,.vg .vide-v{width:72px;aspect-ratio:9/16;border-radius:8px;display:block;background:#000;font-size:.6rem;padding:2px}
+.etapes{margin:6px 0;padding-inline-start:20px;font-size:.84rem;color:var(--craie)}
+.etapes li{border:0;padding:2px 0}
+details summary{cursor:pointer;min-height:36px;display:flex;align-items:center;font-size:.86rem;color:var(--or);font-weight:700}
+.credits{border:1px solid var(--trait);border-radius:10px;padding:6px 10px;display:grid;gap:6px;min-width:0}
+.credits legend{font-size:.88rem;color:var(--brume);padding:0 4px}
+.credits .ligne{display:grid;grid-template-columns:1fr 1fr 44px;gap:6px}
+.credits .ligne input{min-width:0}
+.case{display:flex!important;flex-direction:row!important;align-items:flex-start;gap:8px;color:var(--craie)!important;font-size:.88rem}
+.case input{width:22px;height:22px;min-height:0;flex:none;margin-top:2px}
+.part button[aria-pressed="true"]{border-color:var(--id1);color:var(--id1)}
+.vrai{display:inline-flex;align-items:center;gap:6px;margin:4px 0;padding:3px 10px;border-radius:999px;background:rgba(63,212,122,.14);border:1px solid rgba(63,212,122,.55);color:#bff5d3;font-size:.78rem;font-weight:700}
+.vrai i{width:11px;height:10px;clip-path:var(--hex);background:linear-gradient(135deg,var(--id1),var(--id2))}
+.temps{color:var(--or);font-weight:700}
+.duree-travail{display:flex;gap:8px;align-items:center}.duree-travail input{width:6em}.duree-travail select{flex:1}
+</style>
+</head>
+<body>
+<main id="app">
+<header><div class="hex" aria-hidden="true"><i></i></div><div><h1 id="titre">Le Défi Transformation</h1><p class="sous" id="soustitre"></p></div></header>
+<p id="etat" role="status" aria-live="polite"></p>
+<div id="contenu"></div>
+<footer id="pied"></footer>
+</main>
+<div id="toast" role="status" aria-live="polite"></div>
+<script type="application/json" id="nvI18n-en">{"Ajoutez une vidéo.":"Add a video.","Aperçu":"Preview","Aperçu : ce serveur ne propose pas encore cette fonction. Rien n’est envoyé.":"Preview: this server does not offer this feature yet. Nothing is sent.","Après":"After","Aucun défi ouvert pour l’instant.":"No open challenge yet.","Aucune création à relire.":"No creation to review.","Autre":"Other","Avant":"Before","Catégorie":"Category","Ce défi est terminé.":"This challenge is over.","Ce défi n’est plus disponible.":"This challenge is no longer available.","Cette action n’est pas ouverte à votre âge.":"This action is not open at your age.","Cette vidéo est trop lourde.":"This video is too large.","Chargement…":"Loading…","Cochez la déclaration sur les droits des images.":"Tick the statement about image rights.","Connectez-vous pour continuer.":"Sign in to continue.","Contenu inapproprié":"Inappropriate content","Couture":"Sewing","Créer avec La Forge":"Create with La Forge","Droits sur les images":"Image rights","Décoration":"Decoration","Défi ouvert.":"Challenge opened.","En cours de relecture par l’équipe":"Being reviewed by the team","Envoi…":"Sending…","Hors sujet":"Off topic","Impossible de joindre NEURAVID pour le moment.":"Unable to reach NEURAVID right now.","Jusqu’au {0}":"Until {0}","La Forge n’est pas joignable ici.":"La Forge cannot be reached here.","La consigne":"The instructions","La durée de la vidéo n’est pas encore connue. Réessayez dans un instant.":"The video’s length is not known yet. Try again in a moment.","La relecture de ce défi est terminée.":"The review for this challenge is over.","Langue":"Language","Le service est momentanément indisponible. Réessayez dans un instant.":"The service is temporarily unavailable. Try again in a moment.","Les défis":"Challenges","L’équipe":"The team","Ma vidéo":"My video","Moi":"Me","Motif du refus":"Reason for declining","Non relue à temps":"Not reviewed in time","Ouvrir le défi":"Open the challenge","Ouvrir le défi « {0} »":"Open the challenge “{0}”","Ouvrir un défi":"Open a challenge","Pas de connexion pour le moment.":"No connection right now.","Publier":"Publish","Publiée":"Published","Qualité de la vidéo":"Video quality","Refilmer":"Film again","Refuser":"Decline","Refusée : {0}":"Refused: {0}","Terminé":"Ended","Titre":"Title","Titre (facultatif)":"Title (optional)","Toucher encore pour publier":"Tap again to publish","Toucher encore pour refilmer":"Tap again to film again","Toucher encore pour refuser":"Tap again to decline","Toucher encore pour retirer":"Tap again to remove","Traduction en cours de relecture.":"Translation being reviewed.","Trop de demandes. Réessayez plus tard.":"Too many requests. Try again later.","Un texte n’a pas été accepté. Changez-le.":"A text was not accepted. Change it.","Une vidéo de 3 minutes au plus.":"A video of 3 minutes at most.","Vidéo indisponible pour le moment.":"Video unavailable for now.","Vérifiez le formulaire : un champ n’est pas rempli comme il faut.":"Check the form: a field is not filled in correctly.","Le Défi Transformation":"Transformation Challenge","1 jour":"1 day","{0} jours":"{0} days","{0} semaines":"{0} weeks","{0} mois":"{0} months","jours":"days","semaines":"weeks","mois":"months","Unité":"Unit","1 transformation":"1 transformation","{0} transformations":"{0} transformations","Aperçu : des transformations d’exemple, pour découvrir la page.":"Preview: example transformations, to discover the page.","Apprentissage":"Learning","Jardinage":"Gardening","Dessin":"Drawing","Rénovation":"Renovation","Aucune transformation pour l’instant.":"No transformation yet.","Aucune transformation publiée pour l’instant.":"No transformation published yet.","Avant / après filmé sur NEURAVID":"Before / after filmed on NEURAVID","Ce n’est pas un vrai avant et après":"It is not a real before and after","Cette transformation n’est plus disponible.":"This transformation is no longer available.","Cochez la déclaration : l’avant et l’après sont réels.":"Tick the statement: the before and after are real.","Combien de temps a pris la transformation ?":"How long did the transformation take?","Couture, décoration, jardinage, dessin, rénovation, apprentissage : un vrai avant, un vrai après.":"Sewing, decoration, gardening, drawing, renovation, learning: a real before, a real after.","Créée sur NEURAVID : non vérifié.":"Created on NEURAVID: not verified.","Créée sur NEURAVID : vérifié par le serveur.":"Created on NEURAVID: verified by the server.","Deux transformations refusées : ce défi est fermé pour vous.":"Two transformations refused: this challenge is closed for you.","Durée (jours, de 3 à 60)":"Duration (days, from 3 to 60)","Défi annulé : la transformation redevient privée.":"Challenge cancelled: the transformation is private again.","Envoyer ma transformation":"Send my transformation","Filmez le vrai avant, puis le vrai après, avec les gabarits du Miroir de La Forge.":"Film the real before, then the real after, with La Forge’s Mirror templates.","Ici, on montre un vrai travail qui change quelque chose, jamais un corps. Ni vote ni argent.":"Here, we show real work that changes something, never a body. No vote, no money.","Indiquez le temps de la transformation (de 1 jour à 2 ans).":"Enter how long the transformation took (from 1 day to 2 years).","Je montre seulement mon travail et des images dont j’ai les droits.":"I only show my own work and images I have the rights to.","La vidéo montre un corps qui change, pas un travail":"The video shows a body changing, not a piece of work","Le montage dit : seulement des prises filmées sur le moment.":"The edit says: only takes filmed on the spot.","Le montage ne dit pas qu’il est filmé sur le moment.":"The edit does not say it was filmed on the spot.","Le temps de la transformation :":"Time the transformation took:","Les transformations":"The transformations","Les transformations à relire":"Transformations to review","Les étapes":"The steps","Les étapes (facultatif, une par ligne, 8 au plus)":"The steps (optional, one per line, 8 at most)","L’avant et l’après sont réels et filmés par moi, sans retouche qui change le résultat.":"The before and after are real and filmed by me, with no editing that changes the result.","L’équipe relit chaque transformation avant de la publier.":"The team reviews every transformation before publishing it.","Ma transformation":"My transformation","Mes transformations":"My transformations","Montrez l’objet, le lieu ou le travail : une autre personne ne doit pas apparaître à l’image. Jamais un corps qui change.":"Show the object, the place or the work: no other person should appear in the video. Never a body that changes.","Participer : dès 13 ans. Ni vote ni argent ; on montre un vrai travail, jamais un corps.":"Taking part: from age 13. No vote, no money; we show real work, never a body.","Pas pour votre propre transformation.":"Not for your own transformation.","Retirer ma transformation":"Remove my transformation","Transformation publiée.":"Transformation published.","Transformation refusée.":"Transformation refused.","Transformation retirée.":"Transformation removed.","Une autre personne apparaît à l’image":"Another person appears in the video","Votre transformation est envoyée : l’équipe la relit avant de la publier.":"Your transformation has been sent: the team reviews it before publishing it.","Vous avez déjà envoyé 3 transformations pour ce défi.":"You have already sent 3 transformations for this challenge.","Vous avez déjà une transformation dans ce défi.":"You already have a transformation in this challenge.","« Ça m’inspire » : {0}":"“This inspires me”: {0}","Ça m’inspire":"This inspires me","Ça vous inspire ✓":"It inspires you ✓","Le Défi Transformation n’est pas encore ouvert.":"The Transformation Challenge is not open yet.","Comment ça marche":"How it works","Ce qui vous protège":"What protects you","Bientôt ouvert ici. Voici ce qui vous attend.":"Opening here soon. Here is what awaits you.","Choisissez un défi : couture, jardinage, dessin, rénovation…":"Choose a challenge: sewing, gardening, drawing, renovation…","Filmez le vrai avant, puis le vrai après, avec un gabarit du Miroir.":"Film the real before, then the real after, with a Mirror template.","Dites combien de temps il a fallu, et vos étapes.":"Say how long it took, and your steps.","Jamais un corps qui change : un travail, un lieu, un objet.":"Never a body that changes: a piece of work, a place, an object.","« Filmé sur NEURAVID » seulement quand le serveur l’a vérifié.":"“Filmed on NEURAVID” only when the server has checked it.","Chaque transformation est relue avant d’être publique.":"Every transformation is reviewed before it becomes public."}</script>
+<script type="application/json" id="nvI18n-es">{"Ajoutez une vidéo.":"Añade un vídeo.","Aperçu":"Vista previa","Aperçu : ce serveur ne propose pas encore cette fonction. Rien n’est envoyé.":"Vista previa: este servidor todavía no ofrece esta función. No se envía nada.","Après":"Después","Aucun défi ouvert pour l’instant.":"Todavía no hay retos abiertos.","Aucune création à relire.":"Ninguna creación por revisar.","Autre":"Otro","Avant":"Antes","Catégorie":"Categoría","Ce défi est terminé.":"Este reto ha terminado.","Ce défi n’est plus disponible.":"Este reto ya no está disponible.","Cette action n’est pas ouverte à votre âge.":"Esta acción no está disponible para tu edad.","Cette vidéo est trop lourde.":"Este vídeo es demasiado pesado.","Chargement…":"Cargando…","Cochez la déclaration sur les droits des images.":"Marca la declaración sobre los derechos de las imágenes.","Connectez-vous pour continuer.":"Inicia sesión para continuar.","Contenu inapproprié":"Contenido inapropiado","Couture":"Costura","Créer avec La Forge":"Crear con La Forge","Droits sur les images":"Derechos sobre las imágenes","Décoration":"Decoración","Défi ouvert.":"Reto abierto.","En cours de relecture par l’équipe":"En revisión por el equipo","Envoi…":"Enviando…","Hors sujet":"Fuera de tema","Impossible de joindre NEURAVID pour le moment.":"No se puede contactar con NEURAVID por ahora.","Jusqu’au {0}":"Hasta el {0}","La Forge n’est pas joignable ici.":"La Forge no está disponible aquí.","La consigne":"La consigna","La durée de la vidéo n’est pas encore connue. Réessayez dans un instant.":"La duración del vídeo aún no se conoce. Vuelve a intentarlo en un momento.","La relecture de ce défi est terminée.":"La revisión de este reto ha terminado.","Langue":"Idioma","Le service est momentanément indisponible. Réessayez dans un instant.":"El servicio no está disponible por el momento. Inténtalo de nuevo en un instante.","Les défis":"Los retos","L’équipe":"El equipo","Ma vidéo":"Mi vídeo","Moi":"Yo","Motif du refus":"Motivo del rechazo","Non relue à temps":"No revisado a tiempo","Ouvrir le défi":"Abrir el reto","Ouvrir le défi « {0} »":"Abrir el reto «{0}»","Ouvrir un défi":"Abrir un reto","Pas de connexion pour le moment.":"Sin conexión por ahora.","Publier":"Publicar","Publiée":"Publicado","Qualité de la vidéo":"Calidad del vídeo","Refilmer":"Volver a grabar","Refuser":"Rechazar","Refusée : {0}":"Rechazado: {0}","Terminé":"Terminado","Titre":"Título","Titre (facultatif)":"Título (opcional)","Toucher encore pour publier":"Toca otra vez para publicar","Toucher encore pour refilmer":"Toca otra vez para volver a grabar","Toucher encore pour refuser":"Toca de nuevo para rechazar","Toucher encore pour retirer":"Toca de nuevo para retirar","Traduction en cours de relecture.":"Traducción en revisión.","Trop de demandes. Réessayez plus tard.":"Demasiadas solicitudes. Inténtalo más tarde.","Un texte n’a pas été accepté. Changez-le.":"Un texto no fue aceptado. Cámbialo.","Une vidéo de 3 minutes au plus.":"Un vídeo de 3 minutos como máximo.","Vidéo indisponible pour le moment.":"Vídeo no disponible por ahora.","Vérifiez le formulaire : un champ n’est pas rempli comme il faut.":"Revisa el formulario: un campo no está bien rellenado.","Le Défi Transformation":"El Reto Transformación","1 jour":"1 día","{0} jours":"{0} días","{0} semaines":"{0} semanas","{0} mois":"{0} meses","jours":"días","semaines":"semanas","mois":"meses","Unité":"Unidad","1 transformation":"1 transformación","{0} transformations":"{0} transformaciones","Aperçu : des transformations d’exemple, pour découvrir la page.":"Vista previa: transformaciones de ejemplo, para descubrir la página.","Apprentissage":"Aprendizaje","Jardinage":"Jardinería","Dessin":"Dibujo","Rénovation":"Renovación","Aucune transformation pour l’instant.":"Aún no hay transformaciones.","Aucune transformation publiée pour l’instant.":"Aún no hay transformaciones publicadas.","Avant / après filmé sur NEURAVID":"Antes / después grabado en NEURAVID","Ce n’est pas un vrai avant et après":"No es un antes y después real","Cette transformation n’est plus disponible.":"Esta transformación ya no está disponible.","Cochez la déclaration : l’avant et l’après sont réels.":"Marca la declaración: el antes y el después son reales.","Combien de temps a pris la transformation ?":"¿Cuánto tiempo llevó la transformación?","Couture, décoration, jardinage, dessin, rénovation, apprentissage : un vrai avant, un vrai après.":"Costura, decoración, jardinería, dibujo, renovación, aprendizaje: un antes real, un después real.","Créée sur NEURAVID : non vérifié.":"Creada en NEURAVID: no verificado.","Créée sur NEURAVID : vérifié par le serveur.":"Creada en NEURAVID: verificado por el servidor.","Deux transformations refusées : ce défi est fermé pour vous.":"Dos transformaciones rechazadas: este reto está cerrado para ti.","Durée (jours, de 3 à 60)":"Duración (días, de 3 a 60)","Défi annulé : la transformation redevient privée.":"Reto cancelado: la transformación vuelve a ser privada.","Envoyer ma transformation":"Enviar mi transformación","Filmez le vrai avant, puis le vrai après, avec les gabarits du Miroir de La Forge.":"Graba el antes real y luego el después real, con las plantillas del Espejo de La Forge.","Ici, on montre un vrai travail qui change quelque chose, jamais un corps. Ni vote ni argent.":"Aquí mostramos un trabajo real que cambia algo, nunca un cuerpo. Ni votos ni dinero.","Indiquez le temps de la transformation (de 1 jour à 2 ans).":"Indica el tiempo de la transformación (de 1 día a 2 años).","Je montre seulement mon travail et des images dont j’ai les droits.":"Solo muestro mi trabajo e imágenes de las que tengo los derechos.","La vidéo montre un corps qui change, pas un travail":"El vídeo muestra un cuerpo que cambia, no un trabajo","Le montage dit : seulement des prises filmées sur le moment.":"El montaje dice: solo tomas grabadas en el momento.","Le montage ne dit pas qu’il est filmé sur le moment.":"El montaje no dice que se haya grabado en el momento.","Le temps de la transformation :":"Tiempo de la transformación:","Les transformations":"Las transformaciones","Les transformations à relire":"Transformaciones por revisar","Les étapes":"Los pasos","Les étapes (facultatif, une par ligne, 8 au plus)":"Los pasos (opcional, uno por línea, 8 como máximo)","L’avant et l’après sont réels et filmés par moi, sans retouche qui change le résultat.":"El antes y el después son reales y grabados por mí, sin retoques que cambien el resultado.","L’équipe relit chaque transformation avant de la publier.":"El equipo revisa cada transformación antes de publicarla.","Ma transformation":"Mi transformación","Mes transformations":"Mis transformaciones","Montrez l’objet, le lieu ou le travail : une autre personne ne doit pas apparaître à l’image. Jamais un corps qui change.":"Muestra el objeto, el lugar o el trabajo: ninguna otra persona debe aparecer en el vídeo. Nunca un cuerpo que cambia.","Participer : dès 13 ans. Ni vote ni argent ; on montre un vrai travail, jamais un corps.":"Participar: desde los 13 años. Ni votos ni dinero; se muestra un trabajo real, nunca un cuerpo.","Pas pour votre propre transformation.":"No para tu propia transformación.","Retirer ma transformation":"Retirar mi transformación","Transformation publiée.":"Transformación publicada.","Transformation refusée.":"Transformación rechazada.","Transformation retirée.":"Transformación retirada.","Une autre personne apparaît à l’image":"Aparece otra persona en el vídeo","Votre transformation est envoyée : l’équipe la relit avant de la publier.":"Tu transformación se ha enviado: el equipo la revisa antes de publicarla.","Vous avez déjà envoyé 3 transformations pour ce défi.":"Ya has enviado 3 transformaciones para este reto.","Vous avez déjà une transformation dans ce défi.":"Ya tienes una transformación en este reto.","« Ça m’inspire » : {0}":"«Me inspira»: {0}","Ça m’inspire":"Me inspira","Ça vous inspire ✓":"Te inspira ✓","Le Défi Transformation n’est pas encore ouvert.":"El Reto Transformación aún no está abierto.","Comment ça marche":"Cómo funciona","Ce qui vous protège":"Lo que te protege","Bientôt ouvert ici. Voici ce qui vous attend.":"Pronto abrirá aquí. Esto es lo que te espera.","Choisissez un défi : couture, jardinage, dessin, rénovation…":"Elige un reto: costura, jardinería, dibujo, renovación…","Filmez le vrai avant, puis le vrai après, avec un gabarit du Miroir.":"Graba el antes real y luego el después real, con una plantilla del Espejo.","Dites combien de temps il a fallu, et vos étapes.":"Di cuánto tiempo llevó y tus pasos.","Jamais un corps qui change : un travail, un lieu, un objet.":"Nunca un cuerpo que cambia: un trabajo, un lugar, un objeto.","« Filmé sur NEURAVID » seulement quand le serveur l’a vérifié.":"«Grabado en NEURAVID» solo cuando el servidor lo ha comprobado.","Chaque transformation est relue avant d’être publique.":"Cada transformación se revisa antes de ser pública."}</script>
+<script type="application/json" id="nvI18n-pt">{"Ajoutez une vidéo.":"Adicione um vídeo.","Aperçu":"Pré-visualização","Aperçu : ce serveur ne propose pas encore cette fonction. Rien n’est envoyé.":"Pré-visualização: este servidor ainda não oferece esta função. Nada é enviado.","Après":"Depois","Aucun défi ouvert pour l’instant.":"Ainda não há desafios abertos.","Aucune création à relire.":"Nenhuma criação a rever.","Autre":"Outro","Avant":"Antes","Catégorie":"Categoria","Ce défi est terminé.":"Este desafio terminou.","Ce défi n’est plus disponible.":"Este desafio já não está disponível.","Cette action n’est pas ouverte à votre âge.":"Esta ação não está disponível para a sua idade.","Cette vidéo est trop lourde.":"Este vídeo é pesado demais.","Chargement…":"Carregando…","Cochez la déclaration sur les droits des images.":"Assinale a declaração sobre os direitos das imagens.","Connectez-vous pour continuer.":"Entre na sua conta para continuar.","Contenu inapproprié":"Conteúdo impróprio","Couture":"Costura","Créer avec La Forge":"Criar com La Forge","Droits sur les images":"Direitos sobre as imagens","Décoration":"Decoração","Défi ouvert.":"Desafio aberto.","En cours de relecture par l’équipe":"Em revisão pela equipe","Envoi…":"Enviando…","Hors sujet":"Fora do assunto","Impossible de joindre NEURAVID pour le moment.":"Não é possível contactar a NEURAVID no momento.","Jusqu’au {0}":"Até {0}","La Forge n’est pas joignable ici.":"La Forge não está acessível aqui.","La consigne":"A instrução","La durée de la vidéo n’est pas encore connue. Réessayez dans un instant.":"A duração do vídeo ainda não é conhecida. Tente novamente dentro de momentos.","La relecture de ce défi est terminée.":"A revisão deste desafio terminou.","Langue":"Idioma","Le service est momentanément indisponible. Réessayez dans un instant.":"O serviço está temporariamente indisponível. Tente novamente daqui a pouco.","Les défis":"Os desafios","L’équipe":"A equipe","Ma vidéo":"Meu vídeo","Moi":"Eu","Motif du refus":"Motivo da recusa","Non relue à temps":"Não revisto a tempo","Ouvrir le défi":"Abrir o desafio","Ouvrir le défi « {0} »":"Abrir o desafio «{0}»","Ouvrir un défi":"Abrir um desafio","Pas de connexion pour le moment.":"Sem conexão no momento.","Publier":"Publicar","Publiée":"Publicado","Qualité de la vidéo":"Qualidade do vídeo","Refilmer":"Filmar outra vez","Refuser":"Recusar","Refusée : {0}":"Recusado: {0}","Terminé":"Encerrado","Titre":"Título","Titre (facultatif)":"Título (opcional)","Toucher encore pour publier":"Toque de novo para publicar","Toucher encore pour refilmer":"Toque de novo para filmar outra vez","Toucher encore pour refuser":"Toque novamente para recusar","Toucher encore pour retirer":"Toque novamente para retirar","Traduction en cours de relecture.":"Tradução em revisão.","Trop de demandes. Réessayez plus tard.":"Pedidos demais. Tente novamente mais tarde.","Un texte n’a pas été accepté. Changez-le.":"Um texto não foi aceito. Altere-o.","Une vidéo de 3 minutes au plus.":"Um vídeo de 3 minutos no máximo.","Vidéo indisponible pour le moment.":"Vídeo indisponível no momento.","Vérifiez le formulaire : un champ n’est pas rempli comme il faut.":"Verifique o formulário: um campo não está preenchido corretamente.","Le Défi Transformation":"O Desafio Transformação","1 jour":"1 dia","{0} jours":"{0} dias","{0} semaines":"{0} semanas","{0} mois":"{0} meses","jours":"dias","semaines":"semanas","mois":"meses","Unité":"Unidade","1 transformation":"1 transformação","{0} transformations":"{0} transformações","Aperçu : des transformations d’exemple, pour découvrir la page.":"Pré-visualização: transformações de exemplo, para descobrir a página.","Apprentissage":"Aprendizagem","Jardinage":"Jardinagem","Dessin":"Desenho","Rénovation":"Renovação","Aucune transformation pour l’instant.":"Ainda nenhuma transformação.","Aucune transformation publiée pour l’instant.":"Ainda nenhuma transformação publicada.","Avant / après filmé sur NEURAVID":"Antes / depois filmado no NEURAVID","Ce n’est pas un vrai avant et après":"Não é um antes e depois real","Cette transformation n’est plus disponible.":"Esta transformação já não está disponível.","Cochez la déclaration : l’avant et l’après sont réels.":"Marque a declaração: o antes e o depois são reais.","Combien de temps a pris la transformation ?":"Quanto tempo levou a transformação?","Couture, décoration, jardinage, dessin, rénovation, apprentissage : un vrai avant, un vrai après.":"Costura, decoração, jardinagem, desenho, renovação, aprendizagem: um antes real, um depois real.","Créée sur NEURAVID : non vérifié.":"Criada no NEURAVID: não verificado.","Créée sur NEURAVID : vérifié par le serveur.":"Criada no NEURAVID: verificado pelo servidor.","Deux transformations refusées : ce défi est fermé pour vous.":"Duas transformações recusadas: este desafio está fechado para si.","Durée (jours, de 3 à 60)":"Duração (dias, de 3 a 60)","Défi annulé : la transformation redevient privée.":"Desafio cancelado: a transformação volta a ser privada.","Envoyer ma transformation":"Enviar a minha transformação","Filmez le vrai avant, puis le vrai après, avec les gabarits du Miroir de La Forge.":"Filme o antes real e depois o depois real, com os modelos do Espelho de La Forge.","Ici, on montre un vrai travail qui change quelque chose, jamais un corps. Ni vote ni argent.":"Aqui mostra-se um trabalho real que muda algo, nunca um corpo. Nem votos nem dinheiro.","Indiquez le temps de la transformation (de 1 jour à 2 ans).":"Indique o tempo da transformação (de 1 dia a 2 anos).","Je montre seulement mon travail et des images dont j’ai les droits.":"Mostro apenas o meu trabalho e imagens de que tenho os direitos.","La vidéo montre un corps qui change, pas un travail":"O vídeo mostra um corpo que muda, não um trabalho","Le montage dit : seulement des prises filmées sur le moment.":"A montagem diz: apenas tomadas filmadas no momento.","Le montage ne dit pas qu’il est filmé sur le moment.":"A montagem não diz que foi filmada no momento.","Le temps de la transformation :":"Tempo da transformação:","Les transformations":"As transformações","Les transformations à relire":"Transformações a rever","Les étapes":"As etapas","Les étapes (facultatif, une par ligne, 8 au plus)":"As etapas (opcional, uma por linha, 8 no máximo)","L’avant et l’après sont réels et filmés par moi, sans retouche qui change le résultat.":"O antes e o depois são reais e filmados por mim, sem retoques que mudem o resultado.","L’équipe relit chaque transformation avant de la publier.":"A equipa revê cada transformação antes de a publicar.","Ma transformation":"A minha transformação","Mes transformations":"As minhas transformações","Montrez l’objet, le lieu ou le travail : une autre personne ne doit pas apparaître à l’image. Jamais un corps qui change.":"Mostre o objeto, o lugar ou o trabalho: nenhuma outra pessoa deve aparecer no vídeo. Nunca um corpo que muda.","Participer : dès 13 ans. Ni vote ni argent ; on montre un vrai travail, jamais un corps.":"Participar: a partir dos 13 anos. Nem votos nem dinheiro; mostra-se um trabalho real, nunca um corpo.","Pas pour votre propre transformation.":"Não para a sua própria transformação.","Retirer ma transformation":"Retirar a minha transformação","Transformation publiée.":"Transformação publicada.","Transformation refusée.":"Transformação recusada.","Transformation retirée.":"Transformação retirada.","Une autre personne apparaît à l’image":"Outra pessoa aparece no vídeo","Votre transformation est envoyée : l’équipe la relit avant de la publier.":"A sua transformação foi enviada: a equipa revê-a antes de a publicar.","Vous avez déjà envoyé 3 transformations pour ce défi.":"Já enviou 3 transformações para este desafio.","Vous avez déjà une transformation dans ce défi.":"Já tem uma transformação neste desafio.","« Ça m’inspire » : {0}":"«Inspira-me»: {0}","Ça m’inspire":"Inspira-me","Ça vous inspire ✓":"Inspira-o ✓","Le Défi Transformation n’est pas encore ouvert.":"O Desafio Transformação ainda não está aberto.","Comment ça marche":"Como funciona","Ce qui vous protège":"O que o protege","Bientôt ouvert ici. Voici ce qui vous attend.":"Abre aqui em breve. Eis o que o espera.","Choisissez un défi : couture, jardinage, dessin, rénovation…":"Escolha um desafio: costura, jardinagem, desenho, renovação…","Filmez le vrai avant, puis le vrai après, avec un gabarit du Miroir.":"Filme o antes real e depois o depois real, com um modelo do Espelho.","Dites combien de temps il a fallu, et vos étapes.":"Diga quanto tempo levou e as suas etapas.","Jamais un corps qui change : un travail, un lieu, un objet.":"Nunca um corpo que muda: um trabalho, um lugar, um objeto.","« Filmé sur NEURAVID » seulement quand le serveur l’a vérifié.":"«Filmado no NEURAVID» só quando o servidor o verificou.","Chaque transformation est relue avant d’être publique.":"Cada transformação é revista antes de ficar pública."}</script>
+<script type="application/json" id="nvI18n-ar">{"Ajoutez une vidéo.":"أضف فيديو.","Aperçu":"معاينة","Aperçu : ce serveur ne propose pas encore cette fonction. Rien n’est envoyé.":"معاينة: هذا الخادم لا يوفّر هذه الميزة بعد. لا يُرسَل أي شيء.","Après":"بعد","Aucun défi ouvert pour l’instant.":"لا توجد تحديات مفتوحة حاليًا.","Aucune création à relire.":"لا يوجد إبداع للمراجعة.","Autre":"أخرى","Avant":"قبل","Catégorie":"الفئة","Ce défi est terminé.":"انتهى هذا التحدي.","Ce défi n’est plus disponible.":"هذا التحدي لم يعد متاحًا.","Cette action n’est pas ouverte à votre âge.":"هذا الإجراء غير متاح لعمرك.","Cette vidéo est trop lourde.":"هذا الفيديو كبير جدًا.","Chargement…":"جارٍ التحميل…","Cochez la déclaration sur les droits des images.":"ضع علامة على الإقرار بحقوق الصور.","Connectez-vous pour continuer.":"سجّل الدخول للمتابعة.","Contenu inapproprié":"محتوى غير لائق","Couture":"الخياطة","Créer avec La Forge":"أنشئ باستخدام La Forge","Droits sur les images":"حقوق الصور","Décoration":"الديكور","Défi ouvert.":"تم فتح التحدي.","En cours de relecture par l’équipe":"قيد المراجعة من الفريق","Envoi…":"جارٍ الإرسال…","Hors sujet":"خارج الموضوع","Impossible de joindre NEURAVID pour le moment.":"تعذّر الوصول إلى NEURAVID حاليًا.","Jusqu’au {0}":"حتى {0}","La Forge n’est pas joignable ici.":"لا يمكن الوصول إلى La Forge هنا.","La consigne":"التعليمات","La durée de la vidéo n’est pas encore connue. Réessayez dans un instant.":"مدة الفيديو غير معروفة بعد. أعد المحاولة بعد قليل.","La relecture de ce défi est terminée.":"انتهت مراجعة هذا التحدي.","Langue":"اللغة","Le service est momentanément indisponible. Réessayez dans un instant.":"الخدمة غير متاحة مؤقتًا. أعد المحاولة بعد قليل.","Les défis":"التحديات","L’équipe":"الفريق","Ma vidéo":"الفيديو الخاص بي","Moi":"أنا","Motif du refus":"سبب الرفض","Non relue à temps":"لم تُراجَع في الوقت المحدد","Ouvrir le défi":"افتح التحدي","Ouvrir le défi « {0} »":"افتح التحدي «{0}»","Ouvrir un défi":"افتح تحديًا","Pas de connexion pour le moment.":"لا يوجد اتصال حاليًا.","Publier":"انشر","Publiée":"منشورة","Qualité de la vidéo":"جودة الفيديو","Refilmer":"إعادة التصوير","Refuser":"ارفض","Refusée : {0}":"مرفوضة: {0}","Terminé":"انتهى","Titre":"العنوان","Titre (facultatif)":"العنوان (اختياري)","Toucher encore pour publier":"المس مرة أخرى للنشر","Toucher encore pour refilmer":"المس مرة أخرى لإعادة التصوير","Toucher encore pour refuser":"المس مرة أخرى للرفض","Toucher encore pour retirer":"المس مرة أخرى للسحب","Traduction en cours de relecture.":"الترجمة قيد المراجعة.","Trop de demandes. Réessayez plus tard.":"طلبات كثيرة جدًا. حاول لاحقًا.","Un texte n’a pas été accepté. Changez-le.":"لم يُقبل أحد النصوص. غيّره.","Une vidéo de 3 minutes au plus.":"فيديو مدته 3 دقائق كحدّ أقصى.","Vidéo indisponible pour le moment.":"الفيديو غير متاح حاليًا.","Vérifiez le formulaire : un champ n’est pas rempli comme il faut.":"تحقّق من النموذج: أحد الحقول غير مملوء كما ينبغي.","Le Défi Transformation":"تحدي التحوّل","1 jour":"يوم واحد","{0} jours":"{0} أيام","{0} semaines":"{0} أسابيع","{0} mois":"{0} أشهر","jours":"أيام","semaines":"أسابيع","mois":"أشهر","Unité":"الوحدة","1 transformation":"تحوّل واحد","{0} transformations":"{0} عمليات تحوّل","Aperçu : des transformations d’exemple, pour découvrir la page.":"معاينة: عمليات تحوّل للمثال، لاكتشاف الصفحة.","Apprentissage":"التعلّم","Jardinage":"البستنة","Dessin":"الرسم","Rénovation":"الترميم","Aucune transformation pour l’instant.":"لا توجد عمليات تحوّل بعد.","Aucune transformation publiée pour l’instant.":"لم تُنشر أي عملية تحوّل بعد.","Avant / après filmé sur NEURAVID":"قبل / بعد مصوَّر على NEURAVID","Ce n’est pas un vrai avant et après":"ليس «قبل» و«بعد» حقيقيين","Cette transformation n’est plus disponible.":"لم يعد هذا التحوّل متاحًا.","Cochez la déclaration : l’avant et l’après sont réels.":"ضع علامة على الإقرار: «قبل» و«بعد» حقيقيان.","Combien de temps a pris la transformation ?":"كم استغرق التحوّل من الوقت؟","Couture, décoration, jardinage, dessin, rénovation, apprentissage : un vrai avant, un vrai après.":"الخياطة، الديكور، البستنة، الرسم، الترميم، التعلّم: «قبل» حقيقي و«بعد» حقيقي.","Créée sur NEURAVID : non vérifié.":"مُنشأ على NEURAVID: غير متحقَّق منه.","Créée sur NEURAVID : vérifié par le serveur.":"مُنشأ على NEURAVID: تحقّق منه الخادم.","Deux transformations refusées : ce défi est fermé pour vous.":"رُفض تحوّلان: هذا التحدي مغلق بالنسبة إليك.","Durée (jours, de 3 à 60)":"المدة (أيام، من 3 إلى 60)","Défi annulé : la transformation redevient privée.":"أُلغي التحدي: عاد التحوّل خاصًا.","Envoyer ma transformation":"إرسال تحوّلي","Filmez le vrai avant, puis le vrai après, avec les gabarits du Miroir de La Forge.":"صوّر «قبل» الحقيقي ثم «بعد» الحقيقي، بقوالب مرآة La Forge.","Ici, on montre un vrai travail qui change quelque chose, jamais un corps. Ni vote ni argent.":"هنا نعرض عملًا حقيقيًا يغيّر شيئًا، لا جسدًا أبدًا. لا تصويت ولا مال.","Indiquez le temps de la transformation (de 1 jour à 2 ans).":"أدخل مدة التحوّل (من يوم إلى سنتين).","Je montre seulement mon travail et des images dont j’ai les droits.":"أعرض عملي فقط وصورًا أملك حقوقها.","La vidéo montre un corps qui change, pas un travail":"يعرض الفيديو جسدًا يتغيّر، لا عملًا","Le montage dit : seulement des prises filmées sur le moment.":"يقول المونتاج: لقطات صُوّرت في اللحظة فقط.","Le montage ne dit pas qu’il est filmé sur le moment.":"لا يقول المونتاج إنه صُوّر في اللحظة.","Le temps de la transformation :":"مدة التحوّل:","Les transformations":"عمليات التحوّل","Les transformations à relire":"عمليات تحوّل للمراجعة","Les étapes":"المراحل","Les étapes (facultatif, une par ligne, 8 au plus)":"المراحل (اختياري، واحدة في كل سطر، 8 على الأكثر)","L’avant et l’après sont réels et filmés par moi, sans retouche qui change le résultat.":"«قبل» و«بعد» حقيقيان وصوّرتُهما بنفسي، دون تعديل يغيّر النتيجة.","L’équipe relit chaque transformation avant de la publier.":"يراجع الفريق كل تحوّل قبل نشره.","Ma transformation":"تحوّلي","Mes transformations":"عمليات تحوّلي","Montrez l’objet, le lieu ou le travail : une autre personne ne doit pas apparaître à l’image. Jamais un corps qui change.":"اعرض الشيء أو المكان أو العمل: يجب ألا يظهر شخص آخر في الفيديو. لا جسد يتغيّر أبدًا.","Participer : dès 13 ans. Ni vote ni argent ; on montre un vrai travail, jamais un corps.":"المشاركة: من 13 عامًا. لا تصويت ولا مال؛ نعرض عملًا حقيقيًا، لا جسدًا أبدًا.","Pas pour votre propre transformation.":"ليس لتحوّلك الخاص.","Retirer ma transformation":"سحب تحوّلي","Transformation publiée.":"نُشر التحوّل.","Transformation refusée.":"رُفض التحوّل.","Transformation retirée.":"سُحب التحوّل.","Une autre personne apparaît à l’image":"يظهر شخص آخر في الفيديو","Votre transformation est envoyée : l’équipe la relit avant de la publier.":"أُرسل تحوّلك: يراجعه الفريق قبل نشره.","Vous avez déjà envoyé 3 transformations pour ce défi.":"لقد أرسلت بالفعل 3 عمليات تحوّل لهذا التحدي.","Vous avez déjà une transformation dans ce défi.":"لديك بالفعل تحوّل في هذا التحدي.","« Ça m’inspire » : {0}":"«يلهمني»: {0}","Ça m’inspire":"يلهمني","Ça vous inspire ✓":"يلهمك ✓","Le Défi Transformation n’est pas encore ouvert.":"تحدي التحوّل غير مفتوح بعد.","Comment ça marche":"كيف يعمل","Ce qui vous protège":"ما يحميك","Bientôt ouvert ici. Voici ce qui vous attend.":"سيُفتح هنا قريبًا. إليك ما ينتظرك.","Choisissez un défi : couture, jardinage, dessin, rénovation…":"اختر تحديًا: الخياطة، البستنة، الرسم، الترميم…","Filmez le vrai avant, puis le vrai après, avec un gabarit du Miroir.":"صوّر «قبل» الحقيقي ثم «بعد» الحقيقي، بقالب من المرآة.","Dites combien de temps il a fallu, et vos étapes.":"قل كم استغرق من الوقت، وما هي مراحلك.","Jamais un corps qui change : un travail, un lieu, un objet.":"لا جسد يتغيّر أبدًا: عمل، مكان، شيء.","« Filmé sur NEURAVID » seulement quand le serveur l’a vérifié.":"«مصوّر على NEURAVID» فقط حين يتحقق منه الخادم.","Chaque transformation est relue avant d’être publique.":"تُراجَع كل عملية تحوّل قبل أن تصبح عامة."}</script>
+<script type="application/json" id="nvI18n-sw">{"Ajoutez une vidéo.":"Ongeza video.","Aperçu":"Onyesho","Aperçu : ce serveur ne propose pas encore cette fonction. Rien n’est envoyé.":"Onyesho: seva hii bado haitoi kipengele hiki. Hakuna kinachotumwa.","Après":"Baada","Aucun défi ouvert pour l’instant.":"Hakuna changamoto iliyo wazi kwa sasa.","Aucune création à relire.":"Hakuna kazi ya kupitia.","Autre":"Nyingine","Avant":"Kabla","Catégorie":"Kundi","Ce défi est terminé.":"Changamoto hii imeisha.","Ce défi n’est plus disponible.":"Changamoto hii haipatikani tena.","Cette action n’est pas ouverte à votre âge.":"Kitendo hiki hakipatikani kwa umri wako.","Cette vidéo est trop lourde.":"Video hii ni nzito mno.","Chargement…":"Inapakia…","Cochez la déclaration sur les droits des images.":"Weka alama kwenye tamko kuhusu haki za picha.","Connectez-vous pour continuer.":"Ingia ili kuendelea.","Contenu inapproprié":"Maudhui yasiyofaa","Couture":"Ushonaji","Créer avec La Forge":"Unda kwa La Forge","Droits sur les images":"Haki za picha","Décoration":"Mapambo","Défi ouvert.":"Changamoto imefunguliwa.","En cours de relecture par l’équipe":"Inakaguliwa na timu","Envoi…":"Inatuma…","Hors sujet":"Nje ya mada","Impossible de joindre NEURAVID pour le moment.":"Haiwezekani kufikia NEURAVID kwa sasa.","Jusqu’au {0}":"Hadi {0}","La Forge n’est pas joignable ici.":"La Forge haipatikani hapa.","La consigne":"Maelekezo","La durée de la vidéo n’est pas encore connue. Réessayez dans un instant.":"Urefu wa video bado haujulikani. Jaribu tena baada ya muda mfupi.","La relecture de ce défi est terminée.":"Ukaguzi wa changamoto hii umekwisha.","Langue":"Lugha","Le service est momentanément indisponible. Réessayez dans un instant.":"Huduma haipatikani kwa muda. Jaribu tena baada ya muda mfupi.","Les défis":"Changamoto","L’équipe":"Timu","Ma vidéo":"Video yangu","Moi":"Mimi","Motif du refus":"Sababu ya kukataa","Non relue à temps":"Haikukaguliwa kwa wakati","Ouvrir le défi":"Fungua changamoto","Ouvrir le défi « {0} »":"Fungua changamoto «{0}»","Ouvrir un défi":"Fungua changamoto","Pas de connexion pour le moment.":"Hakuna muunganisho kwa sasa.","Publier":"Chapisha","Publiée":"Imechapishwa","Qualité de la vidéo":"Ubora wa video","Refilmer":"Rekodi upya","Refuser":"Kataa","Refusée : {0}":"Imekataliwa: {0}","Terminé":"Imekwisha","Titre":"Kichwa","Titre (facultatif)":"Kichwa (si lazima)","Toucher encore pour publier":"Gusa tena ili kuchapisha","Toucher encore pour refilmer":"Gusa tena ili kurekodi upya","Toucher encore pour refuser":"Gusa tena kukataa","Toucher encore pour retirer":"Gusa tena ili kuondoa","Traduction en cours de relecture.":"Tafsiri inakaguliwa.","Trop de demandes. Réessayez plus tard.":"Maombi mengi mno. Jaribu tena baadaye.","Un texte n’a pas été accepté. Changez-le.":"Maandishi fulani hayakukubaliwa. Yabadilishe.","Une vidéo de 3 minutes au plus.":"Video ya dakika 3 kwa zaidi.","Vidéo indisponible pour le moment.":"Video haipatikani kwa sasa.","Vérifiez le formulaire : un champ n’est pas rempli comme il faut.":"Kagua fomu: sehemu moja haijajazwa ipasavyo.","Le Défi Transformation":"Changamoto ya Mabadiliko","1 jour":"Siku 1","{0} jours":"Siku {0}","{0} semaines":"Wiki {0}","{0} mois":"Miezi {0}","jours":"siku","semaines":"wiki","mois":"miezi","Unité":"Kipimo","1 transformation":"Mabadiliko 1","{0} transformations":"Mabadiliko {0}","Aperçu : des transformations d’exemple, pour découvrir la page.":"Onyesho: mabadiliko ya mfano, ili kugundua ukurasa.","Apprentissage":"Kujifunza","Jardinage":"Bustani","Dessin":"Kuchora","Rénovation":"Ukarabati","Aucune transformation pour l’instant.":"Hakuna mabadiliko bado.","Aucune transformation publiée pour l’instant.":"Hakuna mabadiliko yaliyochapishwa bado.","Avant / après filmé sur NEURAVID":"Kabla / baada imerekodiwa kwenye NEURAVID","Ce n’est pas un vrai avant et après":"Si kabla na baada halisi","Cette transformation n’est plus disponible.":"Mabadiliko haya hayapatikani tena.","Cochez la déclaration : l’avant et l’après sont réels.":"Weka alama kwenye tamko: kabla na baada ni halisi.","Combien de temps a pris la transformation ?":"Mabadiliko yalichukua muda gani?","Couture, décoration, jardinage, dessin, rénovation, apprentissage : un vrai avant, un vrai après.":"Ushonaji, mapambo, bustani, kuchora, ukarabati, kujifunza: kabla halisi, baada halisi.","Créée sur NEURAVID : non vérifié.":"Imeundwa kwenye NEURAVID: haijathibitishwa.","Créée sur NEURAVID : vérifié par le serveur.":"Imeundwa kwenye NEURAVID: imethibitishwa na seva.","Deux transformations refusées : ce défi est fermé pour vous.":"Mabadiliko mawili yamekataliwa: changamoto hii imefungwa kwako.","Durée (jours, de 3 à 60)":"Muda (siku, kutoka 3 hadi 60)","Défi annulé : la transformation redevient privée.":"Changamoto imefutwa: mabadiliko yamerudi kuwa ya faragha.","Envoyer ma transformation":"Tuma mabadiliko yangu","Filmez le vrai avant, puis le vrai après, avec les gabarits du Miroir de La Forge.":"Rekodi kabla halisi, kisha baada halisi, kwa violezo vya Kioo cha La Forge.","Ici, on montre un vrai travail qui change quelque chose, jamais un corps. Ni vote ni argent.":"Hapa tunaonyesha kazi halisi inayobadilisha kitu, kamwe si mwili. Hakuna kura wala pesa.","Indiquez le temps de la transformation (de 1 jour à 2 ans).":"Weka muda wa mabadiliko (kutoka siku 1 hadi miaka 2).","Je montre seulement mon travail et des images dont j’ai les droits.":"Ninaonyesha kazi yangu tu na picha ninazozimiliki haki.","La vidéo montre un corps qui change, pas un travail":"Video inaonyesha mwili unaobadilika, si kazi","Le montage dit : seulement des prises filmées sur le moment.":"Uhariri unasema: picha zilizorekodiwa papo hapo tu.","Le montage ne dit pas qu’il est filmé sur le moment.":"Uhariri hausemi kuwa umerekodiwa papo hapo.","Le temps de la transformation :":"Muda wa mabadiliko:","Les transformations":"Mabadiliko","Les transformations à relire":"Mabadiliko ya kukagua","Les étapes":"Hatua","Les étapes (facultatif, une par ligne, 8 au plus)":"Hatua (si lazima, moja kwa kila mstari, 8 zaidi)","L’avant et l’après sont réels et filmés par moi, sans retouche qui change le résultat.":"Kabla na baada ni halisi na nimezirekodi mwenyewe, bila marekebisho yanayobadilisha matokeo.","L’équipe relit chaque transformation avant de la publier.":"Timu hukagua kila mabadiliko kabla ya kuyachapisha.","Ma transformation":"Mabadiliko yangu","Mes transformations":"Mabadiliko yangu","Montrez l’objet, le lieu ou le travail : une autre personne ne doit pas apparaître à l’image. Jamais un corps qui change.":"Onyesha kitu, mahali au kazi: mtu mwingine hapaswi kuonekana kwenye video. Kamwe mwili unaobadilika.","Participer : dès 13 ans. Ni vote ni argent ; on montre un vrai travail, jamais un corps.":"Kushiriki: kuanzia miaka 13. Hakuna kura wala pesa; tunaonyesha kazi halisi, kamwe si mwili.","Pas pour votre propre transformation.":"Si kwa mabadiliko yako mwenyewe.","Retirer ma transformation":"Ondoa mabadiliko yangu","Transformation publiée.":"Mabadiliko yamechapishwa.","Transformation refusée.":"Mabadiliko yamekataliwa.","Transformation retirée.":"Mabadiliko yameondolewa.","Une autre personne apparaît à l’image":"Mtu mwingine anaonekana kwenye video","Votre transformation est envoyée : l’équipe la relit avant de la publier.":"Mabadiliko yako yametumwa: timu inayakagua kabla ya kuyachapisha.","Vous avez déjà envoyé 3 transformations pour ce défi.":"Tayari umetuma mabadiliko 3 kwa changamoto hii.","Vous avez déjà une transformation dans ce défi.":"Tayari una mabadiliko katika changamoto hii.","« Ça m’inspire » : {0}":"«Inanitia moyo»: {0}","Ça m’inspire":"Inanitia moyo","Ça vous inspire ✓":"Inakutia moyo ✓","Le Défi Transformation n’est pas encore ouvert.":"Changamoto ya Mabadiliko bado haijafunguliwa.","Comment ça marche":"Jinsi inavyofanya kazi","Ce qui vous protège":"Kinachokulinda","Bientôt ouvert ici. Voici ce qui vous attend.":"Itafunguliwa hapa hivi karibuni. Hiki ndicho kinachokusubiri.","Choisissez un défi : couture, jardinage, dessin, rénovation…":"Chagua changamoto: ushonaji, bustani, kuchora, ukarabati…","Filmez le vrai avant, puis le vrai après, avec un gabarit du Miroir.":"Rekodi kabla halisi, kisha baada halisi, kwa kiolezo cha Kioo.","Dites combien de temps il a fallu, et vos étapes.":"Sema ilichukua muda gani, na hatua zako.","Jamais un corps qui change : un travail, un lieu, un objet.":"Kamwe mwili unaobadilika: kazi, mahali, kitu.","« Filmé sur NEURAVID » seulement quand le serveur l’a vérifié.":"«Imerekodiwa kwenye NEURAVID» tu pale seva imethibitisha.","Chaque transformation est relue avant d’être publique.":"Kila mabadiliko hukaguliwa kabla ya kuwa ya umma."}</script>
+<script type="application/json" id="nvI18n-ha">{"Ajoutez une vidéo.":"Ƙara bidiyo.","Aperçu":"Samfoti","Aperçu : ce serveur ne propose pas encore cette fonction. Rien n’est envoyé.":"Samfoti: wannan sabar ba ta bayar da wannan aiki ba tukuna. Ba a aika komai ba.","Après":"Bayan","Aucun défi ouvert pour l’instant.":"Babu ƙalubalen da ke buɗe a yanzu.","Aucune création à relire.":"Babu aikin da za a duba.","Autre":"Wani","Avant":"Kafin","Catégorie":"Rukuni","Ce défi est terminé.":"Wannan ƙalubale ya ƙare.","Ce défi n’est plus disponible.":"Wannan ƙalubale ba ya samuwa kuma.","Cette action n’est pas ouverte à votre âge.":"Wannan aikin ba a buɗe yake ga shekarunka ba.","Cette vidéo est trop lourde.":"Wannan bidiyon ya yi nauyi sosai.","Chargement…":"Ana lodawa…","Cochez la déclaration sur les droits des images.":"Yi alama a kan sanarwar haƙƙin hotuna.","Connectez-vous pour continuer.":"Shiga don ci gaba.","Contenu inapproprié":"Abun da bai dace ba","Couture":"Ɗinki","Créer avec La Forge":"Ƙirƙira da La Forge","Droits sur les images":"Haƙƙin hotuna","Décoration":"Ado","Défi ouvert.":"An buɗe ƙalubalen.","En cours de relecture par l’équipe":"Ƙungiya na dubawa","Envoi…":"Ana aikawa…","Hors sujet":"Ba a kan magana ba","Impossible de joindre NEURAVID pour le moment.":"Ba za a iya isa ga NEURAVID a yanzu ba.","Jusqu’au {0}":"Har zuwa {0}","La Forge n’est pas joignable ici.":"Ba a iya isa ga La Forge a nan.","La consigne":"Umarni","La durée de la vidéo n’est pas encore connue. Réessayez dans un instant.":"Ba a san tsawon bidiyon ba tukuna. Sake gwadawa nan da ɗan lokaci.","La relecture de ce défi est terminée.":"Dubawar wannan ƙalubale ta ƙare.","Langue":"Harshe","Le service est momentanément indisponible. Réessayez dans un instant.":"Sabis ɗin ba ya samuwa na ɗan lokaci. Sake gwadawa nan da ɗan lokaci.","Les défis":"Ƙalubale","L’équipe":"Ƙungiya","Ma vidéo":"Bidiyona","Moi":"Ni","Motif du refus":"Dalilin ƙi","Non relue à temps":"Ba a duba ta a kan lokaci ba","Ouvrir le défi":"Buɗe ƙalubalen","Ouvrir le défi « {0} »":"Buɗe ƙalubalen «{0}»","Ouvrir un défi":"Buɗe ƙalubale","Pas de connexion pour le moment.":"Babu haɗi a yanzu.","Publier":"Wallafa","Publiée":"An wallafa","Qualité de la vidéo":"Ingancin bidiyo","Refilmer":"Sake ɗauka","Refuser":"Ƙi","Refusée : {0}":"An ƙi: {0}","Terminé":"Ya ƙare","Titre":"Take","Titre (facultatif)":"Take (ba dole ba)","Toucher encore pour publier":"Taɓa kuma don wallafawa","Toucher encore pour refilmer":"Taɓa kuma don sake ɗauka","Toucher encore pour refuser":"Taɓa kuma don ƙi","Toucher encore pour retirer":"Sake taɓawa don cirewa","Traduction en cours de relecture.":"Ana duba fassarar.","Trop de demandes. Réessayez plus tard.":"Buƙatu sun yi yawa. Sake gwadawa daga baya.","Un texte n’a pas été accepté. Changez-le.":"Ba a karɓi wani rubutu ba. Canza shi.","Une vidéo de 3 minutes au plus.":"Bidiyo na mintuna 3 a mafi yawa.","Vidéo indisponible pour le moment.":"Bidiyo ba ya samuwa a yanzu.","Vérifiez le formulaire : un champ n’est pas rempli comme il faut.":"Duba fom: wani wuri ba a cike shi yadda ya kamata ba.","Le Défi Transformation":"Ƙalubalen Sauyi","1 jour":"Kwana 1","{0} jours":"Kwanaki {0}","{0} semaines":"Makonni {0}","{0} mois":"Watanni {0}","jours":"kwanaki","semaines":"makonni","mois":"watanni","Unité":"Ma’auni","1 transformation":"Sauyi 1","{0} transformations":"Sauye-sauye {0}","Aperçu : des transformations d’exemple, pour découvrir la page.":"Samfoti: sauye-sauyen misali, don gano shafin.","Apprentissage":"Koyo","Jardinage":"Lambu","Dessin":"Zane","Rénovation":"Gyara","Aucune transformation pour l’instant.":"Babu sauyi tukuna.","Aucune transformation publiée pour l’instant.":"Ba a wallafa wani sauyi ba tukuna.","Avant / après filmé sur NEURAVID":"An ɗauki kafin / bayan a NEURAVID","Ce n’est pas un vrai avant et après":"Ba ainihin kafin da bayan ba ne","Cette transformation n’est plus disponible.":"Babu wannan sauyin kuma.","Cochez la déclaration : l’avant et l’après sont réels.":"Duba sanarwar: kafin da bayan na gaske ne.","Combien de temps a pris la transformation ?":"Tsawon wane lokaci sauyin ya ɗauka?","Couture, décoration, jardinage, dessin, rénovation, apprentissage : un vrai avant, un vrai après.":"Ɗinki, ado, lambu, zane, gyara, koyo: ainihin kafin, ainihin bayan.","Créée sur NEURAVID : non vérifié.":"An ƙirƙira a NEURAVID: ba a tabbatar ba.","Créée sur NEURAVID : vérifié par le serveur.":"An ƙirƙira a NEURAVID: sabar ta tabbatar.","Deux transformations refusées : ce défi est fermé pour vous.":"An ƙi sauye-sauye biyu: an rufe maka wannan ƙalubalen.","Durée (jours, de 3 à 60)":"Tsawon lokaci (kwanaki, daga 3 zuwa 60)","Défi annulé : la transformation redevient privée.":"An soke ƙalubalen: sauyin ya koma na sirri.","Envoyer ma transformation":"Aika sauyina","Filmez le vrai avant, puis le vrai après, avec les gabarits du Miroir de La Forge.":"Ɗauki ainihin kafin, sannan ainihin bayan, da samfuran Madubin La Forge.","Ici, on montre un vrai travail qui change quelque chose, jamais un corps. Ni vote ni argent.":"A nan muna nuna ainihin aiki da ke canza wani abu, ba jiki ba. Babu ƙuri’a babu kuɗi.","Indiquez le temps de la transformation (de 1 jour à 2 ans).":"Shigar da tsawon sauyin (daga kwana 1 zuwa shekara 2).","Je montre seulement mon travail et des images dont j’ai les droits.":"Ina nuna aikina kawai da hotunan da nake da haƙƙinsu.","La vidéo montre un corps qui change, pas un travail":"Bidiyon na nuna jiki da ke canzawa, ba aiki ba","Le montage dit : seulement des prises filmées sur le moment.":"Gyaran ya ce: hotunan da aka ɗauka a lokacin kawai.","Le montage ne dit pas qu’il est filmé sur le moment.":"Gyaran bai ce an ɗauka a lokacin ba.","Le temps de la transformation :":"Tsawon sauyin:","Les transformations":"Sauye-sauye","Les transformations à relire":"Sauye-sauyen da za a duba","Les étapes":"Matakai","Les étapes (facultatif, une par ligne, 8 au plus)":"Matakai (na zaɓi, ɗaya a kowane layi, 8 a mafi yawa)","L’avant et l’après sont réels et filmés par moi, sans retouche qui change le résultat.":"Kafin da bayan na gaske ne kuma ni na ɗauka, ba tare da gyaran da ke canza sakamakon ba.","L’équipe relit chaque transformation avant de la publier.":"Ƙungiyar na duba kowane sauyi kafin ta wallafa shi.","Ma transformation":"Sauyina","Mes transformations":"Sauye-sauyena","Montrez l’objet, le lieu ou le travail : une autre personne ne doit pas apparaître à l’image. Jamais un corps qui change.":"Nuna abin, wurin ko aikin: kada wani mutum ya bayyana a bidiyon. Ba jiki da ke canzawa ba.","Participer : dès 13 ans. Ni vote ni argent ; on montre un vrai travail, jamais un corps.":"Shiga: daga shekara 13. Babu ƙuri’a babu kuɗi; muna nuna ainihin aiki, ba jiki ba.","Pas pour votre propre transformation.":"Ba don sauyinka ba.","Retirer ma transformation":"Cire sauyina","Transformation publiée.":"An wallafa sauyin.","Transformation refusée.":"An ƙi sauyin.","Transformation retirée.":"An cire sauyin.","Une autre personne apparaît à l’image":"Wani mutum yana bayyana a bidiyon","Votre transformation est envoyée : l’équipe la relit avant de la publier.":"An aika sauyinka: ƙungiyar za ta duba shi kafin ta wallafa.","Vous avez déjà envoyé 3 transformations pour ce défi.":"Ka riga ka aika sauye-sauye 3 don wannan ƙalubalen.","Vous avez déjà une transformation dans ce défi.":"Kana da sauyi a wannan ƙalubalen tuni.","« Ça m’inspire » : {0}":"«Yana ƙarfafa ni»: {0}","Ça m’inspire":"Yana ƙarfafa ni","Ça vous inspire ✓":"Yana ƙarfafa ka ✓","Le Défi Transformation n’est pas encore ouvert.":"Ƙalubalen Sauyi bai buɗe ba tukuna.","Comment ça marche":"Yadda yake aiki","Ce qui vous protège":"Abin da ke kare ka","Bientôt ouvert ici. Voici ce qui vous attend.":"Za a buɗe nan ba da daɗewa ba. Ga abin da ke jiranka.","Choisissez un défi : couture, jardinage, dessin, rénovation…":"Zaɓi ƙalubale: ɗinki, lambu, zane, gyaran gida…","Filmez le vrai avant, puis le vrai après, avec un gabarit du Miroir.":"Ɗauki ainihin kafin, sannan ainihin bayan, da samfurin Madubi.","Dites combien de temps il a fallu, et vos étapes.":"Faɗi tsawon lokacin da ya ɗauka, da matakanka.","Jamais un corps qui change : un travail, un lieu, un objet.":"Ba jiki da ke canzawa ba: aiki, wuri, abu.","« Filmé sur NEURAVID » seulement quand le serveur l’a vérifié.":"«An ɗauka a NEURAVID» kawai idan sabar ta tabbatar.","Chaque transformation est relue avant d’être publique.":"Ana duba kowane sauyi kafin ya zama na jama’a."}</script>
+<script type="application/json" id="nvI18n-yo">{"Ajoutez une vidéo.":"Fi fídíò kan kún un.","Aperçu":"Àyẹ̀wò","Aperçu : ce serveur ne propose pas encore cette fonction. Rien n’est envoyé.":"Àyẹ̀wò: olùpèsè yìí kò tíì pèsè iṣẹ́ yìí. Kò sí ohun tí a fi ránṣẹ́.","Après":"Lẹ́yìn","Aucun défi ouvert pour l’instant.":"Kò sí ìpèníjà tó ṣí báyìí.","Aucune création à relire.":"Kò sí iṣẹ́ láti yẹ̀ wò.","Autre":"Òmíràn","Avant":"Ṣáájú","Catégorie":"Ẹ̀ka","Ce défi est terminé.":"Ìpèníjà yìí ti parí.","Ce défi n’est plus disponible.":"Ìpèníjà yìí kò sí mọ́.","Cette action n’est pas ouverte à votre âge.":"Ìgbésẹ̀ yìí kò ṣí sílẹ̀ fún ọjọ́-orí rẹ.","Cette vidéo est trop lourde.":"Fídíò yìí wúwo jù.","Chargement…":"Ń gbé e wọlé…","Cochez la déclaration sur les droits des images.":"Fi àmì sí ìkéde nípa ẹ̀tọ́ àwòrán.","Connectez-vous pour continuer.":"Wọlé láti tẹ̀síwájú.","Contenu inapproprié":"Àkóónú tí kò bójú mu","Couture":"Aṣọ rírán","Créer avec La Forge":"Ṣẹ̀dá pẹ̀lú La Forge","Droits sur les images":"Ẹ̀tọ́ lórí àwòrán","Décoration":"Ọ̀ṣọ́","Défi ouvert.":"A ti ṣí ìpèníjà náà.","En cours de relecture par l’équipe":"Ẹgbẹ́ ń ṣàyẹ̀wò rẹ̀","Envoi…":"Ń fi ránṣẹ́…","Hors sujet":"Kò bá kókó mu","Impossible de joindre NEURAVID pour le moment.":"Kò ṣeé ṣe láti dé NEURAVID báyìí.","Jusqu’au {0}":"Títí di {0}","La Forge n’est pas joignable ici.":"A kò lè dé La Forge níbí.","La consigne":"Ìtọ́sọ́nà","La durée de la vidéo n’est pas encore connue. Réessayez dans un instant.":"A kò tíì mọ gígùn fídíò náà. Gbìyànjú lẹ́ẹ̀kan sí i láìpẹ́.","La relecture de ce défi est terminée.":"Àyẹ̀wò ìpèníjà yìí ti parí.","Langue":"Èdè","Le service est momentanément indisponible. Réessayez dans un instant.":"Iṣẹ́ náà kò sí fún ìgbà díẹ̀. Tún gbìyànjú láìpẹ́.","Les défis":"Àwọn ìpèníjà","L’équipe":"Ẹgbẹ́ náà","Ma vidéo":"Fídíò mi","Moi":"Èmi","Motif du refus":"Ìdí tí a fi kọ̀","Non relue à temps":"A kò yẹ̀ ẹ́ wò ní àkókò","Ouvrir le défi":"Ṣí ìpèníjà náà","Ouvrir le défi « {0} »":"Ṣí ìpèníjà «{0}»","Ouvrir un défi":"Ṣí ìpèníjà kan","Pas de connexion pour le moment.":"Kò sí ìsopọ̀ báyìí.","Publier":"Tẹ̀ ẹ́ jáde","Publiée":"Ti tẹ̀ jáde","Qualité de la vidéo":"Dídára fídíò","Refilmer":"Tún un yà","Refuser":"Kọ̀ ọ́","Refusée : {0}":"A kọ̀ ọ́: {0}","Terminé":"Ó ti parí","Titre":"Àkọlé","Titre (facultatif)":"Àkọlé (kò pọn dandan)","Toucher encore pour publier":"Tẹ̀ lẹ́ẹ̀kan sí i láti tẹ̀ ẹ́ jáde","Toucher encore pour refilmer":"Tẹ̀ lẹ́ẹ̀kan sí i láti tún un yà","Toucher encore pour refuser":"Fọwọ́ kàn án lẹ́ẹ̀kan sí i láti kọ̀","Toucher encore pour retirer":"Fọwọ́ kàn án lẹ́ẹ̀kan sí i láti yọ ọ́","Traduction en cours de relecture.":"A ń yẹ ìtumọ̀ wò.","Trop de demandes. Réessayez plus tard.":"Ìbéèrè ti pọ̀ jù. Gbìyànjú lẹ́ẹ̀kan sí i nígbà míì.","Un texte n’a pas été accepté. Changez-le.":"A kò gba ọ̀rọ̀ kan. Yí i padà.","Une vidéo de 3 minutes au plus.":"Fídíò ìṣẹ́jú 3 jù lọ.","Vidéo indisponible pour le moment.":"Fídíò kò sí báyìí.","Vérifiez le formulaire : un champ n’est pas rempli comme il faut.":"Ṣàyẹ̀wò fọ́ọ̀mù náà: àyè kan kò kún bó ṣe yẹ.","Le Défi Transformation":"Ìpèníjà Ìyípadà","1 jour":"Ọjọ́ 1","{0} jours":"Ọjọ́ {0}","{0} semaines":"Ọ̀sẹ̀ {0}","{0} mois":"Oṣù {0}","jours":"ọjọ́","semaines":"ọ̀sẹ̀","mois":"oṣù","Unité":"Ìwọ̀n","1 transformation":"Ìyípadà 1","{0} transformations":"Ìyípadà {0}","Aperçu : des transformations d’exemple, pour découvrir la page.":"Àkọ́wò: àwọn ìyípadà àpẹẹrẹ, láti mọ ojú-ìwé náà.","Apprentissage":"Ẹ̀kọ́","Jardinage":"Ọgbà","Dessin":"Yíya àwòrán","Rénovation":"Àtúnṣe","Aucune transformation pour l’instant.":"Kò sí ìyípadà kankan síbẹ̀.","Aucune transformation publiée pour l’instant.":"Kò tíì sí ìyípadà tí a tẹ̀ jáde.","Avant / après filmé sur NEURAVID":"Ṣáájú / lẹ́yìn tí a yà lórí NEURAVID","Ce n’est pas un vrai avant et après":"Kì í ṣe ṣáájú àti lẹ́yìn gidi","Cette transformation n’est plus disponible.":"Ìyípadà yìí kò sí mọ́.","Cochez la déclaration : l’avant et l’après sont réels.":"Sàmì sí ìkéde náà: ṣáájú àti lẹ́yìn jẹ́ gidi.","Combien de temps a pris la transformation ?":"Báwo ni ìyípadà náà ṣe pẹ́ tó?","Couture, décoration, jardinage, dessin, rénovation, apprentissage : un vrai avant, un vrai après.":"Aṣọ rírán, ọ̀ṣọ́, ọgbà, yíya àwòrán, àtúnṣe, ẹ̀kọ́: ṣáájú gidi, lẹ́yìn gidi.","Créée sur NEURAVID : non vérifié.":"A ṣẹ̀dá rẹ̀ lórí NEURAVID: a kò ṣàyẹ̀wò rẹ̀.","Créée sur NEURAVID : vérifié par le serveur.":"A ṣẹ̀dá rẹ̀ lórí NEURAVID: sáfà ti ṣàyẹ̀wò rẹ̀.","Deux transformations refusées : ce défi est fermé pour vous.":"A kọ ìyípadà méjì: ìpèníjà yìí ti tì fún ọ.","Durée (jours, de 3 à 60)":"Ìgbà (ọjọ́, láti 3 dé 60)","Défi annulé : la transformation redevient privée.":"A ti fagilé ìpèníjà náà: ìyípadà náà tún di ti ìkọ̀kọ̀.","Envoyer ma transformation":"Fi ìyípadà mi ránṣẹ́","Filmez le vrai avant, puis le vrai après, avec les gabarits du Miroir de La Forge.":"Ya ṣáájú gidi, lẹ́yìn náà ẹ̀yìn gidi, pẹ̀lú àwọn àwòṣe Dígí La Forge.","Ici, on montre un vrai travail qui change quelque chose, jamais un corps. Ni vote ni argent.":"Níbí, a ń fi iṣẹ́ gidi tó ń yí nǹkan padà hàn, kì í ṣe ara. Kò sí ìbò, kò sí owó.","Indiquez le temps de la transformation (de 1 jour à 2 ans).":"Kọ ìgbà ìyípadà náà (láti ọjọ́ 1 dé ọdún 2).","Je montre seulement mon travail et des images dont j’ai les droits.":"Iṣẹ́ mi nìkan àti àwòrán tí mo ní ẹ̀tọ́ sí ni mo ń fi hàn.","La vidéo montre un corps qui change, pas un travail":"Fídíò náà ń fi ara tó ń yí padà hàn, kì í ṣe iṣẹ́","Le montage dit : seulement des prises filmées sur le moment.":"Ìgbékalẹ̀ náà sọ pé: àwọn àwòrán tí a yà lójú ẹsẹ̀ nìkan.","Le montage ne dit pas qu’il est filmé sur le moment.":"Ìgbékalẹ̀ náà kò sọ pé a yà á lójú ẹsẹ̀.","Le temps de la transformation :":"Ìgbà ìyípadà náà:","Les transformations":"Àwọn ìyípadà","Les transformations à relire":"Àwọn ìyípadà láti yẹ̀wò","Les étapes":"Àwọn ìgbésẹ̀","Les étapes (facultatif, une par ligne, 8 au plus)":"Àwọn ìgbésẹ̀ (àṣàyàn, ọ̀kan ní ìlà kọ̀ọ̀kan, 8 jù lọ)","L’avant et l’après sont réels et filmés par moi, sans retouche qui change le résultat.":"Ṣáájú àti lẹ́yìn jẹ́ gidi, èmi ni mo yà wọ́n, láìsí àtúnṣe tó yí àbájáde padà.","L’équipe relit chaque transformation avant de la publier.":"Ẹgbẹ́ náà máa ń yẹ ìyípadà kọ̀ọ̀kan wò kí wọ́n tó tẹ̀ ẹ́ jáde.","Ma transformation":"Ìyípadà mi","Mes transformations":"Àwọn ìyípadà mi","Montrez l’objet, le lieu ou le travail : une autre personne ne doit pas apparaître à l’image. Jamais un corps qui change.":"Fi ohun náà, ibẹ̀ tàbí iṣẹ́ náà hàn: ẹlòmíì kò gbọdọ̀ hàn nínú fídíò. Kì í ṣe ara tó ń yí padà láé.","Participer : dès 13 ans. Ni vote ni argent ; on montre un vrai travail, jamais un corps.":"Kíkópa: láti ọmọ ọdún 13. Kò sí ìbò, kò sí owó; iṣẹ́ gidi ni a ń fi hàn, kì í ṣe ara.","Pas pour votre propre transformation.":"Kì í ṣe fún ìyípadà tìrẹ.","Retirer ma transformation":"Yọ ìyípadà mi kúrò","Transformation publiée.":"A ti tẹ ìyípadà náà jáde.","Transformation refusée.":"A kọ ìyípadà náà.","Transformation retirée.":"A ti yọ ìyípadà náà kúrò.","Une autre personne apparaît à l’image":"Ẹlòmíì hàn nínú fídíò","Votre transformation est envoyée : l’équipe la relit avant de la publier.":"A ti fi ìyípadà rẹ ránṣẹ́: ẹgbẹ́ náà yóò yẹ̀ ẹ́ wò kí wọ́n tó tẹ̀ ẹ́ jáde.","Vous avez déjà envoyé 3 transformations pour ce défi.":"O ti fi ìyípadà 3 ránṣẹ́ fún ìpèníjà yìí tẹ́lẹ̀.","Vous avez déjà une transformation dans ce défi.":"O ti ní ìyípadà kan nínú ìpèníjà yìí tẹ́lẹ̀.","« Ça m’inspire » : {0}":"«Ó fún mi ní ìmísí»: {0}","Ça m’inspire":"Ó fún mi ní ìmísí","Ça vous inspire ✓":"Ó fún ọ ní ìmísí ✓","Le Défi Transformation n’est pas encore ouvert.":"Ìpèníjà Ìyípadà kò tíì ṣí.","Comment ça marche":"Bí ó ṣe ń ṣiṣẹ́","Ce qui vous protège":"Ohun tí ó ń dáàbò bò ọ́","Bientôt ouvert ici. Voici ce qui vous attend.":"Yóò ṣí síbí láìpẹ́. Èyí ni ohun tí ń dúró dè ọ́.","Choisissez un défi : couture, jardinage, dessin, rénovation…":"Yan ìpèníjà kan: aṣọ rírán, ọgbà, yíya àwòrán, àtúnṣe…","Filmez le vrai avant, puis le vrai après, avec un gabarit du Miroir.":"Ya ṣáájú gidi, lẹ́yìn náà ẹ̀yìn gidi, pẹ̀lú àwòṣe Dígí.","Dites combien de temps il a fallu, et vos étapes.":"Sọ bí ó ti pẹ́ tó, àti àwọn ìgbésẹ̀ rẹ.","Jamais un corps qui change : un travail, un lieu, un objet.":"Kì í ṣe ara tó ń yí padà láé: iṣẹ́, ibì kan, ohun kan.","« Filmé sur NEURAVID » seulement quand le serveur l’a vérifié.":"«A yà á lórí NEURAVID» nígbà tí sáfà bá ti ṣàyẹ̀wò rẹ̀ nìkan.","Chaque transformation est relue avant d’être publique.":"A máa ń yẹ ìyípadà kọ̀ọ̀kan wò kí ó tó di ti gbogbo ènìyàn."}</script>
+<script type="application/json" id="nvI18n-wo">{"Ajoutez une vidéo.":"Yokk benn widewo.","Aperçu":"Wone","Aperçu : ce serveur ne propose pas encore cette fonction. Rien n’est envoyé.":"Wone: serwëur bii joxagul liggéey bii ba léegi. Dara yónniwul.","Après":"Ginnaaw","Aucun défi ouvert pour l’instant.":"Amul benn kàtte bu ubbeeku ba léegi.","Aucune création à relire.":"Amul benn liggéey bu ñuy seet.","Autre":"Leneen","Avant":"Balaa","Catégorie":"Xeet","Ce défi est terminé.":"Kàtte bii jeex na.","Ce défi n’est plus disponible.":"Kàtte bii nekkatul.","Cette action n’est pas ouverte à votre âge.":"Jëf jii ubbeeku ci sa at.","Cette vidéo est trop lourde.":"Wideyo bii dafa diis lool.","Chargement…":"Mi ngi yeb…","Cochez la déclaration sur les droits des images.":"Tànnal ci waxi sañ-sañu nataal yi.","Connectez-vous pour continuer.":"Duggal ngir wéy.","Contenu inapproprié":"Lu jaarul","Couture":"Ñaw","Créer avec La Forge":"Sos ak La Forge","Droits sur les images":"Sañ-sañu nataal yi","Décoration":"Rafetal","Défi ouvert.":"Kàtte bi ubbeeku na.","En cours de relecture par l’équipe":"Ekip bi ngi koy seet","Envoi…":"Mi ngi yónne…","Hors sujet":"Bokkul ci mbir mi","Impossible de joindre NEURAVID pour le moment.":"Mënuñu jot NEURAVID léegi.","Jusqu’au {0}":"Ba {0}","La Forge n’est pas joignable ici.":"Mënuñu jot La Forge fii.","La consigne":"Ndigal li","La durée de la vidéo n’est pas encore connue. Réessayez dans un instant.":"Xamaguñu ba léegi yàggaayu widewo bi. Jéemaatal ci kanam tuuti.","La relecture de ce défi est terminée.":"Seet bu kàtte bii jeex na.","Langue":"Làkk","Le service est momentanément indisponible. Réessayez dans un instant.":"Liggéey bi amul fi ab diir. Jéemaatal ci kanam tuuti.","Les défis":"Kàtte yi","L’équipe":"Ekip bi","Ma vidéo":"Sama widewo","Moi":"Man","Motif du refus":"Lu tax ñu gàntu","Non relue à temps":"Seetuñu ko ci waxtu wi","Ouvrir le défi":"Ubbi kàtte bi","Ouvrir le défi « {0} »":"Ubbi kàtte bi «{0}»","Ouvrir un défi":"Ubbi benn kàtte","Pas de connexion pour le moment.":"Amul connexion léegi.","Publier":"Siiwal","Publiée":"Siiwal nañu ko","Qualité de la vidéo":"Baaxaayu widewo bi","Refilmer":"Fotaalaat","Refuser":"Gàntu","Refusée : {0}":"Bañ nañu ko: {0}","Terminé":"Jeex na","Titre":"Tur","Titre (facultatif)":"Tur (du warugar)","Toucher encore pour publier":"Laalaatal ngir siiwal","Toucher encore pour refilmer":"Laalaatal ngir fotaalaat","Toucher encore pour refuser":"Bësal ci kaw ngir gàntu","Toucher encore pour retirer":"Bësaatal ngir dindi","Traduction en cours de relecture.":"Tekki gi, ñu ngi koy xool.","Trop de demandes. Réessayez plus tard.":"Laaj yi dafa bari. Jéemaatal ci kanam.","Un texte n’a pas été accepté. Changez-le.":"Am na mbind mu ñu nanguwul. Soppil ko.","Une vidéo de 3 minutes au plus.":"Widewo bu 3 simili lu ëpp.","Vidéo indisponible pour le moment.":"Widewo bi amul fi léegi.","Vérifiez le formulaire : un champ n’est pas rempli comme il faut.":"Seetal formulaire bi: am na bérab bu ñu fesalul bu baax.","Le Défi Transformation":"Kàttu Soppeeku","1 jour":"1 fan","{0} jours":"{0} fan","{0} semaines":"{0} ayu-bés","{0} mois":"{0} weer","jours":"fan","semaines":"ayu-bés","mois":"weer","Unité":"Natt","1 transformation":"1 soppeeku","{0} transformations":"{0} soppeeku","Aperçu : des transformations d’exemple, pour découvrir la page.":"Wone: ay soppeeku yu misaal, ngir xam xët wi.","Apprentissage":"Jàng","Jardinage":"Tóokër","Dessin":"Natal","Rénovation":"Defar","Aucune transformation pour l’instant.":"Amul benn soppeeku léegi.","Aucune transformation publiée pour l’instant.":"Amul benn soppeeku bu génn léegi.","Avant / après filmé sur NEURAVID":"Balaa / ginnaaw filmal nañu ko ci NEURAVID","Ce n’est pas un vrai avant et après":"Du balaa ak ginnaaw yu dëgg","Cette transformation n’est plus disponible.":"Soppeeku bii amatul.","Cochez la déclaration : l’avant et l’après sont réels.":"Màndargal waxtaan wi: balaa ak ginnaaw dëgg lañu.","Combien de temps a pris la transformation ?":"Ñaata jamono la soppeeku bi jël?","Couture, décoration, jardinage, dessin, rénovation, apprentissage : un vrai avant, un vrai après.":"Ñaw, rafetal, tóokër, natal, defar, jàng: balaa bu dëgg, ginnaaw bu dëgg.","Créée sur NEURAVID : non vérifié.":"Defar nañu ko ci NEURAVID: wóoratuñu ko.","Créée sur NEURAVID : vérifié par le serveur.":"Defar nañu ko ci NEURAVID: serwëer bi wóoral na ko.","Deux transformations refusées : ce défi est fermé pour vous.":"Ñaari soppeeku lañu bañ: kàtte bii tëj na ci yow.","Durée (jours, de 3 à 60)":"Diir (fan, 3 ba 60)","Défi annulé : la transformation redevient privée.":"Kàtte bi neenal nañu ko: soppeeku bi dellu na ci sutura.","Envoyer ma transformation":"Yónne sama soppeeku","Filmez le vrai avant, puis le vrai après, avec les gabarits du Miroir de La Forge.":"Filmal balaa bu dëgg, te ginnaaw bu dëgg, ak royuwaayi Seetu La Forge.","Ici, on montre un vrai travail qui change quelque chose, jamais un corps. Ni vote ni argent.":"Fii, danuy wone liggéey bu dëgg buy soppi dara, du mukk yaram. Amul baat, amul xaalis.","Indiquez le temps de la transformation (de 1 jour à 2 ans).":"Bindal diiru soppeeku bi (1 fan ba 2 at).","Je montre seulement mon travail et des images dont j’ai les droits.":"Damay wone sama liggéey rekk ak nataal yu ma am sañ-sañ.","La vidéo montre un corps qui change, pas un travail":"Widewo bi dafay wone yaram buy soppeeku, du liggéey","Le montage dit : seulement des prises filmées sur le moment.":"Montaas bi dafa wax: nataal yu ñu filmal ci saa si rekk.","Le montage ne dit pas qu’il est filmé sur le moment.":"Montaas bi waxul ne filmal nañu ko ci saa si.","Le temps de la transformation :":"Diiru soppeeku bi:","Les transformations":"Soppeeku yi","Les transformations à relire":"Soppeeku yi ñuy saytu","Les étapes":"Tànk yi","Les étapes (facultatif, une par ligne, 8 au plus)":"Tànk yi (bu la neex, benn ci rëdd bu nekk, 8 lu ëpp)","L’avant et l’après sont réels et filmés par moi, sans retouche qui change le résultat.":"Balaa ak ginnaaw dëgg lañu te man maa leen filmal, te amul defaraat buy soppi njureef bi.","L’équipe relit chaque transformation avant de la publier.":"Ekip bi dafay saytu soppeeku bu nekk balaa muy génn.","Ma transformation":"Sama soppeeku","Mes transformations":"Samay soppeeku","Montrez l’objet, le lieu ou le travail : une autre personne ne doit pas apparaître à l’image. Jamais un corps qui change.":"Wone lekk-lekk bi, bérab bi walla liggéey bi: beneen nit warul feeñ ci widewo bi. Du mukk yaram buy soppeeku.","Participer : dès 13 ans. Ni vote ni argent ; on montre un vrai travail, jamais un corps.":"Bokk: li dale 13 at. Amul baat, amul xaalis; danuy wone liggéey bu dëgg, du mukk yaram.","Pas pour votre propre transformation.":"Du ngir sa soppeeku bopp.","Retirer ma transformation":"Dindi sama soppeeku","Transformation publiée.":"Soppeeku bi génn na.","Transformation refusée.":"Ñu bañ soppeeku bi.","Transformation retirée.":"Soppeeku bi dindi nañu ko.","Une autre personne apparaît à l’image":"Beneen nit dafay feeñ ci widewo bi","Votre transformation est envoyée : l’équipe la relit avant de la publier.":"Sa soppeeku yónne nañu ko: ekip bi dina ko saytu balaa muy génn.","Vous avez déjà envoyé 3 transformations pour ce défi.":"Yónne nga ba noppi 3 soppeeku ngir kàtte bii.","Vous avez déjà une transformation dans ce défi.":"Am nga ba noppi benn soppeeku ci kàtte bii.","« Ça m’inspire » : {0}":"«Dafa ma xiir»: {0}","Ça m’inspire":"Dafa ma xiir","Ça vous inspire ✓":"Dafa la xiir ✓","Le Défi Transformation n’est pas encore ouvert.":"Kàttu Soppeeku ubbeegul léegi.","Comment ça marche":"Naka lay doxe","Ce qui vous protège":"Li lay aar","Bientôt ouvert ici. Voici ce qui vous attend.":"Dina ubbiku fii ci kanam. Lii mooy li lay xaar.","Choisissez un défi : couture, jardinage, dessin, rénovation…":"Tànnal benn kàtte: ñaw, tóokër, natal, defar kër…","Filmez le vrai avant, puis le vrai après, avec un gabarit du Miroir.":"Filmal balaa bu dëgg, te ginnaaw bu dëgg, ak royuwaayu Seetu bi.","Dites combien de temps il a fallu, et vos étapes.":"Wax ñaata jamono la jël, ak sa tànk yi.","Jamais un corps qui change : un travail, un lieu, un objet.":"Du mukk yaram buy soppeeku: liggéey, bérab, lekk-lekk.","« Filmé sur NEURAVID » seulement quand le serveur l’a vérifié.":"«Filmal nañu ko ci NEURAVID» su serwëer bi wóoral ko rekk.","Chaque transformation est relue avant d’être publique.":"Soppeeku bu nekk dañu koy saytu balaa muy génn."}</script>
+<script type="application/json" id="nvI18n-bm">{"Ajoutez une vidéo.":"Widewo dɔ fara a kan.","Aperçu":"Jirali","Aperçu : ce serveur ne propose pas encore cette fonction. Rien n’est envoyé.":"Jirali: sɛriwɛri in ma nin baara di fɔlɔ. Foyi tɛ ci.","Après":"O kɔfɛ","Aucun défi ouvert pour l’instant.":"Kafiya yɛlɛlen si tɛ fɔlɔ.","Aucune création à relire.":"Baara si tɛ min ka kan ka lajɛ.","Autre":"Wɛrɛ","Avant":"Kɔn","Catégorie":"Suguya","Ce défi est terminé.":"Nin kafiya banna.","Ce défi n’est plus disponible.":"Kafiya in tɛ sɔrɔ tugun.","Cette action n’est pas ouverte à votre âge.":"Nin kɛwale ma yɛlɛ i ka si ma.","Cette vidéo est trop lourde.":"Nin widewo ka girin kojugu.","Chargement…":"A bɛ ka doni…","Cochez la déclaration sur les droits des images.":"Jaw josariya kumasen taamasiyɛn kɛ.","Connectez-vous pour continuer.":"Don walasa k’a taa a fɛ.","Contenu inapproprié":"Kɔnɔkow minnu man ɲi","Couture":"Kala","Créer avec La Forge":"Dabɔ ni La Forge ye","Droits sur les images":"Jaw josariya","Décoration":"Dɔnkoli","Défi ouvert.":"Kafiya dara.","En cours de relecture par l’équipe":"Ekipu b’a lajɛ","Envoi…":"A bɛ ka ci…","Hors sujet":"A tɛ barokun na","Impossible de joindre NEURAVID pour le moment.":"A tɛ se ka NEURAVID sɔrɔ sisan.","Jusqu’au {0}":"Fo {0}","La Forge n’est pas joignable ici.":"La Forge tɛ sɔrɔ yan.","La consigne":"Cikan","La durée de la vidéo n’est pas encore connue. Réessayez dans un instant.":"Widewo janya ma dɔn fɔlɔ. A segin a kan dɔɔnin kɔfɛ.","La relecture de ce défi est terminée.":"Nin kafiya lajɛli banna.","Langue":"Kan","Le service est momentanément indisponible. Réessayez dans un instant.":"Baara in tɛ sɔrɔ sisan. A lajɛ tugun waati dɔɔnin kɔ.","Les défis":"Kafiyaw","L’équipe":"Ekipu","Ma vidéo":"N ka widewo","Moi":"Ne","Motif du refus":"Bannikun","Non relue à temps":"A ma lajɛ a waati la","Ouvrir le défi":"Kafiya da","Ouvrir le défi « {0} »":"Kafiya «{0}» da","Ouvrir un défi":"Kafiya dɔ da","Pas de connexion pour le moment.":"Ɲɔgɔnsira tɛ yen sisan.","Publier":"A bɔ","Publiée":"A bɔra","Qualité de la vidéo":"Widewo ɲɛ","Refilmer":"A ja ta kokura","Refuser":"A ban","Refusée : {0}":"A ma sɔn: {0}","Terminé":"A banna","Titre":"Tɔgɔ","Titre (facultatif)":"Tɔgɔ (a tɛ wajibi ye)","Toucher encore pour publier":"A digi tugun ka a bɔ","Toucher encore pour refilmer":"A digi tugun ka a ja ta kokura","Toucher encore pour refuser":"A digi tugun walasa ka ban","Toucher encore pour retirer":"A digi tugun walasa k'a bɔ","Traduction en cours de relecture.":"Bayɛlɛmali bɛ lajɛ la.","Trop de demandes. Réessayez plus tard.":"Ɲinini caman. A segin a kan kɔfɛ.","Un texte n’a pas été accepté. Changez-le.":"Sɛbɛn dɔ ma sɔn. A yɛlɛma.","Une vidéo de 3 minutes au plus.":"Widewo miniti 3 ka caya.","Vidéo indisponible pour le moment.":"Widewo tɛ sɔrɔ sisan.","Vérifiez le formulaire : un champ n’est pas rempli comme il faut.":"Formulɛri lajɛ: yɔrɔ dɔ ma fa ka ɲɛ.","Le Défi Transformation":"Yɛlɛmali Kafiya","1 jour":"Tile 1","{0} jours":"Tile {0}","{0} semaines":"Dɔgɔkun {0}","{0} mois":"Kalo {0}","jours":"tile","semaines":"dɔgɔkun","mois":"kalo","Unité":"Hakɛ","1 transformation":"Yɛlɛmali 1","{0} transformations":"Yɛlɛmali {0}","Aperçu : des transformations d’exemple, pour découvrir la page.":"Jirali: yɛlɛmali misaliw, walasa ka ɲɛ in dɔn.","Apprentissage":"Kalan","Jardinage":"Nakɔ baara","Dessin":"Ja","Rénovation":"Labɛnni","Aucune transformation pour l’instant.":"Yɛlɛmali si tɛ yen fɔlɔ.","Aucune transformation publiée pour l’instant.":"Yɛlɛmali si ma bɔ fɔlɔ.","Avant / après filmé sur NEURAVID":"Kɔn / kɔfɛ jara NEURAVID kan","Ce n’est pas un vrai avant et après":"A tɛ kɔn ni kɔfɛ yɛrɛ ye","Cette transformation n’est plus disponible.":"Yɛlɛmali in tɛ sɔrɔ tun.","Cochez la déclaration : l’avant et l’après sont réels.":"Fɔli in taamasiyɛn: kɔn ni kɔfɛ ye tiɲɛ ye.","Combien de temps a pris la transformation ?":"Yɛlɛmali in ye waati joli ta?","Couture, décoration, jardinage, dessin, rénovation, apprentissage : un vrai avant, un vrai après.":"Karili, masiri, nakɔ, ja, labɛnni, kalan: kɔn yɛrɛ, kɔfɛ yɛrɛ.","Créée sur NEURAVID : non vérifié.":"Dilannen NEURAVID kan: a ma lajɛ.","Créée sur NEURAVID : vérifié par le serveur.":"Dilannen NEURAVID kan: sɛriwɛri y’a lajɛ.","Deux transformations refusées : ce défi est fermé pour vous.":"Yɛlɛmali fila banna: kafiya in datugura i ɲɛ.","Durée (jours, de 3 à 60)":"Waati (tile, ka bɔ 3 ka se 60)","Défi annulé : la transformation redevient privée.":"Kafiya dabilara: yɛlɛmali seginna gundo la.","Envoyer ma transformation":"N ka yɛlɛmali ci","Filmez le vrai avant, puis le vrai après, avec les gabarits du Miroir de La Forge.":"Kɔn yɛrɛ ja ta, o kɔ a kɔfɛ yɛrɛ, La Forge ka Ɲɛgɛn misaliw fɛ.","Ici, on montre un vrai travail qui change quelque chose, jamais un corps. Ni vote ni argent.":"Yan, baara yɛrɛ min bɛ fɛn yɛlɛma de bɛ jira, farikolo tɛ abada. Kalata ni wari tɛ.","Indiquez le temps de la transformation (de 1 jour à 2 ans).":"Yɛlɛmali waati sɛbɛn (ka bɔ tile 1 ka se san 2).","Je montre seulement mon travail et des images dont j’ai les droits.":"N bɛ n yɛrɛ ka baara dɔrɔn jira ani ja minnu josira bɛ n bolo.","La vidéo montre un corps qui change, pas un travail":"Widewo bɛ farikolo min bɛ yɛlɛma jira, baara tɛ","Le montage dit : seulement des prises filmées sur le moment.":"Labɛnni b’a fɔ: ja minnu tara o yɔrɔnin bɛɛ dɔrɔn.","Le montage ne dit pas qu’il est filmé sur le moment.":"Labɛnni t’a fɔ ko a tara o yɔrɔnin bɛɛ.","Le temps de la transformation :":"Yɛlɛmali waati:","Les transformations":"Yɛlɛmaliw","Les transformations à relire":"Yɛlɛmali minnu ka kan ka lajɛ","Les étapes":"Senw","Les étapes (facultatif, une par ligne, 8 au plus)":"Senw (n’i b’a fɛ, kelen sira kelen kan, 8 a laban na)","L’avant et l’après sont réels et filmés par moi, sans retouche qui change le résultat.":"Kɔn ni kɔfɛ ye tiɲɛ ye, ne yɛrɛ ye u ja ta, labɛnni si t’a la min bɛ jaabi yɛlɛma.","L’équipe relit chaque transformation avant de la publier.":"Jɛkulu bɛ yɛlɛmali kelen kelen bɛɛ lajɛ sani a ka bɔ.","Ma transformation":"N ka yɛlɛmali","Mes transformations":"N ka yɛlɛmaliw","Montrez l’objet, le lieu ou le travail : une autre personne ne doit pas apparaître à l’image. Jamais un corps qui change.":"Fɛn, yɔrɔ walima baara jira: mɔgɔ wɛrɛ man kan ka ye widewo kɔnɔ. Farikolo min bɛ yɛlɛma tɛ abada.","Participer : dès 13 ans. Ni vote ni argent ; on montre un vrai travail, jamais un corps.":"Ka sendon: ka bɔ san 13 la. Kalata ni wari tɛ; baara yɛrɛ de bɛ jira, farikolo tɛ abada.","Pas pour votre propre transformation.":"I yɛrɛ ka yɛlɛmali kama tɛ.","Retirer ma transformation":"N ka yɛlɛmali bɔ","Transformation publiée.":"Yɛlɛmali bɔra.","Transformation refusée.":"Yɛlɛmali banna.","Transformation retirée.":"Yɛlɛmali bɔra yen.","Une autre personne apparaît à l’image":"Mɔgɔ wɛrɛ bɛ ye widewo kɔnɔ","Votre transformation est envoyée : l’équipe la relit avant de la publier.":"I ka yɛlɛmali cira: jɛkulu b’a lajɛ sani a ka bɔ.","Vous avez déjà envoyé 3 transformations pour ce défi.":"I ye yɛlɛmali 3 ci kafiya in kama ka ban.","Vous avez déjà une transformation dans ce défi.":"Yɛlɛmali dɔ bɛ i bolo kafiya in na kaban.","« Ça m’inspire » : {0}":"«A bɛ n dusu don»: {0}","Ça m’inspire":"A bɛ n dusu don","Ça vous inspire ✓":"A bɛ i dusu don ✓","Le Défi Transformation n’est pas encore ouvert.":"Yɛlɛmali Kafiya ma da fɔlɔ.","Comment ça marche":"A bɛ baara cogo min na","Ce qui vous protège":"Min bɛ i lakana","Bientôt ouvert ici. Voici ce qui vous attend.":"A bɛna da yan sɔɔni. Nin ye min bɛ i makɔnɔ.","Choisissez un défi : couture, jardinage, dessin, rénovation…":"Kafiya dɔ sugandi: karili, nakɔ, ja, so labɛn…","Filmez le vrai avant, puis le vrai après, avec un gabarit du Miroir.":"Kɔn yɛrɛ ja ta, o kɔ a kɔfɛ yɛrɛ, Ɲɛgɛn misali dɔ fɛ.","Dites combien de temps il a fallu, et vos étapes.":"A fɔ waati min a tara, ani i ka senw.","Jamais un corps qui change : un travail, un lieu, un objet.":"Farikolo min bɛ yɛlɛma tɛ abada: baara, yɔrɔ, fɛn.","« Filmé sur NEURAVID » seulement quand le serveur l’a vérifié.":"«A jara NEURAVID kan» ni sɛriwɛri y’a lajɛ dɔrɔn.","Chaque transformation est relue avant d’être publique.":"Yɛlɛmali kelen kelen bɛɛ bɛ lajɛ sani a ka jira bɛɛ la."}</script>
+<script type="application/json" id="nvI18n-ln">{"Ajoutez une vidéo.":"Bakisa video moko.","Aperçu":"Emoniseli","Aperçu : ce serveur ne propose pas encore cette fonction. Rien n’est envoyé.":"Emoniseli: serveur oyo epesi naino mosala oyo te. Eloko moko te etindami.","Après":"Sima","Aucun défi ouvert pour l’instant.":"Défi moko te efungwami naino.","Aucune création à relire.":"Mosala moko te ya kotala.","Autre":"Mosusu","Avant":"Liboso","Catégorie":"Eteni","Ce défi est terminé.":"Défi oyo esili.","Ce défi n’est plus disponible.":"Défi oyo ezali lisusu te.","Cette action n’est pas ouverte à votre âge.":"Likambo oyo efungwami te mpo na mbula na yo.","Cette vidéo est trop lourde.":"Video oyo ezali na kilo mingi.","Chargement…":"Ezali kofungola…","Cochez la déclaration sur les droits des images.":"Tia elembo na liyebisi ya lotomo ya bilili.","Connectez-vous pour continuer.":"Kota mpo na kokoba.","Contenu inapproprié":"Makambo oyo ebongi te","Couture":"Kotonga","Créer avec La Forge":"Salá na La Forge","Droits sur les images":"Lotomo ya bilili","Décoration":"Kokembisa","Défi ouvert.":"Défi efungwami.","En cours de relecture par l’équipe":"Ekipe ezali kotala yango","Envoi…":"Ezali kotinda…","Hors sujet":"Libanda ya likambo","Impossible de joindre NEURAVID pour le moment.":"Ekoki te kokutana na NEURAVID sikoyo.","Jusqu’au {0}":"Tii {0}","La Forge n’est pas joignable ici.":"La Forge ezwami awa te.","La consigne":"Malako","La durée de la vidéo n’est pas encore connue. Réessayez dans un instant.":"Bayebi naino te molai ya video. Meka lisusu mwa moke.","La relecture de ce défi est terminée.":"Botali ya défi oyo esili.","Langue":"Lokota","Le service est momentanément indisponible. Réessayez dans un instant.":"Mosala oyo ezali te mpo na mwa ntango. Meka lisusu mwa moke.","Les défis":"Ba défi","L’équipe":"Ekipe","Ma vidéo":"Vidéo na ngai","Moi":"Ngai","Motif du refus":"Ntina ya koboya","Non relue à temps":"Etalelamaki na ntango te","Ouvrir le défi":"Fungola défi","Ouvrir le défi « {0} »":"Fungola défi «{0}»","Ouvrir un défi":"Fungola défi moko","Pas de connexion pour le moment.":"Boyokani ezali te sikoyo.","Publier":"Bimisa","Publiée":"Ebimisami","Qualité de la vidéo":"Bolamu ya vidéo","Refilmer":"Kanga lisusu","Refuser":"Boya","Refusée : {0}":"Eboyami: {0}","Terminé":"Esili","Titre":"Motó","Titre (facultatif)":"Motó (ya kopona)","Toucher encore pour publier":"Simba lisusu mpo na kobimisa","Toucher encore pour refilmer":"Simba lisusu mpo na kokanga lisusu","Toucher encore pour refuser":"Finá lisusu mpo na koboya","Toucher encore pour retirer":"Finá lisusu mpo na kolongola","Traduction en cours de relecture.":"Libongoli ezali kotalama.","Trop de demandes. Réessayez plus tard.":"Masɛngi mingi. Meka lisusu nsima.","Un texte n’a pas été accepté. Changez-le.":"Makomi moko endimami te. Bongola yango.","Une vidéo de 3 minutes au plus.":"Video ya miniti 3 na koleka.","Vidéo indisponible pour le moment.":"Vidéo ezali te mpo na sikoyo.","Vérifiez le formulaire : un champ n’est pas rempli comme il faut.":"Tala formulaire: esika moko etondisami malamu te.","Le Défi Transformation":"Défi ya Mbongwana","1 jour":"Mokolo 1","{0} jours":"Mikolo {0}","{0} semaines":"Pɔsɔ {0}","{0} mois":"Sanza {0}","jours":"mikolo","semaines":"pɔsɔ","mois":"sanza","Unité":"Molɔngɔ","1 transformation":"Mbongwana 1","{0} transformations":"Mbongwana {0}","Aperçu : des transformations d’exemple, pour découvrir la page.":"Botali: mbongwana ya ndakisa, mpo na koyeba lokasa.","Apprentissage":"Koyekola","Jardinage":"Bilanga","Dessin":"Kobenda bililingi","Rénovation":"Kobongisa","Aucune transformation pour l’instant.":"Mbongwana moko te naino.","Aucune transformation publiée pour l’instant.":"Mbongwana moko te ebimi naino.","Avant / après filmé sur NEURAVID":"Liboso / nsima ekangami na NEURAVID","Ce n’est pas un vrai avant et après":"Ezali liboso mpe nsima ya solo te","Cette transformation n’est plus disponible.":"Mbongwana oyo ezali lisusu te.","Cochez la déclaration : l’avant et l’après sont réels.":"Tia elembo na liloba: liboso mpe nsima ezali ya solo.","Combien de temps a pris la transformation ?":"Mbongwana ezwaki ntango boni?","Couture, décoration, jardinage, dessin, rénovation, apprentissage : un vrai avant, un vrai après.":"Kotonga, bokembisi, bilanga, kobenda bililingi, kobongisa, koyekola: liboso ya solo, nsima ya solo.","Créée sur NEURAVID : non vérifié.":"Esalemi na NEURAVID: endimisami te.","Créée sur NEURAVID : vérifié par le serveur.":"Esalemi na NEURAVID: serveur endimisi yango.","Deux transformations refusées : ce défi est fermé pour vous.":"Mbongwana mibale eboyami: défi oyo ekangami mpo na yo.","Durée (jours, de 3 à 60)":"Ntango (mikolo, kobanda 3 tii 60)","Défi annulé : la transformation redevient privée.":"Défi elongolami: mbongwana ezongi ya sekele.","Envoyer ma transformation":"Tinda mbongwana na ngai","Filmez le vrai avant, puis le vrai après, avec les gabarits du Miroir de La Forge.":"Kanga liboso ya solo, sima nsima ya solo, na ba ndakisa ya Talatala ya La Forge.","Ici, on montre un vrai travail qui change quelque chose, jamais un corps. Ni vote ni argent.":"Awa, tolakisaka mosala ya solo oyo ebongoli eloko, nzoto ata moke te. Vote te, mbongo te.","Indiquez le temps de la transformation (de 1 jour à 2 ans).":"Koma ntango ya mbongwana (kobanda mokolo 1 tii mibu 2).","Je montre seulement mon travail et des images dont j’ai les droits.":"Nalakisaka kaka mosala na ngai mpe bililingi oyo nazali na lotomo na yango.","La vidéo montre un corps qui change, pas un travail":"Video elakisi nzoto oyo ezali kobongwana, mosala te","Le montage dit : seulement des prises filmées sur le moment.":"Montage elobi: kaka bifoto oyo ekangamaki na ntango yango.","Le montage ne dit pas qu’il est filmé sur le moment.":"Montage elobi te ete ekangamaki na ntango yango.","Le temps de la transformation :":"Ntango ya mbongwana:","Les transformations":"Ba mbongwana","Les transformations à relire":"Ba mbongwana ya kotalela","Les étapes":"Ba étape","Les étapes (facultatif, une par ligne, 8 au plus)":"Ba étape (soki olingi, moko na molongo moko, 8 koleka te)","L’avant et l’après sont réels et filmés par moi, sans retouche qui change le résultat.":"Liboso mpe nsima ezali ya solo mpe nakangaki yango ngai moko, kozanga kobongisa oyo ebongoli mbano.","L’équipe relit chaque transformation avant de la publier.":"Ekipe etalelaka mbongwana nyonso liboso ya kobimisa yango.","Ma transformation":"Mbongwana na ngai","Mes transformations":"Ba mbongwana na ngai","Montrez l’objet, le lieu ou le travail : une autre personne ne doit pas apparaître à l’image. Jamais un corps qui change.":"Lakisa eloko, esika to mosala: moto mosusu asengeli komonana te na video. Nzoto oyo ezali kobongwana ata moke te.","Participer : dès 13 ans. Ni vote ni argent ; on montre un vrai travail, jamais un corps.":"Kosangana: banda mibu 13. Vote te, mbongo te; tolakisaka mosala ya solo, nzoto ata moke te.","Pas pour votre propre transformation.":"Mpo na mbongwana na yo moko te.","Retirer ma transformation":"Longola mbongwana na ngai","Transformation publiée.":"Mbongwana ebimisami.","Transformation refusée.":"Mbongwana eboyami.","Transformation retirée.":"Mbongwana elongolami.","Une autre personne apparaît à l’image":"Moto mosusu amonani na video","Votre transformation est envoyée : l’équipe la relit avant de la publier.":"Mbongwana na yo etindami: ekipe ekotalela yango liboso ya kobimisa.","Vous avez déjà envoyé 3 transformations pour ce défi.":"Otindaki kala mbongwana 3 mpo na défi oyo.","Vous avez déjà une transformation dans ce défi.":"Ozali kala na mbongwana moko na défi oyo.","« Ça m’inspire » : {0}":"«Epesi ngai makanisi»: {0}","Ça m’inspire":"Epesi ngai makanisi","Ça vous inspire ✓":"Epesi yo makanisi ✓","Le Défi Transformation n’est pas encore ouvert.":"Défi ya Mbongwana efungwami naino te.","Comment ça marche":"Ndenge esalaka","Ce qui vous protège":"Oyo ebatelaka yo","Bientôt ouvert ici. Voici ce qui vous attend.":"Ekofungwama awa mosika te. Tala oyo ezali kozela yo.","Choisissez un défi : couture, jardinage, dessin, rénovation…":"Pona défi moko: kotonga, bilanga, kobenda bililingi, kobongisa…","Filmez le vrai avant, puis le vrai après, avec un gabarit du Miroir.":"Kanga liboso ya solo, sima nsima ya solo, na ndakisa ya Talatala.","Dites combien de temps il a fallu, et vos étapes.":"Loba ntango boni esalaki, mpe ba étape na yo.","Jamais un corps qui change : un travail, un lieu, un objet.":"Nzoto oyo ezali kobongwana te: mosala, esika, eloko.","« Filmé sur NEURAVID » seulement quand le serveur l’a vérifié.":"«Ekangami na NEURAVID» kaka soki serveur endimisi yango.","Chaque transformation est relue avant d’être publique.":"Mbongwana nyonso etalelamaka liboso ete bato nyonso bamona yango."}</script>
+
+<script>
+/* ══ NV_CAMERA — EMBARQUÉ ════════════════════════════════════
+   Embarqué, pas référencé : un module NEURAVID doit s'ouvrir
+   seul depuis une URL file://, avec rien à côté. */
+/* ═══════════════════════════════════════════════════════════════════
+   NEURAVID — NV_CAMERA.js
+   Le bouton « Filmer » d'un défi ouvre la caméra du Studio créatif.
+
+   À embarquer dans les 16 modules de défi ET dans NV_MODULE_Create.html.
+
+   ── POURQUOI ─────────────────────────────────────────────────────────
+   Chaque défi a son propre enregistreur. Il fonctionne, il grave les
+   filtres et le logo dans l'image — mais il s'arrête là. La caméra du
+   Studio sait faire beaucoup plus, et elle existe déjà :
+
+       double caméra (médaillon, haut/bas, gauche/droite)
+       masques qui suivent le visage
+       effets pluie, neige, étincelles
+       filtres gravés dans l'image enregistrée
+       photo, montage, galerie
+
+   Une personne qui veut participer à un défi n'a aucune raison d'avoir
+   moins d'outils que quelqu'un qui filme pour rien.
+
+   ── LA DIFFICULTÉ RÉELLE ─────────────────────────────────────────────
+   Le Studio est un AUTRE fichier. Changer de page perd tout : le
+   contexte du défi, et surtout la vidéo elle-même — un Blob ne
+   traverse pas une navigation.
+
+   IndexedDB, si. C'est la seule voie, et Create s'en sert déjà pour
+   son relais. On l'emprunte :
+
+       1. le défi range son contexte et ouvre le Studio
+       2. la personne filme avec tous les outils
+       3. le Studio range la vidéo dans IndexedDB et revient au défi
+       4. le défi la reprend et la présente comme sa propre prise
+
+   ── CE QU'ON NE FAIT PAS ─────────────────────────────────────────────
+   On ne copie pas la caméra du Studio dans les seize défis. Elle pèse
+   plus de trois cents kilo-octets, et seize copies divergeraient au
+   premier correctif — c'est exactement ce qui est arrivé à IA et Coach,
+   qui affichaient deux scores différents pour la même vidéo.
+
+   Et on ne supprime pas l'enregistreur existant : si le Studio est
+   injoignable, il reprend la main. Une passerelle ne doit jamais
+   devenir un point de rupture.
+   ═══════════════════════════════════════════════════════════════════ */
+(function (racine) {
+  'use strict';
+  if (racine.NVCamera) return;
+
+  var BASE_DEFAUT = 'file:///android_asset/flutter_assets/assets/modules/';
+  var CLE_CTX = 'nv_cam_ctx';
+  var DB = 'nvcamera';
+  var MAG = 'prises';
+
+  function emit(type, charge) {
+    try { if (typeof racine.NVemit === 'function') racine.NVemit(type, charge || {}); }
+    catch (e) {}
+  }
+  function base() {
+    var b = racine.NV_MODULES_BASE || BASE_DEFAUT;
+    return b.slice(-1) === '/' ? b : b + '/';
+  }
+
+  /* ── LE COFFRE ────────────────────────────────────────────────────
+     Une vidéo de quelques mégaoctets ne tient pas dans localStorage et
+     ne survit pas à une navigation autrement. IndexedDB est le seul
+     endroit où elle peut attendre. */
+  function ouvrirBase() {
+    return new Promise(function (res) {
+      try { if (!racine.indexedDB) return res(null); } catch (e) { return res(null); }   /* stockage bloqué : l'accès lui-même peut lever une erreur */
+      var r;
+      try { r = racine.indexedDB.open(DB, 1); } catch (e) { return res(null); }
+      r.onupgradeneeded = function () {
+        try { r.result.createObjectStore(MAG); } catch (e) {}
+      };
+      r.onsuccess = function () { res(r.result); };
+      r.onerror = function () { res(null); };
+      /* certains navigateurs ne répondent jamais (fichier ouvert en content://) */
+      setTimeout(function () { res(null); }, 2000);
+    });
+  }
+  function ranger(cle, valeur) {
+    return ouvrirBase().then(function (db) {
+      if (!db) return false;
+      return new Promise(function (res) {
+        try {
+          var t = db.transaction(MAG, 'readwrite');
+          t.objectStore(MAG).put(valeur, cle);
+          t.oncomplete = function () { res(true); };
+          t.onerror = function () { res(false); };
+        } catch (e) { res(false); }
+      });
+    });
+  }
+  function reprendre(cle) {
+    return ouvrirBase().then(function (db) {
+      if (!db) return null;
+      return new Promise(function (res) {
+        try {
+          var t = db.transaction(MAG, 'readonly');
+          var q = t.objectStore(MAG).get(cle);
+          q.onsuccess = function () { res(q.result || null); };
+          q.onerror = function () { res(null); };
+        } catch (e) { res(null); }
+      });
+    });
+  }
+  function oublier(cle) {
+    return ouvrirBase().then(function (db) {
+      if (!db) return;
+      try {
+        var t = db.transaction(MAG, 'readwrite');
+        t.objectStore(MAG).delete(cle);
+      } catch (e) {}
+    });
+  }
+
+  /* ── CÔTÉ DÉFI : partir vers le Studio ────────────────────────────── */
+  function filmer(ctx) {
+    ctx = ctx || {};
+    ctx.module = ctx.module || racine.NV_MODULE_NAME || 'defi';
+    ctx.quand = Date.now();
+    /* La contrainte du défi voyage avec : le Studio doit savoir qu'une
+       story flash s'arrête à sept secondes. Sans ça, la personne filme
+       trente secondes et se fait refuser au retour. */
+    try { racine.sessionStorage.setItem(CLE_CTX, JSON.stringify(ctx)); } catch (e) {}
+    try { racine.localStorage.setItem(CLE_CTX, JSON.stringify(ctx)); } catch (e) {}
+    emit('camera_open', ctx);
+
+    /* Si le Studio est déjà dans cette page, on l'ouvre sans changer
+       d'écran : c'est plus rapide et rien ne peut se perdre. */
+    try {
+      if (racine.NVStudio && typeof racine.NVStudio.open === 'function' &&
+          typeof racine.NVStudio.tab === 'function') {
+        racine.NVStudio.open(); racine.NVStudio.tab('video');
+        return 'local';
+      }
+    } catch (e) {}
+    try {
+      if (racine.NVLien && typeof racine.NVLien.ouvrir === 'function') {
+        racine.NVLien.ouvrir('NVCreate', ctx);
+        return 'lien';
+      }
+    } catch (e) {}
+    try {
+      racine.location.href = base() + 'NV_MODULE_Create.html';
+      return 'fichier';
+    } catch (e) {}
+    return 'aucun';   /* l'appelant reprend la main avec son propre enregistreur */
+  }
+
+  /* ── CÔTÉ STUDIO : d'où vient-on, et comment y retourner ──────────── */
+  function contexte() {
+    var t = null;
+    try { t = racine.sessionStorage.getItem(CLE_CTX); } catch (e) {}
+    if (!t) { try { t = racine.localStorage.getItem(CLE_CTX); } catch (e) {} }
+    if (!t) return null;
+    try {
+      var c = JSON.parse(t);
+      /* Un contexte vieux de plus d'une heure n'a plus de sens : la
+         personne est passée à autre chose. On ne la renvoie pas dans un
+         défi qu'elle a quitté. */
+      if (!c || !c.quand || Date.now() - c.quand > 3600000) return null;
+      return c;
+    } catch (e) { return null; }
+  }
+
+  /* Le Studio appelle ceci quand la prise est terminée. */
+  function rendre(blob, meta) {
+    var c = contexte();
+    if (!c) return Promise.resolve(false);
+    var cle = 'prise_' + (c.module || 'defi') + '_' + (c.defi || 'x');
+    return ranger(cle, {blob: blob, meta: meta || {}, ctx: c, at: Date.now()})
+      .then(function (ok) {
+        if (!ok) return false;
+        emit('camera_done', {module: c.module, defi: c.defi || null,
+                             secondes: (meta && meta.seconds) || null});
+        try {
+          if (racine.NVLien && typeof racine.NVLien.ouvrir === 'function') {
+            racine.NVLien.ouvrir('NV' + c.module, c);
+            return true;
+          }
+        } catch (e) {}
+        try { racine.location.href = base() + 'NV_MODULE_' + c.module + '.html'; }
+        catch (e) {}
+        return true;
+      });
+  }
+
+  /* ── CÔTÉ DÉFI : récupérer la prise au retour ─────────────────────── */
+  function recuperer(module, defi) {
+    var cle = 'prise_' + (module || racine.NV_MODULE_NAME || 'defi') + '_' + (defi || 'x');
+    return reprendre(cle).then(function (p) {
+      if (!p) return null;
+      /* On efface tout de suite : une prise reprise deux fois se
+         retrouverait envoyée deux fois. */
+      oublier(cle);
+      if (!p.at || Date.now() - p.at > 3600000) return null;
+      return p;
+    });
+  }
+
+  /* ══ LE MÉNAGE ════════════════════════════════════════════════════
+     Une prise n'est effacée qu'à sa reprise. Si la personne filme puis
+     ne revient jamais dans le défi, l'entrée reste — une vidéo de
+     plusieurs mégaoctets par tentative abandonnée, sur un téléphone
+     d'entrée de gamme.
+
+     On balaie donc au chargement ce qui a plus d'une heure : c'est la
+     même limite que le contexte, et au-delà la personne est passée à
+     autre chose de toute façon. */
+  function balayer() {
+    return ouvrirBase().then(function (db) {
+      if (!db) return 0;
+      return new Promise(function (res) {
+        var n = 0;
+        try {
+          var t = db.transaction(MAG, 'readwrite');
+          var st = t.objectStore(MAG);
+          var q = st.openCursor();
+          q.onsuccess = function () {
+            var c = q.result;
+            if (!c) { res(n); return; }
+            var v = c.value;
+            if (!v || !v.at || Date.now() - v.at > 3600000) { c.delete(); n++; }
+            c.continue();
+          };
+          q.onerror = function () { res(n); };
+        } catch (e) { res(0); }
+      });
+    });
+  }
+  /* au chargement, sans bloquer quoi que ce soit */
+  try { setTimeout(balayer, 3000); } catch (e) {}
+
+  racine.NVCamera = {
+    balayer: balayer,
+    filmer: filmer,
+    contexte: contexte,
+    rendre: rendre,
+    recuperer: recuperer,
+    /* Pour savoir s'il faut proposer le Studio ou rester sur
+       l'enregistreur local. On ne propose jamais une porte qui ne
+       s'ouvre pas. */
+    studioJoignable: function () {
+      try {
+        if (racine.NVStudio && typeof racine.NVStudio.open === 'function') return true;
+        if (racine.NVLien && typeof racine.NVLien.ouvrir === 'function') return true;
+        return !!racine.NV_MODULES_BASE;
+      } catch (e) { return false; }
+    }
+  };
+})(window);
+
+</script>
+<script>
+(function(){
+/* NEURAVID — la présentation d'une nouveauté (17 novembre 2026, plan des 8 nouveautés, étape 2, confirmé par Karamo).
+   Un petit film animé (dessiné, aucune image extérieure, aucune personne réelle), « Comment ça marche » en 3 étapes et
+   « Ce qui vous protège ». Ouverte en grand quand la nouveauté n'est pas encore ouverte sur le serveur ; repliée sinon.
+   Les textes arrivent déjà traduits par le module. Aucun chiffre, aucun contenu inventé. */
+(function(){
+  if(window.NVPresente) return;
+  var CSS = '.nvp{margin:0 0 14px;border-radius:18px;overflow:hidden;background:#1b1145;border:1px solid rgba(255,255,255,.12)}' +
+    '.nvp canvas{display:block;width:100%;height:150px}' +
+    '.nvp .nvp-intro{margin:12px 14px 4px;font-size:15px;line-height:1.45;color:#f6f1ff}' +
+    '.nvp details{padding:4px 14px 12px}.nvp summary{cursor:pointer;min-height:44px;display:flex;align-items:center;gap:8px;font-weight:700;color:var(--nvp-c1,#ffc531);list-style:none}' +
+    '.nvp summary::-webkit-details-marker{display:none}.nvp summary:before{content:"";width:14px;height:16px;background:currentColor;clip-path:polygon(50% 0,100% 25%,100% 75%,50% 100%,0 75%,0 25%);transition:transform .2s}' +
+    '.nvp details[open] summary:before{transform:rotate(90deg)}' +
+    '.nvp ol{list-style:none;margin:4px 0 10px;padding:0;display:grid;gap:8px}.nvp ol li{display:flex;gap:10px;align-items:flex-start;line-height:1.4;color:#f6f1ff}' +
+    '.nvp ol li b{flex:0 0 28px;height:32px;display:grid;place-items:center;font-size:14px;color:#140b33;background:var(--nvp-c1,#ffc531);clip-path:polygon(50% 0,100% 25%,100% 75%,50% 100%,0 75%,0 25%)}' +
+    '.nvp h3{margin:10px 0 6px;font-size:14px;color:var(--nvp-c2,#16e0d4)}.nvp ul{margin:0;padding:0;list-style:none;display:grid;gap:6px}' +
+    '.nvp ul li{position:relative;padding-left:20px;line-height:1.4;color:#e9e3f5;font-size:14px}.nvp ul li:before{content:"";position:absolute;left:2px;top:.45em;width:10px;height:11px;background:var(--nvp-c2,#16e0d4);clip-path:polygon(50% 0,100% 25%,100% 75%,50% 100%,0 75%,0 25%)}' +
+    '[dir="rtl"] .nvp ul li{padding-left:0;padding-right:20px}[dir="rtl"] .nvp ul li:before{left:auto;right:2px}' +
+    '@media (prefers-reduced-motion:reduce){.nvp summary:before{transition:none}}';
+  function style(){ if(document.getElementById('nvpStyle')) return; var s = document.createElement('style'); s.id = 'nvpStyle'; s.textContent = CSS; document.head.appendChild(s); }
+  function esc(t){ return String(t == null ? '' : t).replace(/[&<>"']/g, function(c){ return {'&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;'}[c]; }); }
+  function hex(g, x, y, r, rot){ g.beginPath(); for(var i = 0; i < 6; i++){ var a = (rot || 0) + Math.PI / 3 * i + Math.PI / 6; g[i ? 'lineTo' : 'moveTo'](x + r * Math.cos(a), y + r * Math.sin(a)); } g.closePath(); }
+  function oeil(g, w, h){ var x = w - 22, y = h - 20; g.globalAlpha = .85; g.fillStyle = 'rgba(20,11,51,.7)'; hex(g, x, y, 13); g.fill(); g.strokeStyle = '#ffc531'; g.lineWidth = 1.5; g.stroke();
+    g.beginPath(); g.ellipse(x, y, 7, 4.2, 0, 0, Math.PI * 2); g.fillStyle = '#f6f1ff'; g.fill(); g.beginPath(); g.arc(x, y, 2.4, 0, Math.PI * 2); g.fillStyle = '#140b33'; g.fill(); g.globalAlpha = 1; }
+  var SCENES = {
+    tresse: function(g, w, h, t, c){ var cx = w / 2, cy = h / 2 + 6, R = Math.min(w, h) * .42;
+      var gr = g.createRadialGradient(cx - R * .3, cy - R * .3, R * .1, cx, cy, R); gr.addColorStop(0, '#2c5fb3'); gr.addColorStop(1, '#0c1840'); g.fillStyle = gr; g.beginPath(); g.arc(cx, cy, R, 0, Math.PI * 2); g.fill();
+      var pts = []; for(var la = -60; la <= 60; la += 15) for(var lo = 0; lo < 360; lo += 15){ var a = (lo + t * 12) * Math.PI / 180, b = la * Math.PI / 180, z = Math.cos(b) * Math.cos(a); if(z < 0) continue;
+        var x = cx + R * Math.cos(b) * Math.sin(a), y = cy - R * Math.sin(b); g.fillStyle = 'rgba(160,210,255,' + (.25 + z * .5) + ')'; g.fillRect(x - 1, y - 1, 2, 2); }
+      var n = 5; for(var i = 0; i < n; i++){ var a1 = (i * 70 + t * 12) * Math.PI / 180, b1 = ((i * 37) % 80 - 40) * Math.PI / 180; pts.push([cx + R * Math.cos(b1) * Math.sin(a1), cy - R * Math.sin(b1), Math.cos(b1) * Math.cos(a1)]); }
+      g.lineWidth = 2.2; g.strokeStyle = c[0]; g.shadowColor = c[0]; g.shadowBlur = 8; var k = (t * .6) % (n - 1);
+      for(var j = 0; j < n - 1; j++){ var p = pts[j], q = pts[j + 1]; if(p[2] < 0 || q[2] < 0) continue; var f = j < Math.floor(k) ? 1 : j === Math.floor(k) ? k % 1 : 0; if(!f) continue;
+        var mx = (p[0] + q[0]) / 2, my = Math.min(p[1], q[1]) - 26; g.beginPath(); g.moveTo(p[0], p[1]); for(var s = 1; s <= 20 * f; s++){ var u = s / 20; g.lineTo((1 - u) * (1 - u) * p[0] + 2 * (1 - u) * u * mx + u * u * q[0], (1 - u) * (1 - u) * p[1] + 2 * (1 - u) * u * my + u * u * q[1]); } g.stroke(); }
+      g.shadowBlur = 0; pts.forEach(function(p){ if(p[2] < 0) return; g.fillStyle = c[0]; hex(g, p[0], p[1], 5); g.fill(); }); },
+    cote: function(g, w, h, t, c){ var m = w / 2, o = Math.sin(t * 1.4) * 6;
+      g.fillStyle = c[0]; g.globalAlpha = .28; g.fillRect(0, 0, m - 2, h); g.fillStyle = c[1]; g.fillRect(m + 2, 0, m - 2, h); g.globalAlpha = 1;
+      [[m / 2, c[0]], [m + m / 2, c[1]]].forEach(function(s, i){ var y = h * .5 + (i ? -o : o); g.fillStyle = s[1]; g.beginPath(); g.arc(s[0], y - 24, 16, 0, Math.PI * 2); g.fill();
+        g.beginPath(); g.moveTo(s[0] - 28, y + 46); g.quadraticCurveTo(s[0], y - 18, s[0] + 28, y + 46); g.fill();
+        g.strokeStyle = s[1]; g.lineWidth = 4; g.lineCap = 'round'; g.beginPath(); g.moveTo(s[0] + (i ? -20 : 20), y + 6); g.lineTo(s[0] + (i ? -38 : 38) , y - 14 + o * (i ? 1 : -1)); g.stroke(); });
+      var pu = 1 + Math.sin(t * 3) * .08; g.fillStyle = '#140b33'; hex(g, m, h / 2, 22 * pu); g.fill(); g.strokeStyle = '#ffc531'; g.lineWidth = 2.5; g.stroke();
+      g.fillStyle = '#ffc531'; g.font = '700 15px system-ui,sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('+', m, h / 2 + 1); },
+    savoir: function(g, w, h, t, c){ var n = 3, e = w / (n + 1), y = h / 2, k = (t * .5) % (n + 1);
+      g.strokeStyle = 'rgba(255,255,255,.2)'; g.lineWidth = 4; g.beginPath(); g.moveTo(e, y); g.lineTo(e * n, y); g.stroke();
+      g.strokeStyle = c[0]; g.beginPath(); g.moveTo(e, y); g.lineTo(e + Math.min(k, n - 1) * e, y); g.stroke();
+      for(var i = 0; i < n; i++){ var x = e * (i + 1), on = k >= i, r = 24 + (on && k - i < .4 ? (1 - (k - i) / .4) * 6 : 0);
+        g.fillStyle = on ? c[0] : '#2a1c63'; hex(g, x, y, r); g.fill(); g.strokeStyle = on ? '#fff' : 'rgba(255,255,255,.3)'; g.lineWidth = 2; g.stroke();
+        g.strokeStyle = on ? '#140b33' : 'rgba(255,255,255,.35)'; g.lineWidth = 3; g.lineCap = 'round'; g.beginPath();
+        if(on){ g.moveTo(x - 9, y); g.lineTo(x - 2, y + 7); g.lineTo(x + 10, y - 7); } else { g.moveTo(x - 7, y); g.lineTo(x + 7, y); } g.stroke(); }
+      for(var s = 0; s < 14; s++){ var a = s * 2.4 + t, rr = (t * 30 + s * 23) % (w * .6); g.fillStyle = s % 2 ? c[1] : c[0]; g.globalAlpha = .5 * (1 - rr / (w * .6)); g.fillRect(w / 2 + Math.cos(a) * rr, y + Math.sin(a) * rr * .35, 3, 3); } g.globalAlpha = 1; },
+    aines: function(g, w, h, t, c){ var cx = w / 2, cy = h / 2, R = Math.min(w, h) * .36;
+      var gr = g.createRadialGradient(cx, cy, 2, cx, cy, R * 1.4); gr.addColorStop(0, c[0]); gr.addColorStop(.35, 'rgba(255,197,49,.25)'); gr.addColorStop(1, 'rgba(255,197,49,0)'); g.fillStyle = gr; g.fillRect(0, 0, w, h);
+      g.fillStyle = c[0]; hex(g, cx, cy, 20 + Math.sin(t * 2) * 2); g.fill();
+      for(var i = 0; i < 8; i++){ var a = i / 8 * Math.PI * 2 + t * .25, x = cx + Math.cos(a) * R * 1.35, y = cy + Math.sin(a) * R * .8;
+        g.strokeStyle = 'rgba(255,255,255,' + (.12 + .1 * Math.sin(t * 2 + i)) + ')'; g.lineWidth = 1.5; g.beginPath(); g.moveTo(cx, cy); g.lineTo(x, y); g.stroke();
+        g.fillStyle = i % 2 ? c[1] : '#f6f1ff'; hex(g, x, y, 9); g.fill(); } },
+    cercle: function(g, w, h, t, c){ var cx = w / 2, cy = h / 2, R = Math.min(w, h) * .34;
+      g.strokeStyle = c[0]; g.lineWidth = 3; g.globalAlpha = .9; hex(g, cx, cy, R * 1.25, t * .15); g.stroke(); g.globalAlpha = 1;
+      for(var i = 0; i < 6; i++){ var a = i / 6 * Math.PI * 2 + t * .15 + Math.PI / 6, x = cx + Math.cos(a) * R * 1.25, y = cy + Math.sin(a) * R * 1.25;
+        g.fillStyle = i % 2 ? c[1] : '#f6f1ff'; g.beginPath(); g.arc(x, y, 8, 0, Math.PI * 2); g.fill(); }
+      var p = 1 + Math.sin(t * 2.2) * .06; g.save(); g.translate(cx, cy); g.scale(p, p); g.fillStyle = c[0]; g.beginPath(); g.moveTo(0, 14);
+      g.bezierCurveTo(-26, -4, -14, -26, 0, -12); g.bezierCurveTo(14, -26, 26, -4, 0, 14); g.fill(); g.restore();
+      for(var k = 0; k < 4; k++){ var a2 = t * .9 + k * 1.6, r2 = R * 2.1, x2 = cx + Math.cos(a2) * r2, y2 = cy + Math.sin(a2) * r2 * .5; g.fillStyle = 'rgba(255,255,255,.25)'; g.beginPath(); g.arc(x2, y2, 4, 0, Math.PI * 2); g.fill(); } },
+    teint: function(g, w, h, t, c){ var T = ['#f3d2b8', '#e0b28f', '#c68a62', '#9c6440', '#74452a', '#4a2b1a'], n = T.length, e = w / (n + 1), k = Math.floor(t * .8) % n;
+      for(var i = 0; i < n; i++){ var x = e * (i + 1), y = h / 2 + (i === k ? -8 : 0), r = i === k ? 24 : 19; g.fillStyle = T[i]; hex(g, x, y, r); g.fill();
+        if(i === k){ g.strokeStyle = c[0]; g.lineWidth = 3; g.stroke(); g.fillStyle = c[0]; g.font = '700 12px system-ui,sans-serif'; g.textAlign = 'center'; g.fillText('✓', x, y + r + 16); } }
+      var lx = (t * 60) % (w + 120) - 60, gr = g.createLinearGradient(lx - 50, 0, lx + 50, 0); gr.addColorStop(0, 'rgba(255,255,255,0)'); gr.addColorStop(.5, 'rgba(255,255,255,.12)'); gr.addColorStop(1, 'rgba(255,255,255,0)'); g.fillStyle = gr; g.fillRect(0, 0, w, h); },
+    miroir: function(g, w, h, t, c){ var f = (Math.sin(t * .9) + 1) / 2, m = w * (.15 + .7 * f);
+      g.fillStyle = '#2b2448'; g.fillRect(0, 0, w, h); g.fillStyle = 'rgba(255,255,255,.05)'; for(var v = 0; v < w; v += 10) g.fillRect(v, 0, 1, h); g.fillStyle = '#a49cc0'; g.beginPath(); g.arc(w / 2, h / 2 - 8, 26, 0, Math.PI * 2); g.fill(); g.fillStyle = '#7d7699'; g.beginPath(); g.ellipse(w / 2, h / 2 + 44, 40, 20, 0, Math.PI, 0); g.fill();
+      g.save(); g.beginPath(); g.rect(m, 0, w - m, h); g.clip(); var gr = g.createLinearGradient(0, 0, w, h); gr.addColorStop(0, c[0]); gr.addColorStop(1, c[1]); g.fillStyle = gr; g.fillRect(0, 0, w, h);
+      g.fillStyle = '#fff'; g.beginPath(); g.arc(w / 2, h / 2 - 8, 26, 0, Math.PI * 2); g.fill(); g.fillStyle = 'rgba(255,255,255,.85)'; g.beginPath(); g.ellipse(w / 2, h / 2 + 44, 40, 20, 0, Math.PI, 0); g.fill(); for(var s2 = 0; s2 < 6; s2++){ var a = s2 + t * 2; g.fillStyle = 'rgba(255,255,255,.8)'; hex(g, w / 2 + Math.cos(a) * 46, h / 2 - 8 + Math.sin(a) * 30, 3); g.fill(); } g.restore();
+      g.strokeStyle = '#fff'; g.lineWidth = 2; g.beginPath(); g.moveTo(m, 0); g.lineTo(m, h); g.stroke(); g.fillStyle = '#140b33'; hex(g, m, h / 2, 14); g.fill(); g.strokeStyle = c[0]; g.stroke(); },
+    pagne: function(g, w, h, t, c){ var pal = [c[0], c[1], '#ff4f9e', '#16e0d4', '#ffc531', '#7a5cff'], s = 34, dec = (t * 18) % (s * 2);
+      for(var r = -1; r * s * .87 < h + s; r++) for(var q = -2; q * s < w + s * 2; q++){ var x = q * s + (r % 2 ? s / 2 : 0) - dec, y = r * s * .87, col = pal[(q + r * 2 + 60) % pal.length];
+        g.fillStyle = col; g.globalAlpha = .85; hex(g, x, y, s * .5); g.fill(); g.globalAlpha = 1; g.fillStyle = '#140b33'; g.beginPath(); g.arc(x, y, s * .18, 0, Math.PI * 2); g.fill();
+        g.strokeStyle = 'rgba(255,255,255,.55)'; g.lineWidth = 1.2; g.beginPath(); g.arc(x, y, s * .3, 0, Math.PI * 2); g.stroke(); }
+      var lx = ((t * 80) % (w * 1.6)) - w * .3, gr = g.createLinearGradient(lx - 60, 0, lx + 60, 0); gr.addColorStop(0, 'rgba(255,255,255,0)'); gr.addColorStop(.5, 'rgba(255,255,255,.35)'); gr.addColorStop(1, 'rgba(255,255,255,0)');
+      g.fillStyle = gr; g.fillRect(0, 0, w, h); var v = g.createLinearGradient(0, 0, 0, h); v.addColorStop(0, 'rgba(20,11,51,.15)'); v.addColorStop(1, 'rgba(20,11,51,.55)'); g.fillStyle = v; g.fillRect(0, 0, w, h); },
+    /* Talent du Jour (17 nov. 2026) : le soleil du jour, un projecteur, et le cadran des 15 à 60 secondes */
+    talent: function(g, w, h, t, c){ var cx = w / 2, cy = h / 2, R = Math.min(w, h) * .26;
+      var bg = g.createRadialGradient(cx, cy, 4, cx, cy, Math.max(w, h) * .7); bg.addColorStop(0, 'rgba(255,197,49,.18)'); bg.addColorStop(1, 'rgba(20,11,51,0)'); g.fillStyle = bg; g.fillRect(0, 0, w, h);
+      for(var k = 0; k < 12; k++){ var a = t * .25 + k * Math.PI / 6; g.strokeStyle = k % 2 ? 'rgba(22,224,212,.28)' : 'rgba(255,197,49,.32)'; g.lineWidth = 3; g.beginPath();
+        g.moveTo(cx + Math.cos(a) * R * 1.2, cy + Math.sin(a) * R * 1.2); g.lineTo(cx + Math.cos(a) * R * 1.75, cy + Math.sin(a) * R * 1.75); g.stroke(); }
+      var f = (t % 6) / 6; g.strokeStyle = 'rgba(255,255,255,.15)'; g.lineWidth = 7; g.beginPath(); g.arc(cx, cy, R * 1.05, 0, Math.PI * 2); g.stroke();
+      g.strokeStyle = c[1]; g.lineCap = 'round'; g.beginPath(); g.arc(cx, cy, R * 1.05, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * (.25 + .75 * f)); g.stroke(); g.lineCap = 'butt';
+      var gr = g.createLinearGradient(cx - R, cy - R, cx + R, cy + R); gr.addColorStop(0, c[0]); gr.addColorStop(1, c[1]); g.fillStyle = gr; hex(g, cx, cy, R * .9); g.fill();
+      g.fillStyle = '#140b33'; hex(g, cx, cy, R * .78); g.fill();
+      var e = 1 + Math.sin(t * 2.4) * .08; g.fillStyle = c[0]; g.beginPath(); for(var i = 0; i < 10; i++){ var r = (i % 2 ? R * .2 : R * .48) * e, b = -Math.PI / 2 + i * Math.PI / 5; g[i ? 'lineTo' : 'moveTo'](cx + Math.cos(b) * r, cy + Math.sin(b) * r); } g.closePath(); g.fill();
+      for(var m = 0; m < 5; m++){ var a2 = t * .7 + m * 1.26, x2 = cx + Math.cos(a2) * R * 2.05, y2 = cy + Math.sin(a2) * R * .95; g.globalAlpha = .75; g.fillStyle = m % 2 ? c[1] : '#ff4f9e'; hex(g, x2, y2, 7); g.fill(); g.globalAlpha = 1; } },
+    /* Le Projecteur du monde (17 nov. 2026) : un faisceau qui balaie une rangée d'hexagones de toutes les couleurs ; chacun s'allume quand la lumière passe */
+    projecteur: function(g, w, h, t, c){ var n = 7, s = Math.min(w / (n + 1), h * .2), y = h * .68, pal = ['#ffc531', '#16e0d4', '#ff4f9e', '#7a5cff', '#2ad17d', '#ff9f1c', '#4fc3ff'];
+      var bx = w / 2 + Math.sin(t * .8) * w * .38, sx = w / 2, sy = -10;
+      var fx = g.createLinearGradient(sx, sy, bx, y); fx.addColorStop(0, 'rgba(255,240,190,.55)'); fx.addColorStop(1, 'rgba(255,240,190,.06)'); g.fillStyle = fx;
+      g.beginPath(); g.moveTo(sx - 10, sy); g.lineTo(sx + 10, sy); g.lineTo(bx + s * 1.3, y + s * .5); g.lineTo(bx - s * 1.3, y + s * .5); g.closePath(); g.fill();
+      for(var i = 0; i < n; i++){ var x = (i + 1) * w / (n + 1), d = Math.abs(x - bx) / (s * 1.4), on = Math.max(0, 1 - d);
+        g.globalAlpha = .28 + .72 * on; g.fillStyle = pal[i % pal.length]; hex(g, x, y + Math.sin(t * 1.6 + i) * 3, s * (.42 + .1 * on)); g.fill(); g.globalAlpha = 1;
+        if(on > .5){ g.strokeStyle = c[0]; g.lineWidth = 2; hex(g, x, y, s * .62); g.stroke(); } }
+      g.fillStyle = c[0]; hex(g, sx, 14, 12); g.fill(); g.fillStyle = '#140b33'; g.beginPath(); g.arc(sx, 14, 4, 0, Math.PI * 2); g.fill(); },
+    /* Le Défi Transformation (18 nov. 2026) : un rideau doré découvre l'après, une pousse grandit, trois étapes s'allument */
+    transformation: function(g, w, h, t, c){ var cx = w / 2, cy = h / 2, R = Math.min(w, h) * .3, ph = (t * .35) % 1, m = cx - R + ph * 2 * R;
+      g.save(); hex(g, cx, cy, R); g.clip(); g.fillStyle = '#3b2f24'; g.fillRect(0, 0, w, h); g.fillStyle = '#5a4632'; g.fillRect(0, cy + R * .35, w, h);
+      g.save(); g.beginPath(); g.rect(0, 0, m, h); g.clip(); var gr = g.createLinearGradient(0, cy - R, 0, cy + R); gr.addColorStop(0, '#1c3a2a'); gr.addColorStop(1, '#2e5a2e'); g.fillStyle = gr; g.fillRect(0, 0, w, h);
+        for(var i = 0; i < 4; i++){ var x = cx - R * .6 + i * R * .4, hh = R * (.45 + .1 * Math.sin(t + i)); g.strokeStyle = c[0]; g.lineWidth = 3; g.beginPath(); g.moveTo(x, cy + R * .4); g.lineTo(x, cy + R * .4 - hh); g.stroke();
+          g.fillStyle = c[0]; hex(g, x - 7, cy + R * .4 - hh * .7, 6); g.fill(); hex(g, x + 7, cy + R * .4 - hh * .5, 6); g.fill(); g.fillStyle = c[1]; hex(g, x, cy + R * .4 - hh, 7); g.fill(); } g.restore();
+      g.restore(); g.fillStyle = c[1]; g.fillRect(m - 2, cy - R, 4, 2 * R); hex(g, m, cy, 10); g.fill();
+      g.strokeStyle = c[0]; g.lineWidth = 3; hex(g, cx, cy, R); g.stroke();
+      for(var k = 0; k < 3; k++){ var on = ((t * .6) % 3) > k; g.fillStyle = on ? c[1] : 'rgba(255,255,255,.25)'; hex(g, cx - R * .6 + k * R * .6, cy + R * 1.3, 8); g.fill(); } },
+    /* Style Universe (17 nov. 2026) : un hexagone partagé avant/après, un fil de couture qui court, des étapes qui s'allument */
+    style: function(g, w, h, t, c){ var cx = w / 2, cy = h / 2, R = Math.min(w, h) * .3, m = cx + Math.sin(t * .9) * R * .55;
+      g.save(); hex(g, cx, cy, R); g.clip(); g.fillStyle = '#3a2a6a'; g.fillRect(0, 0, m, h); var gr = g.createLinearGradient(m, 0, cx + R, 0); gr.addColorStop(0, c[0]); gr.addColorStop(1, c[1]);
+      g.fillStyle = gr; g.fillRect(m, 0, w, h); for(var i = 0; i < 6; i++){ g.strokeStyle = 'rgba(255,255,255,.35)'; g.lineWidth = 2; g.setLineDash([6, 6]); g.lineDashOffset = -t * 30;
+        g.beginPath(); g.moveTo(cx - R, cy - R + i * R * .4); g.quadraticCurveTo(cx, cy - R * .6 + i * R * .4 + Math.sin(t + i) * 8, cx + R, cy - R + i * R * .4); g.stroke(); } g.setLineDash([]); g.restore();
+      g.strokeStyle = '#fff'; g.lineWidth = 2; g.beginPath(); g.moveTo(m, cy - R); g.lineTo(m, cy + R); g.stroke(); g.fillStyle = '#140b33'; hex(g, m, cy, 11); g.fill(); g.strokeStyle = c[1]; g.stroke();
+      g.strokeStyle = c[0]; g.lineWidth = 3; hex(g, cx, cy, R); g.stroke();
+      for(var k = 0; k < 3; k++){ var on = ((t * .6) % 3) > k; g.fillStyle = on ? c[1] : 'rgba(255,255,255,.25)'; hex(g, cx - R * .6 + k * R * .6, cy + R * 1.3, 8); g.fill(); } }
+  };
+  var FILMS = [];
+  function dessiner(f, t){ var c = f.c, r = c.getBoundingClientRect(), d = Math.min(window.devicePixelRatio || 1, 2), w = Math.max(1, Math.round(r.width)), h = Math.max(1, Math.round(r.height));
+    if(c.width !== w * d || c.height !== h * d){ c.width = w * d; c.height = h * d; } var g = c.getContext('2d'); g.setTransform(d, 0, 0, d, 0, 0);
+    var bg = g.createLinearGradient(0, 0, w, h); bg.addColorStop(0, '#1b1145'); bg.addColorStop(1, '#2a1260'); g.fillStyle = bg; g.fillRect(0, 0, w, h);
+    try{ (SCENES[f.scene] || SCENES.savoir)(g, w, h, t, f.couleurs); }catch(e){ /* rien */ } oeil(g, w, h); }
+  var calme = false; try{ calme = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches; }catch(e){ calme = false; }
+  var t0 = performance.now(), dernier = 0, roule = false;
+  /* 17 nov. 2026 (étape 7, la vitesse) : un film joue 12 s quand il paraît, puis s'arrête sur son image ; toucher le film le rejoue.
+     Au repos, la page ne dessine plus rien (le film coûtait de 18 à 44 % du processeur d'un téléphone modeste). */
+  var DUREE_JEU = 12000;
+  function jouer(f){ f.fin = performance.now() + DUREE_JEU; relancer(); }
+  function boucle(now){ roule = false; var vus = FILMS.filter(function(f){ return f.vu && now < (f.fin || 0) && document.body.contains(f.c); }); FILMS = FILMS.filter(function(f){ return document.body.contains(f.c); });
+    if(!vus.length || calme || document.hidden) return; if(now - dernier >= 33){ dernier = now; vus.forEach(function(f){ dessiner(f, (now - t0) / 1000); }); } roule = true; requestAnimationFrame(boucle); }
+  function relancer(){ if(!roule && !calme){ roule = true; requestAnimationFrame(boucle); } }
+  document.addEventListener('visibilitychange', relancer);
+  var io = window.IntersectionObserver ? new IntersectionObserver(function(es){ es.forEach(function(e){ FILMS.forEach(function(f){ if(f.c === e.target){ var avant = f.vu; f.vu = e.isIntersecting; if(f.vu && !avant && !f.joue){ f.joue = 1; jouer(f); } } }); }); relancer(); }) : null;
+  function film(c, scene, couleurs){ var f = {c:c, scene:scene, couleurs:couleurs || ['#ffc531', '#16e0d4'], vu:!io, fin:0}; FILMS.push(f); dessiner(f, calme ? 2.2 : 0); if(io) io.observe(c); else jouer(f);
+    c.addEventListener('click', function(){ if(!calme) jouer(f); });
+    var d = c.parentNode && c.parentNode.querySelector && c.parentNode.querySelector('details'); if(d) d.addEventListener('toggle', function(){ if(d.open && !calme) jouer(f); });
+    relancer(); }
+  function rejouer(){ FILMS.forEach(function(f){ if(f.vu) jouer(f); }); }
+  function html(o){ return '<section class="nvp" style="--nvp-c1:' + esc(o.couleurs[0]) + ';--nvp-c2:' + esc(o.couleurs[1]) + '" aria-label="' + esc(o.titreFilm || o.comment) + '">' +
+    '<canvas aria-hidden="true" data-nvp-scene="' + esc(o.scene) + '" data-nvp-c="' + esc(o.couleurs.join(',')) + '"></canvas>' + (o.intro ? '<p class="nvp-intro">' + esc(o.intro) + '</p>' : '') +
+    '<details' + (o.ouvert ? ' open' : '') + (o.cle ? ' data-nvp-cle="' + esc(o.cle) + '"' : '') + '><summary>' + esc(o.comment) + '</summary><ol>' +
+    o.etapes.map(function(s, i){ return '<li><b>' + (i + 1) + '</b><span>' + esc(s) + '</span></li>'; }).join('') + '</ol>' +
+    (o.protections && o.protections.length ? '<h3>' + esc(o.protege) + '</h3><ul>' + o.protections.map(function(s){ return '<li>' + esc(s) + '</li>'; }).join('') + '</ul>' : '') + '</details></section>'; }
+  /* toute toile « data-nvp-scene » posée dans la page (par html()) reçoit son film */
+  function animer(racine){ style(); Array.prototype.forEach.call((racine || document).querySelectorAll('canvas[data-nvp-scene]'), function(c){ if(c._nvp) return; c._nvp = 1;
+    film(c, c.getAttribute('data-nvp-scene'), (c.getAttribute('data-nvp-c') || '').split(',')); }); }
+  if(window.MutationObserver){ var mo = new MutationObserver(function(){ if(document.querySelector('canvas[data-nvp-scene]:not([data-nvp-vu])')){ Array.prototype.forEach.call(document.querySelectorAll('canvas[data-nvp-scene]:not([data-nvp-vu])'), function(c){ c.setAttribute('data-nvp-vu', '1'); }); animer(); } });
+    var go = function(){ if(document.body) mo.observe(document.body, {childList:true, subtree:true}); }; if(document.body) go(); else document.addEventListener('DOMContentLoaded', go); }
+  /* o : {cle, scene, couleurs:[c1, c2], ouvert, intro, comment, protege, etapes:[3], protections:[3], titreFilm, apres:element} */
+  function poser(o){ style(); var el = document.getElementById('nvPres');
+    if(!o){ if(el) el.remove(); return; }
+    var cle = [o.cle, o.ouvert ? 1 : 0, o.intro || '', o.comment, o.etapes.join('|'), o.protections.join('|')].join('§');
+    if(el && el._cle === cle){ if(o.apres && el.previousElementSibling !== o.apres) o.apres.parentNode.insertBefore(el, o.apres.nextSibling); return; }
+    var ouvertAvant = el && el._ouvertUtilisateur;
+    if(!el){ el = document.createElement('section'); el.id = 'nvPres'; el.className = 'nvp'; }
+    el._cle = cle; el.style.setProperty('--nvp-c1', o.couleurs[0]); el.style.setProperty('--nvp-c2', o.couleurs[1]);
+    el.setAttribute('aria-label', o.titreFilm || o.comment);
+    el.innerHTML = '<canvas aria-hidden="true"></canvas>' + (o.intro ? '<p class="nvp-intro">' + esc(o.intro) + '</p>' : '') +
+      '<details' + (o.ouvert || ouvertAvant ? ' open' : '') + '><summary>' + esc(o.comment) + '</summary><ol>' +
+      o.etapes.map(function(s, i){ return '<li><b>' + (i + 1) + '</b><span>' + esc(s) + '</span></li>'; }).join('') + '</ol>' +
+      '<h3>' + esc(o.protege) + '</h3><ul>' + o.protections.map(function(s){ return '<li>' + esc(s) + '</li>'; }).join('') + '</ul></details>';
+    var d = el.querySelector('details'); d.addEventListener('toggle', function(){ el._ouvertUtilisateur = d.open; });
+    if(o.apres && el.previousElementSibling !== o.apres) o.apres.parentNode.insertBefore(el, o.apres.nextSibling);
+    film(el.querySelector('canvas'), o.scene, o.couleurs); }
+  window.NVPresente = {poser:poser, html:html, animer:animer, style:style, scenes:Object.keys(SCENES), dessins:SCENES, hex:hex, rejouer:rejouer, dureeJeu:DUREE_JEU};   /* dessins, hex : pour les films (defis/films) */
+})();
+
+/* ════════════════════════════════════════════════════════════════════
+ LE DÉFI TRANSFORMATION (18 novembre 2026, innovation 7 du plan des 16 : « Transformation Challenge »)
+ Montrer une transformation : couture, décoration, jardinage, dessin, rénovation ou apprentissage. L'avant et l'après
+ sont filmés avec les gabarits du Miroir de La Forge (hexagone, rideau, comparaison, étapes). Jamais le corps.
+ La mention « Avant / après filmé sur NEURAVID » n'est montrée que si le SERVEUR l'a vérifiée. Ni vote ni argent :
+ « Ça m'inspire » dit seulement qu'une transformation a donné envie.
+ Serveur : /v1/transformation (univers), capacité /v1/transformation/capacites.
+ Rien n'est inventé : une valeur inconnue s'écrit « — » ; les exemples n'existent que dans l'aperçu, marqués « Aperçu ».
+ ════════════════════════════════════════════════════════════════════ */
+'use strict';
+var MOI = 'Transformation';
+var LANGUES_UI = {fr:{nom:'Français', loc:'fr-FR'}, en:{nom:'English', loc:'en-GB'}, es:{nom:'Español', loc:'es-ES'}, pt:{nom:'Português', loc:'pt-BR'},
+  ar:{nom:'العربية', loc:'ar-u-nu-latn', rtl:true}, sw:{nom:'Kiswahili', loc:'sw-KE', relire:true}, ha:{nom:'Hausa', loc:'ha-NG', relire:true},
+  yo:{nom:'Yorùbá', loc:'yo-NG', relire:true}, wo:{nom:'Wolof', loc:'fr-SN', relire:true}, bm:{nom:'Bamanankan', loc:'fr-ML', relire:true},
+  ln:{nom:'Lingála', loc:'fr-CD', relire:true}};
+function N(s){ return s; }
+var CATEGORIES = {couture:[N('Couture'), '🧵'], decoration:[N('Décoration'), '🏺'], jardinage:[N('Jardinage'), '🌱'], dessin:[N('Dessin'), '✏️'],
+  renovation:[N('Rénovation'), '🔨'], apprentissage:[N('Apprentissage'), '📈']};
+var LITE = {couture:'mode', decoration:'artisanat', jardinage:'artisanat', dessin:'artisanat', renovation:'artisanat', apprentissage:'autre'};
+/* le gabarit proposé à La Forge (la personne peut le changer) */
+var GABARIT = {couture:'comparaison', decoration:'rideau', jardinage:'etapes', dessin:'etapes', renovation:'rideau', apprentissage:'comparaison'};
+var MOTIFS = {hors_sujet:N('Hors sujet'), corps:N('La vidéo montre un corps qui change, pas un travail'), personne:N('Une autre personne apparaît à l’image'), pas_authentique:N('Ce n’est pas un vrai avant et après'),
+  droits:N('Droits sur les images'), contenu:N('Contenu inapproprié'), qualite:N('Qualité de la vidéo'), autre:N('Autre')};
+var UNITES = {jours:[1, N('jours')], semaines:[7, N('semaines')], mois:[30, N('mois')]};
+
+function $(id){ return document.getElementById(id); }
+function esc(s){ return String(s == null ? '' : s).replace(/[&<>"']/g, function(c){ return {'&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;'}[c]; }); }
+function brut(k){ try{ return localStorage.getItem(k); }catch(e){ return null; } }
+function ecrire(k, v){ try{ localStorage.setItem(k, JSON.stringify(v)); return true; }catch(e){ return false; } }
+function api(){ return window.NV_API_BASE ? String(window.NV_API_BASE).replace(/\/$/, '') : null; }
+function jeton(){ return window.NV_TOKEN ? String(window.NV_TOKEN) : ''; }
+function utilisateur(){ return window.NV_USER && typeof window.NV_USER === 'object' ? window.NV_USER : null; }
+function compte(){ var u = utilisateur(); return u && u.id ? String(u.id) : '—'; }
+function nombre(x){ return typeof x === 'number' && isFinite(x) && x >= 0 ? x : null; }
+function roles(){ var u = utilisateur(); return u && Array.isArray(u.roles) ? u.roles : []; }
+function moderateur(){ var r = roles(); return r.indexOf('moderateur') >= 0 || r.indexOf('verificateur') >= 0 || r.indexOf('organisateur') >= 0 || !!(ST.moiSrv && ST.moiSrv.equipe === true); }
+function redacteur(){ var r = roles(); return r.indexOf('redacteur') >= 0 || r.indexOf('organisateur') >= 0 || !!(ST.moiSrv && ST.moiSrv.redaction === true); }
+
+function langueDetectee(){
+  try{ var hl = /(?:^#|&)lang=([a-z]{2})/.exec(location.hash || ''); if(hl && LANGUES_UI[hl[1]]) return hl[1]; }catch(e){}
+  var c = brut('nv_ui_langue'); if(c){ try{ c = JSON.parse(c); }catch(e){} if(typeof c === 'string' && LANGUES_UI[c]) return c; }
+  try{ if(window.NV_LANG){ var n = String(window.NV_LANG).slice(0, 2).toLowerCase(); if(LANGUES_UI[n]) return n; } }catch(e){}
+  var l = []; try{ l = navigator.languages && navigator.languages.length ? navigator.languages : [navigator.language || 'fr']; }catch(e){}
+  for(var i = 0; i < l.length; i++){ var k = String(l[i] || '').slice(0, 2).toLowerCase(); if(LANGUES_UI[k]) return k; }
+  return 'fr';
+}
+var L = 'fr', LOC = 'fr-FR', DICO = {};
+function poserLangue(l){
+  L = LANGUES_UI[l] ? l : 'fr'; DICO = {};
+  if(L !== 'fr'){ try{ DICO = JSON.parse($('nvI18n-' + L).textContent) || {}; }catch(e){ L = 'fr'; DICO = {}; } }
+  LOC = LANGUES_UI[L].loc;
+  document.documentElement.lang = L; document.documentElement.dir = LANGUES_UI[L].rtl ? 'rtl' : 'ltr';
+}
+function T(s){ var t = DICO[s] || s, a = arguments; return t.replace(/\{(\d)\}/g, function(m, i){ var v = a[+i + 1]; return v == null ? '—' : String(v); }); }
+function nb(x){ var n = nombre(x); if(n == null) return '—'; try{ return n.toLocaleString(LOC); }catch(e){ return String(n); } }
+function drapeau(iso){ iso = String(iso || '').toUpperCase(); if(!/^[A-Z]{2}$/.test(iso)) return ''; return String.fromCodePoint(127397 + iso.charCodeAt(0), 127397 + iso.charCodeAt(1)); }
+function nomPays(iso){ if(!iso) return '—'; try{ return new Intl.DisplayNames([LOC], {type:'region'}).of(String(iso).toUpperCase()) || iso; }catch(e){ return iso; } }
+function dateCourte(iso){ var d = new Date(iso); if(!iso || isNaN(d)) return '—'; try{ return d.toLocaleDateString(LOC, {day:'numeric', month:'long'}); }catch(e){ return String(iso).slice(0, 10); } }
+function categorie(k){ var c = CATEGORIES[k]; return c ? T(c[0]) : '—'; }
+function glyphe(k){ var c = CATEGORIES[k]; return c ? c[1] : '✨'; }
+
+var ST = {apercu:false, repli:false, cap:null, etat:'', vue:'defis', liste:null, defi:null, moiSrv:null, file:null, prise:null, form:{titre:'', etapes:'', travail:'', unite:'jours', droits:false, authentique:false}, envoi:false, sur:{}, occupe:{}, focusVers:null, motifs:{}};
+function cleFilm(){ return 'nv_transformation_film|' + compte(); }
+function travailTexte(j){ var n = nombre(j); if(n == null) return '—'; if(n >= 60 && n % 30 === 0) return T('{0} mois', nb(n / 30)); if(n >= 14 && n % 7 === 0) return T('{0} semaines', nb(n / 7)); return n === 1 ? T('1 jour') : T('{0} jours', nb(n)); }
+
+function appeler(methode, chemin, corps, cle){
+  var h = {Accept:'application/json'}; if(jeton()) h.Authorization = 'Bearer ' + jeton();
+  if(methode !== 'GET') h['Idempotency-Key'] = cle || ('tf-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8));
+  var o = {method:methode, headers:h, mode:'cors', cache:'no-cache'};
+  if(corps instanceof FormData) o.body = corps; else if(corps){ h['Content-Type'] = 'application/json'; o.body = JSON.stringify(corps); }
+  return fetch(api() + chemin, o).then(function(r){
+    return r.text().then(function(t){ var j = null; try{ j = t ? JSON.parse(t) : null; }catch(e){ j = null; }
+      if(!r.ok){ var err = new Error('http ' + r.status); err.status = r.status; err.code = j && (j.erreur || j.code); err.params = j && j.params || {}; throw err; } return j; });
+  });
+}
+function emit(type, payload){
+  var msg = {source:'neuravid', module:MOI, type:type, payload:payload || {}};
+  if(window.NVemit && !window.NVemit.__nvLocal){ try{ window.NVemit(type, msg.payload); }catch(e){} }
+  try{ if(window.flutter_inappwebview) window.flutter_inappwebview.callHandler('nvEvent', msg); }catch(e){}
+  try{ window.dispatchEvent(new CustomEvent('nv:' + type, {detail:msg.payload})); }catch(e){}
+}
+var toastT = 0;
+function toast(t){ var el = $('toast'); el.textContent = t; el.classList.add('on'); clearTimeout(toastT); toastT = setTimeout(function(){ el.classList.remove('on'); }, 3400); }
+var ERREURS = {age_minimum:N('Cette action n’est pas ouverte à votre âge.'), moderation:N('Un texte n’a pas été accepté. Changez-le.'),
+  trop_long:N('Une vidéo de 3 minutes au plus.'), fichier_trop_grand:N('Cette vidéo est trop lourde.'), deja_participe:N('Vous avez déjà une transformation dans ce défi.'),
+  trop_de_refus:N('Deux transformations refusées : ce défi est fermé pour vous.'), trop_d_envois:N('Vous avez déjà envoyé 3 transformations pour ce défi.'),
+  defi_ferme:N('Ce défi est terminé.'), defi_inconnu:N('Ce défi n’est plus disponible.'), droits_requis:N('Cochez la déclaration sur les droits des images.'),
+  authentique_requis:N('Cochez la déclaration : l’avant et l’après sont réels.'),
+  jamais_pour_soi:N('Pas pour votre propre transformation.'), relecture_fermee:N('La relecture de ce défi est terminée.'),
+  duree_inconnue:N('La durée de la vidéo n’est pas encore connue. Réessayez dans un instant.'), creation_inconnue:N('Cette transformation n’est plus disponible.'),
+  trop_de_demandes:N('Trop de demandes. Réessayez plus tard.'), video_manquante:N('Ajoutez une vidéo.'),
+  publication_indisponible:N('Le service est momentanément indisponible. Réessayez dans un instant.')};
+function erreurTexte(e){
+  var c = e && e.code;
+  if(c === 'champ_invalide') return T('Vérifiez le formulaire : un champ n’est pas rempli comme il faut.');
+  if(c && ERREURS[c]) return T(ERREURS[c]);
+  if(e && e.status === 401) return T('Connectez-vous pour continuer.');
+  return navigator.onLine === false ? T('Pas de connexion pour le moment.') : T('Impossible de joindre NEURAVID pour le moment.');
+}
+function ouvrir(id, ctx){
+  var base = window.NV_MODULES_BASE ? String(window.NV_MODULES_BASE).replace(/\/?$/, '/') : '', url = base + 'NV_MODULE_' + id + '.html';
+  emit('open_module', {target:'NV' + id, url:url, contexte:ctx || null});
+  try{ if(ctx) sessionStorage.setItem('nv_ctx_' + id, JSON.stringify(ctx)); }catch(e){}
+  if(window.flutter_inappwebview) return;
+  if(window.NVLien && typeof window.NVLien.ouvrir === 'function'){ try{ window.NVLien.ouvrir('NV' + id, ctx); return; }catch(e){} }
+  try{ location.href = url; }catch(e){}
+}
+
+/* ════════ LES DONNÉES ════════ */
+function chargerCap(){
+  if(ST.apercu){ ST.cap = {transformation:true, secondesMax:180, participer:true}; return Promise.resolve(); }
+  if(!api()){ ST.cap = null; ST.etat = 'sansserveur'; return Promise.resolve(); }
+  return appeler('GET', '/v1/transformation/capacites').then(function(c){ ST.cap = c && c.transformation === true ? c : null; if(!ST.cap) ST.etat = 'indisponible'; });
+}
+function chargerListe(){
+  ST.vue = 'defis'; ST.defi = null;
+  if(ST.apercu){ ST.liste = demo().liste; ST.etat = 'ok'; rendre(); return Promise.resolve(); }
+  if(!ST.cap){ rendre(); return Promise.resolve(); }
+  ST.etat = 'charge'; rendreEtat();
+  return appeler('GET', '/v1/transformation').then(function(o){ ST.liste = o; ST.etat = 'ok'; }, function(){ ST.etat = navigator.onLine === false ? 'horsligne' : 'erreur'; }).then(rendre);
+}
+function chargerDefi(id){
+  ST.vue = 'defi'; ST.defi = null; ST.sur = {};
+  if(ST.apercu){ ST.defi = demo().details[id] || null; ST.focusVers = 'hDefi'; rendre(); return Promise.resolve(); }
+  ST.etat = 'charge'; rendre();
+  return appeler('GET', '/v1/transformation/defis/' + encodeURIComponent(id)).then(function(x){ ST.defi = x; ST.etat = 'ok'; emit('transformation_voir', {defi:id}); },
+    function(e){ ST.etat = 'ok'; toast(erreurTexte(e)); ST.vue = 'defis'; }).then(function(){ ST.focusVers = ST.defi ? 'hDefi' : 'hDefis'; rendre(); });
+}
+function chargerMoi(){
+  ST.vue = 'moi';
+  if(ST.apercu){ if(!ST.moiSrv || !ST.moiSrv.creations) ST.moiSrv = demo().moi; ST.focusVers = 'hMoi'; rendre(); return Promise.resolve(); }
+  ST.etat = 'charge'; rendre();
+  return appeler('GET', '/v1/transformation/moi').then(function(o){ ST.moiSrv = o; ST.etat = 'ok'; }, function(e){ ST.etat = 'ok'; toast(erreurTexte(e)); }).then(function(){ ST.focusVers = 'hMoi'; rendre(); });
+}
+function chargerEquipe(){
+  ST.vue = 'equipe';
+  if(ST.apercu){ ST.file = demo().file; rendre(); return Promise.resolve(); }
+  ST.etat = 'charge'; rendre();
+  return (moderateur() ? appeler('GET', '/v1/transformation/equipe/file').catch(function(e){ toast(erreurTexte(e)); return null; }) : Promise.resolve(null))
+    .then(function(f){ ST.file = f; ST.etat = 'ok'; rendre(); });
+}
+
+/* ════════ L'AFFICHAGE ════════ */
+function rendreEtat(){
+  var el = $('etat'), t = '';
+  if(ST.apercu) t = ST.repli ? T('Aperçu : ce serveur ne propose pas encore cette fonction. Rien n’est envoyé.') : T('Aperçu : des transformations d’exemple, pour découvrir la page.');
+  else if(ST.etat === 'charge') t = T('Chargement…');
+  else if(ST.etat === 'sansserveur' || ST.etat === 'indisponible') t = T('Le Défi Transformation n’est pas encore ouvert.');
+  else if(ST.etat === 'horsligne') t = T('Pas de connexion pour le moment.');
+  else if(ST.etat === 'erreur') t = T('Impossible de joindre NEURAVID pour le moment.');
+  el.textContent = t; el.hidden = !t;
+}
+function onglets(){
+  var o = [['defis', T('Les défis')]];
+  if(jeton() || ST.apercu) o.push(['moi', T('Moi')]);
+  if(moderateur() || redacteur()) o.push(['equipe', T('L’équipe')]);
+  return '<nav class="chips" aria-label="' + esc(T('Le Défi Transformation')) + '">' + o.map(function(x){
+    return '<button type="button" data-vue="' + x[0] + '" aria-pressed="' + (ST.vue === x[0] || (ST.vue === 'defi' && x[0] === 'defis')) + '">' + esc(x[1]) + '</button>'; }).join('') + '</nav>';
+}
+function apercuPuce(){ return ST.apercu ? '<span class="apercu">' + esc(T('Aperçu')) + '</span>' : ''; }
+function videoDe(x){
+  if(x.video && x.video.url) return '<video controls playsinline preload="none"' + (x.video.affiche ? ' poster="' + esc(x.video.affiche) + '"' : '') + ' src="' + esc(x.video.url) + '" aria-label="' + esc(x.titre || T('Le Défi Transformation')) + '"></video>';
+  if(ST.apercu) return '<canvas width="180" height="320" data-demo="' + esc(x.pays || '') + '" aria-hidden="true"></canvas>';
+  return '<div class="vide-v">' + esc(T('Vidéo indisponible pour le moment.')) + '</div>';
+}
+function vignette(x){
+  if(x.video && x.video.url) return '<video muted playsinline tabindex="-1" aria-hidden="true"' + (x.video.affiche ? ' preload="none" poster="' + esc(x.video.affiche) + '"' : ' preload="metadata"') + ' src="' + esc(x.video.url) + '#t=0.5"></video>';
+  if(ST.apercu) return '<canvas width="180" height="320" data-demo="' + esc(x.pays || '') + '" aria-hidden="true"></canvas>';
+  return '<span aria-hidden="true">—</span>';
+}
+function creationsTexte(n){ return nombre(n) == null ? '—' : nombre(n) === 0 ? T('Aucune transformation publiée pour l’instant.') : nombre(n) === 1 ? T('1 transformation') : T('{0} transformations', nb(n)); }
+function rendreDefis(){
+  var l = (ST.liste && ST.liste.defis) || [];
+  var h = '<section aria-labelledby="hDefis"><h2 id="hDefis" tabindex="-1">' + esc(T('Les défis')) + apercuPuce() + '</h2><p class="regle">' + esc(T('Ici, on montre un vrai travail qui change quelque chose, jamais un corps. Ni vote ni argent.')) + '</p>';
+  if(!l.length) return h + '<p class="vide">' + esc(ST.etat === 'ok' ? T('Aucun défi ouvert pour l’instant.') : '—') + '</p></section>';
+  h += l.map(function(d){
+    return '<div class="defi"><div class="mini" aria-hidden="true">' + glyphe(d.categorie) + '</div><div><p class="d">' + esc(categorie(d.categorie)) + ' · ' + esc(d.phase === 'termine' ? T('Terminé') : T('Jusqu’au {0}', dateCourte(d.fin))) + '</p>' +
+      '<h3><button type="button" data-ouvrir="' + esc(d.id) + '">' + esc(d.titre) + '</button></h3><p class="cons">' + esc(d.consigne) + '</p><p class="d">' + esc(creationsTexte(d.nbCreations)) + '</p>' +
+      ((d.creations || []).length ? '<div class="vignettes">' + d.creations.slice(0, 4).map(function(c){ return '<button type="button" class="vg" data-ouvrir="' + esc(d.id) + '" aria-label="' + esc(T('Ouvrir le défi « {0} »', d.titre)) + '">' + vignette(c) + '</button>'; }).join('') + '</div>' : '') + '</div></div>'; }).join('');
+  return h + '</section>';
+}
+function carteCreation(c){
+  var h = '<article class="part">' + videoDe(c);
+  h += '<p class="qui"><span aria-hidden="true">' + drapeau(c.pays) + '</span> ' + esc(nomPays(c.pays)) + (c.auteur && c.auteur.handle ? ' · @' + esc(c.auteur.handle) : '') + '</p>';
+  if(c.titre) h += '<p><b>' + esc(c.titre) + '</b></p>';
+  h += '<p class="d">' + esc(T('Le temps de la transformation :')) + ' <span class="temps">' + esc(travailTexte(c.travailJours)) + '</span></p>';
+  if(c.avantApresVerifie === true) h += '<span class="vrai"><i></i>' + esc(T('Avant / après filmé sur NEURAVID')) + '</span>';
+  if((c.etapes || []).length) h += '<details><summary>' + esc(T('Les étapes')) + '</summary><ol class="etapes">' + c.etapes.map(function(e){ return '<li>' + esc(e) + '</li>'; }).join('') + '</ol></details>';
+  var n = nombre(c.inspire);
+  h += '<button type="button" data-inspire="' + esc(c.id) + '" aria-pressed="' + !!c.inspireMoi + '"' + (c.moi || c.inspireMoi || ST.occupe['a' + c.id] || (!jeton() && !ST.apercu) ? ' disabled' : '') + '>' +
+    esc(c.inspireMoi ? T('Ça vous inspire ✓') : T('Ça m’inspire')) + (n ? ' · ' + esc(nb(n)) : '') + '</button>';
+  return h + '</article>';
+}
+function rendreDefi(){
+  var d = ST.defi; if(!d) return '<p class="vide">' + esc(T('Ce défi n’est plus disponible.')) + '</p>';
+  var h = '<button type="button" class="lien retour" data-vue="defis">' + (LANGUES_UI[L].rtl ? '→ ' : '← ') + esc(T('Les défis')) + '</button>';
+  h += '<section aria-labelledby="hDefi"><div class="jour"><div class="jour-hex" aria-hidden="true"><span>' + glyphe(d.categorie) + '</span></div><div><p class="d">' + esc(categorie(d.categorie)) + ' · ' + esc(d.phase === 'termine' ? T('Terminé') : T('Jusqu’au {0}', dateCourte(d.fin))) + '</p>' +
+    '<h2 id="hDefi" tabindex="-1">' + esc(d.titre) + apercuPuce() + '</h2><p class="cons">' + esc(d.consigne) + '</p></div></div></section>';
+  if(d.phase === 'ouvert') h += rendreParticiper(d);
+  var l = d.creations || [];
+  h += '<section aria-labelledby="hCr"><h2 id="hCr">' + esc(T('Les transformations')) + '</h2>' + (l.length ? '<div class="grille">' + l.map(carteCreation).join('') + '</div>' : '<p class="vide">' + esc(T('Aucune transformation publiée pour l’instant.')) + '</p>') + '</section>';
+  return h;
+}
+function rendreParticiper(d){
+  var m = d.moi || {}, c = m.creation, h = '<section aria-labelledby="hPart"><h2 id="hPart">' + esc(T('Ma transformation')) + '</h2>';
+  if(!jeton() && !ST.apercu) return h + '<p class="d">' + esc(T('Connectez-vous pour continuer.')) + '</p></section>';
+  if(c && (c.etat === 'verification' || c.etat === 'publie')){
+    h += '<p><b>' + esc(c.etat === 'publie' ? T('Publiée') : T('En cours de relecture par l’équipe')) + '</b></p>';
+    if(c.avantApresVerifie === true) h += '<span class="vrai"><i></i>' + esc(T('Avant / après filmé sur NEURAVID')) + '</span>';
+    return h + '</section>';
+  }
+  if(!m.peut){ var r = {age:N('Cette action n’est pas ouverte à votre âge.'), fermee:N('Ce défi est terminé.'), refus:N('Deux transformations refusées : ce défi est fermé pour vous.'),
+      envois:N('Vous avez déjà envoyé 3 transformations pour ce défi.'), indisponible:N('Le service est momentanément indisponible. Réessayez dans un instant.')}[m.raison];
+    return h + (r ? '<p class="d">' + esc(T(r)) + '</p>' : '') + '</section>'; }
+  /* une prise filmée pour un AUTRE défi est gardée (on peut regarder un autre défi sans la perdre) ; elle n'est jamais envoyée ici */
+  if(!priseIci(d)) return h + '<p>' + esc(T('Filmez le vrai avant, puis le vrai après, avec les gabarits du Miroir de La Forge.')) + '</p><div class="actions"><button type="button" class="btn-or" id="bFilmer">' + esc(T('Créer avec La Forge')) + '</button></div></section>';
+  var f = ST.form;
+  h += '<video class="prise" id="vPrise" controls playsinline aria-label="' + esc(T('Ma vidéo')) + '"></video><form class="form" id="fCr">' +
+    '<label>' + esc(T('Titre (facultatif)')) + '<input id="iTitre" maxlength="80" value="' + esc(f.titre) + '"></label>' +
+    '<fieldset class="duree-travail"><legend>' + esc(T('Combien de temps a pris la transformation ?')) + '</legend><input id="iTravail" type="number" min="1" max="730" inputmode="numeric" aria-required="true" aria-label="' + esc(T('Combien de temps a pris la transformation ?')) + '" value="' + esc(f.travail) + '">' +
+      '<select id="iUnite" aria-label="' + esc(T('Unité')) + '">' + Object.keys(UNITES).map(function(k){ return '<option value="' + k + '"' + (f.unite === k ? ' selected' : '') + '>' + esc(T(UNITES[k][1])) + '</option>'; }).join('') + '</select></fieldset>' +
+    '<label>' + esc(T('Les étapes (facultatif, une par ligne, 8 au plus)')) + '<textarea id="iEtapes" rows="4" maxlength="1200">' + esc(f.etapes) + '</textarea></label>' +
+    '<p class="regle">' + esc(T('Montrez l’objet, le lieu ou le travail : une autre personne ne doit pas apparaître à l’image. Jamais un corps qui change.')) + '</p>' +
+    '<label class="case"><input type="checkbox" id="iAuthentique"' + (f.authentique ? ' checked' : '') + '> ' + esc(T('L’avant et l’après sont réels et filmés par moi, sans retouche qui change le résultat.')) + '</label>' +
+    '<label class="case"><input type="checkbox" id="iDroits"' + (f.droits ? ' checked' : '') + '> ' + esc(T('Je montre seulement mon travail et des images dont j’ai les droits.')) + '</label>' +
+    '<button type="submit" class="btn-or"' + (ST.envoi ? ' disabled' : '') + '>' + esc(ST.envoi ? T('Envoi…') : T('Envoyer ma transformation')) + '</button>' +
+    '<button type="button" id="bRefilmer">' + esc(ST.sur.refilmer ? T('Toucher encore pour refilmer') : T('Refilmer')) + '</button>' +
+    '<p class="regle">' + esc(T('L’équipe relit chaque transformation avant de la publier.')) + '</p></form>';
+  return h + '</section>';
+}
+function rendreMoiVue(){
+  var m = ST.moiSrv || {}, h = '<section aria-labelledby="hMoi"><h2 id="hMoi" tabindex="-1">' + esc(T('Mes transformations')) + apercuPuce() + '</h2>';
+  if(!jeton() && !ST.apercu) return h + '<p class="d">' + esc(T('Connectez-vous pour continuer.')) + '</p></section>';
+  var l = m.creations || [];
+  h += l.length ? '<ul>' + l.map(function(x){
+    var et = x.etat === 'publie' ? T('Publiée') : x.etat === 'verification' ? T('En cours de relecture par l’équipe') : x.etat === 'refuse' ? T('Refusée : {0}', T(MOTIFS[x.motif] || ERREURS[x.motif] || 'Autre')) : x.etat === 'close' ? (x.motif === 'annule' ? T('Défi annulé : la transformation redevient privée.') : T('Non relue à temps')) : '—';
+    return '<li><div class="l1"><b>' + esc(x.titre || (x.defi && x.defi.titre) || '—') + '</b><span class="d">' + esc(et) + '</span></div>' +
+      '<p class="d">' + esc(T('Le temps de la transformation :')) + ' ' + esc(travailTexte(x.travailJours)) + '</p>' +
+      (x.avantApresVerifie === true ? '<span class="vrai"><i></i>' + esc(T('Avant / après filmé sur NEURAVID')) + '</span>' : '') +
+      '<p class="d">' + esc(T('« Ça m’inspire » : {0}', nb(x.inspire))) + '</p>' +
+      (x.etat === 'publie' || x.etat === 'verification' ? '<button type="button" data-retirer="' + esc(x.id) + '">' + esc(ST.sur['r' + x.id] ? T('Toucher encore pour retirer') : T('Retirer ma transformation')) + '</button>' : '') + '</li>'; }).join('') + '</ul>'
+    : '<p class="vide">' + esc(T('Aucune transformation pour l’instant.')) + '</p>';
+  return h + '</section>';
+}
+function rendreEquipe(){
+  var h = '';
+  if(redacteur()) h += '<section aria-labelledby="hOuvrir"><h2 id="hOuvrir">' + esc(T('Ouvrir un défi')) + apercuPuce() + '</h2><form class="form" id="fDefi">' +
+    '<label>' + esc(T('Catégorie')) + '<select id="iCat" class="plein">' + Object.keys(CATEGORIES).map(function(k){ return '<option value="' + k + '">' + CATEGORIES[k][1] + ' ' + esc(categorie(k)) + '</option>'; }).join('') + '</select></label>' +
+    '<label>' + esc(T('Titre')) + '<input id="iDTitre" maxlength="80" required></label><label>' + esc(T('La consigne')) + '<textarea id="iConsigne" maxlength="300" rows="3" required></textarea></label>' +
+    '<label>' + esc(T('Durée (jours, de 3 à 60)')) + '<input id="iJours" type="number" min="3" max="60" value="14"></label>' +
+    '<button type="submit" class="btn-or"' + (ST.occupe.ouvrir ? ' disabled' : '') + '>' + esc(T('Ouvrir le défi')) + '</button></form></section>';
+  if(moderateur() && ST.file){
+    var l = ST.file.items || [];
+    h += '<section aria-labelledby="hFile"><h2 id="hFile" tabindex="-1">' + esc(T('Les transformations à relire')) + apercuPuce() + '</h2>' + (l.length ? '<div class="grille">' + l.map(function(t){
+      return '<article class="part">' + videoDe({video:t.url ? {url:t.url} : null, pays:t.pays, titre:t.titre}) + '<p><b>' + esc(t.defi && t.defi.titre) + '</b></p>' +
+        '<p class="d"><span aria-hidden="true">' + drapeau(t.pays) + '</span> ' + esc(nomPays(t.pays)) + ' · ' + (nombre(t.duree) != null ? esc(nb(Math.round(t.duree))) + ' s' : '—') + '</p>' +
+        '<p class="d">' + esc(T('Le temps de la transformation :')) + ' ' + esc(travailTexte(t.travailJours)) + '</p>' +
+        ((t.etapes || []).length ? '<ol class="etapes">' + t.etapes.map(function(e){ return '<li>' + esc(e) + '</li>'; }).join('') + '</ol>' : '') +
+        '<p class="d">' + esc(t.creeSurNeuravid ? T('Créée sur NEURAVID : vérifié par le serveur.') : T('Créée sur NEURAVID : non vérifié.')) + '</p>' +
+        '<p class="d">' + esc(t.filmeSurLeMoment ? T('Le montage dit : seulement des prises filmées sur le moment.') : T('Le montage ne dit pas qu’il est filmé sur le moment.')) + '</p>' +
+        '<button type="button" class="btn-or" data-publier="' + esc(t.id) + '">' + esc(ST.sur['p' + t.id] ? T('Toucher encore pour publier') : T('Publier')) + '</button>' +
+        '<select data-motif="' + esc(t.id) + '" aria-label="' + esc(T('Motif du refus')) + '">' + Object.keys(MOTIFS).map(function(k){ return '<option value="' + k + '"' + (ST.motifs[t.id] === k ? ' selected' : '') + '>' + esc(T(MOTIFS[k])) + '</option>'; }).join('') + '</select>' +
+        '<button type="button" data-refuser="' + esc(t.id) + '">' + esc(ST.sur['x' + t.id] ? T('Toucher encore pour refuser') : T('Refuser')) + '</button></article>'; }).join('') + '</div>'
+      : '<p class="vide">' + esc(T('Aucune création à relire.')) + '</p>') + '</section>';
+  }
+  return h;
+}
+function rendrePied(){
+  var h = '<label>' + esc(T('Langue')) + ' <select id="langue">' + Object.keys(LANGUES_UI).map(function(k){ return '<option value="' + k + '"' + (k === L ? ' selected' : '') + '>' + esc(LANGUES_UI[k].nom) + '</option>'; }).join('') + '</select></label>';
+  if(LANGUES_UI[L].relire) h += '<span>' + esc(T('Traduction en cours de relecture.')) + '</span>';
+  h += '<span>' + esc(T('Participer : dès 13 ans. Ni vote ni argent ; on montre un vrai travail, jamais un corps.')) + '</span>';
+  $('pied').innerHTML = h;
+}
+function rendre(){
+  document.title = T('Le Défi Transformation') + ' · NEURAVID';
+  $('titre').textContent = T('Le Défi Transformation');
+  $('soustitre').textContent = T('Couture, décoration, jardinage, dessin, rénovation, apprentissage : un vrai avant, un vrai après.');
+  rendreEtat();
+  var h = '';
+  if(ST.cap){ h = onglets(); h += ST.vue === 'defi' ? rendreDefi() : ST.vue === 'moi' ? rendreMoiVue() : ST.vue === 'equipe' ? rendreEquipe() : rendreDefis(); }
+  var ae = document.activeElement, focus = null;
+  if(ae && $('contenu').contains(ae)){ if(ae.id) focus = '#' + ae.id; else { var at = ['data-vue', 'data-ouvrir', 'data-inspire', 'data-retirer', 'data-publier', 'data-refuser'];
+    for(var k = 0; k < at.length; k++){ if(ae.hasAttribute(at[k])){ focus = '[' + at[k] + '="' + String(ae.getAttribute(at[k])).replace(/["\\]/g, '') + '"]' + (ae.getAttribute('data-k') ? '[data-k="' + ae.getAttribute('data-k') + '"]' : ''); break; } } } }
+  $('contenu').innerHTML = h;
+  if(focus){ try{ var fe = document.querySelector(focus); if(fe) fe.focus({preventScroll:true}); }catch(e){} }
+  var vp = $('vPrise'); if(ST.prise && vp && ST.prise.url && vp.getAttribute('src') !== ST.prise.url){ try{ vp.setAttribute('src', ST.prise.url); }catch(e){} }
+  Array.prototype.forEach.call(document.querySelectorAll('canvas[data-demo]'), function(c){ demoDessiner(c, c.getAttribute('data-demo')); });
+  if(ST.focusVers){ var fv = $(ST.focusVers); if(fv){ try{ fv.focus({preventScroll:false}); }catch(e){} } ST.focusVers = null; }
+  rendrePied();
+}
+
+/* ════════ LES GESTES ════════ */
+function deuxTouchers(cle){ if(ST.sur[cle]){ delete ST.sur[cle]; return true; } ST.sur[cle] = true; rendre(); setTimeout(function(){ if(ST.sur[cle]){ delete ST.sur[cle]; rendre(); } }, 5000); return false; }
+function noterFilm(o){ o.quand = Date.now(); var t = JSON.stringify(o); try{ sessionStorage.setItem(cleFilm(), t); }catch(e){} try{ localStorage.setItem(cleFilm(), t); }catch(e){} }
+function lireFilm(){ var f = null; try{ f = JSON.parse(sessionStorage.getItem(cleFilm()) || 'null'); }catch(e){} if(!f){ try{ f = JSON.parse(localStorage.getItem(cleFilm()) || 'null'); }catch(e){} } return f; }
+function oublierFilm(){ try{ sessionStorage.removeItem(cleFilm()); }catch(e){} try{ localStorage.removeItem(cleFilm()); }catch(e){} }
+function priseIci(d){ return !!(ST.prise && d && (!ST.prise.defi || ST.prise.defi === d.id)); }
+function filmer(){
+  var d = ST.defi; if(!d) return;
+  if(ST.prise && !priseIci(d)) oublierPrise();                       /* filmer pour CE défi remplace la prise gardée pour un autre */
+  if(ST.apercu){ ST.prise = {url:'', blob:null, apercu:true, defi:d.id}; rendre(); return; }
+  if(!window.NVCamera || !NVCamera.studioJoignable()){ toast(T('La Forge n’est pas joignable ici.')); return; }
+  noterFilm({defi:d.id, form:ST.form, compte:compte()}); emit('transformation_filmer', {defi:d.id});
+  NVCamera.filmer({module:MOI, defi:d.id, titre:T('Le Défi Transformation'), mode:'video', maxSeconds:(ST.cap && nombre(ST.cap.secondesMax)) || 180, nouveaute:'miroir',
+    gabarit:GABARIT[d.categorie] || 'hexagone', studioLite:LITE[d.categorie] || 'autre',
+    regles:[T('Filmez le vrai avant, puis le vrai après, avec les gabarits du Miroir de La Forge.')]});
+}
+function reprendrePrise(){
+  var f = lireFilm();
+  if(!window.NVCamera || !f || !f.defi || f.compte !== compte() || Date.now() - (f.quand || 0) > 3600000) return Promise.resolve(null);
+  return NVCamera.recuperer(MOI, f.defi).then(function(p){
+    if(!p || !p.blob) return null;
+    if(f.form && typeof f.form === 'object') ST.form = Object.assign(ST.form, f.form);
+    ST.prise = {blob:p.blob, url:URL.createObjectURL(p.blob), meta:p.meta || {}, defi:f.defi};
+    return f.defi;
+  }, function(){ return null; });
+}
+function oublierPrise(){ if(ST.prise && ST.prise.url){ try{ URL.revokeObjectURL(ST.prise.url); }catch(e){} } ST.prise = null; oublierFilm(); }
+function lireForm(){
+  var f = ST.form; f.titre = String(($('iTitre') || {}).value || '').trim(); f.etapes = String(($('iEtapes') || {}).value || '');
+  f.travail = String(($('iTravail') || {}).value || '').trim(); f.unite = UNITES[($('iUnite') || {}).value] ? $('iUnite').value : f.unite;
+  f.droits = !!($('iDroits') || {}).checked; f.authentique = !!($('iAuthentique') || {}).checked; return f;
+}
+function envoyer(){
+  var d = ST.defi, pr = ST.prise; if(!d || !priseIci(d) || ST.envoi) return;
+  var f = lireForm(), etapes = f.etapes.split('\n').map(function(x){ return x.trim(); }).filter(Boolean), nt = parseInt(f.travail, 10), jours = nt > 0 ? nt * UNITES[f.unite][0] : 0;
+  var faux = function(el, msg){ document.querySelectorAll('#fCr [aria-invalid]').forEach(function(x){ x.removeAttribute('aria-invalid'); });
+    if(el){ el.setAttribute('aria-invalid', 'true'); try{ el.focus(); }catch(e){} } toast(msg); };
+  if(!(jours >= 1 && jours <= 730)) return faux($('iTravail'), T('Indiquez le temps de la transformation (de 1 jour à 2 ans).'));
+  if(etapes.length > 8 || etapes.some(function(x){ return x.length < 2 || x.length > 140; })) return faux($('iEtapes'), T('Vérifiez le formulaire : un champ n’est pas rempli comme il faut.'));
+  if(!f.authentique) return faux($('iAuthentique'), T('Cochez la déclaration : l’avant et l’après sont réels.'));
+  if(!f.droits) return faux($('iDroits'), T('Cochez la déclaration sur les droits des images.'));
+  ST.envoi = true; rendre();
+  var p;
+  if(ST.apercu){ d.moi = {peut:false, creation:{id:'tc_ap' + Date.now(), etat:'verification'}}; p = Promise.resolve(); }
+  else { var fd = new FormData(); if(f.titre) fd.append('titre', f.titre); fd.append('travail', String(jours)); fd.append('etapes', JSON.stringify(etapes)); fd.append('droits', '1'); fd.append('authentique', '1');
+    var mt = {}; ['provenance', 'teint', 'transformation'].forEach(function(k){ if(pr.meta && pr.meta[k]) mt[k] = pr.meta[k]; }); if(Object.keys(mt).length) fd.append('meta', JSON.stringify(mt));
+    if(pr.meta && nombre(pr.meta.seconds)) fd.append('seconds', String(pr.meta.seconds));
+    fd.append('video', pr.blob, 'transformation.' + (/mp4/.test(pr.blob.type) ? 'mp4' : 'webm')); pr.cle = pr.cle || ('tfc-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6));
+    p = appeler('POST', '/v1/transformation/defis/' + encodeURIComponent(d.id) + '/creations', fd, pr.cle); }
+  p.then(function(){ toast(T('Votre transformation est envoyée : l’équipe la relit avant de la publier.')); emit('transformation_envoyer', {defi:d.id}); oublierPrise();
+      ST.form = {titre:'', etapes:'', travail:'', unite:'jours', droits:false, authentique:false}; ST.envoi = false; return ST.apercu ? rendre() : chargerDefi(d.id); },
+    function(e){ ST.envoi = false; if(e && e.status && e.status < 500) pr.cle = null; toast(erreurTexte(e)); rendre(); });
+}
+function inspire(id){
+  var d = ST.defi, c = d && (d.creations || []).filter(function(x){ return x.id === id; })[0]; if(!c || ST.occupe['a' + id]) return;
+  ST.occupe['a' + id] = true; rendre();
+  (ST.apercu ? Promise.resolve({inspire:(nombre(c.inspire) || 0) + 1}) : appeler('POST', '/v1/transformation/creations/' + encodeURIComponent(id) + '/inspire', {}, cleGeste('i' + id)))
+    .then(function(o){ finGeste('i' + id); c.inspireMoi = true; if(o && nombre(o.inspire) != null) c.inspire = o.inspire; emit('transformation_inspire', {creation:id}); }, function(e){ finGeste('i' + id, e); toast(erreurTexte(e)); })
+    .then(function(){ delete ST.occupe['a' + id]; rendre(); });
+}
+/* une clé par geste (action + transformation), gardée jusqu'à une réponse sûre : un nouvel essai après une réponse perdue ne refait rien */
+function cleGeste(k){ ST.cles = ST.cles || {}; return ST.cles[k] || (ST.cles[k] = 'tf-' + k.replace(/[^\w-]/g, '').slice(0, 40) + '-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6)); }
+function finGeste(k, e){ if(!e || (e.status && e.status < 500 && e.status !== 408 && e.status !== 429)) delete (ST.cles || {})[k]; }
+function retirerCreation(id){
+  if(!deuxTouchers('r' + id)) return;
+  (ST.apercu ? Promise.resolve() : appeler('POST', '/v1/transformation/creations/' + encodeURIComponent(id) + '/retirer', {}, cleGeste('r' + id))).then(function(){ finGeste('r' + id); toast(T('Transformation retirée.'));
+    if(ST.moiSrv) ST.moiSrv.creations = (ST.moiSrv.creations || []).filter(function(x){ return x.id !== id; }); }, function(e){ finGeste('r' + id, e); toast(erreurTexte(e)); }).then(rendre);
+}
+function decider(id, publier){
+  if(!deuxTouchers((publier ? 'p' : 'x') + id)) return;
+  var s = document.querySelector('[data-motif="' + String(id).replace(/["\\]/g, '') + '"]');
+  var kg = (publier ? 'p' : 'x') + id + (publier ? '' : '-' + (s ? s.value : 'autre'));
+  (ST.apercu ? Promise.resolve() : appeler('POST', '/v1/transformation/creations/' + encodeURIComponent(id) + '/decider', publier ? {publier:true} : {publier:false, motif:s ? s.value : 'autre'}, cleGeste(kg)))
+    .then(function(){ finGeste(kg); toast(publier ? T('Transformation publiée.') : T('Transformation refusée.')); if(ST.file) ST.file.items = (ST.file.items || []).filter(function(x){ return x.id !== id; }); ST.focusVers = 'hFile'; },
+      function(e){ finGeste(kg, e); toast(erreurTexte(e)); }).then(rendre);
+}
+function ouvrirDefi(){
+  var c = ($('iCat') || {}).value, ti = String(($('iDTitre') || {}).value || '').trim(), co = String(($('iConsigne') || {}).value || '').trim(), j = parseInt(($('iJours') || {}).value, 10);
+  if(!CATEGORIES[c] || ti.length < 3 || co.length < 3 || !(j >= 3 && j <= 60)){ toast(T('Vérifiez le formulaire : un champ n’est pas rempli comme il faut.')); return; }
+  if(ST.occupe.ouvrir) return; ST.occupe.ouvrir = true; rendre();
+  (ST.apercu ? Promise.resolve({id:'td_ap' + Date.now()}) : appeler('POST', '/v1/transformation/defis', {categorie:c, titre:ti, consigne:co, jours:j}))
+    .then(function(){ toast(T('Défi ouvert.')); emit('transformation_ouvrir', {categorie:c}); }, function(e){ toast(erreurTexte(e)); }).then(function(){ ST.occupe.ouvrir = false; rendre(); });
+}
+
+/* ════════ L'APERÇU (démonstration seulement) ════════ */
+function demo(){
+  var n = Date.now(), J = 864e5, iso = function(x){ return new Date(x).toISOString(); };
+  var mk = function(id, pays, handle, titre, jours, etapes, inspire, vrai){ return {id:id, pays:pays, auteur:handle ? {handle:handle} : null, titre:titre, video:null, travailJours:jours, etapes:etapes, inspire:inspire, avantApresVerifie:!!vrai, creeSurNeuravid:!!vrai, moi:false, inspireMoi:false}; };
+  var c1 = [mk('tc_ap1', 'KE', 'wanjiru_bustani', 'Le potager du balcon', 42, ['Remplir les bacs de terre', 'Semer les tomates et le basilic', 'Arroser chaque matin'], 18, true),
+    mk('tc_ap2', 'SN', 'moussa_jardin', 'La cour fleurie', 90, ['Désherber', 'Planter les boutures', 'Pailler'], 7, true),
+    mk('tc_ap3', 'CI', null, 'Les haricots de l’école', 21, [], 4, false)];
+  var c2 = [mk('tc_ap4', 'MA', 'yasmine_art', 'Du croquis au portrait', 14, ['Le croquis', 'Les ombres', 'Les couleurs'], 25, true)];
+  var d1 = {id:'td_ap1', categorie:'jardinage', titre:'De la terre au jardin', consigne:'Montrez un coin de terre avant, puis ce qui a poussé.', debut:iso(n - 3 * J), fin:iso(n + 25 * J), phase:'ouvert'};
+  var d2 = {id:'td_ap2', categorie:'dessin', titre:'Du croquis à l’œuvre', consigne:'Filmez votre dessin à chaque étape, jusqu’au résultat.', debut:iso(n - 5 * J), fin:iso(n + 9 * J), phase:'ouvert'};
+  var d3 = {id:'td_ap3', categorie:'renovation', titre:'La pièce oubliée', consigne:'Rénovez un coin de chez vous et montrez l’avant et l’après.', debut:iso(n - J), fin:iso(n + 30 * J), phase:'ouvert'};
+  var det = {td_ap1:Object.assign({}, d1, {creations:c1, moi:{peut:true, raison:null, creation:null}}), td_ap2:Object.assign({}, d2, {creations:c2, moi:{peut:true, raison:null, creation:null}}),
+    td_ap3:Object.assign({}, d3, {creations:[], moi:{peut:true, raison:null, creation:null}})};
+  return {liste:{defis:[Object.assign({}, d1, {creations:c1, nbCreations:3}), Object.assign({}, d2, {creations:c2, nbCreations:1}), Object.assign({}, d3, {creations:[], nbCreations:0})]}, details:det,
+    moi:{equipe:true, redaction:true, creations:[{id:'tc_ap7', defi:{id:'td_ap2', titre:'Du croquis à l’œuvre'}, titre:'Mon premier visage', etat:'publie', travailJours:30, avantApresVerifie:true, inspire:11}]},
+    file:{items:[{id:'tc_ap10', defi:{id:'td_ap3', titre:'La pièce oubliée'}, titre:'Le vieux buffet', url:null, duree:64, pays:'GN', travailJours:14, etapes:['Poncer', 'Peindre', 'Vernir'], gabarit:'rideau', creeSurNeuravid:true, filmeSurLeMoment:true}]}};
+}
+function demoDessiner(c, pays){
+  var g = c.getContext('2d'); if(!g) return; var W = c.width, H = c.height, k = ((String(pays).charCodeAt(0) || 70) * 53 + (String(pays).charCodeAt(1) || 70) * 17) % 360;
+  g.fillStyle = 'hsl(' + k + ',55%,26%)'; g.fillRect(0, 0, W / 2, H); g.fillStyle = 'hsl(' + ((k + 50) % 360) + ',70%,34%)'; g.fillRect(W / 2, 0, W / 2, H);
+  g.strokeStyle = '#fff'; g.lineWidth = 2; g.beginPath(); g.moveTo(W / 2, 0); g.lineTo(W / 2, H); g.stroke();
+  g.font = 'bold 12px sans-serif'; g.textAlign = 'center'; g.fillStyle = 'rgba(255,255,255,.85)'; g.fillText(T('Avant'), W / 4, 22); g.fillText(T('Après'), W * 3 / 4, 22);
+  g.font = '54px sans-serif'; g.fillText(drapeau(pays) || '✨', W / 2, H / 2);
+  g.fillStyle = 'rgba(0,0,0,.55)'; g.fillRect(0, H - 26, W, 26); g.fillStyle = '#ffc531'; g.font = 'bold 13px sans-serif'; g.fillText(T('Aperçu'), W / 2, H - 9);
+}
+
+/* ════════ LE DÉMARRAGE ════════ */
+function changerVue(v){
+  ST.sur = {};
+  if(v === 'equipe' && (moderateur() || redacteur())) return chargerEquipe();
+  if(v === 'moi') return chargerMoi();
+  return chargerListe().then(function(){ var b = $('hDefis'); if(b) b.focus(); });
+}
+function demarrer(){
+  poserLangue(langueDetectee());
+  ST.apercu = !api();
+  if(ST.apercu && !utilisateur()){ try{ window.NV_USER = {id:'demo', handle:'visiteur', prenom:'Aya', age:25, majeur:true, iso:'GN'}; }catch(e){} }
+  var ctx = null;
+  try{ ctx = JSON.parse(sessionStorage.getItem('nv_ctx_' + MOI) || 'null'); sessionStorage.removeItem('nv_ctx_' + MOI); }catch(e){}
+  rendre();
+  chargerCap().catch(function(e){ ST.cap = null; ST.etat = e && e.status && e.status < 500 ? 'indisponible' : navigator.onLine === false ? 'horsligne' : 'erreur'; })
+    .then(function(){ if(!ST.cap) return rendre();
+      var m = jeton() && !ST.apercu ? appeler('GET', '/v1/transformation/moi').then(function(o){ ST.moiSrv = o; }, function(){}) : (ST.apercu ? (ST.moiSrv = demo().moi, Promise.resolve()) : Promise.resolve());
+      return m.then(reprendrePrise); })
+    .then(function(did){
+      if(!ST.cap) return;
+      if(did) return chargerDefi(did);
+      if(ctx && typeof ctx.defi === 'string' && /^td_[\w-]{1,45}$/.test(ctx.defi)) return chargerDefi(ctx.defi);   /* seulement un défi d'ici (La Ruche envoie aussi ses propres défis : la liste s'ouvre) */
+      if(ctx && ctx.vue === 'moi') return chargerMoi();
+      if(ctx && ctx.vue === 'equipe' && (moderateur() || redacteur())) return chargerEquipe();
+      return chargerListe();
+    });
+  document.addEventListener('click', function(ev){
+    var b = ev.target && ev.target.closest ? ev.target.closest('button') : null; if(!b) return;
+    var a = function(k){ return b.getAttribute(k); };
+    if(a('data-vue')) changerVue(a('data-vue'));
+    else if(a('data-ouvrir')) chargerDefi(a('data-ouvrir'));
+    else if(a('data-inspire')) inspire(a('data-inspire'));
+    else if(a('data-retirer')) retirerCreation(a('data-retirer'));
+    else if(a('data-publier')) decider(a('data-publier'), true);
+    else if(a('data-refuser')) decider(a('data-refuser'), false);
+    else if(b.id === 'bFilmer') filmer();
+    else if(b.id === 'bRefilmer'){ if(deuxTouchers('refilmer')){ lireForm(); oublierPrise(); filmer(); } }
+  });
+  document.addEventListener('change', function(ev){
+    var t = ev.target; if(!t) return;
+    if(t.id === 'langue'){ var l = t.value; if(!LANGUES_UI[l]) return; ecrire('nv_ui_langue', l); poserLangue(l); lireForm(); rendre(); var s = $('langue'); if(s) s.focus(); }
+    else if(t.hasAttribute && t.hasAttribute('data-motif')) ST.motifs[t.getAttribute('data-motif')] = t.value;
+  });
+  document.addEventListener('submit', function(ev){
+    var f = ev.target; if(!f) return; ev.preventDefault();
+    if(f.id === 'fCr') envoyer(); else if(f.id === 'fDefi') ouvrirDefi();
+  });
+  window.NVTransformation = {etat:function(){ return {etat:ST.etat, vue:ST.vue, apercu:ST.apercu, repli:ST.repli, defis:((ST.liste && ST.liste.defis) || []).length, prise:!!ST.prise, langue:L}; }};
+}
+
+/* ════════ La présentation ════════ */
+var _rendrePres = rendre;
+rendre = function(){ var r = _rendrePres.apply(this, arguments); presenterNouveaute(); return r; };
+function presenterNouveaute(){
+  if(!window.NVPresente) return;
+  var ferme = !ST.cap && !ST.apercu && (ST.etat === 'sansserveur' || ST.etat === 'indisponible');
+  if(!ferme && !((ST.cap || ST.apercu) && ST.vue === 'defis')){ NVPresente.poser(null); return; }
+  NVPresente.poser({cle:'transformation', scene:'transformation', couleurs:['#3fd47a', '#ffc531'], ouvert:ferme, apres:$('etat'), titreFilm:T('Le Défi Transformation'),
+    intro:ferme ? T('Bientôt ouvert ici. Voici ce qui vous attend.') : '', comment:T('Comment ça marche'), protege:T('Ce qui vous protège'),
+    etapes:[T('Choisissez un défi : couture, jardinage, dessin, rénovation…'), T('Filmez le vrai avant, puis le vrai après, avec un gabarit du Miroir.'), T('Dites combien de temps il a fallu, et vos étapes.')],
+    protections:[T('Jamais un corps qui change : un travail, un lieu, un objet.'), T('« Filmé sur NEURAVID » seulement quand le serveur l’a vérifié.'), T('Chaque transformation est relue avant d’être publique.')]});
+}
+
+/* ════════ L'aperçu en repli (rappel de Karamo) : serveur sans la fonction → aperçu marqué « Aperçu », rien n'est envoyé ════════ */
+function repliApercu(){ if(ST.cap || ST.apercu) return false; ST.apercu = true; ST.repli = true;
+  if(!utilisateur()){ try{ window.NV_USER = {id:'demo', handle:'visiteur', prenom:'Aya', age:25, majeur:true, iso:'GN'}; }catch(e){} }
+  return true; }
+(function(){ var cc0 = chargerCap;
+  chargerCap = function(){ return cc0().then(function(){ if(repliApercu()) return cc0(); }, function(e){ if(repliApercu()) return cc0(); throw e; }); }; })();
+
+demarrer();
+})();
+
+</script>
+</body>
+</html>
