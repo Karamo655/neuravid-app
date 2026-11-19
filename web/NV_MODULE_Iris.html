@@ -4394,10 +4394,13 @@ function majEnvoi(){
 }
 function publier(rec){
   var b = api(); if(!b || !rec.blob || rec.publie || rec.envoi != null) return;
+  /* 19 nov. 2026 : la vraie adresse de publication (/v1/publications) ; une vidéo trop lourde (30 Mo au plus, limite du
+     serveur) est signalée AVANT l'envoi, au lieu d'un échec à 99 % */
+  if(rec.blob.size > 30 * 1024 * 1024){ rec.echec = true; majMes(); toast('Cette vidéo est trop lourde pour être publiée. Elle reste sur votre téléphone.'); emit('upload_failed', {local:rec.id, status:413}); return; }
   var fd = new FormData();
-  fd.append('video', rec.blob, rec.name || 'video.mp4'); fd.append('title', rec.titre || ''); fd.append('session', SESSION);
+  fd.append('video', rec.blob, rec.name || 'video.mp4'); fd.append('caption', rec.titre || ''); fd.append('session', SESSION);
   var x = new XMLHttpRequest();
-  x.open('POST', b + '/v1/posts');
+  x.open('POST', b + '/v1/publications');
   if(window.NV_TOKEN) x.setRequestHeader('Authorization', 'Bearer ' + window.NV_TOKEN);
   rec.envoi = 0; rec.echec = false; majEnvoi(); majMes();
   x.upload.onprogress = function(e){ if(e.lengthComputable){ rec.envoi = Math.min(99, Math.round(100 * e.loaded / e.total)); majEnvoi(); majMes(); } };
