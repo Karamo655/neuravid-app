@@ -919,7 +919,7 @@ body.prive .qr,body.prive .court,body.prive .b-lignes{filter:blur(16px)}
     el.innerHTML = E.items.map(function(it, k){
       var src = urlOk(it.url), boucle = E.enchainer || it.direct ? '' : ' loop';
       return '<section class="nvl-s' + (it.direct ? ' direct' : '') + '" data-k="' + k + '">' +
-        (src ? '<video playsinline webkit-playsinline' + (it.crossOrigin ? ' crossorigin="anonymous"' : '') + boucle + ' preload="' + (Math.abs(k - depart) < 2 && (!it.direct || k === depart) ? 'auto' : it.direct ? 'none' : 'metadata') + '" src="' + esc(src) + '"' + (urlOk(it.poster) ? ' poster="' + esc(it.poster) + '"' : '') + '></video>' : '<video playsinline webkit-playsinline' + boucle + ' data-nvlblob="' + k + '"' + (urlOk(it.poster) ? ' poster="' + esc(it.poster) + '"' : '') + '></video>') +
+        (src ? '<video playsinline webkit-playsinline' + (it.crossOrigin ? ' crossorigin="anonymous"' : '') + boucle + ' preload="' + (k === depart ? 'auto' : it.direct ? 'none' : 'none" data-nvlattend="1') + '" src="' + esc(src) + '"' + (urlOk(it.poster) ? ' poster="' + esc(it.poster) + '"' : '') + '></video>' : '<video playsinline webkit-playsinline' + boucle + ' data-nvlblob="' + k + '"' + (urlOk(it.poster) ? ' poster="' + esc(it.poster) + '"' : '') + '></video>') +
         '<div class="nvl-ombre"></div>' + (E.calque ? '<div class="nvl-calque" data-nvlcal="' + k + '"></div>' : '') +
         '<div class="nvl-info"><div class="nvl-aut"><span class="nvl-av"' + avStyle(it) + '>' + (it.photo ? '' : esc(String(it.auteur || '✦').replace(/^@/, '').charAt(0).toUpperCase())) + '</span><b><bdi>' + esc(it.auteur || '') + '</bdi></b>' + (it.drapeau ? '<span class="nvl-dr">' + esc(it.drapeau) + '</span>' : '') +
           (it.moi ? '<span class="nvl-toi">' + esc(it.etatMoi || 'Vous') + '</span>' : '') + '</div>' +
@@ -6715,5 +6715,6 @@ demarrer();
 })();
 
 </script><!--/NV_VERS_IRIS-->
+<script>/* NV_LECTEUR_ATTENTE v43 : la suivante se prépare dès que la vidéo qui joue a 12 s d'avance (19 nov. 2026) */(function(){if(window.__nvlAttente)return;window.__nvlAttente=1;document.addEventListener('progress',function(e){var v=e.target;if(!v||v.tagName!=='VIDEO'||v.paused||!v.closest)return;var s=v.closest('.nvl-s');if(!s)return;var n=s.nextElementSibling,w=n&&n.querySelector&&n.querySelector('video[data-nvlattend]');if(!w||w.preload==='auto')return;try{var t=v.currentTime,b=v.buffered,d=v.duration;for(var k=0;k<b.length;k++){if(b.start(k)<=t+.3&&b.end(k)>=t){if(b.end(k)-t>=12||(isFinite(d)&&d>0&&b.end(k)>=d-.5))w.preload='auto';break;}}}catch(x){}},true);})();</script>
 </body>
 </html>

@@ -2543,6 +2543,8 @@ function brancherVideo(o){
   /* IRIS Intelligence : blocages (qualité pendant la lecture, mesure de la lecture) */
   v.addEventListener('playing', function(){ o.enBascule = false; if(o.idx === st.i && !o.joue){ o.joue = true; o.debutJ = Date.now(); } });
   v.addEventListener('waiting', function(){ noterBlocage(o); });
+  /* la suivante se prépare dès que celle-ci a pris de l'avance (relu à chaque morceau reçu) */
+  v.addEventListener('progress', function(){ if(o.idx === st.i) majPrechargement(); });
   v.addEventListener('pause', function(){ if(o.idx === st.i) taireDescription(); });
   v.addEventListener('canplay', function(){ clearTimeout(attenteT); o.el.classList.remove('attente'); });
   v.addEventListener('timeupdate', function(){ if(o.idx === st.i){ progression(); recoTemps(o); } });
@@ -2597,8 +2599,26 @@ addEventListener('offline', function(){ toast('Connexion perdue : les vidéos d�
    19 nov. 2026 : hors économie, seule la SUIVANTE se prépare en entier (la vidéo à l'écran garde le réseau), relu à chaque passage */
 function prechargement(idx){
   if(idx === st.i) return 'auto';
-  if(economie()) return Math.abs(idx - st.i) <= 1 ? 'metadata' : 'none';
-  return idx === st.i + 1 ? 'auto' : 'metadata';
+  if(economie()) return 'none';
+  /* 19 nov. 2026 (v43) : la suivante ne se prépare en entier QUE lorsque la vidéo à l'écran a de l'avance (12 s chargées
+     devant elle, ou chargée jusqu'au bout) ; avant, elle ne charge RIEN (l'affiche reste montrée) : sur un réseau moyen, deux
+     vidéos qui se chargent ensemble calaient celle qu'on regarde (banc du 19 nov., 4G à 4 Mbit/s : 11,6 s jouées sur 15 → 15 sur 15) */
+  return idx === st.i + 1 && courantAvance() ? 'auto' : 'none';
+}
+function courantAvance(){
+  var o = slotDe(st.i); if(!o || o.flux) return true;
+  var v = o.video;
+  try{
+    if(v.readyState < 2) return false;
+    var t = v.currentTime || 0, d = v.duration, b = v.buffered;
+    for(var k = 0; k < b.length; k++){
+      if(b.start(k) <= t + .3 && b.end(k) >= t){ return b.end(k) - t >= 12 || (isFinite(d) && d > 0 && b.end(k) >= d - .5); }
+    }
+  }catch(e){}
+  return false;
+}
+function majPrechargement(){
+  slots.forEach(function(o){ if(o.idx >= 0 && !o.flux){ try{ var pr = prechargement(o.idx); if(o.video.preload !== pr) o.video.preload = pr; }catch(e){} } });
 }
 function remplir(o, idx){
   if(o.idx === idx && o.el.dataset.rempli === '1') return;
@@ -2714,7 +2734,7 @@ function quitterVue(){
   signal('view_end', {watched:+vu.toFixed(1), completed:!!(o.video.duration && o.video.currentTime >= o.video.duration - .5)});
 }
 function activer(){
-  slots.forEach(function(o){ if(o.idx >= 0 && !o.flux){ try{ var pr = prechargement(o.idx); if(o.video.preload !== pr) o.video.preload = pr; }catch(e){} } });
+  majPrechargement();
   slots.forEach(function(o){ if(o.idx !== st.i){ try{ o.video.pause(); }catch(e){} if(o.flux && o.flux.direct) fermerFlux(o); } });
   (function(){ var v0 = st.vue[st.i], o0 = slotDe(st.i);
     document.body.classList.toggle('direct', !!(v0 && v0.type === 'direct'));
