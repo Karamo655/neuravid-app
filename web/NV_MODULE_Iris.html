@@ -2593,6 +2593,13 @@ addEventListener('online', function(){
   toast('Connexion retrouvée');
 });
 addEventListener('offline', function(){ toast('Connexion perdue : les vidéos déjà chargées et celles de votre téléphone continuent.'); });
+/* économie de données : seule la vidéo à l'écran se charge en entier ; les voisines attendent.
+   19 nov. 2026 : hors économie, seule la SUIVANTE se prépare en entier (la vidéo à l'écran garde le réseau), relu à chaque passage */
+function prechargement(idx){
+  if(idx === st.i) return 'auto';
+  if(economie()) return Math.abs(idx - st.i) <= 1 ? 'metadata' : 'none';
+  return idx === st.i + 1 ? 'auto' : 'metadata';
+}
 function remplir(o, idx){
   if(o.idx === idx && o.el.dataset.rempli === '1') return;
   o.idx = idx; o.el.dataset.rempli = '1'; o.essais = 0; o.joue = false; o.blocs = []; o.dernierBloc = 0; o.changeQ = 0; o.debutJ = 0; o.enBascule = false;
@@ -2619,8 +2626,7 @@ function remplir(o, idx){
   o.fond.style.backgroundImage = v.thumbnail ? 'url("' + String(v.thumbnail).replace(/"/g, '%22') + '")' : '';
   vd.muted = true;
   vd.loop = st.boucle;
-  /* économie de données : seule la vidéo à l'écran se charge en entier ; les voisines attendent */
-  vd.preload = idx === st.i ? 'auto' : (economie() ? (Math.abs(idx - st.i) <= 1 ? 'metadata' : 'none') : (Math.abs(idx - st.i) <= 1 ? 'auto' : 'metadata'));
+  vd.preload = prechargement(idx);
   if(v.thumbnail) vd.poster = v.thumbnail; else vd.removeAttribute('poster');
   fermerFlux(o);
   if(!ageOk(v)){
@@ -2708,6 +2714,7 @@ function quitterVue(){
   signal('view_end', {watched:+vu.toFixed(1), completed:!!(o.video.duration && o.video.currentTime >= o.video.duration - .5)});
 }
 function activer(){
+  slots.forEach(function(o){ if(o.idx >= 0 && !o.flux){ try{ var pr = prechargement(o.idx); if(o.video.preload !== pr) o.video.preload = pr; }catch(e){} } });
   slots.forEach(function(o){ if(o.idx !== st.i){ try{ o.video.pause(); }catch(e){} if(o.flux && o.flux.direct) fermerFlux(o); } });
   (function(){ var v0 = st.vue[st.i], o0 = slotDe(st.i);
     document.body.classList.toggle('direct', !!(v0 && v0.type === 'direct'));
@@ -2805,8 +2812,8 @@ function majInfos(v){
   $('arc').style.visibility = v ? 'visible' : 'hidden';
   $('defi').classList.remove('on');
   if(!v) return;
-  $('nom').textContent = v.author;
-  $('avatarIni').textContent = (String(v.author || (window.NV_USER && window.NV_USER.nom) || 'N').replace(/^@/, '')[0] || 'N').toUpperCase();
+  $('nom').textContent = nomAffiche(v.author, v.authorId) || v.author;
+  $('avatarIni').textContent = (String(nomAffiche(v.author, v.authorId) || v.author || (window.NV_USER && window.NV_USER.nom) || 'N').replace(/^@/, '')[0] || 'N').toUpperCase();
   $('avatarIni').style.backgroundImage = v.avatar ? 'url("' + String(v.avatar).replace(/"/g, '%22') + '")' : '';
   if(v.avatar) $('avatarIni').textContent = '';
   $('pays').textContent = v.local ? '' : [v.country, v.nomPays].filter(Boolean).join(' ');
@@ -2823,7 +2830,7 @@ function majInfos(v){
   if(v.sound) $('nomSon').setAttribute('data-brut', ''); else $('nomSon').removeAttribute('data-brut');
   /* le nom de l'auteur est isolé (<bdi>) : « @nom » reste lisible même en arabe */
   if(v.sound) $('nomSon').textContent = v.sound.title || v.sound.nom || v.sound;
-  else $('nomSon').innerHTML = esc(t('Son original')) + ' · <bdi dir="ltr">' + esc(v.author || '') + '</bdi>';
+  else $('nomSon').innerHTML = esc(t('Son original')) + ' · <bdi dir="ltr">' + esc(nomAffiche(v.author, v.authorId) || v.author || '') + '</bdi>';
   var suivi = !!st.suivis[v.author];
   $('btnSuivre').textContent = t(suivi ? 'Abonné' : 'Suivre'); $('btnSuivre').classList.toggle('on', suivi);
   var bc = $('btnSuivreCoin'); bc.hidden = !!v.local; bc.classList.toggle('on', suivi); bc.textContent = suivi ? '✓' : '+';
@@ -3496,6 +3503,18 @@ $('btnEmo').innerHTML = svg('emoji');
 $('btnMicro').innerHTML = svg('micro');
 $('btnCam').innerHTML = svg('camera');
 
+/* 19 nov. 2026 : jamais l'identifiant interne d'un compte (« @u-… ») à l'écran : mon propre nom, sinon « Une personne de NEURAVID » */
+function nomAffiche(a, id){
+  a = String(a || '');
+  if(!/^@?u-[0-9a-f]{8,}$/i.test(a)) return a;
+  var u = window.NV_USER;
+  if(u && ((id && String(u.id) === String(id)) || ('@' + u.id) === a || u.id === a)){
+    var n = [u.prenom, u.nom].filter(Boolean).join(' ').trim();
+    if(u.prenom && u.nom && String(u.nom).indexOf(u.prenom) === 0) n = String(u.nom);
+    if(n) return n;
+  }
+  return t('Une personne de NEURAVID');
+}
 function urlComs(v){ return api() + '/v1/posts/' + encodeURIComponent(v.id) + '/comments'; }
 function comsServeur(v){ return !!(api() && v && !v.local && !v.demo); }
 function moiCom(){ return (window.NV_USER && (window.NV_USER.handle || window.NV_USER.nom)) || 'Vous'; }
