@@ -2341,9 +2341,15 @@ function noterBlocage(o){
   recoBlocage(o);
   if(o.idx !== st.i) return;
   var now = Date.now(); o.blocs = (o.blocs || []).filter(function(x){ return now - x < 20000; }); o.blocs.push(now); o.dernierBloc = now;
-  if(o.blocs.length >= 2 && st.pref.qualite !== 'haute' && changerQualite(o, -1)) o.blocs = [];
+  if(o.blocs.length >= 2 && st.pref.qualite !== 'haute' && changerQualite(o, -1)){ o.blocs = []; return; }
+  /* un seul calage qui dure (19 nov. 2026) : après 2,5 s sans image, la version plus légère prend le relais */
+  clearTimeout(o.blocLongT); var vd = o.video, depart = vd.currentTime;
+  o.blocLongT = setTimeout(function(){
+    if(o.idx !== st.i || vd.paused || st.pref.qualite === 'haute' || vd.readyState >= 3 || Math.abs(vd.currentTime - depart) > .3) return;
+    if(changerQualite(o, -1)) o.blocs = [];
+  }, 2500);
 }
-function changerQualite(o, sens){
+function changerQualite(o, sens, sansPlafond){
   var v = st.vue[o.idx]; if(!v || v.local || v.demo) return false;
   if(o.flux && o.flux.niveaux) return o.flux.niveaux.changer(sens);
   if(o.flux) return false;
@@ -2352,10 +2358,12 @@ function changerQualite(o, sens){
   var n = k + sens; if(n < 0 || n >= l.length) return false;
   if(sens > 0){ var plafond = srcs.indexOf(choisirSource(v)); if(plafond < 0 || n > plafond) return false; }
   var t0 = vd.currentTime || 0, jouait = !vd.paused; o.changeQ = Date.now(); o.blocs = []; o.enBascule = true;
+  if(sens < 0 && !sansPlafond){ QUALITE.plafond = n; QUALITE.depuis = Date.now(); } else if(sens > 0 && QUALITE.plafond != null && n > QUALITE.plafond) QUALITE.plafond = n;
   v.src = l[n].src;
   vd.addEventListener('loadedmetadata', function f(){ vd.removeEventListener('loadedmetadata', f); try{ vd.currentTime = t0; }catch(e){} if(jouait && o.idx === st.i) jouer(vd); });
   vd.src = l[n].src; try{ vd.load(); }catch(e){}
   emit('quality_change', {clip:v.id, hauteur:l[n].h || null, sens:sens});
+  if(sens < 0 && !sansPlafond) setTimeout(reprendreVoisines, 0);
   return true;
 }
 setInterval(function(){
@@ -2581,6 +2589,8 @@ function brancherVideo(o){
   v.addEventListener('error', function(){
     if(!v.getAttribute('src')) return;
     clearTimeout(garde);
+    /* une version illisible ici : la plus légère (H.264) est essayée avant d'abandonner */
+    if(o.idx === st.i && navigator.onLine !== false && changerQualite(o, -1, true)) return;   /* un fichier, pas le réseau : les suivantes ne baissent pas */
     var it = st.vue[o.idx] || {};
     o.el.classList.remove('attente'); o.el.classList.add('erreur');
     o.etat.innerHTML = it.local ? '<b>Ce téléphone ne sait pas lire ce format</b>Essayez une vidéo .mp4. Passage à la suivante…'
@@ -2606,7 +2616,8 @@ function prechargement(idx){
   return idx === st.i + 1 && courantAvance() ? 'auto' : 'none';
 }
 function courantAvance(){
-  var o = slotDe(st.i); if(!o || o.flux) return true;
+  var o = slotDe(st.i); if(!o) return false;            /* au tout début (la vidéo à l'écran pas encore posée) : la suivante attend */
+  if(o.flux) return true;
   var v = o.video;
   try{
     if(v.readyState < 2) return false;
@@ -2751,6 +2762,7 @@ function activer(){
   recoDebut(v, o);
   reprendre(v, o);
   jouer(o.video);
+  gardeDemarrage(o);
   debutVue = Date.now();
   if(!v.local && !v.demo && v.type !== 'direct') st.derniereServeur = v.id;
   prechargerSuivantes();
@@ -4142,12 +4154,47 @@ function versions(v){
 }
 function choisirSource(v){
   var l = versions(v); if(!l.length) return '';
-  if(economie()) return l[0].src;
+  /* « Économie de données » choisie, ou le téléphone l'annonce (2G, économie) : la plus légère ; sinon le débit décide */
+  var c = navigator.connection || {};
+  if(st.pref.qualite === 'eco' || (st.pref.qualite === 'auto' && (c.saveData || /(^|-)2g/.test(c.effectiveType || '')))) return l[0].src;
   if(st.pref.qualite === 'haute') return l[l.length - 1].src;
-  /* automatique : la plus petite version qui couvre l'écran (sans dépasser 1080), sinon la plus grande */
+  /* automatique : la plus petite version qui couvre l'écran (sans dépasser 1080), sinon la plus grande… */
   var besoin = Math.min(1080, Math.round((screen.height || 800) * Math.min(2, devicePixelRatio || 1) * .6));
-  for(var i = 0; i < l.length; i++) if(l[i].h >= besoin) return l[i].src;
-  return l[l.length - 1].src;
+  var k = l.length - 1;
+  for(var i = 0; i < l.length; i++) if(l[i].h >= besoin){ k = i; break; }
+  /* …sans dépasser ce que le réseau porte (19 nov. 2026) : le débit d'une version × 1,6 sous le débit annoncé par le
+     téléphone ; après un calage, les vidéos suivantes commencent plus bas (QUALITE.plafond), jusqu'à 60 s sans calage */
+  return l[Math.max(0, Math.min(k, plafondReseau(l)))].src;
+}
+var QUALITE = {plafond:null, depuis:0};
+/* après un calage : les vidéos suivantes (pas celle à l'écran) reprennent la version que le réseau porte */
+function reprendreVoisines(){
+  st.tout.forEach(function(x){ if(x && !x.local && !x.demo && x !== st.vue[st.i]){ var n = choisirSource(x); if(n) x.src = n; } });
+  slots.forEach(function(s){
+    if(s.idx === st.i || s.idx < 0 || s.flux) return;
+    var it = st.vue[s.idx];
+    if(it && !it.local && !it.demo && versions(it).length && s.video.getAttribute('src') !== it.src){ s.el.dataset.rempli = ''; remplir(s, s.idx); }
+  });
+}
+/* une vidéo qui ne démarre pas en 3 s (aucune image reçue) passe à sa version plus légère (19 nov. 2026) */
+function gardeDemarrage(o){
+  clearTimeout(o.demarrageT); var idx = o.idx;
+  o.demarrageT = setTimeout(function(){
+    var vd = o.video;
+    if(o.idx !== idx || idx !== st.i || o.joue || document.hidden || vd.paused || navigator.onLine === false || vd.readyState >= 3 || st.pref.qualite === 'haute') return;
+    if(changerQualite(o, -1)) gardeDemarrage(o);
+  }, 3000);
+}
+function plafondReseau(l){
+  var c = navigator.connection || {}, dispo = typeof c.downlink === 'number' && c.downlink > 0 ? c.downlink * 1000 : 0;
+  var n = l.length - 1;
+  if(dispo){ n = 0; for(var i = l.length - 1; i >= 0; i--) if(!l[i].d || l[i].d * 1.6 <= dispo){ n = i; break; } }
+  else if(l.length > 2) n = Math.ceil((l.length - 1) / 2);           /* débit inconnu (iPhone) : la version moyenne (540 sur 240/360/540/720) */
+  if(QUALITE.plafond != null){
+    if(Date.now() - QUALITE.depuis > 60000) QUALITE.plafond = null;
+    else n = Math.min(n, QUALITE.plafond);
+  }
+  return n;
 }
 function appliquerPrefs(){
   document.body.classList.toggle('st-grand', st.pref.soustitres === 'grand');
