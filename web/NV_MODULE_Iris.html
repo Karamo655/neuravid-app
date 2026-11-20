@@ -4292,7 +4292,7 @@ function economie(){ return st.pref.qualite === 'eco' || (st.pref.qualite === 'a
 /* les versions d'une vidéo : {sources:[{src, hauteur|height, debit|bitrate}]} ou {sources:{low, high, hd}} (le serveur choisit le format) */
 function versions(v){
   var s = v && v.sources; if(!s) return [];
-  var l = Array.isArray(s) ? s.map(function(x){ return x && typeof x === 'object' ? {src:x.src || x.url, h:+(x.hauteur || x.height) || 0, d:+(x.debit || x.bitrate) || 0} : null; })
+  var l = Array.isArray(s) ? s.map(function(x){ return x && typeof x === 'object' ? {src:x.src || x.url, h:+(x.hauteur || x.height) || 0, w:+(x.largeur || x.width) || 0, d:+(x.debit || x.bitrate) || 0} : null; })
     : [['low', 360], ['high', 720], ['hd', 1080]].map(function(k){ return s[k[0]] ? {src:s[k[0]], h:k[1], d:0} : null; });
   return l.filter(function(x){ return x && typeof x.src === 'string' && x.src; }).sort(function(a, b){ return (a.h - b.h) || (a.d - b.d); });
 }
@@ -4308,6 +4308,8 @@ function choisirSource(v){
   for(var i = 0; i < l.length; i++) if(l[i].h >= besoin){ k = i; break; }
   /* …sans dépasser ce que le réseau porte (19 nov. 2026) : le débit d'une version × 1,6 sous le débit annoncé par le
      téléphone ; après un calage, les vidéos suivantes commencent plus bas (QUALITE.plafond), jusqu'à 60 s sans calage */
+  /* 20 nov. 2026 : la 1080 seulement en Wi-Fi ou réseau fixe ; sur les données mobiles, la 720 au plus (le forfait) */
+  if(c.type === 'cellular') while(k > 0 && Math.min(l[k].h, l[k].w || l[k].h) > 720) k--;
   return l[Math.max(0, Math.min(k, plafondReseau(l)))].src;
 }
 var QUALITE = {plafond:null, depuis:0};

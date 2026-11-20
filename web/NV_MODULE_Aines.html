@@ -112,7 +112,7 @@
     pilotees:function(){ return {css:pilotes.length, svg:svgs.length}; }};
 })();</script><!--/NV_VITESSE-->
 <!--NV_QUALITE--><script>/* NEURAVID — le choix de la qualité des vidéos, commun à tous les modules (20 nov. 2026, étape 2 de la vitesse de lecture).
-   Le serveur envoie maintenant, à côté de chaque vidéo, toutes ses versions légères (`sources` : 240 / 360 / 540 / 720,
+   Le serveur envoie maintenant, à côté de chaque vidéo, toutes ses versions légères (`sources` : 240 / 360 / 540 / 720 / 1080,
    avec leur taille et leur débit). Ce petit script, posé en tête de chaque module (sauf Iris, qui a son propre choix,
    et La Forge), choisit pour chaque <video> la version qui convient :
      · assez grande pour la place que la vidéo prend vraiment à l'écran (un petit hexagone de l'accueil prend la petite) ;
@@ -183,7 +183,7 @@
     if (!c) return {inconnu: true};
     var leger = c.saveData === true || /(^|-)2g$/.test(c.effectiveType || '');
     var d = typeof c.downlink === 'number' && c.downlink > 0 ? c.downlink * 1000 : 0;   // kbit/s
-    return {leger: leger, debit: d, inconnu: !d};
+    return {leger: leger, debit: d, inconnu: !d, mobile: c.type === 'cellular'};
   }
   function besoin(el){
     var r = el.getBoundingClientRect ? el.getBoundingClientRect() : null;
@@ -201,6 +201,8 @@
     while (i < v.length - 1 && v[i].cote && v[i].cote < place * 0.85) i++;
     if (n.inconnu) i = Math.min(i, Math.ceil((v.length - 1) / 2));               // débit inconnu (iPhone) : au plus celle du milieu
     else while (i > 0 && v[i].debit && v[i].debit * 1.6 > n.debit) i--;          // jamais plus lourd que le réseau
+    // 20 nov. 2026 (v50) : la 1080 seulement en Wi-Fi ou réseau fixe ; sur les données mobiles, la 720 au plus (le forfait)
+    if (n.mobile) while (i > 0 && v[i].cote > 720) i--;
     if (Date.now() < plafondJusqua) i = Math.max(0, i - 1);
     return v[i];
   }
