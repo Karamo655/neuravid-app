@@ -1915,6 +1915,8 @@ body.feuille-ouverte .raccourcis{visibility:hidden}
 #app .prisme-nom{max-width:100%;box-sizing:border-box;overflow-wrap:anywhere}
 #ciel .reprendre .rp-i{max-width:100%;min-width:0;box-sizing:border-box}#ciel .reprendre .rp-i>button:first-child{min-width:0;flex:1 1 auto}#ciel .reprendre .rp-x{flex:none}   /* « Reprendre » ne dépasse plus de l'écran, ni à gauche ni à droite */
 @media (max-width:720px){#app .prisme-nom{max-width:calc(100% - 2 * max(0px, var(--rc-place,74px) - 16px))}#ciel #reprendre{padding-inline:max(0px, calc(var(--rc-place,74px) - 16px))!important}}
+/* 20 nov. 2026 : les points du carrousel en fenêtre */
+.points i[hidden]{display:none}.points i.bord{transform:scale(.6)}
 </style>
 </head>
 <body>
@@ -3060,6 +3062,11 @@ window.NVCiel = {celebrer:celebrer, arreterFete:arreterFete, victoire:victoireRe
    Glisser pour tourner ; toucher l'astre de devant pour y entrer ; il tourne seul tant qu'on ne le touche pas.
    ════════════════════════════════════════════════════════════════════ */
 var PRISME_IDS = ['Player', 'Live', 'Orbite', 'Baobab', 'Battle', 'Arena', 'Artistes', 'CinemaWorld', 'MissMaster', 'ArenaArts', 'StoryUniverse', 'LoveUniverse', 'ViralStorm', 'ChallengeUniverse'];
+/* 20 nov. 2026 (demande de Karamo) : tous les univers du menu qui ont un contenu entrent dans le carrousel, comme les autres,
+   à la suite des 14 d'avant (ordre du menu) ; chaque écran montre la vraie vidéo de son univers dès qu'il y en a une. */
+PRISME_IDS = PRISME_IDS.concat(['Projecteur', 'Aines', 'Festival', 'Events', 'TalentJour', 'Tresse', 'Pagne', 'Cote', 'SansFrontieres', 'Champions',
+  'StyleUniverse', 'Transformation', 'Progres', 'Academie', 'Revelation', 'Create', 'Souvenirs', 'Savoir', 'Marche', 'Studio', 'Conteur', 'Griot',
+  'TalentMatch', 'Communautes']);
 
 /* ════════ LES PLANÈTES ════════
    Chaque univers a sa planète (aucune n'est pareille) : un océan et ses continents pour Le fil, un monde de lave qui bat
@@ -3165,7 +3172,9 @@ function placerPrisme(){ var n = PRISME.l.length, el = $('orbite'); if(!el || !n
     b.style.setProperty('--d', base + 'px'); b.style.transform = 'translate(' + q.x.toFixed(1) + 'px,' + q.y.toFixed(1) + 'px) scale(' + q.s.toFixed(3) + ')'; b.style.zIndex = q.z; b.style.opacity = q.o.toFixed(2); b.style.visibility = q.o < .02 ? 'hidden' : '';
     var devant = Math.abs(d) < .5; b.classList.toggle('devant', devant); b.classList.toggle('proche', Math.abs(d) < 1.6); b.tabIndex = devant ? 0 : -1; }); }
 function nommerPrisme(){ var m = PRISME.l[PRISME.i]; if(!m) return; $('prisme').style.setProperty('--cP', m.c); poser($('prismeNom'), '<b>' + esc(m.n) + '</b><small>' + esc(m.s) + '</small>' + ligneEcran(m)); rendreVoirEcran(); poser($('ctaPrisme'), '<span>' + esc(phraseTexte('Explorer {0}', tr(m.n))) + '</span>');
-  [].forEach.call($('prismePoints').children, function(p, i){ p.classList.toggle('on', i === PRISME.i); }); }
+  /* 20 nov. 2026 : avec beaucoup d'univers, une fenêtre de 15 points autour de celui de devant (les points du bord plus petits) */
+  var pts = $('prismePoints').children, n = pts.length, F = 15, deb = 0; if(n > F){ deb = Math.min(Math.max(0, PRISME.i - 7), n - F); }
+  [].forEach.call(pts, function(p, i){ p.classList.toggle('on', i === PRISME.i); var dans = n <= F || (i >= deb && i < deb + F); p.hidden = !dans; p.classList.toggle('bord', n > F && dans && ((i === deb && deb > 0) || (i === deb + F - 1 && deb + F < n))); }); }
 function allerPrisme(i, doux, parLaPersonne){ var n = PRISME.l.length; if(!n) return; var cur = PRISME.cible, d = ((i - cur) % n + n) % n; if(d > n / 2) d -= n; PRISME.cible = cur + d; PRISME.i = ((Math.round(PRISME.cible) % n) + n) % n; PRISME.id = PRISME.l[PRISME.i].id; nommerPrisme(); if(parLaPersonne){ var z = $('annonce'); if(z) z.textContent = tr(PRISME.l[PRISME.i].n); } if(!doux || CALME.on){ PRISME.rot = PRISME.cible; placerPrisme(); } else animerPrisme(); emit('home_prisme', {univers:PRISME.l[PRISME.i].id}); }
 function animerPrisme(){ if(PRISME.t) return; (function pas(){ var d = PRISME.cible - PRISME.rot; if(Math.abs(d) < .002){ PRISME.rot = PRISME.cible; placerPrisme(); PRISME.t = 0; return; } PRISME.rot += d * .14; placerPrisme(); PRISME.t = requestAnimationFrame(pas); })(); }
 /* au clavier, le focus suit l'astre qui vient devant (sinon Entrée viserait l'ancien) */
@@ -5899,7 +5908,7 @@ function illusPlus(id, x, t, W, H, u, hx, lueur, hexA){ var cx = W / 2, cy = H /
     var a2 = t * .9; lueur(cx, cy, 30 * u, '#FF3D9A', .45); x.globalCompositeOperation = 'source-over';
     coeur(cx + Cs(a2) * 16 * u, cy + S(a2) * 7 * u, 12 * u, '#FF3D9A'); coeur(cx - Cs(a2) * 16 * u, cy - S(a2) * 7 * u, 10 * u, '#FF8AC6');
     x.globalCompositeOperation = 'lighter'; for(i = 0; i < 8; i++){ var q4 = (t * .25 + i / 8) % 1; x.fillStyle = hexA('#FFC2E6', (1 - q4) * .8); x.beginPath(); x.arc(cx + S(i * 2.1) * 30 * u, cy + 30 * u - q4 * 60 * u, 1.4 * u, 0, 6.29); x.fill(); } }
-  else if(!(typeof illusTuile === 'function' && illusTuile(id, x, t, W, H, u, hx, lueur, hexA))) { lueur(cx, cy, 30 * u, '#7B3BFF', .5); } }   /* 5 nov. 2026 : les scènes des tuiles (ac15.js) */
+  else if(!(typeof illusTuile === 'function' && illusTuile((typeof TUILE_ALIAS !== 'undefined' && TUILE_ALIAS[id]) || id, x, t, W, H, u, hx, lueur, hexA))) {   /* 20 nov. 2026 : les nouveaux univers du carrousel prennent la scène de leur tuile */ lueur(cx, cy, 30 * u, '#7B3BFF', .5); } }   /* 5 nov. 2026 : les scènes des tuiles (ac15.js) */
 
 /* ════════ démarrage : le prisme reçoit ses écrans ════════ */
 function demarrerEcrans(){ chargerEcrans(true); }
