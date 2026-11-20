@@ -1907,6 +1907,14 @@ body.feuille-ouverte .raccourcis{visibility:hidden}
 /* 19 nov. 2026 : le sommaire à droite est posé sur un fond à lui : on voit que c'est un bouton, pas un morceau de carte */
 .boussole{background:rgba(9,6,26,.6);border-radius:14px 0 0 14px;box-shadow:inset 1px 0 0 rgba(255,255,255,.08);-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px)}
 [dir=rtl] .boussole{border-radius:0 14px 14px 0}
+/* 20 nov. 2026 (captures de Karamo) : le nom de l'univers du carrousel était décalé vers la droite. La colonne de la grille
+   prenait la largeur du texte le plus long (le cadre débordait à droite). Colonne bornée, cadre jamais plus large que la place,
+   et sur téléphone la même marge des deux côtés pour ne pas passer sous Palabre et La Forge : le nom reste au milieu. */
+.prisme-bas{grid-template-columns:minmax(0,1fr)}
+.prisme-bas>*{max-width:100%;box-sizing:border-box}
+#app .prisme-nom{max-width:100%;box-sizing:border-box;overflow-wrap:anywhere}
+#ciel .reprendre .rp-i{max-width:100%;min-width:0;box-sizing:border-box}#ciel .reprendre .rp-i>button:first-child{min-width:0;flex:1 1 auto}#ciel .reprendre .rp-x{flex:none}   /* « Reprendre » ne dépasse plus de l'écran, ni à gauche ni à droite */
+@media (max-width:720px){#app .prisme-nom{max-width:calc(100% - 2 * max(0px, var(--rc-place,74px) - 16px))}#ciel #reprendre{padding-inline:max(0px, calc(var(--rc-place,74px) - 16px))!important}}
 </style>
 </head>
 <body>
@@ -7761,6 +7769,11 @@ A.versConstellation = function(){ var e = $('cielConstellation'); if(!e) return;
 (function(){ try{ var c = JSON.parse(sessionStorage.getItem('nv_ctx_Home') || 'null'); if(!c || c.vue !== 'galaxie') return; sessionStorage.removeItem('nv_ctx_Home');
   var n = 0, vers = function(){ var el = $('hexGalaxie'); if(el && el.offsetHeight){ try{ el.scrollIntoView({block:'start', behavior:'auto'}); }catch(e){ dbg(e); } return; } if(++n < 40) setTimeout(vers, 150); };
   setTimeout(vers, 300); }catch(e){ dbg(e); } })();
+
+/* 20 nov. 2026 (captures de Karamo : le carrousel n'était pas au milieu) : les univers voisins du carrousel dépassent le bord de
+   l'écran ; un monde (#ciel…) cache ce dépassement mais pouvait encore glisser de côté de quelques dizaines de pixels. Un monde
+   ne défile jamais de côté : on le remet aussitôt à zéro (les rangées qui défilent de côté ne sont pas des mondes). */
+document.addEventListener('scroll', function(e){ var t = e.target; if(t && t.classList && t.classList.contains('monde') && t.scrollLeft) t.scrollLeft = 0; }, true);
 
 /* ════════════════════════════════════════════════════════════════════
    LE DÉMARRAGE, CE QUE DIT LE SERVEUR, L'INTERFACE PUBLIQUE
