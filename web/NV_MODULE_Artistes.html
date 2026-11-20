@@ -111,6 +111,195 @@
   window.NVVitesse = {faible:faible, repos:repos, capture:enCapture, cadence:function(){ var iv = intervalle(); return iv ? Math.round(1000 / iv) : 60; }, cran:function(){ return cran; },
     pilotees:function(){ return {css:pilotes.length, svg:svgs.length}; }};
 })();</script><!--/NV_VITESSE-->
+<!--NV_QUALITE--><script>/* NEURAVID — le choix de la qualité des vidéos, commun à tous les modules (20 nov. 2026, étape 2 de la vitesse de lecture).
+   Le serveur envoie maintenant, à côté de chaque vidéo, toutes ses versions légères (`sources` : 240 / 360 / 540 / 720,
+   avec leur taille et leur débit). Ce petit script, posé en tête de chaque module (sauf Iris, qui a son propre choix,
+   et La Forge), choisit pour chaque <video> la version qui convient :
+     · assez grande pour la place que la vidéo prend vraiment à l'écran (un petit hexagone de l'accueil prend la petite) ;
+     · jamais plus lourde que ce que le réseau du téléphone porte (débit × 1,6 ≤ débit annoncé) ;
+     · « Économie de données », 2G ou réseau inconnu très lent : la plus légère ; débit inconnu (iPhone) : celle du milieu ;
+     · une vidéo qui cale (2,5 s), qui ne démarre pas en 3 s ou dont le fichier est illisible passe à la version plus
+       légère, au même moment de la vidéo ; les vidéos suivantes commencent plus bas pendant 60 s.
+   Rien n'est inventé : sans `sources` du serveur, la vidéo garde l'adresse que le module a donnée. Rien n'est envoyé.
+   Les versions sont apprises en lisant (sans les changer) les réponses JSON du serveur. window.NVQualite pour les essais. */
+(function(){
+  'use strict';
+  if (window.NVQualite) return;
+  var CARTE = new Map();                 // adresse → liste des versions (triée de la plus petite à la plus grande)
+  var MAX = 4000;
+  var CLES = ['url', 'src', 'video', 'media', 'videoUrl', 'video_url', 'lien'];
+  var plafondJusqua = 0;                 // après un calage : versions plus légères pendant 60 s
+  var desc = Object.getOwnPropertyDescriptor(HTMLMediaElement.prototype, 'src');
+  var setAttr = Element.prototype.setAttribute;
+
+  function versions(l){
+    if (!Array.isArray(l)) return null;
+    var v = l.filter(function(x){ return x && typeof x.src === 'string' && /^https?:\/\//.test(x.src); });
+    if (!v.length) return null;
+    var cote = function(x){ var a = +x.largeur || 0, b = +x.hauteur || 0; return a && b ? Math.min(a, b) : (a || b || 0); };
+    v = v.map(function(x){ return {src: x.src, cote: cote(x), debit: +x.debit || 0}; });
+    v.sort(function(a, b){ return a.cote - b.cote || a.debit - b.debit; });
+    return v;
+  }
+  function noter(adr, v){
+    if (typeof adr !== 'string' || !adr || !v) return;
+    if (CARTE.size > MAX) CARTE.clear();
+    CARTE.set(adr, v);
+  }
+  function apprendre(o, prof){
+    if (!o || typeof o !== 'object' || prof > 14) return;
+    if (Array.isArray(o)) { for (var i = 0; i < o.length && i < 3000; i++) apprendre(o[i], prof + 1); return; }
+    var v = o.sources && versions(o.sources);
+    if (v) {
+      for (var k = 0; k < CLES.length; k++) if (typeof o[CLES[k]] === 'string') noter(o[CLES[k]], v);
+      v.forEach(function(x){ noter(x.src, v); });
+    }
+    for (var c in o) if (c !== 'sources' && o[c] && typeof o[c] === 'object') apprendre(o[c], prof + 1);
+  }
+
+  // ── lire les réponses JSON du serveur (une copie : la réponse du module n'est jamais touchée) ──
+  if (window.fetch) {
+    var f0 = window.fetch;
+    window.fetch = function(){
+      var p = f0.apply(this, arguments);
+      try {
+        p.then(function(r){
+          try {
+            var t = (r.headers && r.headers.get('content-type')) || '';
+            if (!r.ok || t.indexOf('json') < 0 || !/\/v1\//.test(r.url || '')) return;
+            var n = +(r.headers.get('content-length') || 0);
+            if (n > 4e6) return;
+            r.clone().json().then(function(o){ apprendre(o, 0); rattraper(); }, function(){});
+          } catch (e) {}
+        }, function(){});
+      } catch (e) {}
+      return p;
+    };
+  }
+
+  // ── le choix ──
+  function reseau(){
+    var c = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
+    if (!c) return {inconnu: true};
+    var leger = c.saveData === true || /(^|-)2g$/.test(c.effectiveType || '');
+    var d = typeof c.downlink === 'number' && c.downlink > 0 ? c.downlink * 1000 : 0;   // kbit/s
+    return {leger: leger, debit: d, inconnu: !d};
+  }
+  function besoin(el){
+    var r = el.getBoundingClientRect ? el.getBoundingClientRect() : null;
+    var w = r && r.width > 4 ? r.width : (window.innerWidth || 360), h = r && r.height > 4 ? r.height : (window.innerHeight || 640);
+    var dpr = Math.min(window.devicePixelRatio || 1, 2.5);
+    return Math.min(w, h) * dpr;
+  }
+  function choisir(el, v){
+    if (!v || !v.length) return null;
+    var n = reseau();
+    if (n.leger) return v[0];
+    var place = besoin(el);
+    // la plus petite version qui couvre la place prise à l'écran (avec un peu de marge), sinon la plus grande
+    var i = 0;
+    while (i < v.length - 1 && v[i].cote && v[i].cote < place * 0.85) i++;
+    if (n.inconnu) i = Math.min(i, Math.ceil((v.length - 1) / 2));               // débit inconnu (iPhone) : au plus celle du milieu
+    else while (i > 0 && v[i].debit && v[i].debit * 1.6 > n.debit) i--;          // jamais plus lourd que le réseau
+    if (Date.now() < plafondJusqua) i = Math.max(0, i - 1);
+    return v[i];
+  }
+  function remplacer(el, adr){
+    if (typeof adr !== 'string' || !(el instanceof HTMLVideoElement) || el.getAttribute('data-nvq') === 'non') return adr;
+    var v = CARTE.get(adr);
+    if (!v) return adr;
+    var c = choisir(el, v);
+    if (!c) return adr;
+    el._nvq = {liste: v, i: v.indexOf(c)};
+    el._nvqOrig = adr; el._nvqMis = c.src;
+    suivre(el);
+    return c.src;
+  }
+
+  // ── la vidéo reçoit une adresse : on choisit la bonne version, avant le premier octet ──
+  if (desc && desc.set) {
+    // le module relit l'adresse qu'il a donnée (jamais une boucle « l'adresse a changé, je la remets ») ;
+    // remettre la même adresse ne recharge pas une vidéo déjà posée sur la bonne version
+    Object.defineProperty(HTMLMediaElement.prototype, 'src', {configurable: true, enumerable: desc.enumerable,
+      get: function(){ var r = desc.get.call(this); return this._nvqMis && r === this._nvqMis ? this._nvqOrig : r; },
+      set: function(a){
+        if (this._nvqMis && a === this._nvqOrig && desc.get.call(this) === this._nvqMis) return;
+        desc.set.call(this, remplacer(this, a));
+      }});
+  }
+  Element.prototype.setAttribute = function(nom, val){
+    if (this instanceof HTMLVideoElement && String(nom).toLowerCase() === 'src') val = remplacer(this, String(val));
+    return setAttr.call(this, nom, val);
+  };
+
+  // ── une vidéo posée dans le HTML (innerHTML) ou dont les versions sont arrivées juste après : rattrapée au départ ──
+  function aDeplacer(el){
+    if (!(el instanceof HTMLVideoElement) || el._nvq || el.getAttribute('data-nvq') === 'non') return false;
+    var a = el.currentSrc || el.getAttribute('src') || '';
+    return CARTE.has(a) && el.currentTime < 0.5;
+  }
+  function changer(el, nouvelle, garderTemps){
+    var t = el.currentTime || 0, jouait = !el.paused;
+    el._nvqChange = true;
+    el._nvqMis = nouvelle;
+    desc.set.call(el, nouvelle);
+    if (garderTemps && t > 0.3) {
+      el.addEventListener('loadedmetadata', function f(){ el.removeEventListener('loadedmetadata', f); try { el.currentTime = t; } catch (e) {} }, {once: true});
+    }
+    if (jouait) { var p = el.play(); if (p && p.catch) p.catch(function(){}); }
+    setTimeout(function(){ el._nvqChange = false; }, 0);
+  }
+  function rattraper(){
+    var l = document.getElementsByTagName('video');
+    for (var i = 0; i < l.length; i++) {
+      var el = l[i];
+      if (!aDeplacer(el)) continue;
+      var a = el.currentSrc || el.getAttribute('src');
+      var c = remplacer(el, a);
+      if (c && c !== a) changer(el, c, false);
+    }
+  }
+  document.addEventListener('loadstart', function(e){
+    var el = e.target;
+    if (el._nvqChange || !aDeplacer(el)) return;
+    var a = el.currentSrc || el.getAttribute('src');
+    var c = remplacer(el, a);
+    if (c && c !== a) changer(el, c, false);
+  }, true);
+
+  // ── une vidéo qui cale ou ne démarre pas : la version plus légère, au même moment ──
+  function plusLeger(el, pourTous){
+    var q = el._nvq;
+    if (!q || q.i <= 0) return false;
+    q.i--;
+    if (pourTous) plafondJusqua = Date.now() + 60000;
+    changer(el, q.liste[q.i].src, true);
+    return true;
+  }
+  function suivre(el){
+    if (el._nvqSuivi) return;
+    el._nvqSuivi = true;
+    var cale = 0, depart = 0;
+    el.addEventListener('waiting', function(){
+      clearTimeout(cale);
+      cale = setTimeout(function(){ if (!el.paused && el.readyState < 3) plusLeger(el, true); }, 2500);
+    });
+    el.addEventListener('playing', function(){ clearTimeout(cale); clearTimeout(depart); });
+    el.addEventListener('play', function(){
+      clearTimeout(depart);
+      depart = setTimeout(function(){ if (!el.paused && el.readyState < 3 && navigator.onLine !== false) plusLeger(el, true); }, 3000);
+    });
+    el.addEventListener('pause', function(){ clearTimeout(cale); clearTimeout(depart); });
+    el.addEventListener('error', function(){ plusLeger(el, false); });       // un fichier illisible : sans baisser les suivantes
+  }
+
+  window.NVQualite = {
+    apprendre: function(o){ apprendre(o, 0); rattraper(); },
+    connue: function(a){ return CARTE.has(a); },
+    choix: function(el){ return el && el._nvq ? el._nvq.liste[el._nvq.i] : null; },
+    taille: function(){ return CARTE.size; }
+  };
+})();</script><!--/NV_QUALITE-->
 <!--NV_CONFIG--><script src="nv-config.js"></script><!--/NV_CONFIG-->
 <!--NV_REPLI--><script id="nv-repli">window.NV_REPLI_MODULE="Artistes";window.NV_REPLI_SONDE={"url": "/v1/univers/capacites", "cle": "artistes"};
 /* NEURAVID — L'APERÇU EN REPLI (17 novembre 2026, rappel de Karamo : « ne plus dépendre l'affichage des contenus ou
