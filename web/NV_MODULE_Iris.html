@@ -2710,7 +2710,8 @@ function remplir(o, idx){
     o.etat.innerHTML = '<b>' + esc(t('Réservé aux {0} ans et plus').replace('{0}', v.ageMin)) + '</b>' + esc(t('Cette vidéo vient d\'un univers qui n\'est pas encore ouvert à votre âge.'));
     return;
   }
-  if(v.type === 'direct' || (v.hls && !hlsNatif(vd))){ brancherFlux(o, v, idx); return; }
+  /* 20 nov. 2026 (v51) : une vidéo longue découpée en morceaux (HLS) se lit par ses morceaux, quand elle est à l'écran */
+  if(v.type === 'direct' || longueHls(v) || (v.hls && !hlsNatif(vd))){ brancherFlux(o, v, idx); return; }
   vd.src = v.src;
   pistes(vd, v);
   try{ vd.load(); }catch(e){}
@@ -2791,11 +2792,11 @@ function quitterVue(){
 }
 function activer(){
   majPrechargement();
-  slots.forEach(function(o){ if(o.idx !== st.i){ try{ o.video.pause(); }catch(e){} if(o.flux && o.flux.direct) fermerFlux(o); } });
+  slots.forEach(function(o){ if(o.idx !== st.i){ try{ o.video.pause(); }catch(e){} if(o.flux && (o.flux.direct || o.flux.vod)) fermerFlux(o); } });
   (function(){ var v0 = st.vue[st.i], o0 = slotDe(st.i);
     document.body.classList.toggle('direct', !!(v0 && v0.type === 'direct'));
     /* un direct ne se branche que quand il est à l'écran (une seule connexion à la fois) */
-    if(v0 && o0 && v0.type === 'direct' && ageOk(v0) && !o0.flux) brancherFlux(o0, v0, st.i); })();
+    if(v0 && o0 && (v0.type === 'direct' || longueHls(v0)) && ageOk(v0) && !o0.flux) brancherFlux(o0, v0, st.i); })();
   var e = $('videLentille'); if(e) e.remove();
   var v = st.vue[st.i], o = slotDe(st.i);
   majInfos(v);
@@ -4117,6 +4118,7 @@ function ageOk(v){
   if(min <= 18 && estMajeur()) return true;
   return false;     /* âge inconnu : seulement ce qui est permis dès 13 ans */
 }
+function longueHls(v){ return !!(v && v.type !== 'direct' && v.hls && !v.local && !v.demo && /\.m3u8(\?|#|$)/i.test(v.hls)); }
 function hlsNatif(vd){ try{ return !!vd.canPlayType('application/vnd.apple.mpegurl'); }catch(e){ return false; } }
 function fermerFlux(o){
   var f = o.flux; o.flux = null; if(!f) return;
@@ -4130,20 +4132,24 @@ function fermerFlux(o){
 function etatFlux(o, titre, texte){ o.el.classList.remove('attente'); o.el.classList.add('erreur'); o.etat.innerHTML = '<b>' + esc(t(titre)) + '</b>' + esc(t(texte)); }
 function brancherFlux(o, v, idx){
   var vd = o.video;
-  if(v.type === 'direct' && idx !== st.i){ vd.removeAttribute('src'); return; }     /* les voisins attendent leur tour */
+  if((v.type === 'direct' || longueHls(v)) && idx !== st.i){ vd.removeAttribute('src'); return; }     /* les voisins attendent leur tour */
   fermerFlux(o);
-  var f = o.flux = {direct:v.type === 'direct', fini:false};
+  var f = o.flux = {direct:v.type === 'direct', vod:longueHls(v), fini:false};
+  var repli = v.type !== 'direct' && v.src && v.src !== v.hls ? v.src : '';
   /* 1. l'application fournit le flux (WebRTC natif) */
   try{ if(v.type === 'direct' && typeof window.NVLiveFlux === 'function'){ var r = window.NVLiveFlux(v.id); if(r && typeof r.then === 'function'){ r.then(function(m){ if(!f.fini && m){ vd.srcObject = m; jouer(vd); } }).catch(function(){ suite(); }); return; } if(r){ vd.srcObject = r; jouer(vd); return; } } }catch(e){}
   suite();
   function suite(){
     if(f.fini) return;
     /* 2. HLS lu par le téléphone lui-même */
-    if(v.hls && hlsNatif(vd)){ vd.src = v.hls; try{ vd.load(); }catch(e){} if(idx === st.i) jouer(vd); return; }
+    if(v.hls && hlsNatif(vd)){
+      /* une vidéo (pas un direct) dont les morceaux ne se lisent pas : l'adresse MP4, comme avant */
+      if(repli) vd.addEventListener('error', function rp(){ vd.removeEventListener('error', rp); if(o.flux !== f || f.fini) return; fermerFlux(o); vd.src = repli; try{ vd.load(); }catch(e){} if(o.idx === st.i) jouer(vd); });
+      vd.src = v.hls; if(f.vod) pistes(vd, v); try{ vd.load(); }catch(e){} if(idx === st.i) jouer(vd); return; }
     /* 3. le temps réel (WHEP) */
     if(v.whep && window.RTCPeerConnection){ whep(o, v, 0); return; }
     /* 4. HLS par morceaux fMP4 (MediaSource), pour les navigateurs qui ne lisent pas HLS */
-    if(v.hls && window.MediaSource){ hlsMse(o, v.hls); return; }
+    if(v.hls && window.MediaSource){ if(f.vod) pistes(vd, v); hlsMse(o, v.hls, repli); return; }
     if(v.src && v.src !== v.hls){ vd.src = v.src; try{ vd.load(); }catch(e){} return; }
     etatFlux(o, v.type === 'direct' ? 'Ce direct ne peut pas être lu ici' : 'Cette vidéo ne peut pas être lue ici', 'Ouvrez-la dans l\'application NEURAVID.');
   }
@@ -4166,8 +4172,10 @@ function whep(o, v, essai){
 }
 /* HLS en morceaux fMP4 (CMAF) avec MediaSource : liste maîtresse → version adaptée au réseau → morceaux, en direct ou non.
    Les morceaux MPEG-TS ne sont pas pris en charge ici (ils le sont par l'application et par les téléphones qui lisent HLS). */
-function hlsMse(o, url){
+function hlsMse(o, url, repli){
   var f = o.flux, vd = o.video, ms = new MediaSource(), sb = null, vus = {}, cible = 6, basculer = function(){};
+  /* une vidéo (pas un direct) qui ne se lit pas par ses morceaux : son adresse MP4, comme avant (20 nov. 2026) */
+  function echec(titre, texte){ if(f.fini) return; if(repli){ fermerFlux(o); vd.src = repli; try{ vd.load(); }catch(e){} if(o.idx === st.i) jouer(vd); return; } etatFlux(o, titre, texte); }
   f.url = URL.createObjectURL(ms); vd.removeAttribute('src'); vd.src = f.url;
   function txt(u){ if(MANIFESTES[u]){ var pm = MANIFESTES[u]; delete MANIFESTES[u]; return pm; } return fetch(u, {mode:'cors'}).then(function(r){ if(!r.ok) throw r.status; return r.text(); }); }
   function bin(u){ return fetch(u, {mode:'cors'}).then(function(r){ if(!r.ok) throw r.status; return r.arrayBuffer(); }); }
@@ -4189,15 +4197,15 @@ function hlsMse(o, url){
   function lister(p){
     var l = p.texte.split(/\r?\n/), segs = [], seq = +((/#EXT-X-MEDIA-SEQUENCE:(\d+)/.exec(p.texte) || [])[1] || 0), init = (/#EXT-X-MAP:URI="([^"]+)"/.exec(p.texte) || [])[1];
     cible = +((/#EXT-X-TARGETDURATION:(\d+)/.exec(p.texte) || [])[1] || 6);
-    for(var i = 0; i < l.length; i++) if(/^#EXTINF/.test(l[i]) && l[i + 1] && !/^#/.test(l[i + 1])){ segs.push({n:seq++, url:abs(l[i + 1].trim(), p.url)}); }
+    for(var i = 0; i < l.length; i++) if(/^#EXTINF/.test(l[i]) && l[i + 1] && !/^#/.test(l[i + 1])){ segs.push({n:seq++, url:abs(l[i + 1].trim(), p.url), d:+((/^#EXTINF:([\d.]+)/.exec(l[i]) || [])[1] || 0)}); }
     return {segs:segs, init:init ? abs(init, p.url) : null, fin:/#EXT-X-ENDLIST/.test(p.texte), url:p.url};
   }
   ms.addEventListener('sourceopen', function(){
     txt(url).then(function(t0){ return maitresse(t0, url); }).then(function(p){
       var pl = lister(p);
-      if(!pl.init){ etatFlux(o, 'Ce flux ne peut pas être lu ici', 'Ouvrez-le dans l\'application NEURAVID.'); return; }
+      if(!pl.init){ echec('Ce flux ne peut pas être lu ici', 'Ouvrez-le dans l\'application NEURAVID.'); return; }
       var type = 'video/mp4; codecs="' + (p.codecs || 'avc1.42E01E,mp4a.40.2') + '"';
-      if(!MediaSource.isTypeSupported(type)){ etatFlux(o, 'Ce flux ne peut pas être lu ici', 'Ouvrez-le dans l\'application NEURAVID.'); return; }
+      if(!MediaSource.isTypeSupported(type)){ echec('Ce flux ne peut pas être lu ici', 'Ouvrez-le dans l\'application NEURAVID.'); return; }
       sb = ms.addSourceBuffer(type);
       if(!pl.fin) ms.duration = Infinity;
       var codecsActuels = p.codecs;
@@ -4206,6 +4214,9 @@ function hlsMse(o, url){
         return txt(va.url).then(function(t1){ var p2 = lister({texte:t1, url:va.url}); if(!p2.init) throw 1;
           return bin(p2.init).then(function(buf){ if(va.codecs && va.codecs !== codecsActuels && sb.changeType){ try{ sb.changeType('video/mp4; codecs="' + va.codecs + '"'); codecsActuels = va.codecs; }catch(e){} } return ajouter(buf); })
             .then(function(){ pl = p2; nv.k = k; nv.voulu = null; }); }).catch(function(e){ if(e === 0) throw 0; nv.voulu = null; }); };
+      /* une vidéo longue (liste finie) : on lit autour du moment regardé — avancer ou reculer dans la vidéo marche, et la
+         mémoire du téléphone ne garde que la minute autour (20 nov. 2026) */
+      if(pl.fin && f.vod) return bin(pl.init).then(ajouter).then(function(){ return vodMse(function(){ return pl; }); });
       return bin(pl.init).then(ajouter).then(function boucle(){
         var l = pl.segs.filter(function(s){ return !vus[s.n]; });
         if(!pl.fin && !Object.keys(vus).length) l = l.slice(-3);      /* un direct commence près du présent */
@@ -4221,8 +4232,38 @@ function hlsMse(o, url){
             .then(function(t2){ pl = lister({texte:t2, url:pl.url}); return boucle(); });
         });
       });
-    }).then(function(){ if(o.idx === st.i) jouer(vd); }).catch(function(e){ if(!f.fini && e !== 0) etatFlux(o, 'Ce flux ne se charge pas', 'Vérifiez votre connexion puis réessayez.'); });
+    }).then(function(){ if(o.idx === st.i) jouer(vd); }).catch(function(e){ if(!f.fini && e !== 0) echec('Ce flux ne se charge pas', 'Vérifiez votre connexion puis réessayez.'); });
   }, {once:true});
+  function vodMse(P){
+    var pl = P(), debut = [], tot = 0;     /* P() : la liste de la version EN COURS (elle change quand la qualité change) */
+    pl.segs.forEach(function(s){ debut.push(tot); tot += s.d || cible; });
+    try{ if(ms.readyState === 'open' && tot > 0) ms.duration = tot; }catch(e){}
+    var i = 0, reveil = null, premier = true;
+    function ou(x){ for(var k = debut.length - 1; k >= 0; k--) if(debut[k] <= x + .05) return k; return 0; }
+    function finTampon(x){ var b = sb.buffered; for(var k = 0; k < b.length; k++) if(b.start(k) <= x + .15 && b.end(k) > x + .05) return b.end(k); return -1; }
+    function dormir(ms_){ return new Promise(function(ok){ var t = setTimeout(ok, ms_); reveil = function(){ clearTimeout(t); ok(); }; }); }
+    function retirer(a, b){ return new Promise(function(ok){ if(f.fini || b <= a) return ok(); sb.addEventListener('updateend', function fin(){ sb.removeEventListener('updateend', fin); ok(); }); try{ sb.remove(a, b); }catch(e){ ok(); } }); }
+    vd.addEventListener('seeking', function(){ if(o.flux !== f || f.fini) return; if(finTampon(vd.currentTime) < 0){ i = ou(vd.currentTime); if(reveil) reveil(); } });
+    return new Promise(function(fini, rate){
+      (function tour(){
+        if(f.fini) return fini();
+        var t = vd.currentTime || 0, bout = finTampon(t);
+        if(bout >= 0){
+          if(bout >= tot - .3 || bout - t >= 30){ return dormir(1000).then(tour); }            /* 30 s d'avance suffisent */
+          i = Math.max(0, Math.min(pl.segs.length - 1, ou(bout + .05)));
+        } else i = ou(t);
+        if(i >= pl.segs.length) return dormir(1000).then(tour);
+        var b = sb.buffered, avant = Promise.resolve();
+        if(b.length && t - b.start(0) > 90) avant = retirer(b.start(0), t - 30);                   /* la mémoire : la minute autour */
+        var k = i;
+        avant.then(basculer).then(function(){ var s2 = P().segs[k] || pl.segs[k]; return bin(s2.url); }).then(ajouter).then(function(){
+          if(premier){ premier = false; if(o.idx === st.i) jouer(vd); }
+          if(k >= pl.segs.length - 1 && finTampon(vd.currentTime) >= 0){ try{ if(ms.readyState === 'open' && !sb.updating) ms.endOfStream(); }catch(e){} }
+          tour();
+        }).catch(function(e){ if(e === 0 || f.fini) return fini(); rate(e); });
+      })();
+    });
+  }
 }
 /* ouvrir une vidéo (ou une série) envoyée par un autre module */
 st.epingles = [];
