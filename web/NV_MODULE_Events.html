@@ -6562,6 +6562,104 @@ demarrer();
 </script><!--/NV_VERS_IRIS-->
 <script>/* NV_LECTEUR_ATTENTE v43 : la suivante se prépare dès que la vidéo qui joue a 12 s d'avance (19 nov. 2026) */(function(){if(window.__nvlAttente)return;window.__nvlAttente=1;document.addEventListener('progress',function(e){var v=e.target;if(!v||v.tagName!=='VIDEO'||v.paused||!v.closest)return;var s=v.closest('.nvl-s');if(!s)return;var n=s.nextElementSibling,w=n&&n.querySelector&&n.querySelector('video[data-nvlattend]');if(!w||w.preload==='auto')return;try{var t=v.currentTime,b=v.buffered,d=v.duration;for(var k=0;k<b.length;k++){if(b.start(k)<=t+.3&&b.end(k)>=t){if(b.end(k)-t>=12||(isFinite(d)&&d>0&&b.end(k)>=d-.5))w.preload='auto';break;}}}catch(x){}},true);})();</script>
 <script>/* NV_LECTEUR_LEGER v44 : la version légère (360) prend le relais d'une vidéo qui cale (19 nov. 2026) */(function(){if(window.__nvlLeger)return;window.__nvlLeger=1;var RE=/-(540|720)\.mp4(?=$|[?#])/;function lecteur(v){return v&&v.tagName==='VIDEO'&&v.closest&&v.closest('.nvl-s');}function faible(){var c=navigator.connection||{};return !!(c.saveData||/(^|-)2g|slow/.test(c.effectiveType||'')||(typeof c.downlink==='number'&&c.downlink>0&&c.downlink<1.8));}function leger(v){var s=v.getAttribute('src')||'';if(!RE.test(s))return false;var t=v.currentTime||0,j=!v.paused;v.addEventListener('loadedmetadata',function f(){v.removeEventListener('loadedmetadata',f);try{if(t>.2)v.currentTime=t;}catch(e){}if(j)v.play().catch(function(){});});v.src=s.replace(RE,'-360.mp4');try{v.load();}catch(e){}return true;}function guetter(v){clearTimeout(v.__nvlT);v.__nvlT=setTimeout(function(){if(!v.paused&&v.readyState<3&&!document.hidden)leger(v);},3000);}document.addEventListener('loadstart',function(e){var v=e.target;if(lecteur(v)&&faible())leger(v);},true);document.addEventListener('play',function(e){var v=e.target;if(!lecteur(v))return;if(faible()&&leger(v))return;guetter(v);},true);document.addEventListener('waiting',function(e){if(lecteur(e.target))guetter(e.target);},true);document.addEventListener('playing',function(e){if(lecteur(e.target))clearTimeout(e.target.__nvlT);},true);document.addEventListener('pause',function(e){if(lecteur(e.target))clearTimeout(e.target.__nvlT);},true);document.addEventListener('error',function(e){var v=e.target;if(lecteur(v)&&leger(v))e.stopImmediatePropagation();},true);})();</script>
+
+<!--NV_DEPUIS_IRIS--><script id="nv-depuis-iris">window.NV_DEPUIS_MODULE="Events";
+/* NEURAVID — DEPUIS IRIS (20 novembre 2026, demande de Karamo : « toutes les vidéos de tous les modules passent aussi par Iris,
+   mais restent dans les modules où elles ont été créées »).
+   Iris montre l'origine d'une vidéo (« Vient de Miss & Master ») et propose « Voir dans … ». Il range alors, juste avant
+   d'ouvrir le module, sessionStorage.nv_depuis_iris = {module, clip, src, poster, auteur, titre, defi, action, at}.
+   Ce script, injecté dans chaque module (après la démonstration, avant la vitesse), le lit UNE fois :
+   1. il demande d'abord au module de l'ouvrir lui-même (la fiche, le vote, le soutien) : chaque module qui sait le faire
+      range sa fonction dans window.NV_DEPUIS_IRIS_H (fonction(info) → true quand il l'a ouverte) ; on la redemande
+      pendant 8 s au plus, le temps que ses listes arrivent ;
+   2. sinon, un bandeau discret au bas de l'écran : « Depuis Iris · la vidéo de @… », « Revoir la vidéo » (dans le lecteur
+      du module, avec ses réactions, sinon dans Iris), « Retour à Iris ». Rien n'est inventé : sans adresse de vidéo, seul
+      « Retour à Iris » reste ; rien n'est envoyé au serveur. */
+(function(){ try{
+  var MOD = String(window.NV_DEPUIS_MODULE || '').replace(/_leger$/, '');
+  if(!MOD) return;
+  var info = null;
+  try{ info = JSON.parse(sessionStorage.getItem('nv_depuis_iris') || 'null'); }catch(e){ info = null; }
+  if(!info || typeof info !== 'object' || info.module !== MOD) return;
+  try{ sessionStorage.removeItem('nv_depuis_iris'); }catch(e){}
+  if(!(Date.now() - (+info.at || 0) < 10 * 60e3)) return;                 /* une ancienne demande n'ouvre jamais rien */
+  if(typeof info.clip !== 'string' || !/^[\w.:-]{1,80}$/.test(info.clip)) return;
+  function sure(u){ u = typeof u === 'string' ? u : ''; return /^(https:\/\/|\/|\.\/|blob:)/.test(u) && !/^\/\//.test(u) ? u : ''; }
+  info.src = sure(info.src); info.poster = sure(info.poster);
+  info.auteur = typeof info.auteur === 'string' ? info.auteur.slice(0, 60) : '';
+  info.titre = typeof info.titre === 'string' ? info.titre.slice(0, 120) : '';
+  info.action = /^(voir|voter|soutenir|participer)$/.test(info.action) ? info.action : 'voir';
+  window.NV_DEPUIS_IRIS = info;
+
+  var TX = {
+    fr:['Depuis Iris', 'La vidéo de {0}', 'Une personne de NEURAVID', 'Revoir la vidéo', 'Retour à Iris', 'Fermer', 'Retrouvez ici tout ce que ce module propose autour de cette vidéo.'],
+    en:['From Iris', 'The video by {0}', 'A NEURAVID member', 'Watch the video again', 'Back to Iris', 'Close', 'Find here everything this module offers around this video.'],
+    es:['Desde Iris', 'El vídeo de {0}', 'Una persona de NEURAVID', 'Volver a ver el vídeo', 'Volver a Iris', 'Cerrar', 'Encuentra aquí todo lo que este módulo ofrece en torno a este vídeo.'],
+    pt:['Vindo do Iris', 'O vídeo de {0}', 'Uma pessoa do NEURAVID', 'Rever o vídeo', 'Voltar ao Iris', 'Fechar', 'Encontre aqui tudo o que este módulo oferece em torno deste vídeo.'],
+    ar:['من إيريس', 'فيديو {0}', 'شخص من NEURAVID', 'إعادة مشاهدة الفيديو', 'العودة إلى إيريس', 'إغلاق', 'تجد هنا كل ما يقدّمه هذا القسم حول هذا الفيديو.'],
+    sw:['Kutoka Iris', 'Video ya {0}', 'Mtu wa NEURAVID', 'Tazama video tena', 'Rudi kwa Iris', 'Funga', 'Pata hapa kila kitu ambacho sehemu hii inatoa kuhusu video hii.'],
+    ha:['Daga Iris', 'Bidiyon {0}', 'Wani mutum na NEURAVID', 'Sake kallon bidiyon', 'Koma zuwa Iris', 'Rufe', 'Nemo a nan duk abin da wannan sashe ke bayarwa game da wannan bidiyon.'],
+    yo:['Láti Iris', 'Fídíò {0}', 'Ẹnìkan láti NEURAVID', 'Wo fídíò náà lẹ́ẹ̀kan sí i', 'Padà sí Iris', 'Pa á dé', 'Rí gbogbo ohun tí apá yìí ń pèsè nípa fídíò yìí níbí.'],
+    wo:['Bawoo ci Iris', 'Widewoo {0}', 'Kenn ci NEURAVID', 'Gisaat widewo bi', 'Dellu ci Iris', 'Tëj', 'Fi lay gis lépp li bii xaaj di jox ci widewo bii.'],
+    bm:['Ka bɔ Iris la', '{0} ka widewo', 'NEURAVID mɔgɔ dɔ', 'Widewo lajɛ tugun', 'Segin Iris ma', 'A datugu', 'Fɛn o fɛn nin yɔrɔ bɛ min di nin widewo kan, o bɛ yan.'],
+    ln:['Uta na Iris', 'Video ya {0}', 'Moto moko ya NEURAVID', 'Tala video lisusu', 'Zonga na Iris', 'Kanga', 'Zwa awa nyonso oyo eteni oyo epesaka mpo na video oyo.']
+  };
+  function langue(){ var l = ''; try{ l = String(window.NV_LANG || document.documentElement.lang || JSON.parse(localStorage.getItem('nv_ui_langue') || '""') || navigator.language || 'fr'); }catch(e){ l = 'fr'; }
+    l = l.slice(0, 2).toLowerCase(); return TX[l] ? l : 'fr'; }
+  function ouvrirModule(id, ctx){
+    try{ if(window.NVLien && typeof window.NVLien.ouvrir === 'function'){ window.NVLien.ouvrir('NV' + id, ctx || null); return; } }catch(e){}
+    var base = window.NV_MODULES_BASE || ''; if(base && base.slice(-1) !== '/') base += '/';
+    try{ if(ctx) sessionStorage.setItem('nv_ctx_' + id, JSON.stringify(ctx)); }catch(e){}
+    location.href = base + 'NV_MODULE_' + id + '.html';
+  }
+  function versIris(){ ouvrirModule('Player', {clip:info.clip, depuis:MOD}); }
+  function revoir(){
+    if(info.src && window.NVLecteur && typeof window.NVLecteur.ouvrir === 'function'){
+      try{ var ok = window.NVLecteur.ouvrir({items:[{id:'iris-' + info.clip, clip:info.clip, url:info.src, poster:info.poster || null,
+        auteur:info.auteur || TX[langue()][2], titre:info.titre || ''}], index:0, titre:info.titre || '', module:MOD});
+        if(ok !== false) return; }catch(e){}
+    }
+    versIris();
+  }
+  window.NVDepuisIris = {info:function(){ return info; }, revoir:revoir, retour:versIris};
+
+  function bandeau(){
+    if(document.getElementById('nvDepuisIris')) return;
+    var l = langue(), T = TX[l], d = document.createElement('div');
+    d.id = 'nvDepuisIris'; d.setAttribute('role', 'region'); d.setAttribute('aria-label', T[0]); d.dir = l === 'ar' ? 'rtl' : 'ltr';
+    d.style.cssText = 'position:fixed;z-index:2147482990;left:8px;right:8px;bottom:calc(10px + env(safe-area-inset-bottom,0px));max-width:560px;margin:0 auto;' +
+      'background:rgba(10,12,22,.94);color:#fff;border:1px solid rgba(232,184,74,.7);border-radius:16px;padding:10px 12px;box-shadow:0 8px 26px rgba(0,0,0,.45);' +
+      'font:13px/1.35 system-ui,-apple-system,Roboto,sans-serif';
+    var qui = info.auteur ? T[1].replace('{0}', info.auteur) : T[1].replace('{0}', T[2]);
+    var b = 'border:0;border-radius:12px;padding:8px 12px;font:700 13px system-ui,-apple-system,Roboto,sans-serif;cursor:pointer;min-height:36px';
+    d.innerHTML = '<div style="display:flex;align-items:center;gap:8px"><i aria-hidden="true" style="flex:none;width:16px;height:18px;background:linear-gradient(135deg,#F3D27A,#21C8B8);clip-path:polygon(50% 0,100% 25%,100% 75%,50% 100%,0 75%,0 25%)"></i>' +
+      '<b style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"></b><button type="button" data-x style="' + b + ';background:transparent;color:#ccd;padding:6px 8px" aria-label=""></button></div>' +
+      '<p style="margin:4px 0 8px;color:#cfd3e6"></p><div style="display:flex;gap:8px;flex-wrap:wrap"></div>';
+    d.querySelector('b').textContent = T[0] + ' · ' + qui;
+    d.querySelector('[data-x]').textContent = '×'; d.querySelector('[data-x]').setAttribute('aria-label', T[5]);
+    d.querySelector('p').textContent = T[6];
+    var zone = d.querySelector('div:last-child');
+    function bouton(txt, plein, fn){ var x = document.createElement('button'); x.type = 'button'; x.textContent = txt;
+      x.style.cssText = b + (plein ? ';background:linear-gradient(135deg,#F3D27A,#E8B84A);color:#231800' : ';background:rgba(255,255,255,.1);color:#fff');
+      x.addEventListener('click', fn); zone.appendChild(x); }
+    if(info.src) bouton(T[3], true, function(){ revoir(); });
+    bouton(T[4], !info.src, versIris);
+    d.querySelector('[data-x]').addEventListener('click', function(){ d.remove(); });
+    document.body.appendChild(d);
+  }
+  /* le module ouvre lui-même la vidéo s'il le sait ; sinon le bandeau */
+  var debut = Date.now();
+  function essayer(){
+    var h = window.NV_DEPUIS_IRIS_H || [];
+    for(var i = 0; i < h.length; i++){ try{ var r = h[i](info); if(r === true){ info.ouvert = true; return; } }catch(e){} }
+    var e = Date.now() - debut;
+    if(e < 8000 && (h.length || e < 1500)){ setTimeout(essayer, 500); return; }     /* aucun module qui sait l'ouvrir : le bandeau tout de suite */
+    if(document.body) bandeau();
+  }
+  function partir(){ setTimeout(essayer, 400); }
+  if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', partir); else partir();
+}catch(e){ /* rien */ } })();
+</script><!--/NV_DEPUIS_IRIS-->
 <!--NV_CLOCHE--><script id="nv-cloche" data-module="Events" data-hote="#haut" data-avant="">
 /* NEURAVID — LA CLOCHE VIVANTE (le pouls du Tam-tam dans l'en-tête de chaque module).
    « Une cloche sonne ; un tambour parle. NEURAVID ne sonne pas — il bat à ton rythme. »
@@ -6717,103 +6815,5 @@ demarrer();
 })();
 
 </script><!--/NV_CLOCHE-->
-
-<!--NV_DEPUIS_IRIS--><script id="nv-depuis-iris">window.NV_DEPUIS_MODULE="Events";
-/* NEURAVID — DEPUIS IRIS (20 novembre 2026, demande de Karamo : « toutes les vidéos de tous les modules passent aussi par Iris,
-   mais restent dans les modules où elles ont été créées »).
-   Iris montre l'origine d'une vidéo (« Vient de Miss & Master ») et propose « Voir dans … ». Il range alors, juste avant
-   d'ouvrir le module, sessionStorage.nv_depuis_iris = {module, clip, src, poster, auteur, titre, defi, action, at}.
-   Ce script, injecté dans chaque module (après la démonstration, avant la vitesse), le lit UNE fois :
-   1. il demande d'abord au module de l'ouvrir lui-même (la fiche, le vote, le soutien) : chaque module qui sait le faire
-      range sa fonction dans window.NV_DEPUIS_IRIS_H (fonction(info) → true quand il l'a ouverte) ; on la redemande
-      pendant 8 s au plus, le temps que ses listes arrivent ;
-   2. sinon, un bandeau discret au bas de l'écran : « Depuis Iris · la vidéo de @… », « Revoir la vidéo » (dans le lecteur
-      du module, avec ses réactions, sinon dans Iris), « Retour à Iris ». Rien n'est inventé : sans adresse de vidéo, seul
-      « Retour à Iris » reste ; rien n'est envoyé au serveur. */
-(function(){ try{
-  var MOD = String(window.NV_DEPUIS_MODULE || '').replace(/_leger$/, '');
-  if(!MOD) return;
-  var info = null;
-  try{ info = JSON.parse(sessionStorage.getItem('nv_depuis_iris') || 'null'); }catch(e){ info = null; }
-  if(!info || typeof info !== 'object' || info.module !== MOD) return;
-  try{ sessionStorage.removeItem('nv_depuis_iris'); }catch(e){}
-  if(!(Date.now() - (+info.at || 0) < 10 * 60e3)) return;                 /* une ancienne demande n'ouvre jamais rien */
-  if(typeof info.clip !== 'string' || !/^[\w.:-]{1,80}$/.test(info.clip)) return;
-  function sure(u){ u = typeof u === 'string' ? u : ''; return /^(https:\/\/|\/|\.\/|blob:)/.test(u) && !/^\/\//.test(u) ? u : ''; }
-  info.src = sure(info.src); info.poster = sure(info.poster);
-  info.auteur = typeof info.auteur === 'string' ? info.auteur.slice(0, 60) : '';
-  info.titre = typeof info.titre === 'string' ? info.titre.slice(0, 120) : '';
-  info.action = /^(voir|voter|soutenir|participer)$/.test(info.action) ? info.action : 'voir';
-  window.NV_DEPUIS_IRIS = info;
-
-  var TX = {
-    fr:['Depuis Iris', 'La vidéo de {0}', 'Une personne de NEURAVID', 'Revoir la vidéo', 'Retour à Iris', 'Fermer', 'Retrouvez ici tout ce que ce module propose autour de cette vidéo.'],
-    en:['From Iris', 'The video by {0}', 'A NEURAVID member', 'Watch the video again', 'Back to Iris', 'Close', 'Find here everything this module offers around this video.'],
-    es:['Desde Iris', 'El vídeo de {0}', 'Una persona de NEURAVID', 'Volver a ver el vídeo', 'Volver a Iris', 'Cerrar', 'Encuentra aquí todo lo que este módulo ofrece en torno a este vídeo.'],
-    pt:['Vindo do Iris', 'O vídeo de {0}', 'Uma pessoa do NEURAVID', 'Rever o vídeo', 'Voltar ao Iris', 'Fechar', 'Encontre aqui tudo o que este módulo oferece em torno deste vídeo.'],
-    ar:['من إيريس', 'فيديو {0}', 'شخص من NEURAVID', 'إعادة مشاهدة الفيديو', 'العودة إلى إيريس', 'إغلاق', 'تجد هنا كل ما يقدّمه هذا القسم حول هذا الفيديو.'],
-    sw:['Kutoka Iris', 'Video ya {0}', 'Mtu wa NEURAVID', 'Tazama video tena', 'Rudi kwa Iris', 'Funga', 'Pata hapa kila kitu ambacho sehemu hii inatoa kuhusu video hii.'],
-    ha:['Daga Iris', 'Bidiyon {0}', 'Wani mutum na NEURAVID', 'Sake kallon bidiyon', 'Koma zuwa Iris', 'Rufe', 'Nemo a nan duk abin da wannan sashe ke bayarwa game da wannan bidiyon.'],
-    yo:['Láti Iris', 'Fídíò {0}', 'Ẹnìkan láti NEURAVID', 'Wo fídíò náà lẹ́ẹ̀kan sí i', 'Padà sí Iris', 'Pa á dé', 'Rí gbogbo ohun tí apá yìí ń pèsè nípa fídíò yìí níbí.'],
-    wo:['Bawoo ci Iris', 'Widewoo {0}', 'Kenn ci NEURAVID', 'Gisaat widewo bi', 'Dellu ci Iris', 'Tëj', 'Fi lay gis lépp li bii xaaj di jox ci widewo bii.'],
-    bm:['Ka bɔ Iris la', '{0} ka widewo', 'NEURAVID mɔgɔ dɔ', 'Widewo lajɛ tugun', 'Segin Iris ma', 'A datugu', 'Fɛn o fɛn nin yɔrɔ bɛ min di nin widewo kan, o bɛ yan.'],
-    ln:['Uta na Iris', 'Video ya {0}', 'Moto moko ya NEURAVID', 'Tala video lisusu', 'Zonga na Iris', 'Kanga', 'Zwa awa nyonso oyo eteni oyo epesaka mpo na video oyo.']
-  };
-  function langue(){ var l = ''; try{ l = String(window.NV_LANG || document.documentElement.lang || JSON.parse(localStorage.getItem('nv_ui_langue') || '""') || navigator.language || 'fr'); }catch(e){ l = 'fr'; }
-    l = l.slice(0, 2).toLowerCase(); return TX[l] ? l : 'fr'; }
-  function ouvrirModule(id, ctx){
-    try{ if(window.NVLien && typeof window.NVLien.ouvrir === 'function'){ window.NVLien.ouvrir('NV' + id, ctx || null); return; } }catch(e){}
-    var base = window.NV_MODULES_BASE || ''; if(base && base.slice(-1) !== '/') base += '/';
-    try{ if(ctx) sessionStorage.setItem('nv_ctx_' + id, JSON.stringify(ctx)); }catch(e){}
-    location.href = base + 'NV_MODULE_' + id + '.html';
-  }
-  function versIris(){ ouvrirModule('Player', {clip:info.clip, depuis:MOD}); }
-  function revoir(){
-    if(info.src && window.NVLecteur && typeof window.NVLecteur.ouvrir === 'function'){
-      try{ var ok = window.NVLecteur.ouvrir({items:[{id:'iris-' + info.clip, clip:info.clip, url:info.src, poster:info.poster || null,
-        auteur:info.auteur || TX[langue()][2], titre:info.titre || ''}], index:0, titre:info.titre || '', module:MOD});
-        if(ok !== false) return; }catch(e){}
-    }
-    versIris();
-  }
-  window.NVDepuisIris = {info:function(){ return info; }, revoir:revoir, retour:versIris};
-
-  function bandeau(){
-    if(document.getElementById('nvDepuisIris')) return;
-    var l = langue(), T = TX[l], d = document.createElement('div');
-    d.id = 'nvDepuisIris'; d.setAttribute('role', 'region'); d.setAttribute('aria-label', T[0]); d.dir = l === 'ar' ? 'rtl' : 'ltr';
-    d.style.cssText = 'position:fixed;z-index:2147482990;left:8px;right:8px;bottom:calc(10px + env(safe-area-inset-bottom,0px));max-width:560px;margin:0 auto;' +
-      'background:rgba(10,12,22,.94);color:#fff;border:1px solid rgba(232,184,74,.7);border-radius:16px;padding:10px 12px;box-shadow:0 8px 26px rgba(0,0,0,.45);' +
-      'font:13px/1.35 system-ui,-apple-system,Roboto,sans-serif';
-    var qui = info.auteur ? T[1].replace('{0}', info.auteur) : T[1].replace('{0}', T[2]);
-    var b = 'border:0;border-radius:12px;padding:8px 12px;font:700 13px system-ui,-apple-system,Roboto,sans-serif;cursor:pointer;min-height:36px';
-    d.innerHTML = '<div style="display:flex;align-items:center;gap:8px"><i aria-hidden="true" style="flex:none;width:16px;height:18px;background:linear-gradient(135deg,#F3D27A,#21C8B8);clip-path:polygon(50% 0,100% 25%,100% 75%,50% 100%,0 75%,0 25%)"></i>' +
-      '<b style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"></b><button type="button" data-x style="' + b + ';background:transparent;color:#ccd;padding:6px 8px" aria-label=""></button></div>' +
-      '<p style="margin:4px 0 8px;color:#cfd3e6"></p><div style="display:flex;gap:8px;flex-wrap:wrap"></div>';
-    d.querySelector('b').textContent = T[0] + ' · ' + qui;
-    d.querySelector('[data-x]').textContent = '×'; d.querySelector('[data-x]').setAttribute('aria-label', T[5]);
-    d.querySelector('p').textContent = T[6];
-    var zone = d.querySelector('div:last-child');
-    function bouton(txt, plein, fn){ var x = document.createElement('button'); x.type = 'button'; x.textContent = txt;
-      x.style.cssText = b + (plein ? ';background:linear-gradient(135deg,#F3D27A,#E8B84A);color:#231800' : ';background:rgba(255,255,255,.1);color:#fff');
-      x.addEventListener('click', fn); zone.appendChild(x); }
-    if(info.src) bouton(T[3], true, function(){ revoir(); });
-    bouton(T[4], !info.src, versIris);
-    d.querySelector('[data-x]').addEventListener('click', function(){ d.remove(); });
-    document.body.appendChild(d);
-  }
-  /* le module ouvre lui-même la vidéo s'il le sait ; sinon le bandeau */
-  var debut = Date.now();
-  function essayer(){
-    var h = window.NV_DEPUIS_IRIS_H || [];
-    for(var i = 0; i < h.length; i++){ try{ var r = h[i](info); if(r === true){ info.ouvert = true; return; } }catch(e){} }
-    var e = Date.now() - debut;
-    if(e < 8000 && (h.length || e < 1500)){ setTimeout(essayer, 500); return; }     /* aucun module qui sait l'ouvrir : le bandeau tout de suite */
-    if(document.body) bandeau();
-  }
-  function partir(){ setTimeout(essayer, 400); }
-  if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', partir); else partir();
-}catch(e){ /* rien */ } })();
-</script><!--/NV_DEPUIS_IRIS-->
 </body>
 </html>
