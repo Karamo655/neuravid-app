@@ -3610,7 +3610,7 @@ function rendreDirects(){
       h += '<button data-dl="' + esc(d.id) + '"><span class="dl-pt hexa" aria-hidden="true">●</span><span><b><i class="dl-rouge" aria-hidden="true"></i>' + esc(d.titre || t('En direct')) + ap + '</b><em>' +
         esc([dr, qui, sp].filter(Boolean).join(' · ')) + (lit ? '' : ' · ' + esc(t(NOMS_MODULES.Live)) + ' ›') + '</em></span></button>'; });
     DIRECTS.finales.forEach(function(f){ var quand = f.etat === 'direct' ? t('En direct') : t('Commence à {0}').replace('{0}', heureDe(f.debut));
-      var vids = (f.finalistes || []).filter(function(x){ return x && (urlFlux(x.video || '') || x.clip); }).length + (f.etat === 'direct' && f.direct && (urlFlux(f.direct.url || '') || urlFlux(f.direct.whep || '')) ? 1 : 0);
+      var vids = (f.finalistes || []).filter(function(x){ return x && (urlFlux(x.video || '') || x.clip); }).length + (f.etat === 'direct' && f.direct && (urlFlux(f.direct.url || '') || urlFlux(f.direct.whep || '') || (f.direct.live != null && DIRECTS.flux)) ? 1 : 0);
       h += '<div class="dl-ligne"><button data-fi="' + esc(f.id) + '"><span class="dl-pt fi hexa" aria-hidden="true">★</span><span><b>' + esc(t('Finale')) + ' · ' + esc(f.titre || '—') + ap + '</b><em>' +
         esc(quand) + ' · ' + esc(t(NOMS_MODULES.Baobab)) + ' ›</em></span></button>' + (vids ? '<button class="dl-fl" data-ff="' + esc(f.id) + '">' + esc(t('Voir les finalistes')) + '</button>' : '') + '</div>'; });
     if(!h) h = '<p class="dl-note">' + esc(t('Aucun direct pour l\'instant.')) + '</p>';
@@ -3625,7 +3625,8 @@ function regarderDirect(d){
   if(!DIRECTS.flux || !(f.url || f.whep)){ ouvrir('Live', {live:String(d.id), depuis:'iris'}); return; }
   var hote = d.hote || {};
   var v = normaliser({id:'direct-' + d.id, directId:String(d.id), type:'direct', module:'Live', src:f.url && !/\.m3u8(\?|#|$)/i.test(f.url) ? f.url : '', hls:f.url && /\.m3u8(\?|#|$)/i.test(f.url) ? f.url : '',
-    whep:f.whep || '', author:hote.handle ? '@' + hote.handle : (hote.nom || ''), title:d.titre || '', country:drapeau(d.iso || ''), publicAverti:d.publicAverti === true});
+    whep:f.whep || '', jeton:typeof d.jeton === 'string' ? d.jeton : null,
+    author:hote.handle ? '@' + hote.handle : (hote.nom || ''), title:d.titre || '', country:drapeau(d.iso || ''), publicAverti:d.publicAverti === true});
   if(!jouable(v) || !ageOk(v)){ ouvrir('Live', {live:String(d.id), depuis:'iris'}); return; }
   epingler([v], 0);
 }
@@ -3638,6 +3639,8 @@ function voirFinalistes(f){
   var sc = f.etat === 'direct' && f.direct && typeof f.direct === 'object' ? f.direct : null, su = sc ? urlFlux(sc.url || '') : '', sw = sc ? urlFlux(sc.whep || '') : '';
   if(su || sw) l.unshift({id:'scene-' + f.id, type:'direct', module:'Baobab', finale:String(f.id), title:f.titre || '', author:'', jeton:typeof sc.jeton === 'string' ? sc.jeton : null,
     src:su && !/\.m3u8(\?|#|$)/i.test(su) ? su : '', hls:su && /\.m3u8(\?|#|$)/i.test(su) ? su : '', whep:sw});
+  /* 20 nov. 2026 : la scène est un direct du Direct (direct.live) : Iris demande son flux au serveur du Direct */
+  else if(sc && sc.live != null && /^[A-Za-z0-9_-]{1,40}$/.test(String(sc.live))) l.unshift({id:'scene-' + f.id, directId:String(sc.live), type:'direct', module:'Baobab', finale:String(f.id), title:f.titre || '', author:''});
   if(!l.length) return;
   ouvrirContexte({liste:l, clip:l[0]});
 }
