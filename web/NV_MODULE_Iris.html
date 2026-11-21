@@ -5061,10 +5061,39 @@ function ouvrirDefi(){
   ouvrir('Create', {mode:'defi', defi:v.challenge, depuis:'iris', clip:v.id});
 }
 /* « Relever le défi dans <univers> » (21 nov. 2026) : l'univers du défi s'ouvre, avec ce défi ; c'est lui qui filme (La Forge)
-   et qui vérifie ses propres règles (âge, nombre d'envois, dates). Iris ne publie jamais une réponse lui-même. */
+   et qui vérifie ses propres règles (âge, nombre d'envois, dates). Iris ne publie jamais une réponse lui-même.
+   21 nov. 2026, demande de Karamo : pour les univers où une réponse n'est qu'une vidéo (FORGE_DIRECTE), la caméra de La Forge
+   s'ouvre DIRECTEMENT sur ce défi. Iris pose le contexte que l'univers aurait posé lui-même (NVCamera, nv_cam_ctx) ; à la fin,
+   « Envoyer au défi » rend la prise à l'univers, qui la dépose comme une vraie participation à CE défi, avec SES règles
+   (âge, durée, relecture, formulaire). Les univers qui demandent d'abord un formulaire, un couple, un adversaire ou une
+   candidature (Miss & Master, Voix d'Or, Battle, Love Universe, Cinema World, La Mosaïque, Le Chemin du progrès, La Révélation)
+   s'ouvrent comme avant sur ce défi : la caméra y vient juste après, une fois ces étapes faites. */
+var FORGE_DIRECTE = {
+  TalentJour:{min:15, max:60}, StyleUniverse:{max:180, nouveaute:'miroir'}, Transformation:{max:180, nouveaute:'miroir'},
+  Tresse:{min:1, max:5}, Champions:{min:5, max:120}, Pagne:{min:3, max:30}, SansFrontieres:{min:1, max:20, prefixe:'suite.'},
+  Arena:{max:600}, ChallengeUniverse:{max:600}, ViralStorm:{}, Orbite:{}
+};
+function releverForge(v){
+  var m = v.module, d = v.defiId, r = FORGE_DIRECTE[m], u = window.NV_USER || null;
+  if(!r || !d || typeof d !== 'string' || horsApplication()) return false;
+  var c = {module:m, defi:(r.prefixe || '') + d, titre:NOMS_MODULES[m] || m, mode:'video',
+    depuis:'iris', relever:true, repondA:String(v.id), quand:Date.now()};
+  if(r.min) c.minSeconds = r.min; if(r.max) c.maxSeconds = r.max; if(r.nouveaute) c.nouveaute = r.nouveaute;
+  if(u && u.id != null) c.compte = String(u.id);
+  /* le même contexte que l'univers aurait reçu en ouvrant le défi (au retour de La Forge, il retrouve ce défi) */
+  if(m === 'Pagne') c.defile = d; else if(m === 'Champions') c.championnat = d; else if(m === 'SansFrontieres') c.chaine = d;
+  var t = JSON.stringify(c), ok = false;
+  try{ sessionStorage.setItem('nv_cam_ctx', t); ok = true; }catch(e){}
+  try{ localStorage.setItem('nv_cam_ctx', t); ok = true; }catch(e){}
+  if(!ok) return false;
+  emit('challenge_forge', {clip:v.id, module:m, challenge:d, via:'iris'});
+  ouvrir('Create', {depuis:'iris', relever:true, module:m});
+  return true;
+}
 function releverDefi(v){
   var m = v.module, d = v.defiId;
   emit('challenge_open', {clip:v.id, module:m, challenge:d, via:'iris'});
+  if(releverForge(v)) return;
   var ctx = {clip:String(v.id), depuis:'iris', relever:true};
   if(d){ ctx.defi = d;
     if(m === 'Pagne') ctx.defile = d; else if(m === 'Champions') ctx.championnat = d; else if(m === 'SansFrontieres') ctx.chaine = d;

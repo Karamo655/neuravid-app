@@ -1015,6 +1015,27 @@ input:disabled{opacity:.5}
         g.fillStyle = 'rgba(255,255,255,.12)'; g.fillRect(x - w0 / 2, base - hh, w0, hh);
         var on = ordre.indexOf(i) < k; g.fillStyle = on ? marches[i][2] : 'rgba(255,255,255,.18)'; hex(g, x, base - hh - R * .26, R * .22); g.fill(); }
       if(k >= 3){ g.strokeStyle = c[1]; g.lineWidth = 2; g.globalAlpha = .6 + .4 * Math.sin(t * 5); hex(g, cx, base - R * .85 - R * .26, R * .32); g.stroke(); g.globalAlpha = 1; } },
+    /* Le Marché vivant (18 nov. 2026) : un écran hexagonal « en direct », trois créations défilent dessous, l'une est épinglée
+       et monte dans l'écran, puis un hexagone « réservé » s'allume */
+    marche: function(g, w, h, t, c){ var cx = w / 2, cy = h * .4, R = Math.min(w, h) * .3, cyc = t % 6, k = Math.min(3, Math.floor(cyc / .7)), m = Math.max(0, Math.min(1, (cyc - 2.4) / 1.2)), ok = cyc > 4.2, i;
+      var G = ['👜', '🎨', '🧵'];
+      g.fillStyle = 'rgba(255,255,255,.08)'; hex(g, cx, cy, R); g.fill(); g.strokeStyle = c[0]; g.lineWidth = 2; hex(g, cx, cy, R); g.stroke();
+      g.fillStyle = '#ff4f6d'; g.beginPath(); g.arc(cx - R * .55, cy - R * .62, R * .07 * (.8 + .2 * Math.sin(t * 6)), 0, 7); g.fill();
+      g.font = Math.round(R * .14) + 'px sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
+      for(i = 0; i < 3; i++){ var x0 = cx - R * .9 + i * R * .9, y0 = h * .82, on = i < k, sel = i === 1, x = sel ? x0 + (cx - x0) * m : x0, y = sel ? y0 + (cy - y0) * m : y0, r = R * (sel ? .2 + .22 * m : .2);
+        if(sel && m > 0 && m < 1){ g.strokeStyle = c[1]; g.globalAlpha = .5; g.beginPath(); g.moveTo(x0, y0); g.lineTo(x, y); g.stroke(); g.globalAlpha = 1; }
+        g.fillStyle = on ? (i % 2 ? c[1] : c[0]) : 'rgba(255,255,255,.16)'; hex(g, x, y, r); g.fill();
+        g.font = Math.round(r * .9) + 'px sans-serif'; g.fillStyle = '#fff'; if(on) g.fillText(G[i], x, y + 1); }
+      if(ok){ var a = Math.min(1, (cyc - 4.2) / .5); g.globalAlpha = a; g.fillStyle = '#16e0d4'; hex(g, cx + R * .62, cy + R * .5, R * .2); g.fill();
+        g.fillStyle = '#062a28'; g.font = 'bold ' + Math.round(R * .2) + 'px sans-serif'; g.fillText('✓', cx + R * .62, cy + R * .52); g.globalAlpha = 1; }
+      g.textBaseline = 'alphabetic'; },
+    /* Les communautés (18 nov. 2026) : des hexagones de membres se rapprochent autour d'un hexagone central, puis des fils les relient */
+    communautes: function(g, w, h, t, c){ var cx = w / 2, cy = h / 2, R = Math.min(w, h) * .34, cyc = t % 6, m = Math.min(1, cyc / 2.2), k = Math.min(6, Math.max(0, Math.floor((cyc - 2.2) / .45))), i;
+      g.fillStyle = c[0]; hex(g, cx, cy, R * .3); g.fill(); g.font = Math.round(R * .3) + 'px sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('🤝', cx, cy + 1);
+      for(i = 0; i < 6; i++){ var a = Math.PI / 3 * i, d = R * (1.35 - .45 * m), x = cx + d * Math.cos(a), y = cy + d * Math.sin(a);
+        if(i < k){ g.strokeStyle = c[1]; g.lineWidth = 2; g.globalAlpha = .8; g.beginPath(); g.moveTo(cx, cy); g.lineTo(x, y); g.stroke(); g.globalAlpha = 1; }
+        g.fillStyle = i < k ? (i % 2 ? c[1] : c[0]) : 'rgba(255,255,255,.18)'; hex(g, x, y, R * .17); g.fill(); }
+      g.textBaseline = 'alphabetic'; },
     /* La Révélation (18 nov. 2026) : trois indices s'allument un à un, puis un rideau doré s'ouvre sur le talent */
     revelation: function(g, w, h, t, c){ var cx = w / 2, cy = h / 2, R = Math.min(w, h) * .34, cyc = t % 6, k = Math.min(3, Math.floor(cyc / 1.1)), o = Math.max(0, Math.min(1, (cyc - 3.6) / 1.2));
       for(var i = 0; i < 3; i++){ var x = cx - R * .9 + i * R * .9, y = cy + R * .95, on = i < k; g.fillStyle = on ? (i % 2 ? c[1] : c[0]) : 'rgba(255,255,255,.16)'; hex(g, x, y, R * .16); g.fill();
@@ -1748,6 +1769,16 @@ function repliApercu(){ if(ST.cap || ST.apercu) return false; ST.apercu = true; 
   return true; }
 (function(){ var cc0 = chargerCap;
   chargerCap = function(){ return cc0().then(function(){ if(repliApercu()) return cc0(); }, function(e){ if(repliApercu()) return cc0(); throw e; }); }; })();
+
+/* 21 nov. 2026 : « Relever le défi » depuis Iris ouvre DIRECTEMENT la caméra de La Forge sur ce défi (Iris pose nv_cam_ctx comme
+   NVCamera.filmer l'aurait fait ici). Au retour, la prise est reprise comme si le défi avait été ouvert dans ce module : mêmes
+   règles, même formulaire, même envoi. Jamais la prise d'un autre compte du téléphone. */
+(function releverDepuisIris(){ var lire0 = lireFilm;
+  lireFilm = function(){ var f = lire0.apply(this, arguments); if(f) return f; var c = null;
+    try{ c = window.NVCamera && NVCamera.contexte ? NVCamera.contexte() : null; }catch(e){}
+    if(!c || c.module !== MOI || c.depuis !== 'iris' || c.relever !== true || typeof c.defi !== 'string' || !c.defi) return null;
+    var k = compte(); if(c.compte && c.compte !== k) return null;
+    return {pour:c.defi, compte:k, quand:c.quand}; }; })();
 
 demarrer();
 })();

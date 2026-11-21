@@ -1,6 +1,6 @@
 {
- "version": "2026.11.21-0143d046bbda",
- "date": "2026-11-21T04:44:25Z",
+ "version": "2026.11.21-efbe6593d4ff",
+ "date": "2026-11-21T05:29:34Z",
  "entree": "index.html",
  "modules": [
   "NV_MODULE_Academie.html",
@@ -107,8 +107,8 @@
    "taille": 1936861
   },
   "NV_MODULE_Champions.html": {
-   "sha256": "5be637813966b9dbef51a6e98a28b5c55cfd4d7e59ea30e7c97fb0c0f19b5d2f",
-   "taille": 358149
+   "sha256": "3fcbaac6eef7fac4ee303b3a260d6bc2c8858cad9e01d655f59a4784913ec8f7",
+   "taille": 361768
   },
   "NV_MODULE_CinemaWorld.html": {
    "sha256": "1f53676e3b0be0bb640e07420a7bacf0c6316ef201620204ac26a2967e2426c7",
@@ -131,8 +131,8 @@
    "taille": 198039
   },
   "NV_MODULE_Create.html": {
-   "sha256": "0b04e83a7a7b189a2fd72fee8bd9be770b1bfd529f73110098fcc37b30978c36",
-   "taille": 2219645
+   "sha256": "4357c6b981ca2a255b7cde9f3a8b05b602c9dae26eaa57764f26ae5482f25dfd",
+   "taille": 2225282
   },
   "NV_MODULE_Dashboard.html": {
    "sha256": "1c00a6b244a05bb1d396f29efc001d2f3bda3e701d18e545293c3018919cec79",
@@ -167,8 +167,8 @@
    "taille": 2112115
   },
   "NV_MODULE_Iris.html": {
-   "sha256": "164fe5215145ab7358e8256d966fcb808f65a1aa6de90f24a04b390485287ac6",
-   "taille": 1160153
+   "sha256": "6eb8aa8f0d46b67518f929b614367de2b8896513a851a20d20408bfb16ac0950",
+   "taille": 1162390
   },
   "NV_MODULE_Live.html": {
    "sha256": "010b84a3d500ebe839a605a654d819d9c495b2fdb57ce49bfaff0ac872e5249d",
@@ -199,8 +199,8 @@
    "taille": 1473355
   },
   "NV_MODULE_Pagne.html": {
-   "sha256": "0ee2d56fc6779442920935181506321f8b6f0ffeea7d4b179210ebb74339148c",
-   "taille": 200655
+   "sha256": "d1a764d96362b337de5f707e398a2cba0f74aad7e28f44d5f42009422f2521ee",
+   "taille": 217760
   },
   "NV_MODULE_Passeport.html": {
    "sha256": "69756dec6f627753037009bcba2c88b46c8f590808fb6b0680d73b16979ba37f",
@@ -259,8 +259,8 @@
    "taille": 135765
   },
   "NV_MODULE_SansFrontieres.html": {
-   "sha256": "1d10cf4006a67575e12a00c19d60f032ff57e7b221b4d02d350f9ed7a1d1e11b",
-   "taille": 308906
+   "sha256": "475d8fd480522c2e6a48935295ef6672eb9b0f862fd70535b0e1eb357e4fb7ac",
+   "taille": 313549
   },
   "NV_MODULE_Savoir.html": {
    "sha256": "b7227543239598af829b07767f32655e70f4dfd8dfb42274996710ee07616e18",
@@ -283,24 +283,24 @@
    "taille": 1332534
   },
   "NV_MODULE_StyleUniverse.html": {
-   "sha256": "b28f2b9a5fcc81d64bb25bb8dab8a2276daa71431d04ff7bdf4f260eb20623b9",
-   "taille": 236088
+   "sha256": "ab77b8867a9b19b007359a964a7f01be77160d8c9916085f4920b574a9e6f3bb",
+   "taille": 250603
   },
   "NV_MODULE_TalentJour.html": {
-   "sha256": "81b69138f5a65f9f3a2491258bc96b25d27c7bf1e741fb328813e53e6205176a",
-   "taille": 199548
+   "sha256": "662810fda00d7ba3e121ad9733f4185c807624499ed12cabee0431bad5a741da",
+   "taille": 216651
   },
   "NV_MODULE_TalentMatch.html": {
    "sha256": "324f1c727fd4879a86a6e563050aa73a11050c5925951ca0b7c8d280b36643a9",
    "taille": 224088
   },
   "NV_MODULE_Transformation.html": {
-   "sha256": "717c7c8364ae41d37ceb02c5b29a41a5b63d6a27b055c742017f4c2680171156",
-   "taille": 222965
+   "sha256": "49ed6e283aff57232ecc2bc86129b7a36fbaec617e4743e88382cebbd3ccfec5",
+   "taille": 236029
   },
   "NV_MODULE_Tresse.html": {
-   "sha256": "7e07f643ba0c8c2cf4171067ec0fc6cbb45f026789ff80c570649420614fd925",
-   "taille": 192156
+   "sha256": "e6ce69a27f15841fe1e46273b70345d7eda6db94d17b45e6ade2e8b0e0ae4fb8",
+   "taille": 209303
   },
   "NV_MODULE_ViralStorm.html": {
    "sha256": "1b8279ef70e77ec7d0258064b85c93d316b167408901d15c8d5bfa0cb5568f46",
