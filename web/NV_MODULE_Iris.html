@@ -4394,7 +4394,10 @@ function brancherFlux(o, v, idx){
   suite();
   function suite(){
     if(f.fini) return;
-    /* 2. HLS lu par le téléphone lui-même */
+    /* 2. un direct : le temps réel (WHEP) d'abord, HLS seulement en secours (21 nov. 2026 : en HLS, l'image du direct
+       n'arrivait pas, seulement le son) */
+    if(f.direct && v.whep && window.RTCPeerConnection && !f.sansWhep){ whep(o, v, 0); return; }
+    /* 3. HLS lu par le téléphone lui-même */
     if(v.hls && hlsNatif(vd)){
       /* une vidéo (pas un direct) dont les morceaux ne se lisent pas : l'adresse MP4, comme avant */
       if(repli) vd.addEventListener('error', function rp(){ vd.removeEventListener('error', rp); if(o.flux !== f || f.fini) return; fermerFlux(o); vd.src = repli; try{ vd.load(); }catch(e){} if(o.idx === st.i) jouer(vd); });
@@ -4415,7 +4418,10 @@ function whep(o, v, essai){
   pc.ontrack = function(e){ m.addTrack(e.track); if(!vu){ vu = true; o.video.srcObject = m; o.el.classList.remove('erreur'); if(o.idx === st.i) jouer(o.video); } };
   pc.onconnectionstatechange = function(){ if(pc.connectionState === 'failed' && o.flux === f && !f.fini) reprendre(); };
   function reprendre(){ try{ pc.close(); }catch(e){} if(essai < 4){ setTimeout(function(){ if(o.flux === f && !f.fini) whep(o, v, essai + 1); }, 1500 * (essai + 1)); }
+    else if(f.direct && v.hls && !f.sansWhep){ f.sansWhep = true; f.pc = null; suiteHls(); }
     else etatFlux(o, 'Le direct est interrompu', 'Il est peut-être terminé. Revenez plus tard ou regardez son replay.'); }
+  /* le temps réel ne passe pas (réseau très fermé) : le même direct en HLS, si ce téléphone ou MediaSource sait le lire */
+  function suiteHls(){ var vd = o.video; if(hlsNatif(vd)){ vd.src = v.hls; try{ vd.load(); }catch(e){} if(o.idx === st.i) jouer(vd); return; } if(window.MediaSource) hlsMse(o, v.hls, ''); else etatFlux(o, 'Le direct est interrompu', 'Il est peut-être terminé. Revenez plus tard ou regardez son replay.'); }
   pc.createOffer().then(function(d){ return pc.setLocalDescription(d); }).then(function(){ return new Promise(function(ok){ if(pc.iceGatheringState === 'complete') return ok(); var tm = setTimeout(ok, 2000); pc.addEventListener('icegatheringstatechange', function(){ if(pc.iceGatheringState === 'complete'){ clearTimeout(tm); ok(); } }); }); })
     .then(function(){ var h = {'Content-Type':'application/sdp'}; if(v.jeton) h.Authorization = 'Bearer ' + v.jeton; else try{ if(api() && new URL(v.whep).origin === new URL(api()).origin && window.NV_TOKEN) h.Authorization = 'Bearer ' + window.NV_TOKEN; }catch(e){}
       return fetch(v.whep, {method:'POST', mode:'cors', headers:h, body:pc.localDescription.sdp}); })

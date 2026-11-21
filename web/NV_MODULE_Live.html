@@ -365,7 +365,8 @@
     return new Promise(function(ok){ setTimeout(ok, 1500); }).then(function(){ return demander(20000); });
   }).then(function(x){ if(x.muet) noter(true, true); else noter(x.absent); });   /* le serveur ne répond toujours pas : l'aperçu, pour 2 minutes */
 }catch(e){ /* rien */ } })();
-</script><!--/NV_REPLI--><!--NV_DEMO--><script id="nv-demo">
+</script><!--/NV_REPLI-->
+<!--NV_DEMO--><script id="nv-demo">
 /* NEURAVID — LA DÉMONSTRATION dans chaque module (injectée en tête de page, avant le module).
    Jamais avec un serveur (NV_API_BASE) ; sans serveur, partout (17 nov. 2026, voir plus bas). Allumée si l'accueil l'a allumée pour la session
    (sessionStorage « nv_demo » = 1), ou « #demo » dans l'adresse, ou une page ouverte comme fichier (file:, content:).
@@ -4933,6 +4934,8 @@ function itemDirect(d){
   /* réseau très lent : le son seul est proposé d'office quand NEURAVID le fournit (on peut revenir à l'image) */
   if(SC.audio[d.id] == null && d.audio){ try{ var c = navigator.connection; if(c && /(^|-)2g$/.test(c.effectiveType || '')) SC.audio[d.id] = true; }catch(e){ dbg(e); } }
   if(SC.audio[d.id] && d.audio) url = d.audio;
+  /* 21 nov. 2026 : le temps réel (WHEP) d'abord ; l'adresse HLS seulement pour la foule, le son seul, ou en secours (attacherFlux) */
+  else if(d.whep && !enFoule(d.id)) url = null;
   return {id:'live:' + d.id, clip:null, url:url, poster:d.poster || d.hote.photo, auteur:d.hote.nom || d.hote.handle, drapeau:d.hote.drapeau, photo:d.hote.photo, couleur:d.hote.couleur,
     moi:d.moi, etatMoi:'Votre direct', mineur:d.hote.mineur, direct:true, crossOrigin:!!(d.sonCors && url && url === d.url), spectateurs:d.spectateurs, chip:d.titre || null, sansReactions:true};
 }
@@ -4976,7 +4979,22 @@ function attacherFlux(d, v){
   if(enFoule(d.id) && d.url && (!/\.m3u8(\?|$)/i.test(d.url) || hlsLisible())){ v.src = d.url; v.play().catch(function(){}); return; }
   if(d.whep){ lireAvecReprise(d, v, 0); return; }
   if(d.url){ v.src = d.url; v.play().catch(function(){}); return; }
-  erreurVideo(v);
+  attendreImage(d, v, 0);
+}
+/* 21 nov. 2026 : on entre avant que l'image du créateur arrive au serveur média (ou pendant sa reconnexion) : le serveur
+   ne donne pas encore d'adresse. On redemande le direct toutes les 4 s (2 min au plus) et l'image se branche dès qu'elle est là. */
+function attendreImage(d, v, n){
+  if(!api() || n >= 30 || !document.body.contains(v)){ erreurVideo(v); return; }
+  var se = v.closest('.nvl-s'); if(se){ se.classList.remove('erreur'); se.classList.add('reprise'); }
+  setTimeout(function(){
+    if(SC.id !== d.id || !document.body.contains(v) || v.srcObject || v.getAttribute('src')) return;
+    lireS('/v1/live/directs/' + encodeURIComponent(d.id), function(x){
+      var nd = x && normDirect(x);
+      if(nd && nd.etat === 'termine'){ if(se) se.classList.remove('reprise'); erreurVideo(v); return; }
+      if(nd && (nd.whep || nd.url)){ d.whep = nd.whep; d.url = nd.url; d.jeton = nd.jeton || d.jeton; if(se) se.classList.remove('reprise'); attacherFlux(d, v); return; }
+      attendreImage(d, v, n + 1);
+    }, 0);
+  }, n ? 4000 : 1500);
 }
 var FLUX_V = {};
 function poserFlux(v, s, id){ try{ if(id) FLUX_V[id] = v; v.srcObject = s; v.play().catch(function(){ v.muted = true; v.play().catch(function(){}); }); if(SC.reso) brancherReso(s); }catch(e){ dbg(e); } }
@@ -4984,9 +5002,14 @@ function erreurVideo(v){ var s = v.closest('.nvl-s'); if(s) s.classList.add('err
 /* WHEP : lire un flux WebRTC avec une seule requête HTTP (norme ouverte, aucune bibliothèque) */
 /* le flux temps réel se reprend seul : 5 essais, attente croissante, avant d'afficher « Réessayer » */
 function lireAvecReprise(d, v, essai){
-  whepLire(d, v, function(){ if(essai < 5 && SC.id === d.id && document.body.contains(v)){ var se = v.closest('.nvl-s'); if(se) se.classList.add('reprise'); setTimeout(function(){ if(SC.id === d.id && document.body.contains(v)) lireAvecReprise(d, v, essai + 1); }, attente(1500, essai)); } else erreurVideo(v); })
+  whepLire(d, v, function(){ if(essai < 5 && SC.id === d.id && document.body.contains(v)){ var se = v.closest('.nvl-s'); if(se) se.classList.add('reprise'); setTimeout(function(){ if(SC.id === d.id && document.body.contains(v)) lireAvecReprise(d, v, essai + 1); }, attente(1500, essai)); } else secoursHls(d, v); })
     .then(function(s){ var se = v.closest('.nvl-s'); if(se) se.classList.remove('reprise', 'erreur'); poserFlux(v, s, d.id); })
-    .catch(function(e){ dbg(e); if(essai < 5 && SC.id === d.id){ setTimeout(function(){ if(SC.id === d.id && document.body.contains(v)) lireAvecReprise(d, v, essai + 1); }, attente(1500, essai)); } else erreurVideo(v); });
+    .catch(function(e){ dbg(e); if(essai < 5 && SC.id === d.id){ setTimeout(function(){ if(SC.id === d.id && document.body.contains(v)) lireAvecReprise(d, v, essai + 1); }, attente(1500, essai)); } else secoursHls(d, v); });
+}
+/* le temps réel ne passe pas (réseau très fermé) : l'adresse HLS du même direct, si ce téléphone sait la lire */
+function secoursHls(d, v){
+  if(d.url && !v.srcObject && (!/\.m3u8(\?|$)/i.test(d.url) || hlsLisible())){ var se = v.closest('.nvl-s'); if(se) se.classList.remove('reprise', 'erreur'); v.src = d.url; v.play().catch(function(){ v.muted = true; v.play().catch(function(){}); }); return; }
+  erreurVideo(v);
 }
 /* le jeton de connexion ne part qu'à l'adresse de NEURAVID, ou c'est le jeton propre au direct que le serveur a donné */
 function entetesFlux(url, jeton, h){
@@ -6003,6 +6026,21 @@ function rituel(suite){
 }
 function carteStudio(t, ms){ var c = document.createElement('div'); c.className = 'lv-carte echo'; c.textContent = t; $('stuCartes').prepend(c); setTimeout(function(){ c.remove(); }, ms || 4000); }
 
+/* 21 nov. 2026 : l'image part en H.264 quand le téléphone sait l'encoder. Le serveur média de NEURAVID ne range pas le VP8
+   (choisi par défaut par le navigateur) dans HLS ni dans l'enregistrement : le public HLS n'entendait que le son et le replay
+   n'avait pas d'image. Le H.264 passe partout (temps réel, HLS, replay). Sans H.264, le choix du navigateur reste. */
+function preferH264(tr){
+  try{
+    if(!tr || !tr.sender || !tr.sender.track || tr.sender.track.kind !== 'video' || typeof tr.setCodecPreferences !== 'function' || !window.RTCRtpSender || !RTCRtpSender.getCapabilities) return tr;
+    var c = (RTCRtpSender.getCapabilities('video') || {}).codecs || [];
+    var rang = function(x){ var m = (x.mimeType || '').toLowerCase(), f = x.sdpFmtpLine || '';
+      if(m !== 'video/h264') return /rtx|red|ulpfec|flexfec/.test(m) ? 9 : 5;
+      return (/packetization-mode=1/.test(f) ? 0 : 2) + (/profile-level-id=42e0/.test(f) ? 0 : 1); };
+    if(!c.some(function(x){ return (x.mimeType || '').toLowerCase() === 'video/h264'; })) return tr;
+    tr.setCodecPreferences(c.slice().sort(function(a, b){ return rang(a) - rang(b); }));
+  }catch(e){ dbg(e); }
+  return tr;
+}
 /* ── WHIP : envoyer l'image et le son en temps réel avec une seule requête HTTP (norme ouverte) ── */
 function publier(url, essai){
   var d = D(); if(!d || !d.flux || !window.RTCPeerConnection){ toast('Ce téléphone ne peut pas diffuser depuis cette page. Utilisez l\'application NEURAVID.'); return; }
@@ -6010,7 +6048,7 @@ function publier(url, essai){
   var pc = new RTCPeerConnection({bundlePolicy:'max-bundle'}); d.pc = pc; d.whipUrl = url; essai = essai || 0;
   /* après une reconnexion, l'image composée repart elle aussi (pas la caméra brute) */
   var pistes = pistesEnvoyees(d), fluxEnv = new MediaStream(pistes);
-  pistes.forEach(function(t){ pc.addTransceiver(t, {direction:'sendonly', streams:[fluxEnv]}); });
+  pistes.forEach(function(t){ preferH264(pc.addTransceiver(t, {direction:'sendonly', streams:[fluxEnv]})); });
   var echec = function(){
     if(D() !== d || d.pc !== pc || d.etat === 'fini') return;
     /* la reconnexion est réelle : on republie, avec une attente qui grandit, et l'écran le dit */
@@ -6600,7 +6638,7 @@ function compoDemarrer(d){
 function publierBrut(d){
   if(!d.whipBrut || !d.flux || CMP.pcBrut || !window.RTCPeerConnection) return;
   var pc = new RTCPeerConnection({bundlePolicy:'max-bundle'}); CMP.pcBrut = pc;
-  d.flux.getTracks().forEach(function(t){ pc.addTransceiver(t, {direction:'sendonly', streams:[d.flux]}); });
+  d.flux.getTracks().forEach(function(t){ preferH264(pc.addTransceiver(t, {direction:'sendonly', streams:[d.flux]})); });
   pc.createOffer().then(function(o){ return pc.setLocalDescription(o); }).then(function(){ return glaner(pc); })
     .then(function(){ return fetch(d.whipBrut, {method:'POST', mode:'cors', headers:entetesFlux(d.whipBrut, d.whipJeton, {'Content-Type':'application/sdp'}), body:pc.localDescription.sdp}); })
     .then(function(r){ if(!r.ok) throw new Error('whip brut ' + r.status); CMP.brutRessource = r.headers.get('Location') ? new URL(r.headers.get('Location'), d.whipBrut).href : null; return r.text(); })
