@@ -5071,17 +5071,23 @@ function ouvrirDefi(){
    « Envoyer au défi » rend la prise à l'univers, qui la dépose comme une vraie participation à CE défi, avec SES règles
    (âge, durée, relecture, formulaire). Les univers qui demandent d'abord un formulaire, un couple, un adversaire ou une
    candidature (Miss & Master, Voix d'Or, Battle, Love Universe, Cinema World, La Mosaïque, Le Chemin du progrès, La Révélation)
-   s'ouvrent comme avant sur ce défi : la caméra y vient juste après, une fois ces étapes faites. */
+   ont aussi la caméra directe depuis le 21 nov. (garder:1, voir plus bas). */
 var FORGE_DIRECTE = {
   TalentJour:{min:15, max:60}, StyleUniverse:{max:180, nouveaute:'miroir'}, Transformation:{max:180, nouveaute:'miroir'},
   Tresse:{min:1, max:5}, Champions:{min:5, max:120}, Pagne:{min:3, max:30}, SansFrontieres:{min:1, max:20, prefixe:'suite.'},
-  Arena:{max:600}, ChallengeUniverse:{max:600}, ViralStorm:{}, Orbite:{}
+  Arena:{max:600}, ChallengeUniverse:{max:600}, ViralStorm:{}, Orbite:{},
+  /* 21 nov. 2026 (2) : les univers à formulaire aussi. La prise va d'abord sur le téléphone (défi « iris.<id> ») ; l'univers
+     s'ouvre ensuite sur ce défi et la reçoit dès qu'il demande à filmer, après SON formulaire (nv_depuis_iris.js). */
+  MissMaster:{max:600, garder:1}, Artistes:{max:600, garder:1}, Battle:{max:600, garder:1}, LoveUniverse:{max:600, garder:1},
+  CinemaWorld:{max:600, garder:1}, ArenaArts:{max:600, garder:1}, Progres:{max:60, garder:1}, Revelation:{max:90, garder:1}
 };
 function releverForge(v){
   var m = v.module, d = v.defiId, r = FORGE_DIRECTE[m], u = window.NV_USER || null;
   if(!r || !d || typeof d !== 'string' || horsApplication()) return false;
-  var c = {module:m, defi:(r.prefixe || '') + d, titre:NOMS_MODULES[m] || m, mode:'video',
+  if(r.garder && !/^[A-Za-z0-9_.:-]{1,80}$/.test(d)) return false;
+  var c = {module:m, defi:(r.garder ? 'iris.' : (r.prefixe || '')) + d, titre:NOMS_MODULES[m] || m, mode:'video',
     depuis:'iris', relever:true, repondA:String(v.id), quand:Date.now()};
+  if(r.garder) c.irisDefi = d;
   if(r.min) c.minSeconds = r.min; if(r.max) c.maxSeconds = r.max; if(r.nouveaute) c.nouveaute = r.nouveaute;
   if(u && u.id != null) c.compte = String(u.id);
   /* le même contexte que l'univers aurait reçu en ouvrant le défi (au retour de La Forge, il retrouve ce défi) */

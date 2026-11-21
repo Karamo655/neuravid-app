@@ -1767,6 +1767,131 @@ demarrer();
 </script><!--/NV_CLOCHE-->
 
 <!--NV_DEPUIS_IRIS--><script id="nv-depuis-iris">window.NV_DEPUIS_MODULE="Dashboard";
+/* NEURAVID — LA PRISE D'IRIS (21 novembre 2026, demande de Karamo : « lorsque l'on clique sur Relever le défi, la caméra de
+   La Forge s'ouvre directement… au lieu d'accéder au module entier »).
+   Pour les univers qui demandent d'abord un formulaire, une épreuve, un couple ou un adversaire (Miss & Master, Voix d'Or, Battle,
+   Love Universe, Cinema World, La Mosaïque, Le Chemin du progrès, La Révélation), Iris ouvre la caméra de La Forge tout de suite,
+   avec un défi « iris.<id> ». La prise revient ici : l'univers ne la dépose jamais telle quelle (NVCamera.recuperer rend null pour
+   « iris.* ») ; elle est GARDÉE sur ce téléphone (IndexedDB nv_relever, par compte, 1 h), le défi s'ouvre, et dès que l'univers
+   demande à filmer (NVCamera.filmer, après SON formulaire), la prise gardée lui est rendue à la place d'une nouvelle prise
+   (NVCamera.rendre) : il la vérifie et la dépose avec SES règles. Rien n'est envoyé ici. Une épreuve plus stricte (sans import,
+   voix brute, Défi Zéro) ou d'une autre durée garde la caméra normale : la prise reste gardée. */
+(function(){ try{
+  var MOD = String(window.NV_DEPUIS_MODULE || '').replace(/_leger$/, '');
+  var CAM = window.NVCamera;
+  if(!MOD || !CAM || typeof CAM.recuperer !== 'function' || typeof CAM.filmer !== 'function' || typeof CAM.rendre !== 'function' || CAM._nvIris) return;
+  CAM._nvIris = true;
+  var PREF = 'iris.', MAX_MS = 3600e3;
+  var O = {rec:CAM.recuperer, film:CAM.filmer, rendre:CAM.rendre, ctx:CAM.contexte};
+  /* l'univers ne dépose jamais lui-même une prise d'Iris : elle attend son formulaire */
+  CAM.recuperer = function(module, defi){
+    if(typeof defi === 'string' && defi.indexOf(PREF) === 0) return Promise.resolve(null);
+    return O.rec.apply(CAM, arguments);
+  };
+  var TP = {
+    fr:['Votre vidéo est prête', 'Choisissez ici l’épreuve ou remplissez ce qui est demandé, puis touchez le bouton pour filmer : votre vidéo sera envoyée à ce défi sans refaire la prise.', 'Effacer ma vidéo', 'Fermer'],
+    en:['Your video is ready', 'Choose the round here or fill in what is asked, then tap the button to film: your video will be sent to this challenge without filming again.', 'Delete my video', 'Close'],
+    es:['Tu vídeo está listo', 'Elige aquí la prueba o completa lo que se pide y luego toca el botón para grabar: tu vídeo se enviará a este reto sin volver a grabar.', 'Borrar mi vídeo', 'Cerrar'],
+    pt:['O seu vídeo está pronto', 'Escolha aqui a prova ou preencha o que é pedido e depois toque no botão para gravar: o seu vídeo será enviado para este desafio sem gravar de novo.', 'Apagar o meu vídeo', 'Fechar'],
+    ar:['الفيديو الخاص بك جاهز', 'اختر هنا المرحلة أو املأ ما هو مطلوب، ثم المس زر التصوير: سيُرسل الفيديو إلى هذا التحدي دون إعادة التصوير.', 'احذف الفيديو الخاص بي', 'إغلاق'],
+    sw:['Video yako iko tayari', 'Chagua hapa raundi au jaza kinachoombwa, kisha gusa kitufe cha kurekodi: video yako itatumwa kwa changamoto hii bila kurekodi tena.', 'Futa video yangu', 'Funga'],
+    ha:['Bidiyonka ya shirya', 'Zaɓi zagaye a nan ko cika abin da aka nema, sannan ka taɓa maɓallin ɗauka: za a aika bidiyonka zuwa wannan ƙalubalen ba tare da sake ɗauka ba.', 'Goge bidiyona', 'Rufe'],
+    yo:['Fídíò rẹ ti ṣetán', 'Yan ìpele níbí tàbí kún ohun tí a béèrè, lẹ́yìn náà tẹ bọ́tìnì láti ya fídíò: a ó fi fídíò rẹ ránṣẹ́ sí ìpèníjà yìí láìsí pé o tún un yà.', 'Pa fídíò mi rẹ́', 'Pa á dé'],
+    wo:['Sa widewo pare na', 'Tànnal fii joŋante bi walla nga feesal li ñu laaj, ba noppi nga bës butoŋ bi ngir filme: dañuy yónne sa widewo ci kàtte bii te doo ko filmaat.', 'Far sama widewo', 'Tëj'],
+    bm:['I ka widewo labɛnna', 'Kɛcɛ yan ka sugandi walima ka min ɲininen don fa, o kɔ i ka butɔni digi ka ja ta: i ka widewo bɛ ci nin kafiya ma k’a sɔrɔ i ma a ta kokura.', 'N ka widewo jɔsi', 'A datugu'],
+    ln:['Video na yo ebongi', 'Pona awa etape to tondisa oyo esengami, sima finá butɔ́ ya kokanga video: video na yo ekotindama na mokakatano oyo kozanga kokanga yango lisusu.', 'Longola video na ngai', 'Kanga']
+  };
+  function langue(){ var l = ''; try{ l = String(window.NV_LANG || document.documentElement.lang || JSON.parse(localStorage.getItem('nv_ui_langue') || '""') || navigator.language || 'fr'); }catch(e){ l = 'fr'; }
+    l = l.slice(0, 2).toLowerCase(); return TP[l] ? l : 'fr'; }
+  function compte(){ var u = window.NV_USER; return u && u.id != null ? String(u.id) : ''; }
+  /* la prise gardée sur ce téléphone, par module et par compte */
+  function base(){ return new Promise(function(res){ try{ var r = indexedDB.open('nv_relever', 1);
+    r.onupgradeneeded = function(){ try{ r.result.createObjectStore('p'); }catch(e){} };
+    r.onsuccess = function(){ res(r.result); }; r.onerror = function(){ res(null); }; setTimeout(function(){ res(null); }, 2000); }catch(e){ res(null); } }); }
+  function op(mode, fn){ return base().then(function(db){ if(!db) return null; return new Promise(function(res){ try{
+    var t = db.transaction('p', mode), q = fn(t.objectStore('p')); t.oncomplete = function(){ res(q && q.result !== undefined ? q.result : true); }; t.onerror = function(){ res(null); };
+  }catch(e){ res(null); } }); }); }
+  var CLE = MOD;
+  function garder(p){ return op('readwrite', function(s){ return s.put(p, CLE); }); }
+  function lire(){ return op('readonly', function(s){ return s.get(CLE); }); }
+  function effacer(){ return op('readwrite', function(s){ return s['delete'](CLE); }); }
+  var PRISE = null;
+  function valide(p){ return p && p.blob && (Date.now() - (+p.at || 0) < MAX_MS) && (!p.compte || !compte() || p.compte === compte()); }
+  function strict(c){ return !!(c && (c.zero || c.voixdor || c.micro || c.audioSeul || (Array.isArray(c.outilsInterdits) && c.outilsInterdits.length))); }
+  function dureeOk(p, c){ var d = p && p.meta ? +(p.meta.seconds || p.meta.duree || 0) : 0; if(!(d > 0)) return true;
+    if(c && +c.maxSeconds > 0 && d > +c.maxSeconds + .5) return false; if(c && +c.minSeconds > 0 && d < +c.minSeconds - .5) return false; return true; }
+  CAM.filmer = function(ctx){
+    try{
+      var c = ctx || {}; var m = c.module || window.NV_MODULE_NAME || MOD;
+      if(PRISE && m === MOD && !strict(c) && dureeOk(PRISE, c) && !(typeof c.defi === 'string' && c.defi.indexOf(PREF) === 0)){
+        var p = PRISE; PRISE = null; retirerBandeau();
+        c.module = MOD; c.quand = Date.now(); c.depuisIris = true; if(p.repondA) c.repondA = p.repondA;
+        var t = JSON.stringify(c);
+        try{ sessionStorage.setItem('nv_cam_ctx', t); }catch(e){} try{ localStorage.setItem('nv_cam_ctx', t); }catch(e){}
+        effacer();
+        try{ if(typeof window.NVemit === 'function') window.NVemit('challenge_iris_prise', {module:MOD, defi:c.defi || null}); }catch(e){}
+        O.rendre.call(CAM, p.blob, p.meta || {});
+        return 'lien';
+      }
+    }catch(e){}
+    return O.film.apply(CAM, arguments);
+  };
+  var RELEVER = {
+    LoveUniverse:function(x){ var a = window.NVLoveUniverse; if(a && a.defi && x.defi){ a.defi(x.defi); return true; } },
+    Battle:function(){ var a = window.NVBattle; if(a && a.defier){ a.defier(); return true; } },
+    MissMaster:function(){ var a = window.NVMissMaster; if(a && a.montrer){ a.montrer('epreuves'); return true; } },
+    Artistes:function(){ var a = window.NVArtistes; if(a && a.montrer){ a.montrer('epreuves'); return true; } },
+    CinemaWorld:function(){ var a = window.NVCinemaWorld; if(a && a.montrer){ a.montrer('defis'); return true; } },
+    ArenaArts:function(){ var a = window.NVArenaArts; if(a && a.open){ a.open('arts'); return true; } }
+  };
+  function montrerDefi(x){
+    var h = window.NV_RELEVER_H || [];
+    for(var i = 0; i < h.length; i++){ try{ if(h[i]({module:MOD, defi:x.defi, clip:x.repondA, action:'relever', prise:true}) === true) return true; }catch(e){} }
+    try{ return RELEVER[MOD] ? RELEVER[MOD](x) === true : false; }catch(e){ return false; }
+  }
+  function retirerBandeau(){ var d = document.getElementById('nvPriseIris'); if(d) d.remove(); }
+  function bandeau(){
+    if(document.getElementById('nvPriseIris') || !document.body) return;
+    var l = langue(), T = TP[l], d = document.createElement('div');
+    d.id = 'nvPriseIris'; d.setAttribute('role', 'status'); d.dir = l === 'ar' ? 'rtl' : 'ltr';
+    d.style.cssText = 'position:fixed;z-index:2147482991;left:8px;right:8px;bottom:calc(10px + env(safe-area-inset-bottom,0px));max-width:560px;margin:0 auto;' +
+      'background:rgba(10,12,22,.95);color:#fff;border:1px solid rgba(33,200,184,.75);border-radius:16px;padding:10px 12px;box-shadow:0 8px 26px rgba(0,0,0,.45);' +
+      'font:13px/1.35 system-ui,-apple-system,Roboto,sans-serif';
+    var b = 'border:0;border-radius:12px;padding:8px 12px;font:700 13px system-ui,-apple-system,Roboto,sans-serif;cursor:pointer;min-height:36px';
+    d.innerHTML = '<div style="display:flex;align-items:center;gap:8px"><i aria-hidden="true" style="flex:none;width:16px;height:18px;background:linear-gradient(135deg,#21C8B8,#F3D27A);clip-path:polygon(50% 0,100% 25%,100% 75%,50% 100%,0 75%,0 25%)"></i>' +
+      '<b style="flex:1;min-width:0"></b><button type="button" data-x style="' + b + ';background:transparent;color:#ccd;padding:6px 8px"></button></div>' +
+      '<p style="margin:4px 0 8px;color:#cfd3e6"></p><div style="display:flex;gap:8px;flex-wrap:wrap"><button type="button" data-eff style="' + b + ';background:rgba(255,255,255,.1);color:#fff"></button></div>';
+    d.querySelector('b').textContent = T[0];
+    d.querySelector('p').textContent = T[1];
+    var x = d.querySelector('[data-x]'); x.textContent = '×'; x.setAttribute('aria-label', T[3]);
+    x.addEventListener('click', function(){ d.remove(); });              /* la prise reste gardée */
+    var e = d.querySelector('[data-eff]'); e.textContent = T[2];
+    e.addEventListener('click', function(){ PRISE = null; effacer(); d.remove(); });
+    document.body.appendChild(d);
+  }
+  function annoncer(p){
+    PRISE = p;
+    if(document.body) bandeau(); else document.addEventListener('DOMContentLoaded', bandeau);
+    var debut = Date.now();
+    (function essai(){ if(!PRISE) return; if(montrerDefi(p) === true) return; if(Date.now() - debut < 6000) setTimeout(essai, 500); })();
+  }
+  function demarrer(){
+    var c = null; try{ c = O.ctx ? O.ctx.call(CAM) : null; }catch(e){ c = null; }
+    if(c && c.module === MOD && c.relever && c.depuis === 'iris' && typeof c.defi === 'string' && c.defi.indexOf(PREF) === 0){
+      try{ sessionStorage.removeItem('nv_cam_ctx'); }catch(e){} try{ localStorage.removeItem('nv_cam_ctx'); }catch(e){}
+      O.rec.call(CAM, MOD, c.defi).then(function(p){
+        if(!p || !p.blob) return;
+        if(c.compte && compte() && c.compte !== compte()) return;                  /* jamais la prise d'un autre compte */
+        var g = {blob:p.blob, meta:p.meta || {}, defi:typeof c.irisDefi === 'string' ? c.irisDefi.slice(0, 80) : null,
+          repondA:typeof c.repondA === 'string' ? c.repondA.slice(0, 80) : null, compte:c.compte || compte() || '', at:Date.now()};
+        garder(g); annoncer(g);
+      });
+      return;
+    }
+    lire().then(function(p){ if(valide(p)) annoncer(p); else if(p) effacer(); });
+  }
+  demarrer();          /* tout de suite : avant que l'univers ne relise son contexte (400 ms) */
+}catch(e){ /* rien */ } })();
 /* NEURAVID — DEPUIS IRIS (20 novembre 2026, demande de Karamo : « toutes les vidéos de tous les modules passent aussi par Iris,
    mais restent dans les modules où elles ont été créées »).
    Iris montre l'origine d'une vidéo (« Vient de Miss & Master ») et propose « Voir dans … ». Il range alors, juste avant
@@ -1864,12 +1989,13 @@ demarrer();
     MissMaster:function(){ var a = window.NVMissMaster; if(a && a.montrer){ a.montrer('epreuves'); return true; } },
     Artistes:function(){ var a = window.NVArtistes; if(a && a.montrer){ a.montrer('epreuves'); return true; } },
     CinemaWorld:function(){ var a = window.NVCinemaWorld; if(a && a.montrer){ a.montrer('defis'); return true; } },
-    Arena:function(){ var a = window.NVArenaAPI; if(a && a.montrer){ a.montrer('arene'); return true; } }
+    Arena:function(){ var a = window.NVArenaAPI; if(a && a.montrer){ a.montrer('arene'); return true; } },
+    ArenaArts:function(){ var a = window.NVArenaArts; if(a && a.open){ a.open('arts'); return true; } }
   };
   function essayerRelever(){
     var h = window.NV_RELEVER_H || [];
     for(var i = 0; i < h.length; i++){ try{ if(h[i](info) === true) return true; }catch(e){} }
-    try{ return RELEVER[MOD] ? RELEVER[MOD]() === true : false; }catch(e){ return false; }
+    try{ return RELEVER[MOD] ? RELEVER[MOD].call(null, info) === true : false; }catch(e){ return false; }
   }
   function essayer(){
     if(info.action === 'relever'){
