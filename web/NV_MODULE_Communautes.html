@@ -320,7 +320,9 @@
      fausse acceptation ou un faux signalement tromperaient. */
   var explicite = s === '1' || /(^#|&)demo(=1)?(&|$)/.test(h) || /^(file|content):$/.test(location.protocol);
   if(!explicite && /NV_MODULE_(Entree|Conditions|Report)\.html/.test(location.pathname || '')) return;
-  window.NV_DEMO = true; try{ sessionStorage.setItem('nv_demo', '1'); }catch(e){ /* rien */ }
+  /* 21 nov. 2026 : la session ne garde la démonstration que si elle a été demandée ; un aperçu d'office (sans serveur, ou serveur
+     qui ne propose pas la fonction) reste propre à ce module et n'éteint plus la session des autres modules */
+  window.NV_DEMO = true; if(explicite) try{ sessionStorage.setItem('nv_demo', '1'); }catch(e){ /* rien */ }
   if(!window.NV_MODULES_BASE) window.NV_MODULES_BASE = './';
   if(!window.NV_USER) window.NV_USER = {id:'demo', handle:'visiteur', prenom:'Aya', age:25, majeur:true, iso:'GN'};
 }catch(e){ /* rien */ } })();

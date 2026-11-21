@@ -318,7 +318,9 @@
   api = api.replace(/\/$/, '');
   var cle = 'nv_repli|' + MOD + '|' + api, garde = 'nv_repli_recharge|' + MOD, c = null;
   try{ c = JSON.parse(localStorage.getItem(cle) || 'null'); }catch(e){ c = null; }
-  var repli = !!(c && c.absent === true && Date.now() - (c.at || 0) < 6 * 3600e3);
+  /* 21 nov. 2026 : un serveur qui A RÉPONDU « pas cette fonction » est cru 6 h ; un serveur qui n'a pas répondu (réveil lent,
+     réseau coupé, erreur passagère) seulement 2 minutes — sinon une seule coupure laissait le module en aperçu pendant 6 h */
+  var repli = !!(c && c.absent === true && Date.now() - (c.at || 0) < (c.muet ? 120e3 : 6 * 3600e3));
   if(repli){ window.NV_REPLI = {api:api, module:MOD}; window.NV_API_BASE = ''; }
   var TXT = {fr:'Aperçu : ce serveur ne propose pas encore cette fonction. Rien n\'est envoyé.', en:'Preview: this server does not offer this feature yet. Nothing is sent.',
     es:'Vista previa: este servidor aún no ofrece esta función. No se envía nada.', pt:'Pré-visualização: este servidor ainda não oferece esta função. Nada é enviado.',
@@ -337,18 +339,28 @@
     setTimeout(function(){ d.textContent = COURT[l]; d.style.left = 'auto'; d.style.right = '8px'; d.style.transform = 'none'; d.style.padding = '2px 9px'; d.style.opacity = '.9'; }, 6000); }
   if(repli){ if(document.body) repere(); else document.addEventListener('DOMContentLoaded', repere); }
   /* la vraie réponse du serveur, en arrière-plan */
-  function noter(absent){ try{ localStorage.setItem(cle, JSON.stringify({absent:absent, at:Date.now()})); }catch(e){}
-    if(absent === repli) return;
+  function noter(absent, muet){ try{ localStorage.setItem(cle, JSON.stringify(muet ? {absent:true, muet:true, at:Date.now()} : {absent:absent, at:Date.now()})); }catch(e){}
+    if(absent === repli){ try{ sessionStorage.removeItem(garde); }catch(e){} return; }   /* état confirmé : le compteur repart de zéro */
     var n = 0; try{ n = +sessionStorage.getItem(garde) || 0; }catch(e){}
     if(n >= 2) return;                                                           /* jamais une boucle de rechargements */
     try{ sessionStorage.setItem(garde, String(n + 1)); }catch(e){}
     try{ location.reload(); }catch(e){} }
   var h = {Accept:'application/json'}; if(window.NV_TOKEN) h.Authorization = 'Bearer ' + window.NV_TOKEN;
-  var ctl = window.AbortController ? new AbortController() : null, t = setTimeout(function(){ if(ctl) ctl.abort(); }, 8000);
-  fetch(api + S.url, {headers:h, mode:'cors', cache:'no-cache', signal:ctl ? ctl.signal : undefined}).then(function(r){
-    if(!r.ok) return {absent:true};
-    return r.json().then(function(o){ if(!S.cle) return {absent:false}; var v = o && o[S.cle]; return {absent:!(v === true || (v && typeof v === 'object'))}; }, function(){ return {absent:true}; });
-  }).then(function(x){ clearTimeout(t); noter(x.absent); }, function(){ clearTimeout(t); noter(true); });   /* le serveur ne répond pas : l'aperçu aussi */
+  /* une réponse claire : 2xx (la capacité lue), 404/410 (la route n'existe pas) ; tout le reste = « ne répond pas » */
+  function demander(delai){
+    var ctl = window.AbortController ? new AbortController() : null, t = setTimeout(function(){ if(ctl) ctl.abort(); }, delai);
+    return fetch(api + S.url, {headers:h, mode:'cors', cache:'no-cache', signal:ctl ? ctl.signal : undefined}).then(function(r){
+      clearTimeout(t);
+      if(r.status === 404 || r.status === 410) return {absent:true};
+      if(!r.ok) return {muet:true};
+      return r.json().then(function(o){ if(!S.cle) return {absent:false}; var v = o && o[S.cle]; return {absent:!(v === true || (v && typeof v === 'object'))}; }, function(){ return {muet:true}; });
+    }, function(){ clearTimeout(t); return {muet:true}; });
+  }
+  /* un serveur qui dort met parfois plus de 10 s à se réveiller : une seconde chance plus longue avant de conclure */
+  demander(10000).then(function(x){
+    if(!x.muet) return x;
+    return new Promise(function(ok){ setTimeout(ok, 1500); }).then(function(){ return demander(20000); });
+  }).then(function(x){ if(x.muet) noter(true, true); else noter(x.absent); });   /* le serveur ne répond toujours pas : l'aperçu, pour 2 minutes */
 }catch(e){ /* rien */ } })();
 </script><!--/NV_REPLI-->
 <!--NV_DEMO--><script id="nv-demo">
@@ -368,7 +380,9 @@
      fausse acceptation ou un faux signalement tromperaient. */
   var explicite = s === '1' || /(^#|&)demo(=1)?(&|$)/.test(h) || /^(file|content):$/.test(location.protocol);
   if(!explicite && /NV_MODULE_(Entree|Conditions|Report)\.html/.test(location.pathname || '')) return;
-  window.NV_DEMO = true; try{ sessionStorage.setItem('nv_demo', '1'); }catch(e){ /* rien */ }
+  /* 21 nov. 2026 : la session ne garde la démonstration que si elle a été demandée ; un aperçu d'office (sans serveur, ou serveur
+     qui ne propose pas la fonction) reste propre à ce module et n'éteint plus la session des autres modules */
+  window.NV_DEMO = true; if(explicite) try{ sessionStorage.setItem('nv_demo', '1'); }catch(e){ /* rien */ }
   if(!window.NV_MODULES_BASE) window.NV_MODULES_BASE = './';
   if(!window.NV_USER) window.NV_USER = {id:'demo', handle:'visiteur', prenom:'Aya', age:25, majeur:true, iso:'GN'};
 }catch(e){ /* rien */ } })();

@@ -19,7 +19,7 @@
   };
   /* le mode essai : seulement si « api » est vide, jamais dans l'aperçu, et seulement pour l'adresse écrite ici */
   var apercuTot = false;
-  try{ apercuTot = !!window.NV_APERCU || /(^#|&)demo(=1)?(&|$)/.test(location.hash || '') || sessionStorage.getItem('nv_demo') === '1'; }catch(e){ /* rien */ }
+  try{ apercuTot = !!window.NV_APERCU || /(^#|&)demo(=1)?(&|$)/.test(location.hash || '') || (sessionStorage.getItem('nv_demo') === '1' && !CONFIG.api); }catch(e){ /* rien */ }
   try{
     window.NV_ESSAI_ADRESSE = (!CONFIG.api && CONFIG.essai) ? CONFIG.essai : '';
     var choisi = localStorage.getItem('nv_essai_api');
@@ -41,7 +41,9 @@
      « nv_session ». Posée seulement si l'application ne l'a pas déjà fait ; une session expirée est oubliée. Jamais dans l'aperçu. */
   try{
     var apercu = !!window.NV_APERCU || /(^#|&)demo(=1)?(&|$)/.test(location.hash || '');
-    try{ if(sessionStorage.getItem('nv_demo') === '1') apercu = true; }catch(e){ /* rien */ }
+    /* 21 nov. 2026 : avec un vrai serveur réglé ici, le repère de session « nv_demo » ne compte plus (un module passé en aperçu
+       le posait, et la personne paraissait déconnectée dans TOUS les modules jusqu'à la fin de la session) */
+    try{ if(sessionStorage.getItem('nv_demo') === '1' && !CONFIG.api) apercu = true; }catch(e){ /* rien */ }
     if(!window.NV_TOKEN && !apercu){
       var ses = JSON.parse(localStorage.getItem('nv_session') || 'null');
       if(ses && typeof ses.jeton === 'string' && ses.jeton && (!ses.expire || ses.expire > Date.now())){
