@@ -1,6 +1,6 @@
 {
- "version": "2026.11.21-a850f6251fe0",
- "date": "2026-11-21T10:18:35Z",
+ "version": "2026.11.21-06295c110808",
+ "date": "2026-11-21T11:12:38Z",
  "entree": "index.html",
  "modules": [
   "NV_MODULE_Academie.html",
@@ -167,16 +167,16 @@
    "taille": 2124056
   },
   "NV_MODULE_Iris.html": {
-   "sha256": "de92488623cc9f7be095f05967be9e66a2ea6bc8af6d85dc75d06604b0dce12c",
-   "taille": 1164569
+   "sha256": "70af3df9b42790a3f5074e424216e99a45fc10aaab73fd0050f229c6c03e2786",
+   "taille": 1164831
   },
   "NV_MODULE_Live.html": {
-   "sha256": "a3f7e6554faa5773514f968ac883340b0a8ac51d5818ab63d0b27175f0630bf8",
-   "taille": 2645584
+   "sha256": "4c5622877a69a0340cedcdd86921bf1c86a89065078214e1154e2b3bb67c5423",
+   "taille": 2649498
   },
   "NV_MODULE_Live_leger.html": {
-   "sha256": "c9b48f1c8d5a704ce35b6d338a9142f3f9581fd83a78c248ae232dbd4f1d5faa",
-   "taille": 2645596
+   "sha256": "2c4ef342386b75b03a0bbe652101731eebe1db163e94b22343100eac251ba0d7",
+   "taille": 2649510
   },
   "NV_MODULE_LoveUniverse.html": {
    "sha256": "dd9e094d17d65bd6593fcfe534ab050d9cdf869591fd2212a3fbe4fcce541cd7",

@@ -534,6 +534,8 @@ body.fleur #titre button:not(#iris){opacity:.3}
 .panneau.haut.on{transform:none}
 
 .lentilles{display:grid;gap:8px;padding:0 14px}
+/* 21 nov. 2026 (capture d'Afaq) : la liste dépassait le bas du panneau ; elle défile maintenant DANS le panneau */
+.panneau .lentilles{flex:1 1 auto;min-height:0;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;padding-bottom:6px}
 #grillePlus .pourquoi{grid-column:1/-1;margin:4px 2px 8px;font-size:15px;line-height:1.45;color:#fff}
 video::cue{background:rgba(0,0,0,.62);color:#fff;font-size:17px;line-height:1.35}
 .lentilles button{display:flex;align-items:center;gap:14px;text-align:left;padding:12px 12px;border-radius:16px}
