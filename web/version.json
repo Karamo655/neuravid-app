@@ -1,6 +1,6 @@
 {
- "version": "2026.11.21-06295c110808",
- "date": "2026-11-21T11:12:38Z",
+ "version": "2026.11.21-0658abc62be8",
+ "date": "2026-11-21T13:16:03Z",
  "entree": "index.html",
  "modules": [
   "NV_MODULE_Academie.html",
@@ -103,8 +103,8 @@
    "taille": 1338813
   },
   "NV_MODULE_ChallengeUniverse.html": {
-   "sha256": "836e31a59e7a85d6ba03f760c20c500149954d902dd489137d85057d1d828b19",
-   "taille": 1948801
+   "sha256": "7378f4012c7c5998f765d001763a319cd4ae15b5d07bd90a97b52c29f37084f4",
+   "taille": 1948819
   },
   "NV_MODULE_Champions.html": {
    "sha256": "f348841609312c369b54b3e9ae5121aeeec9c7ade6b45d027529dd9d5a193082",
