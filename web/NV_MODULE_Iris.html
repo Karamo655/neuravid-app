@@ -2272,7 +2272,7 @@ var LENTILLES = [
 var RECO = {fils:[], signaux:false, pasInteresse:false, pourquoi:false, file:[], envoiT:0, vue:null,
   /* IRIS Intelligence (2 novembre 2026) : chaque fonction ne s'allume que si /v1/feed/capacites l'annonce */
   langue:false, session:false, suite:false, reprise:false, sources:false, qualiteLecture:false, modules:false};
-var CAPA_IRIS = ['langue', 'session', 'suite', 'reprise', 'sources', 'qualiteLecture', 'modules'];
+var CAPA_IRIS = ['langue', 'session', 'suite', 'reprise', 'sources', 'qualiteLecture', 'modules', 'suivisAvant'];
 /* « Tous les univers » (20 nov. 2026) : l'univers choisi ; le serveur fait le tri s'il annonce « modules », sinon le tri se fait ici */
 st.univers = null;
 function filUnivers(){ return st.lentille === 'univers' && st.univers && RECO.modules && api() ? 'module:' + st.univers : null; }
@@ -2541,20 +2541,33 @@ function definirFil(liste, source){
   var courant = st.aBouge ? st.vue[st.i] : null;
   if(!courant) recoFin();          /* la vidéo à l'écran va changer : sa lecture se termine ici */
   st.distants = (liste || []).map(normaliser).filter(jouable);
+  /* « Pour vous » montre les vidéos de TOUT NEURAVID ; tant que le serveur ne s'en charge pas lui-même (« suivisAvant »),
+     les créateurs que vous suivez sont mis en avant ici : une de leurs vidéos toutes les trois places, sans rien retirer */
+  if((source === 'api' || source === 'cache') && !RECO.suivisAvant && !st.filServeur) st.distants = avantSuivis(st.distants);
   /* une vidéo ouverte depuis un autre module reste en tête, même quand le fil arrive */
   if(st.epingles && st.epingles.length){ var ep = {}; st.epingles.forEach(function(v){ ep[v.id] = 1; }); st.distants = st.epingles.concat(st.distants.filter(function(v){ return !ep[v.id]; })); }
   if(courant && !courant.local && !courant.demo && !st.distants.some(function(v){ return v.id === courant.id; })) st.distants.unshift(courant);
-  st.tout = st.locaux.concat(st.distants);
+  recomposer();
   st.source = source;
   appliquerLentille(st.lentille, true, courant && courant.id);
   emit('feed_rendered', {count:st.tout.length, source:source});
+}
+function avantSuivis(l){
+  var suivis = st.suivis || {}; if(!Object.keys(suivis).length) return l;
+  var vues = {}; try{ vues = JSON.parse(sessionStorage.getItem('nvr_vues') || '{}') || {}; }catch(e){ vues = {}; }
+  var siens = l.filter(function(v){ return suivis[v.author] && !vues[v.id]; }); if(!siens.length) return l;
+  var pris = {}; siens.forEach(function(v){ pris[v.id] = 1; });
+  var autres = l.filter(function(v){ return !pris[v.id]; }), r = [];
+  /* places 2, 5, 8… : le fil garde sa tête et sa diversité */
+  while(siens.length || autres.length){ if(r.length % 3 === 1 && siens.length) r.push(siens.shift()); else if(autres.length) r.push(autres.shift()); else r.push(siens.shift()); }
+  return r;
 }
 function ajouterFil(liste){
   var deja = {}; st.tout.forEach(function(v){ deja[v.id] = 1; });
   var neufs = (liste || []).map(normaliser).filter(function(v){ return jouable(v) && !deja[v.id]; });
   if(!neufs.length) return 0;
   st.distants = st.distants.concat(neufs);
-  st.tout = st.locaux.concat(st.distants);
+  recomposer();
   var avant = st.vue.length;
   st.vue = filtrer(st.tout);
   if(st.vue.length !== avant){
@@ -2588,7 +2601,8 @@ var suiteEnCours = false;
 var suitePromesse = null;
 function chargerSuite(){
   var b = api(); if(!b || st.source !== 'api') return; if(suiteEnCours) return suitePromesse;
-  var der = st.tout[st.tout.length - 1]; if(!der) return;
+  /* la suite part de la dernière vidéo du SERVEUR (les vidéos du téléphone sont maintenant après le fil) */
+  var der = st.distants[st.distants.length - 1]; if(!der) return;
   suiteEnCours = true; var filDemande = st.filServeur;
   return suitePromesse = fetch(b + urlFil(der.id), {mode:'cors', headers:entetes()}).then(function(r){ return r.ok ? r.json() : null; })
     .then(function(d){ if(filDemande !== st.filServeur) return; var l = d && (Array.isArray(d) ? d : d.items); if(l) ajouterFil(marquerFil(l)); })
@@ -2825,7 +2839,9 @@ function aller(d){
   recycler();
   activer();
   vibre(6);
-  if(st.vue.length - st.i < 4) chargerSuite();
+  /* la suite se demande avant la fin des vidéos du serveur (les vidéos du téléphone, placées après, ne la retardent pas) */
+  var finServeur = -1; for(var q = st.vue.length - 1; q >= 0; q--){ if(!st.vue[q].local){ finServeur = q; break; } }
+  if((finServeur >= 0 ? finServeur + 1 : st.vue.length) - st.i < 4) chargerSuite();
 }
 /* Donne aux diapositives libres les voisines manquantes, sans animation visible. */
 function recycler(){
@@ -4570,7 +4586,8 @@ function epingler(items, k){
   var ids = {}; items.forEach(function(v){ ids[v.id] = 1; });
   st.epingles = items;
   st.distants = items.concat((st.distants || []).filter(function(v){ return !ids[v.id]; }));
-  st.tout = st.locaux.filter(function(v){ return !ids[v.id]; }).concat(st.distants);
+  /* la série ouverte (un profil, un défi…) passe en tête, dans son ordre : aucune vidéo du téléphone ne s'intercale */
+  st.tete = {}; recomposer(); var vu = {}; st.tout = st.tout.filter(function(v){ if(vu[v.id]) return false; vu[v.id] = 1; return true; });
   if(st.lentille !== 'pourtoi'){ st.lentille = 'pourtoi'; $('nomLentille').textContent = t('Pour vous'); }
   st.vue = filtrer(st.tout);
   var cible = items[k] && items[k].id, j = st.vue.map(function(v){ return v.id; }).indexOf(cible);
@@ -4889,12 +4906,16 @@ function itemDe(rec){
   RECS[rec.id] = rec;
   return {id:rec.id, src:rec.url, title:rec.legende || '', author:moi(), country:'', local:true, type:rec.type, lien:!!rec.lien};
 }
+/* 21 nov. 2026 (retour d'Afaq) : le fil principal est celui de TOUT NEURAVID. Vos vidéos du téléphone ne passent plus devant :
+   seules celles que vous venez d'ajouter (st.tete) s'ouvrent en premier ; les autres restent après le fil, et dans « Mes vidéos ». */
 function recomposer(){
-  st.tout = st.locaux.concat(st.distants);
+  var tete = st.tete || {};
+  st.tout = st.locaux.filter(function(v){ return tete[v.id]; }).concat(st.distants, st.locaux.filter(function(v){ return !tete[v.id]; }));
 }
 function ajouterLocaux(recs, garde){
   if(!recs.length) return;
   st.locaux = recs.map(itemDe).concat(st.locaux);
+  st.tete = {}; st.locaux.slice(0, recs.length).forEach(function(v){ st.tete[v.id] = 1; });
   recomposer();
   st.lentille = 'pourtoi'; $('nomLentille').textContent = t('Pour vous');
   st.vue = filtrer(st.tout); quitterVue(); st.i = 0; placer(true);
@@ -4941,8 +4962,8 @@ function chargerLocaux(){
     st.locaux = neufs.concat(st.locaux);
     recomposer(); st.vue = filtrer(st.tout);
     var k = courant ? st.vue.map(function(v){ return v.id; }).indexOf(courant) : 0;
-    /* au démarrage, avant tout geste, vos propres vidéos passent en premier, comme avant */
-    if(!st.aBouge && Date.now() - DEBUT_PAGE < 4000) k = 0;
+    /* 21 nov. 2026 : au démarrage, le fil de NEURAVID reste en tête (vos vidéos ne passent plus devant) */
+    if(!st.aBouge && !courant) k = 0;
     st.i = k < 0 ? 0 : k;
     placer(true);
   });

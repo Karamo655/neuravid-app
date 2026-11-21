@@ -1766,7 +1766,8 @@ function estMoi(cle){ var u = window.NV_USER || {}; cle = String(cle || '').repl
 var DEPUIS = {k:''};
 A.retour = function(depuisHisto){ var p = PILE.pop(); if(!p){ emit('close', {module:MOI}); ouvrir(NOMS[DEPUIS.k] && DEPUIS.k !== MOI ? DEPUIS.k : 'Player'); return; } if(depuisHisto !== true) retourNotre(); TRANS.sens = 'arriere'; ETAT.moi = p.moi; ETAT.cle = p.cle; ETAT.apercu = false; recharger(); };
 /* un autre profil : l'ancien disparaît tout de suite (aucune action ne peut viser la mauvaise personne pendant le chargement) */
-function recharger(){ GEN.n++; arreterAudio(); finOuverture(); viderEnregistrement(); ETAT.P = null; ETAT.Ps = null; ETAT.charge = false; ETAT.local = {alveoles:{}, vitrines:{}}; fermerFeuille(true); rendre(); $('corps').scrollTop = 0; if(TRANS.sens) entree(TRANS.sens); return chargerProfil().then(rendre); }
+function noterProfilVu(){ try{ var st = history.state && typeof history.state === 'object' ? Object.assign({}, history.state) : {}; if(ETAT.moi || !ETAT.cle) delete st.nvProfil; else st.nvProfil = String(ETAT.cle); history.replaceState(st, ''); }catch(e){ dbg(e); } }
+function recharger(){ noterProfilVu(); GEN.n++; arreterAudio(); finOuverture(); viderEnregistrement(); ETAT.P = null; ETAT.Ps = null; ETAT.charge = false; ETAT.local = {alveoles:{}, vitrines:{}}; fermerFeuille(true); rendre(); $('corps').scrollTop = 0; if(TRANS.sens) entree(TRANS.sens); return chargerProfil().then(rendre); }
 
 /* ════════ Le rendu ════════ */
 var ONGLET = {k:'oeuvres'};
@@ -2045,7 +2046,20 @@ A.listeSuite = function(){ chargerListe(); };
 A.voir = function(cle){ fermerPuis(function(){ voirProfil(cle); }); };
 
 /* ════════ Les œuvres et les liens ════════ */
-A.oeuvre = function(id){ emit('profile_open_clip', {clip:id}); ouvrir('Player', {clip:id, auteur:ETAT.P ? {id:ETAT.P.id, handle:ETAT.P.handle} : null, depuis:MOI}); };
+/* 21 nov. 2026 (retour d'Afaq) : Iris reçoit les œuvres DANS L'ORDRE de la grille ; glisser vers le bas montre l'œuvre suivante de ce profil.
+   Au plus 30 œuvres (Iris demande au serveur celles qui arrivent sans adresse) : la vidéo touchée, quelques-unes avant, le reste après. */
+A.oeuvre = function(id){
+  var P = profilVu(), aut = P ? {id:P.id, handle:P.handle} : null, l = [];
+  if(P && Array.isArray(P.oeuvres)){
+    l = P.oeuvres.filter(function(o){ return !(ETAT.moi && MV.retires && MV.retires[o.id]); }).sort(function(a, b){ return (b.epingle ? 1 : 0) - (a.epingle ? 1 : 0) || (b.at || 0) - (a.at || 0); });
+  }
+  var k = l.map(function(o){ return o.id; }).indexOf(String(id));
+  emit('profile_open_clip', {clip:id, rang:k, total:l.length});
+  if(k < 0){ ouvrir('Player', {clip:id, auteur:aut, depuis:MOI}); return; }
+  var debut = Math.max(0, Math.min(k - 5, l.length - 30)), part = l.slice(debut, debut + 30);
+  var liste = part.map(function(o){ var x = {id:o.id}; if(o.module && o.module !== 'Player') x.module = o.module; if(P.handle) x.author = '@' + P.handle; if(o.titre) x.title = o.titre; if(o.miniature) x.thumbnail = o.miniature; return x; });
+  ouvrir('Player', {clip:liste[k - debut], liste:liste, index:k - debut, auteur:aut, depuis:MOI});
+};
 A.lienOuvrir = function(i){ var l = ETAT.P && ETAT.P.liens[+i]; if(!l) return; ouvrirFeuille('Un lien hors de NEURAVID', '<p>' + esc('Ce lien quitte NEURAVID :') + '</p><p class="lien-plein" dir="ltr" data-brut>' + esc(l.url) + '</p><button class="btn plein" data-a="lienGo" data-v="' + (+i) + '">' + esc('Ouvrir le lien') + '</button>', 'lien'); };
 A.lienGo = function(i){ var l = ETAT.P && ETAT.P.liens[+i]; fermerFeuille(); if(!l) return; try{ window.open(l.url, '_blank', 'noopener'); }catch(e){ dbg(e); } };
 A.debloquer = function(){ var cle = cleProfil(); if(!cle) return; envoyerJSON('DELETE', '/v1/profil/' + encodeURIComponent(cle) + '/bloquer').then(function(){ ETAT.P.relation.bloque = false; toast('Profil débloqué.'); recharger(); }).catch(function(e){ toast(erreurLisible(e)); }); };
@@ -3084,7 +3098,11 @@ function appliquerContexte(ctx){
 function demarrer(){
   document.documentElement.lang = LANGUE_UI; if(LANGUES_UI[LANGUE_UI] && LANGUES_UI[LANGUE_UI].rtl) document.documentElement.dir = 'rtl';
   if(tropJeune()){ rendre(); emit('module_ready', {module:MOI, ferme:'age'}); return; }
-  var ctx = lireContexte(); appliquerContexte(ctx);
+  var ctx = lireContexte();
+  /* 21 nov. 2026 (retour d'Afaq) : le bouton retour recharge cette page sans contexte ; l'entrée d'historique se souvient
+     du profil qu'on regardait (history.state), au lieu de retomber sur « mon profil » */
+  if(!ctx.cle){ try{ var hs = history.state && history.state.nvProfil; if(hs) ctx.cle = cleValide(hs); }catch(e){ dbg(e); } }
+  appliquerContexte(ctx); noterProfilVu();
   rendre();
   /* les capacités et le profil partent ensemble : un seul délai réseau */
   chargerProfil(capacitesServeur()).then(function(){ rendre(); if(ctx.section) ouvrirSection(ctx.section); if(ctx.action === 'visibilite' && ETAT.moi && ETAT.P) A.visibilite(); emit('module_ready', {module:MOI, moi:ETAT.moi, depuis:ctx.depuis || null}); renvoyerEnAttente(); });
