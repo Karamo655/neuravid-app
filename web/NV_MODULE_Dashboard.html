@@ -345,7 +345,10 @@
     if(n >= 2) return;                                                           /* jamais une boucle de rechargements */
     try{ sessionStorage.setItem(garde, String(n + 1)); }catch(e){}
     try{ location.reload(); }catch(e){} }
-  var h = {Accept:'application/json'}; if(window.NV_TOKEN) h.Authorization = 'Bearer ' + window.NV_TOKEN;
+  /* 21 nov. 2026 (v63) : la question est posée SANS la session. Les capacités sont les mêmes pour tous ; avec la session, une
+     vérification qui échouait côté serveur (serveur des comptes lent) faisait passer tout le module en « Aperçu » pour une
+     personne connectée, alors que la fonction existait. */
+  var h = {Accept:'application/json'};
   /* une réponse claire : 2xx (la capacité lue), 404/410 (la route n'existe pas) ; tout le reste = « ne répond pas » */
   function demander(delai){
     var ctl = window.AbortController ? new AbortController() : null, t = setTimeout(function(){ if(ctl) ctl.abort(); }, delai);

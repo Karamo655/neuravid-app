@@ -345,7 +345,10 @@
     if(n >= 2) return;                                                           /* jamais une boucle de rechargements */
     try{ sessionStorage.setItem(garde, String(n + 1)); }catch(e){}
     try{ location.reload(); }catch(e){} }
-  var h = {Accept:'application/json'}; if(window.NV_TOKEN) h.Authorization = 'Bearer ' + window.NV_TOKEN;
+  /* 21 nov. 2026 (v63) : la question est posée SANS la session. Les capacités sont les mêmes pour tous ; avec la session, une
+     vérification qui échouait côté serveur (serveur des comptes lent) faisait passer tout le module en « Aperçu » pour une
+     personne connectée, alors que la fonction existait. */
+  var h = {Accept:'application/json'};
   /* une réponse claire : 2xx (la capacité lue), 404/410 (la route n'existe pas) ; tout le reste = « ne répond pas » */
   function demander(delai){
     var ctl = window.AbortController ? new AbortController() : null, t = setTimeout(function(){ if(ctl) ctl.abort(); }, delai);
@@ -362,8 +365,7 @@
     return new Promise(function(ok){ setTimeout(ok, 1500); }).then(function(){ return demander(20000); });
   }).then(function(x){ if(x.muet) noter(true, true); else noter(x.absent); });   /* le serveur ne répond toujours pas : l'aperçu, pour 2 minutes */
 }catch(e){ /* rien */ } })();
-</script><!--/NV_REPLI-->
-<!--NV_DEMO--><script id="nv-demo">
+</script><!--/NV_REPLI--><!--NV_DEMO--><script id="nv-demo">
 /* NEURAVID — LA DÉMONSTRATION dans chaque module (injectée en tête de page, avant le module).
    Jamais avec un serveur (NV_API_BASE) ; sans serveur, partout (17 nov. 2026, voir plus bas). Allumée si l'accueil l'a allumée pour la session
    (sessionStorage « nv_demo » = 1), ou « #demo » dans l'adresse, ou une page ouverte comme fichier (file:, content:).
