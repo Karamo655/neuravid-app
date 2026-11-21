@@ -1401,21 +1401,22 @@ demarrer();
   info.src = sure(info.src); info.poster = sure(info.poster);
   info.auteur = typeof info.auteur === 'string' ? info.auteur.slice(0, 60) : '';
   info.titre = typeof info.titre === 'string' ? info.titre.slice(0, 120) : '';
-  info.action = /^(voir|voter|soutenir|participer)$/.test(info.action) ? info.action : 'voir';
+  info.action = /^(voir|voter|soutenir|participer|relever)$/.test(info.action) ? info.action : 'voir';
+  info.defi = typeof info.defi === 'string' && /^[A-Za-z0-9_.:-]{1,80}$/.test(info.defi) ? info.defi : null;
   window.NV_DEPUIS_IRIS = info;
 
   var TX = {
-    fr:['Depuis Iris', 'La vidéo de {0}', 'Une personne de NEURAVID', 'Revoir la vidéo', 'Retour à Iris', 'Fermer', 'Retrouvez ici tout ce que ce module propose autour de cette vidéo.'],
-    en:['From Iris', 'The video by {0}', 'A NEURAVID member', 'Watch the video again', 'Back to Iris', 'Close', 'Find here everything this module offers around this video.'],
-    es:['Desde Iris', 'El vídeo de {0}', 'Una persona de NEURAVID', 'Volver a ver el vídeo', 'Volver a Iris', 'Cerrar', 'Encuentra aquí todo lo que este módulo ofrece en torno a este vídeo.'],
-    pt:['Vindo do Iris', 'O vídeo de {0}', 'Uma pessoa do NEURAVID', 'Rever o vídeo', 'Voltar ao Iris', 'Fechar', 'Encontre aqui tudo o que este módulo oferece em torno deste vídeo.'],
-    ar:['من إيريس', 'فيديو {0}', 'شخص من NEURAVID', 'إعادة مشاهدة الفيديو', 'العودة إلى إيريس', 'إغلاق', 'تجد هنا كل ما يقدّمه هذا القسم حول هذا الفيديو.'],
-    sw:['Kutoka Iris', 'Video ya {0}', 'Mtu wa NEURAVID', 'Tazama video tena', 'Rudi kwa Iris', 'Funga', 'Pata hapa kila kitu ambacho sehemu hii inatoa kuhusu video hii.'],
-    ha:['Daga Iris', 'Bidiyon {0}', 'Wani mutum na NEURAVID', 'Sake kallon bidiyon', 'Koma zuwa Iris', 'Rufe', 'Nemo a nan duk abin da wannan sashe ke bayarwa game da wannan bidiyon.'],
-    yo:['Láti Iris', 'Fídíò {0}', 'Ẹnìkan láti NEURAVID', 'Wo fídíò náà lẹ́ẹ̀kan sí i', 'Padà sí Iris', 'Pa á dé', 'Rí gbogbo ohun tí apá yìí ń pèsè nípa fídíò yìí níbí.'],
-    wo:['Bawoo ci Iris', 'Widewoo {0}', 'Kenn ci NEURAVID', 'Gisaat widewo bi', 'Dellu ci Iris', 'Tëj', 'Fi lay gis lépp li bii xaaj di jox ci widewo bii.'],
-    bm:['Ka bɔ Iris la', '{0} ka widewo', 'NEURAVID mɔgɔ dɔ', 'Widewo lajɛ tugun', 'Segin Iris ma', 'A datugu', 'Fɛn o fɛn nin yɔrɔ bɛ min di nin widewo kan, o bɛ yan.'],
-    ln:['Uta na Iris', 'Video ya {0}', 'Moto moko ya NEURAVID', 'Tala video lisusu', 'Zonga na Iris', 'Kanga', 'Zwa awa nyonso oyo eteni oyo epesaka mpo na video oyo.']
+    fr:['Depuis Iris', 'La vidéo de {0}', 'Une personne de NEURAVID', 'Revoir la vidéo', 'Retour à Iris', 'Fermer', 'Retrouvez ici tout ce que ce module propose autour de cette vidéo.', 'Relever le défi', 'Filmez votre réponse dans ce défi : ce module vérifie ses règles (âge, dates, places) avant de la publier.'],
+    en:['From Iris', 'The video by {0}', 'A NEURAVID member', 'Watch the video again', 'Back to Iris', 'Close', 'Find here everything this module offers around this video.', 'Take the challenge', 'Film your answer in this challenge: this module checks its rules (age, dates, places) before posting it.'],
+    es:['Desde Iris', 'El vídeo de {0}', 'Una persona de NEURAVID', 'Volver a ver el vídeo', 'Volver a Iris', 'Cerrar', 'Encuentra aquí todo lo que este módulo ofrece en torno a este vídeo.', 'Aceptar el reto', 'Graba tu respuesta en este reto: este módulo comprueba sus reglas (edad, fechas, plazas) antes de publicarla.'],
+    pt:['Vindo do Iris', 'O vídeo de {0}', 'Uma pessoa do NEURAVID', 'Rever o vídeo', 'Voltar ao Iris', 'Fechar', 'Encontre aqui tudo o que este módulo oferece em torno deste vídeo.', 'Aceitar o desafio', 'Grave a sua resposta neste desafio: este módulo verifica as regras (idade, datas, vagas) antes de publicá-la.'],
+    ar:['من إيريس', 'فيديو {0}', 'شخص من NEURAVID', 'إعادة مشاهدة الفيديو', 'العودة إلى إيريس', 'إغلاق', 'تجد هنا كل ما يقدّمه هذا القسم حول هذا الفيديو.', 'اقبل التحدي', 'صوّر ردّك في هذا التحدي: يتحقق هذا القسم من قواعده (العمر والتواريخ والأماكن) قبل نشره.'],
+    sw:['Kutoka Iris', 'Video ya {0}', 'Mtu wa NEURAVID', 'Tazama video tena', 'Rudi kwa Iris', 'Funga', 'Pata hapa kila kitu ambacho sehemu hii inatoa kuhusu video hii.', 'Kubali changamoto', 'Rekodi jibu lako katika changamoto hii: sehemu hii hukagua kanuni zake (umri, tarehe, nafasi) kabla ya kulichapisha.'],
+    ha:['Daga Iris', 'Bidiyon {0}', 'Wani mutum na NEURAVID', 'Sake kallon bidiyon', 'Koma zuwa Iris', 'Rufe', 'Nemo a nan duk abin da wannan sashe ke bayarwa game da wannan bidiyon.', 'Karɓi ƙalubalen', 'Ɗauki amsarka a wannan ƙalubalen: wannan sashe yana duba ƙa’idojinsa (shekaru, kwanaki, wurare) kafin ya wallafa ta.'],
+    yo:['Láti Iris', 'Fídíò {0}', 'Ẹnìkan láti NEURAVID', 'Wo fídíò náà lẹ́ẹ̀kan sí i', 'Padà sí Iris', 'Pa á dé', 'Rí gbogbo ohun tí apá yìí ń pèsè nípa fídíò yìí níbí.', 'Gba ìpèníjà náà', 'Ya fídíò ìdáhùn rẹ nínú ìpèníjà yìí: apá yìí ń ṣàyẹ̀wò òfin rẹ̀ (ọjọ́-orí, ọjọ́, àyè) kí ó tó tẹ̀ ẹ́ jáde.'],
+    wo:['Bawoo ci Iris', 'Widewoo {0}', 'Kenn ci NEURAVID', 'Gisaat widewo bi', 'Dellu ci Iris', 'Tëj', 'Fi lay gis lépp li bii xaaj di jox ci widewo bii.', 'Jël kàtte bi', 'Filmal sa tontu ci kàtte bii: xaaj bii dafay seet ay sàrtam (at, bés, palaas) balaa muy siiwal.'],
+    bm:['Ka bɔ Iris la', '{0} ka widewo', 'NEURAVID mɔgɔ dɔ', 'Widewo lajɛ tugun', 'Segin Iris ma', 'A datugu', 'Fɛn o fɛn nin yɔrɔ bɛ min di nin widewo kan, o bɛ yan.', 'Kafiya in minɛ', 'I ka jaabi ja ta nin kafiya kɔnɔ: nin yɔrɔ bɛ a ka sariyaw lajɛ (si, donw, yɔrɔw) sani a ka bɔ kɛnɛ kan.'],
+    ln:['Uta na Iris', 'Video ya {0}', 'Moto moko ya NEURAVID', 'Tala video lisusu', 'Zonga na Iris', 'Kanga', 'Zwa awa nyonso oyo eteni oyo epesaka mpo na video oyo.', 'Ndima mokakatano', 'Kanga video ya eyano na yo na mokakatano oyo: eteni oyo etalaka mibeko na yango (mbula, mikolo, bisika) liboso ya kobimisa yango.']
   };
   function langue(){ var l = ''; try{ l = String(window.NV_LANG || document.documentElement.lang || JSON.parse(localStorage.getItem('nv_ui_langue') || '""') || navigator.language || 'fr'); }catch(e){ l = 'fr'; }
     l = l.slice(0, 2).toLowerCase(); return TX[l] ? l : 'fr'; }
@@ -1448,9 +1449,10 @@ demarrer();
     d.innerHTML = '<div style="display:flex;align-items:center;gap:8px"><i aria-hidden="true" style="flex:none;width:16px;height:18px;background:linear-gradient(135deg,#F3D27A,#21C8B8);clip-path:polygon(50% 0,100% 25%,100% 75%,50% 100%,0 75%,0 25%)"></i>' +
       '<b style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"></b><button type="button" data-x style="' + b + ';background:transparent;color:#ccd;padding:6px 8px" aria-label=""></button></div>' +
       '<p style="margin:4px 0 8px;color:#cfd3e6"></p><div style="display:flex;gap:8px;flex-wrap:wrap"></div>';
-    d.querySelector('b').textContent = T[0] + ' · ' + qui;
+    var rel = info.action === 'relever';
+    d.querySelector('b').textContent = (rel ? T[7] : T[0]) + ' · ' + qui;
     d.querySelector('[data-x]').textContent = '×'; d.querySelector('[data-x]').setAttribute('aria-label', T[5]);
-    d.querySelector('p').textContent = T[6];
+    d.querySelector('p').textContent = rel ? T[8] : T[6];
     var zone = d.querySelector('div:last-child');
     function bouton(txt, plein, fn){ var x = document.createElement('button'); x.type = 'button'; x.textContent = txt;
       x.style.cssText = b + (plein ? ';background:linear-gradient(135deg,#F3D27A,#E8B84A);color:#231800' : ';background:rgba(255,255,255,.1);color:#fff');
@@ -1462,7 +1464,30 @@ demarrer();
   }
   /* le module ouvre lui-même la vidéo s'il le sait ; sinon le bandeau */
   var debut = Date.now();
+  /* « Relever le défi » (21 nov. 2026) : le module montre son défi (ou ses épreuves) avec ce qu'il faut pour participer ;
+     chaque module qui sait mieux le faire range sa fonction dans window.NV_RELEVER_H (fonction(info) → true). */
+  var RELEVER = {
+    ChallengeUniverse:function(){ var a = window.NVUniversAPI; if(a && a.ouvrirDefi && info.defi){ a.ouvrirDefi(info.defi); return true; } },
+    LoveUniverse:function(){ var a = window.NVLoveUniverse; if(a && a.defi && info.defi){ a.defi(info.defi); return true; } },
+    ViralStorm:function(){ var a = window.NVViralStorm; if(a && a.ouvrirDefi && info.defi){ a.ouvrirDefi(info.defi); return true; } },
+    Battle:function(){ var a = window.NVBattle; if(a && a.defier){ a.defier(); return true; } },
+    MissMaster:function(){ var a = window.NVMissMaster; if(a && a.montrer){ a.montrer('epreuves'); return true; } },
+    Artistes:function(){ var a = window.NVArtistes; if(a && a.montrer){ a.montrer('epreuves'); return true; } },
+    CinemaWorld:function(){ var a = window.NVCinemaWorld; if(a && a.montrer){ a.montrer('defis'); return true; } },
+    Arena:function(){ var a = window.NVArenaAPI; if(a && a.montrer){ a.montrer('arene'); return true; } }
+  };
+  function essayerRelever(){
+    var h = window.NV_RELEVER_H || [];
+    for(var i = 0; i < h.length; i++){ try{ if(h[i](info) === true) return true; }catch(e){} }
+    try{ return RELEVER[MOD] ? RELEVER[MOD]() === true : false; }catch(e){ return false; }
+  }
   function essayer(){
+    if(info.action === 'relever'){
+      /* le bandeau dit toujours qu'on relève ce défi (avec « Revoir la vidéo ») ; le module montre en plus son défi s'il le sait */
+      var fait = essayerRelever();
+      if(!fait && Date.now() - debut < 6000){ setTimeout(essayer, 500); return; }
+      if(document.body) bandeau(); return;
+    }
     var h = window.NV_DEPUIS_IRIS_H || [];
     for(var i = 0; i < h.length; i++){ try{ var r = h[i](info); if(r === true){ info.ouvert = true; return; } }catch(e){} }
     var e = Date.now() - debut;
