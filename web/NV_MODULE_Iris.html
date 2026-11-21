@@ -2933,9 +2933,7 @@ function majInfos(v){
   $('defi').classList.remove('on');
   if(!v) return;
   $('nom').textContent = nomAffiche(v.author, v.authorId) || v.author;
-  $('avatarIni').textContent = (String(nomAffiche(v.author, v.authorId) || v.author || (window.NV_USER && window.NV_USER.nom) || 'N').replace(/^@/, '')[0] || 'N').toUpperCase();
-  $('avatarIni').style.backgroundImage = v.avatar ? 'url("' + String(v.avatar).replace(/"/g, '%22') + '")' : '';
-  if(v.avatar) $('avatarIni').textContent = '';
+  poserAvatar(v);
   $('pays').textContent = v.local ? '' : [v.country, v.nomPays].filter(Boolean).join(' ');
   $('pays').style.display = $('pays').textContent ? '' : 'none';
   $('nom').style.display = v.author ? '' : 'none';
@@ -3430,6 +3428,48 @@ function proposerRemettre(v){ var el = $('suppAnnuler'); clearTimeout(SUPP.t);
         else toast(t('Vérifiez votre connexion puis réessayez.')); })
       .catch(function(){ el.classList.remove('on'); toast(t('Vérifiez votre connexion puis réessayez.')); }); };
   SUPP.t = setTimeout(function(){ el.classList.remove('on'); }, 8000);
+}
+/* ════════ La photo du créateur dans l'hexagone (21 nov. 2026) ════════
+   Avant : seule l'initiale s'affichait (aucun serveur ne donnait la photo). Maintenant : la photo de profil de chaque créateur,
+   lue au socle par lots (GET /v1/profil/vignettes, publique, 50 au plus), seulement en https ; l'initiale reste tant que
+   l'image n'est pas chargée, et si elle ne se charge pas. Jamais pour une vidéo d'exemple. */
+var PHOTOS = {lu:{}, url:{}, pret:{}, rate:{}, cap:null, t:0};
+function photoSure(u){ return typeof u === 'string' && /^https:\/\/[^\s"'<>()\\]+$/.test(u) && u.length < 600 ? u : ''; }
+function photoDe(v){
+  if(!v || v.type === 'direct' && !v.authorId) return photoSure(v && (v.avatar || v.authorPhoto));
+  var u = photoSure(v.avatar) || photoSure(v.authorPhoto) || (v.authorId && PHOTOS.url[v.authorId]) || '';
+  if(!u && estMaVideo(v) && window.NV_USER) u = photoSure(window.NV_USER.photo) || photoSure(window.NV_USER.avatar);
+  return PHOTOS.rate[u] ? '' : u;
+}
+function poserAvatar(v){
+  var el = $('avatarIni'), ini = (String(nomAffiche(v.author, v.authorId) || v.author || (window.NV_USER && window.NV_USER.nom) || 'N').replace(/^@/, '')[0] || 'N').toUpperCase(), u = photoDe(v);
+  el.classList.toggle('photo', !!(u && PHOTOS.pret[u]));
+  if(u && PHOTOS.pret[u]){ el.style.backgroundImage = 'url("' + u.replace(/"/g, '%22') + '")'; el.textContent = ''; }
+  else { el.style.backgroundImage = ''; el.textContent = ini; }
+  if(u && !PHOTOS.pret[u]){ var im = new Image(); im.decoding = 'async';
+    im.onload = function(){ PHOTOS.pret[u] = 1; var w = st.vue[st.i]; if(w && photoDe(w) === u) poserAvatar(w); };
+    im.onerror = function(){ PHOTOS.rate[u] = 1; };
+    im.src = u; }
+  photosLire();
+}
+function photosLire(){
+  if(!api() || PHOTOS.cap === false || PHOTOS.t) return;
+  var ids = [];
+  for(var k = st.i; k < Math.min(st.vue.length, st.i + 30) && ids.length < 50; k++){
+    var w = st.vue[k]; if(!w || w.local || w.demo || !w.authorId || PHOTOS.lu[w.authorId] || !/^[\w.:-]{1,64}$/.test(String(w.authorId))) continue;
+    PHOTOS.lu[w.authorId] = 1; ids.push(String(w.authorId));
+  }
+  if(!ids.length) return;
+  PHOTOS.t = 1;
+  fetch(api() + '/v1/profil/vignettes?ids=' + ids.map(encodeURIComponent).join(','), {headers:entetes()})
+    .then(function(r){ if(r.status === 404) PHOTOS.cap = false; return r.ok ? r.json() : null; })
+    .then(function(o){ PHOTOS.t = 0; if(!o || !o.vignettes) return;
+      ids.forEach(function(x){ var g = o.vignettes[x], u = g && photoSure(g.photo); if(u) PHOTOS.url[x] = u; else delete PHOTOS.url[x]; });
+      var v = st.vue[st.i]; if(v) poserAvatar(v);
+      /* les photos des créateurs qui suivent sont préparées à l'avance (le hexagone change sans clignoter) */
+      ids.forEach(function(x){ var u = PHOTOS.url[x]; if(u && !PHOTOS.pret[u] && !PHOTOS.rate[u]){ var im = new Image(); im.onload = function(){ PHOTOS.pret[u] = 1; }; im.onerror = function(){ PHOTOS.rate[u] = 1; }; im.src = u; } });
+      photosLire(); })
+    .catch(function(){ PHOTOS.t = 0; ids.forEach(function(x){ delete PHOTOS.lu[x]; }); });
 }
 function suivreServeur(v){ return !!(api() && window.NV_TOKEN && v && v.authorId && !v.local && !v.demo && !estMaVideo(v)); }
 function relationsLire(){
