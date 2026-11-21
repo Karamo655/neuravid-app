@@ -1,6 +1,6 @@
 {
- "version": "2026.11.21-5cc24cd9c059",
- "date": "2026-11-21T09:27:33Z",
+ "version": "2026.11.21-a850f6251fe0",
+ "date": "2026-11-21T10:18:35Z",
  "entree": "index.html",
  "modules": [
   "NV_MODULE_Academie.html",
@@ -87,12 +87,12 @@
    "taille": 1282148
   },
   "NV_MODULE_Baobab.html": {
-   "sha256": "8faaca8613e478266f59bad696ae6a6341224e58eda2a527dcaf8bfdb230fca2",
-   "taille": 1787120
+   "sha256": "9b49aa7899895807ce7babd157365aa043dedf10d9462e618dc48ece96636ca1",
+   "taille": 1791348
   },
   "NV_MODULE_Baobab_leger.html": {
-   "sha256": "cd4dbae46529e7e4a3cd19af5cff8f529fbcec9588d599d4a8367c8d55d0feed",
-   "taille": 816747
+   "sha256": "7681a627482c8eace77660b519abd6228f91224b7f1ddd38a90a834ac152e715",
+   "taille": 820975
   },
   "NV_MODULE_Battle.html": {
    "sha256": "334dc740c5b9c97589a47cf82a42a411cc44289396a185b9013e72e8bd9be073",

@@ -365,7 +365,8 @@
     return new Promise(function(ok){ setTimeout(ok, 1500); }).then(function(){ return demander(20000); });
   }).then(function(x){ if(x.muet) noter(true, true); else noter(x.absent); });   /* le serveur ne répond toujours pas : l'aperçu, pour 2 minutes */
 }catch(e){ /* rien */ } })();
-</script><!--/NV_REPLI--><!--NV_DEMO--><script id="nv-demo">
+</script><!--/NV_REPLI-->
+<!--NV_DEMO--><script id="nv-demo">
 /* NEURAVID — LA DÉMONSTRATION dans chaque module (injectée en tête de page, avant le module).
    Jamais avec un serveur (NV_API_BASE) ; sans serveur, partout (17 nov. 2026, voir plus bas). Allumée si l'accueil l'a allumée pour la session
    (sessionStorage « nv_demo » = 1), ou « #demo » dans l'adresse, ou une page ouverte comme fichier (file:, content:).
@@ -3372,6 +3373,8 @@ if(document.readyState === 'loading') document.addEventListener('DOMContentLoade
    ═════════════════════════════════════════════════════════════════ */
 (function(){
   'use strict';
+  /* NV_LECTEUR_ATTENTE v43 : la suivante se prépare dès que la vidéo qui joue a 12 s d'avance (19 nov. 2026) */(function(){if(window.__nvlAttente)return;window.__nvlAttente=1;document.addEventListener('progress',function(e){var v=e.target;if(!v||v.tagName!=='VIDEO'||v.paused||!v.closest)return;var s=v.closest('.nvl-s');if(!s)return;var n=s.nextElementSibling,w=n&&n.querySelector&&n.querySelector('video[data-nvlattend]');if(!w||w.preload==='auto')return;try{var t=v.currentTime,b=v.buffered,d=v.duration;for(var k=0;k<b.length;k++){if(b.start(k)<=t+.3&&b.end(k)>=t){if(b.end(k)-t>=12||(isFinite(d)&&d>0&&b.end(k)>=d-.5))w.preload='auto';break;}}}catch(x){}},true);})();
+  /* NV_LECTEUR_LEGER v44 : la version légère (360) prend le relais d'une vidéo qui cale (19 nov. 2026) */(function(){if(window.__nvlLeger)return;window.__nvlLeger=1;var RE=/-(540|720)\.mp4(?=$|[?#])/;function lecteur(v){return v&&v.tagName==='VIDEO'&&v.closest&&v.closest('.nvl-s');}function faible(){var c=navigator.connection||{};return !!(c.saveData||/(^|-)2g|slow/.test(c.effectiveType||'')||(typeof c.downlink==='number'&&c.downlink>0&&c.downlink<1.8));}function leger(v){var s=v.getAttribute('src')||'';if(!RE.test(s))return false;var t=v.currentTime||0,j=!v.paused;v.addEventListener('loadedmetadata',function f(){v.removeEventListener('loadedmetadata',f);try{if(t>.2)v.currentTime=t;}catch(e){}if(j)v.play().catch(function(){});});v.src=s.replace(RE,'-360.mp4');try{v.load();}catch(e){}return true;}function guetter(v){clearTimeout(v.__nvlT);v.__nvlT=setTimeout(function(){if(!v.paused&&v.readyState<3&&!document.hidden)leger(v);},3000);}document.addEventListener('loadstart',function(e){var v=e.target;if(lecteur(v)&&faible())leger(v);},true);document.addEventListener('play',function(e){var v=e.target;if(!lecteur(v))return;if(faible()&&leger(v))return;guetter(v);},true);document.addEventListener('waiting',function(e){if(lecteur(e.target))guetter(e.target);},true);document.addEventListener('playing',function(e){if(lecteur(e.target))clearTimeout(e.target.__nvlT);},true);document.addEventListener('pause',function(e){if(lecteur(e.target))clearTimeout(e.target.__nvlT);},true);document.addEventListener('error',function(e){var v=e.target;if(lecteur(v)&&leger(v))e.stopImmediatePropagation();},true);})();
   var R = window;
   if(R.NVLecteur) return;
   function $(id){ return document.getElementById(id); }
@@ -4942,7 +4945,7 @@ function quitterSalle(parRetour, sansRendu, garderHistoire){
   if(secondes >= 60) fidele('baobab_listen', {module:MOI, id:id});
   SA = null;
   $('salle').classList.remove('on'); document.body.classList.remove('salle-on');
-  Object.keys(VPLACES).forEach(function(k){ try{ VPLACES[k].pc.close(); }catch(e){ dbg(e); } delete VPLACES[k]; });
+  Object.keys(VPLACES).forEach(fermerPlace);
   var st0 = $('sousTitre'); if(st0) st0.remove();
   if(!garderHistoire){
     if(sallePoussee && !parRetour){ sallePoussee = false; retourVue = true; try{ history.back(); }catch(e){ retourVue = false; } }
@@ -5082,6 +5085,7 @@ function appliquerSalle(e){
   if(e.disposition && /^(cercle|conseil|scene|debat|classe)$/.test(e.disposition)) E0.disposition = e.disposition;
   var ecouteAvant = (E0.whep || '') + '|' + (E0.audio || '') + '|' + enFoule(SA.id);
   if(e.whep !== undefined){ E0.whep = urlSure(e.whep) || null; SA.jeton = txt(e.jeton, 400) || SA.jeton; }
+  else if(typeof e.jeton === 'string' && e.jeton) SA.jeton = txt(e.jeton, 400) || SA.jeton;   /* 21 nov. 2026 : le jeton d'écoute des places */
   if(e.audio !== undefined) E0.audio = urlSure(e.audio) || null;
   if((E0.whep || '') + '|' + (E0.audio || '') + '|' + enFoule(SA.id) !== ecouteAvant) demarrerEcoute();
   if(e.image !== undefined) E0.image = urlSure(e.image) || null;
@@ -5362,6 +5366,7 @@ function demarrerEcoute(){
   if(enFoule(SA.id) && SA.e.audio){ a.src = SA.e.audio; jouerAudio(); return; }
   if(SA.e.whep) ecouterWhep(SA.e.whep, 0);
   else if(SA.e.audio){ a.src = SA.e.audio; jouerAudio(); }
+  brancherVideosPlaces();                                  /* sans son mélangé : chaque place est écoutée (et refaite si le mode change) */
 }
 function jouerAudio(){ var a = elAudio(); a.play().then(function(){ SA && (SA.sonBloque = false); }).catch(function(){ if(SA){ SA.sonBloque = true; systeme('🔈 Touchez l\'écran pour entendre la salle.'); } }); }
 document.addEventListener('pointerdown', function(){ if(SA && SA.sonBloque){ SA.sonBloque = false; jouerAudio(); } }, true);
@@ -5385,27 +5390,60 @@ function arreterEcoute(garderEl){
   if(ECOUTE.ressource){ var u = ECOUTE.ressource; ECOUTE.ressource = null; try{ fetch(u, {method:'DELETE', mode:'cors', keepalive:true, headers:entetesFlux(u, SA && SA.jeton)}).catch(function(){}); }catch(e){ dbg(e); } }
   if(ECOUTE.el){ try{ ECOUTE.el.pause(); ECOUTE.el.srcObject = null; ECOUTE.el.removeAttribute('src'); }catch(e){ dbg(e); } if(!garderEl){ ECOUTE.el.remove(); ECOUTE.el = null; } }
 }
-/* l'image des personnes du tronc (mode vidéo ou mixte) : un petit flux par place, sauf en foule (image composée par le serveur) */
+/* l'image des personnes du tronc (mode vidéo ou mixte) : un petit flux par place, sauf en foule (image composée par le serveur)
+   21 nov. 2026 : le serveur média de NEURAVID ne mélange pas les voix. Quand la salle ne donne pas de son mélangé (pas de
+   « whep » de salle) mais donne l'adresse de chaque place, on écoute CHAQUE personne du tronc (sa voix, et son image si la
+   salle est en vidéo ou mixte), jamais soi-même ; une place qui se coupe (republication, réseau) est reprise toute seule. */
 var VPLACES = {};
+function parPlace(){ return !!(SA && !SA.e.whep && !(enFoule(SA.id) && SA.e.audio)); }
+function audioPlace(k){ var v = VPLACES[k]; if(!v) return null; if(!v.audio){ v.audio = document.createElement('audio'); v.audio.autoplay = true; v.audio.setAttribute('playsinline', ''); v.audio.hidden = true; v.audio.dataset.placeSon = k; document.body.appendChild(v.audio); } return v.audio; }
+function fermerPlace(k){ var v = VPLACES[k]; if(!v) return; clearTimeout(v.reprise); try{ v.pc && v.pc.close(); }catch(e){ dbg(e); } if(v.audio){ try{ v.audio.pause(); v.audio.srcObject = null; }catch(e){ dbg(e); } v.audio.remove(); } delete VPLACES[k]; }
+function jouerPlaces(){ Object.keys(VPLACES).forEach(function(k){ var a = VPLACES[k].audio; if(a && a.srcObject) a.play().then(function(){ SA && (SA.sonBloque = false); }).catch(function(){ if(SA && !SA.sonBloque){ SA.sonBloque = true; systeme('🔈 Touchez l\'écran pour entendre la salle.'); } }); }); }
+document.addEventListener('pointerdown', function(){ if(SA && SA.sonBloque) jouerPlaces(); }, true);
+function ecouterPlace(k, i, url, avecSon, essai){
+  var mode = SA.e.mode || 'audio', video = mode !== 'audio', sid = SA.id;
+  var pc = new RTCPeerConnection({bundlePolicy:'max-bundle'}), fl = new MediaStream();
+  var v = VPLACES[k] = {pc:pc, flux:null, url:url, son:avecSon, mode:mode, essai:essai || 0, audio:VPLACES[k] && VPLACES[k].audio};
+  if(avecSon) pc.addTransceiver('audio', {direction:'recvonly'});
+  if(video || !avecSon) pc.addTransceiver('video', {direction:'recvonly'});
+  pc.ontrack = function(e){
+    if(VPLACES[k] !== v) return;
+    fl.addTrack(e.track); v.flux = fl;
+    if(e.track.kind === 'audio'){ var a = audioPlace(k); a.srcObject = new MediaStream([e.track]); jouerPlaces(); }
+    document.querySelectorAll('#sTronc video[data-place="' + i + '"]').forEach(function(x){ x.srcObject = fl; x.play().catch(function(){}); });
+  };
+  var reprendre = function(){
+    if(VPLACES[k] !== v || !SA || SA.id !== sid) return;
+    try{ pc.close(); }catch(x){ dbg(x); }
+    if(v.essai >= 8){ v.pc = null; return; }                 /* abandonnée jusqu'au prochain changement du tronc */
+    v.reprise = setTimeout(function(){ if(VPLACES[k] === v && SA && SA.id === sid) ecouterPlace(k, i, url, avecSon, v.essai + 1); }, attente(1500, v.essai));
+  };
+  pc.onconnectionstatechange = function(){ if(VPLACES[k] !== v) return; if(pc.connectionState === 'connected') v.essai = 0; else if(pc.connectionState === 'failed' || pc.connectionState === 'closed') reprendre();
+    else if(pc.connectionState === 'disconnected') setTimeout(function(){ if(VPLACES[k] === v && pc.connectionState === 'disconnected') reprendre(); }, 5000); };
+  pc.createOffer().then(function(o){ return pc.setLocalDescription(o); }).then(function(){ return glaner(pc); })
+    .then(function(){ return fetch(url, {method:'POST', mode:'cors', headers:entetesFlux(url, SA && SA.jeton, {'Content-Type':'application/sdp'}), body:pc.localDescription.sdp}); })
+    .then(function(r){ if(!r.ok) throw new Error('whep ' + r.status); return r.text(); }).then(function(sdp){ if(VPLACES[k] === v) return pc.setRemoteDescription({type:'answer', sdp:sdp}); })
+    .catch(function(e){ dbg(e); reprendre(); });
+}
 function brancherVideosPlaces(){
   if(!SA) return;
-  document.querySelectorAll('#sTronc video[data-place]').forEach(function(v){
-    var i = +v.dataset.place, p = SA.tronc[i]; if(!p) return;
-    if(estMoi(p) && PUB.flux){ v.srcObject = PUB.flux; v.style.transform = PUB.ecran ? '' : 'scaleX(-1)'; v.play().catch(function(){}); return; }
-    var k = cleP(p), deja = VPLACES[k];
-    if(deja && deja.flux){ v.srcObject = deja.flux; v.play().catch(function(){}); return; }
-    if(enFoule(SA.id) || !p.whepPlace || !window.RTCPeerConnection || deja) return;
-    var pc = new RTCPeerConnection({bundlePolicy:'max-bundle'}), fl = new MediaStream(); VPLACES[k] = {pc:pc, flux:null};
-    pc.addTransceiver('video', {direction:'recvonly'});
-    pc.ontrack = function(e){ fl.addTrack(e.track); VPLACES[k].flux = fl; document.querySelectorAll('#sTronc video[data-place="' + i + '"]').forEach(function(x){ x.srcObject = fl; x.play().catch(function(){}); }); };
-    pc.createOffer().then(function(o){ return pc.setLocalDescription(o); }).then(function(){ return glaner(pc); })
-      .then(function(){ return fetch(p.whepPlace, {method:'POST', mode:'cors', headers:entetesFlux(p.whepPlace, SA.jeton, {'Content-Type':'application/sdp'}), body:pc.localDescription.sdp}); })
-      .then(function(r){ if(!r.ok) throw new Error('whep ' + r.status); return r.text(); }).then(function(sdp){ return pc.setRemoteDescription({type:'answer', sdp:sdp}); })
-      .catch(function(e){ dbg(e); try{ pc.close(); }catch(x){ dbg(x); } delete VPLACES[k]; });
+  var places = parPlace(), garder = {};
+  (SA.tronc || []).forEach(function(p, i){
+    if(!p || estMoi(p)) return;
+    var k = cleP(p); if(!k) return;
+    var son = places && !!p.whepPlace, image = (p.camera || p.ecran) && !!p.whepPlace && !enFoule(SA.id);
+    if(!son && !image) return;
+    garder[k] = 1;
+    var deja = VPLACES[k];
+    /* une autre adresse, le son en plus ou un autre mode : la connexion est refaite */
+    if(deja && (deja.url !== p.whepPlace || deja.son !== son || deja.mode !== (SA.e.mode || 'audio'))){ fermerPlace(k); deja = null; }
+    if(deja){ if(deja.flux) document.querySelectorAll('#sTronc video[data-place="' + i + '"]').forEach(function(x){ if(x.srcObject !== deja.flux){ x.srcObject = deja.flux; x.play().catch(function(){}); } }); return; }
+    if(!window.RTCPeerConnection) return;
+    ecouterPlace(k, i, p.whepPlace, son, 0);
   });
+  document.querySelectorAll('#sTronc video[data-place]').forEach(function(v){ var p = SA.tronc[+v.dataset.place]; if(p && estMoi(p) && PUB.flux){ v.srcObject = PUB.flux; v.style.transform = PUB.ecran ? '' : 'scaleX(-1)'; v.play().catch(function(){}); } });
   /* les places vidées libèrent leur flux */
-  var garder = {}; SA.tronc.forEach(function(p){ if(p && (p.camera || p.ecran)) garder[cleP(p)] = 1; });
-  Object.keys(VPLACES).forEach(function(k){ if(!garder[k]){ try{ VPLACES[k].pc.close(); }catch(e){ dbg(e); } delete VPLACES[k]; } });
+  Object.keys(VPLACES).forEach(function(k){ if(!garder[k]) fermerPlace(k); });
 }
 
 /* ════════ LE TRONC : lever la main, monter, parler, descendre ════════ */
@@ -5581,12 +5619,26 @@ function remplacerVideo(vt){
   if(s) s.replaceTrack(vt).catch(dbg); else if(vt && SA && SA.whip) publier(SA.whip, 0);   /* la vidéo arrive après le son : on republie avec elle */
 }
 /* WHIP : envoyer sa voix (et son image) à NEURAVID par une seule requête HTTP */
+/* 21 nov. 2026 : l'image part en H.264 d'abord (le serveur média la donne alors à tous les téléphones, comme Le Direct) */
+function preferH264(tr){
+  try{
+    var r = tr && tr.receiver && tr.receiver.track;
+    if(!tr || !r || r.kind !== 'video' || typeof tr.setCodecPreferences !== 'function' || !window.RTCRtpSender || !RTCRtpSender.getCapabilities) return tr;
+    var c = (RTCRtpSender.getCapabilities('video') || {}).codecs || [];
+    var rang = function(x){ var m = (x.mimeType || '').toLowerCase(), f = x.sdpFmtpLine || '';
+      if(m !== 'video/h264') return /rtx|red|ulpfec|flexfec/.test(m) ? 9 : 5;
+      return (/packetization-mode=1/.test(f) ? 0 : 2) + (/profile-level-id=42e0/.test(f) ? 0 : 1); };
+    if(!c.some(function(x){ return (x.mimeType || '').toLowerCase() === 'video/h264'; })) return tr;
+    tr.setCodecPreferences(c.slice().sort(function(a, b){ return rang(a) - rang(b); }));
+  }catch(e){ dbg(e); }
+  return tr;
+}
 function publier(url, essai){
   if(!PUB.envoi || !window.RTCPeerConnection){ toast('Ce téléphone ne peut pas parler depuis cette page. Utilisez l\'application NEURAVID.'); return; }
   fermerPub();
   var pc = new RTCPeerConnection({bundlePolicy:'max-bundle'}); PUB.pc = pc;
   PUB.envoi.getAudioTracks().forEach(function(t){ pc.addTransceiver(t, {direction:'sendonly', streams:[PUB.envoi]}); });
-  if(SA && SA.e.mode !== 'audio'){ var vt = PUB.envoi.getVideoTracks()[0]; var tr = pc.addTransceiver(vt || 'video', {direction:'sendonly', streams:[PUB.envoi]}); tr.sender.__video = true; }
+  if(SA && SA.e.mode !== 'audio'){ var vt = PUB.envoi.getVideoTracks()[0]; var tr = preferH264(pc.addTransceiver(vt || 'video', {direction:'sendonly', streams:[PUB.envoi]})); tr.sender.__video = true; }
   var echec = function(){ if(PUB.pc !== pc || !SA || SA.place < 0) return; if(essai >= 6){ toast('Votre voix n\'arrive plus. Vérifiez votre connexion.', 5000); return; } setTimeout(function(){ if(PUB.pc === pc && SA && SA.place >= 0) publier(url, essai + 1); }, attente(1500, essai)); };
   pc.onconnectionstatechange = function(){ if(PUB.pc !== pc) return; if(pc.connectionState === 'failed') echec(); else if(pc.connectionState === 'disconnected'){ setTimeout(function(){ if(PUB.pc === pc && pc.connectionState === 'disconnected'){ try{ pc.restartIce(); }catch(e){ echec(); } } }, 5000); } };
   pc.createOffer().then(function(o){ return pc.setLocalDescription(o); }).then(function(){ return glaner(pc); })
@@ -7886,134 +7938,6 @@ demarrer();
 })();
 
 </script>
-<!--NV_VERS_IRIS--><script id="nv-vers-iris" data-module="Baobab">
-/* NEURAVID — VERS IRIS : toute vidéo d'un module peut s'ouvrir dans Iris, le lecteur principal.
-   Injecté dans chaque module (outils/injecter_vers_iris.py). Le module garde son propre lecteur (NVLecteur, avec ses
-   votes, cadeaux et calques) ; ce pont ajoute seulement le passage vers Iris :
-   1. window.NVIris.ouvrir(clip, {liste, index}) : ouvre une vidéo (ou une série) dans Iris.
-      clip = identifiant, ou objet {id, src | sources | hls | whep, type:'video'|'replay'|'direct', directId, title, author, module, thumbnail, ageMin}.
-   2. Dans le lecteur plein écran des modules (NVLecteur), le menu « ⋯ » de chaque vidéo gagne « Ouvrir dans Iris ».
-   3. Une vidéo qui joue ailleurs dans le module (hors NVLecteur) reçoit un bouton hexagonal « Ouvrir dans Iris »
-      si son adresse est lisible ailleurs (http(s), ou data-nv-hls / data-nv-whep posés par le module).
-   Un blob:, une caméra ou un flux local ne peuvent pas changer de page : pas de passage. Iris applique les âges. */
-(function(){
-  if(window.NVIris) return;
-  var S = document.currentScript, MOI = (S && S.getAttribute('data-module')) || '';
-  var TXT = {fr:'Ouvrir dans Iris', en:'Open in Iris', es:'Abrir en Iris', pt:'Abrir no Iris', ar:'افتح في Iris', sw:'Fungua kwenye Iris', ha:'Buɗe a Iris',
-    yo:'Ṣí i nínú Iris', wo:'Ubbi ko ci Iris', bm:'A da Iris kɔnɔ', ln:'Fungola na Iris'};
-  var SOUS = {fr:'Le lecteur principal', en:'The main player', es:'El reproductor principal', pt:'O player principal', ar:'المشغّل الرئيسي', sw:'Kicheza video kikuu', ha:'Babban mai kunna bidiyo',
-    yo:'Ẹ̀rọ ìwòran àkọ́kọ́', wo:'Lecteur bu mag bi', bm:'Videwo lajɛlan kunba', ln:'Lecteur ya liboso'};
-  function lg(){ var l = String(document.documentElement.lang || 'fr').slice(0, 2); return TXT[l] ? l : 'fr'; }
-  function sur(u){ u = typeof u === 'string' ? u.trim() : ''; return /^https?:\/\//.test(u) ? u : ''; }
-  function ouvrir(clip, o){
-    o = o || {};
-    var ctx = {clip:clip, depuis:MOI || null};
-    if(Array.isArray(o.liste)){ ctx.liste = o.liste.slice(0, 100); ctx.index = +o.index || 0; }
-    try{ document.querySelectorAll('video').forEach(function(v){ try{ v.pause(); }catch(e){} }); }catch(e){}
-    try{ if(window.NVLecteur && NVLecteur.ouvert && NVLecteur.ouvert()) NVLecteur.fermer(); }catch(e){}
-    try{ if(window.NVLien && typeof window.NVLien.ouvrir === 'function'){ window.NVLien.ouvrir('NVPlayer', ctx); return true; } }catch(e){}
-    try{ sessionStorage.setItem('nv_ctx_Player', JSON.stringify(ctx)); }catch(e){ return false; }
-    var base = window.NV_MODULES_BASE || ''; if(base && base.slice(-1) !== '/') base += '/';
-    location.href = base + 'NV_MODULE_Iris.html';
-    return true;
-  }
-  /* une vidéo du lecteur des modules (NVLecteur) → une vidéo pour Iris, avec seulement ce que le module a donné */
-  function depuisItem(it, o){
-    if(!it || typeof it !== 'object') return null;
-    var url = sur(it.url), d = {module:(o && o.module) || MOI || null};
-    if(it.direct){
-      var brut = String(it.id || ''), whep = sur(it.whep), hls = sur(it.hls);
-      d.type = 'direct'; d.id = brut.slice(0, 200);
-      /* un direct du Direct (« live:<id> ») se retrouve par son identifiant ; un autre direct (la scène d'une finale Baobab) doit donner son flux */
-      if(/^live:/.test(brut)) d.directId = brut.replace(/^live:/, '');
-      if(url){ if(/\.m3u8(\?|#|$)/i.test(url)) d.hls = url; else d.src = url; }
-      if(hls) d.hls = hls;
-      if(whep) d.whep = whep;
-      if(typeof it.jeton === 'string' && /^[A-Za-z0-9._~+\/=-]{1,2000}$/.test(it.jeton)) d.jeton = it.jeton;
-      if(!d.directId && !d.src && !d.hls && !d.whep) return null;   /* rien à transmettre : pas de passage */
-    } else {
-      if(!url) return null;                       /* blob: ou data: : la vidéo n'existe que sur ce téléphone */
-      d.id = String(it.clip || it.id || url).slice(0, 200); d.src = url;
-    }
-    if(sur(it.poster)) d.thumbnail = it.poster;
-    if(it.auteur) d.author = String(it.auteur).slice(0, 60);
-    if(it.chip) d.title = String(it.chip).slice(0, 120);
-    if(it.pays) d.country = String(it.pays).slice(0, 40);
-    return d;
-  }
-  function brancherNVLecteur(){
-    var L = window.NVLecteur; if(!L || typeof L.ouvrir !== 'function' || L.__versIris) return;
-    var orig = L.ouvrir;
-    L.ouvrir = function(o){
-      if(o && typeof o === 'object'){
-        var opt = o.options, items = Array.isArray(o.items) ? o.items : [];
-        o.options = function(it){
-          var l = []; try{ l = (typeof opt === 'function' ? opt.apply(this, arguments) : []) || []; }catch(e){ l = []; }
-          var c = depuisItem(it, o);
-          if(c){
-            var liste = items.map(function(x){ return depuisItem(x, o); }).filter(Boolean), k = liste.map(function(x){ return x.id; }).indexOf(c.id);
-            l = l.concat([{ico:'⤢', titre:TXT[lg()], sous:SOUS[lg()], action:function(){ ouvrir(c, k >= 0 && liste.length > 1 ? {liste:liste, index:k} : null); }}]);
-          }
-          return l;
-        };
-      }
-      return orig.apply(this, arguments);
-    };
-    L.__versIris = true;
-  }
-  /* une vidéo qui joue hors du lecteur des modules */
-  function decrire(v){
-    if(v.closest && v.closest('#nvl')) return null;      /* déjà dans NVLecteur : le menu « ⋯ » s'en charge */
-    var hls = sur(v.getAttribute('data-nv-hls')), whep = sur(v.getAttribute('data-nv-whep'));
-    var src = sur(v.currentSrc || v.getAttribute('src') || '');
-    if(!src && !hls && !whep) return null;
-    var porteur = v.closest('[data-nv-id],[data-clip],[data-id],[data-video]');
-    var id = v.getAttribute('data-nv-id') || (porteur && (porteur.getAttribute('data-nv-id') || porteur.getAttribute('data-clip') || porteur.getAttribute('data-id') || porteur.getAttribute('data-video'))) || src || hls || whep;
-    var d = {id:String(id).slice(0, 200), module:MOI || null};
-    if(src) d.src = src;
-    if(hls) d.hls = hls;
-    if(whep){ d.whep = whep; d.type = 'direct'; }
-    var ty = v.getAttribute('data-nv-type'); if(ty === 'direct' || ty === 'replay') d.type = ty;
-    var poster = sur(v.getAttribute('poster') || ''); if(poster) d.thumbnail = poster;
-    var titre = v.getAttribute('data-nv-titre') || v.getAttribute('aria-label') || ''; if(titre) d.title = String(titre).slice(0, 120);
-    var age = +v.getAttribute('data-nv-age'); if(age >= 13 && age <= 21) d.ageMin = age;
-    return d;
-  }
-  var bouton = null, cible = null, raf = 0;
-  function creer(){
-    bouton = document.createElement('button');
-    bouton.type = 'button'; bouton.id = 'nvVersIris'; bouton.setAttribute('data-brut', '');
-    bouton.style.cssText = 'position:fixed;z-index:2147483000;width:44px;height:44px;display:none;place-items:center;border:0;padding:0;cursor:pointer;' +
-      'background:linear-gradient(140deg,rgba(108,43,217,.92),rgba(224,36,154,.92));clip-path:polygon(25% 3%,75% 3%,100% 50%,75% 97%,25% 97%,0 50%)';
-    bouton.innerHTML = '<svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9V4h5M15 4h5v5M20 15v5h-5M9 20H4v-5" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>';
-    bouton.addEventListener('click', function(e){ e.preventDefault(); e.stopPropagation(); var d = cible && decrire(cible); if(d) ouvrir(d); });
-    document.body.appendChild(bouton);
-  }
-  function placer(){
-    raf = 0;
-    if(!bouton || !cible) return;
-    var r = cible.getBoundingClientRect();
-    var visible = document.contains(cible) && !cible.paused && r.width >= 160 && r.height >= 120 && r.bottom > 50 && r.top < innerHeight - 50;
-    if(!visible){ bouton.style.display = 'none'; return; }
-    bouton.style.display = 'grid';
-    bouton.style.top = Math.max(8, r.top + 10) + 'px';
-    var rtl = document.documentElement.dir === 'rtl';
-    bouton.style.left = rtl ? Math.max(8, r.left + 10) + 'px' : Math.min(innerWidth - 52, r.right - 54) + 'px';
-    bouton.setAttribute('aria-label', TXT[lg()]); bouton.title = TXT[lg()];
-  }
-  function bientot(){ if(!raf) raf = requestAnimationFrame(placer); }
-  document.addEventListener('play', function(e){ var v = e.target; if(!v || v.tagName !== 'VIDEO' || !decrire(v)) return; cible = v; if(!bouton) creer(); bientot(); }, true);
-  ['pause', 'ended', 'emptied'].forEach(function(n){ document.addEventListener(n, function(e){ if(e.target === cible) bientot(); }, true); });
-  addEventListener('scroll', bientot, true); addEventListener('resize', bientot);
-  setInterval(function(){ if(cible) bientot(); }, 1000);
-  brancherNVLecteur();
-  if(!window.NVLecteur){ var n = 0, tm = setInterval(function(){ brancherNVLecteur(); if(window.NVLecteur || ++n > 20) clearInterval(tm); }, 500); }
-  window.NVIris = {ouvrir:ouvrir, depuisItem:depuisItem, decrire:decrire, version:1};
-})();
-
-</script><!--/NV_VERS_IRIS-->
-<script>/* NV_LECTEUR_ATTENTE v43 : la suivante se prépare dès que la vidéo qui joue a 12 s d'avance (19 nov. 2026) */(function(){if(window.__nvlAttente)return;window.__nvlAttente=1;document.addEventListener('progress',function(e){var v=e.target;if(!v||v.tagName!=='VIDEO'||v.paused||!v.closest)return;var s=v.closest('.nvl-s');if(!s)return;var n=s.nextElementSibling,w=n&&n.querySelector&&n.querySelector('video[data-nvlattend]');if(!w||w.preload==='auto')return;try{var t=v.currentTime,b=v.buffered,d=v.duration;for(var k=0;k<b.length;k++){if(b.start(k)<=t+.3&&b.end(k)>=t){if(b.end(k)-t>=12||(isFinite(d)&&d>0&&b.end(k)>=d-.5))w.preload='auto';break;}}}catch(x){}},true);})();</script>
-<script>/* NV_LECTEUR_LEGER v44 : la version légère (360) prend le relais d'une vidéo qui cale (19 nov. 2026) */(function(){if(window.__nvlLeger)return;window.__nvlLeger=1;var RE=/-(540|720)\.mp4(?=$|[?#])/;function lecteur(v){return v&&v.tagName==='VIDEO'&&v.closest&&v.closest('.nvl-s');}function faible(){var c=navigator.connection||{};return !!(c.saveData||/(^|-)2g|slow/.test(c.effectiveType||'')||(typeof c.downlink==='number'&&c.downlink>0&&c.downlink<1.8));}function leger(v){var s=v.getAttribute('src')||'';if(!RE.test(s))return false;var t=v.currentTime||0,j=!v.paused;v.addEventListener('loadedmetadata',function f(){v.removeEventListener('loadedmetadata',f);try{if(t>.2)v.currentTime=t;}catch(e){}if(j)v.play().catch(function(){});});v.src=s.replace(RE,'-360.mp4');try{v.load();}catch(e){}return true;}function guetter(v){clearTimeout(v.__nvlT);v.__nvlT=setTimeout(function(){if(!v.paused&&v.readyState<3&&!document.hidden)leger(v);},3000);}document.addEventListener('loadstart',function(e){var v=e.target;if(lecteur(v)&&faible())leger(v);},true);document.addEventListener('play',function(e){var v=e.target;if(!lecteur(v))return;if(faible()&&leger(v))return;guetter(v);},true);document.addEventListener('waiting',function(e){if(lecteur(e.target))guetter(e.target);},true);document.addEventListener('playing',function(e){if(lecteur(e.target))clearTimeout(e.target.__nvlT);},true);document.addEventListener('pause',function(e){if(lecteur(e.target))clearTimeout(e.target.__nvlT);},true);document.addEventListener('error',function(e){var v=e.target;if(lecteur(v)&&leger(v))e.stopImmediatePropagation();},true);})();</script>
 <!--NV_CLOCHE--><script id="nv-cloche" data-module="Baobab" data-hote="#haut" data-avant="">
 /* NEURAVID — LA CLOCHE VIVANTE (le pouls du Tam-tam dans l'en-tête de chaque module).
    « Une cloche sonne ; un tambour parle. NEURAVID ne sonne pas — il bat à ton rythme. »
@@ -8169,6 +8093,132 @@ demarrer();
 })();
 
 </script><!--/NV_CLOCHE-->
+<!--NV_VERS_IRIS--><script id="nv-vers-iris" data-module="Baobab">
+/* NEURAVID — VERS IRIS : toute vidéo d'un module peut s'ouvrir dans Iris, le lecteur principal.
+   Injecté dans chaque module (outils/injecter_vers_iris.py). Le module garde son propre lecteur (NVLecteur, avec ses
+   votes, cadeaux et calques) ; ce pont ajoute seulement le passage vers Iris :
+   1. window.NVIris.ouvrir(clip, {liste, index}) : ouvre une vidéo (ou une série) dans Iris.
+      clip = identifiant, ou objet {id, src | sources | hls | whep, type:'video'|'replay'|'direct', directId, title, author, module, thumbnail, ageMin}.
+   2. Dans le lecteur plein écran des modules (NVLecteur), le menu « ⋯ » de chaque vidéo gagne « Ouvrir dans Iris ».
+   3. Une vidéo qui joue ailleurs dans le module (hors NVLecteur) reçoit un bouton hexagonal « Ouvrir dans Iris »
+      si son adresse est lisible ailleurs (http(s), ou data-nv-hls / data-nv-whep posés par le module).
+   Un blob:, une caméra ou un flux local ne peuvent pas changer de page : pas de passage. Iris applique les âges. */
+(function(){
+  if(window.NVIris) return;
+  var S = document.currentScript, MOI = (S && S.getAttribute('data-module')) || '';
+  var TXT = {fr:'Ouvrir dans Iris', en:'Open in Iris', es:'Abrir en Iris', pt:'Abrir no Iris', ar:'افتح في Iris', sw:'Fungua kwenye Iris', ha:'Buɗe a Iris',
+    yo:'Ṣí i nínú Iris', wo:'Ubbi ko ci Iris', bm:'A da Iris kɔnɔ', ln:'Fungola na Iris'};
+  var SOUS = {fr:'Le lecteur principal', en:'The main player', es:'El reproductor principal', pt:'O player principal', ar:'المشغّل الرئيسي', sw:'Kicheza video kikuu', ha:'Babban mai kunna bidiyo',
+    yo:'Ẹ̀rọ ìwòran àkọ́kọ́', wo:'Lecteur bu mag bi', bm:'Videwo lajɛlan kunba', ln:'Lecteur ya liboso'};
+  function lg(){ var l = String(document.documentElement.lang || 'fr').slice(0, 2); return TXT[l] ? l : 'fr'; }
+  function sur(u){ u = typeof u === 'string' ? u.trim() : ''; return /^https?:\/\//.test(u) ? u : ''; }
+  function ouvrir(clip, o){
+    o = o || {};
+    var ctx = {clip:clip, depuis:MOI || null};
+    if(Array.isArray(o.liste)){ ctx.liste = o.liste.slice(0, 100); ctx.index = +o.index || 0; }
+    try{ document.querySelectorAll('video').forEach(function(v){ try{ v.pause(); }catch(e){} }); }catch(e){}
+    try{ if(window.NVLecteur && NVLecteur.ouvert && NVLecteur.ouvert()) NVLecteur.fermer(); }catch(e){}
+    try{ if(window.NVLien && typeof window.NVLien.ouvrir === 'function'){ window.NVLien.ouvrir('NVPlayer', ctx); return true; } }catch(e){}
+    try{ sessionStorage.setItem('nv_ctx_Player', JSON.stringify(ctx)); }catch(e){ return false; }
+    var base = window.NV_MODULES_BASE || ''; if(base && base.slice(-1) !== '/') base += '/';
+    location.href = base + 'NV_MODULE_Iris.html';
+    return true;
+  }
+  /* une vidéo du lecteur des modules (NVLecteur) → une vidéo pour Iris, avec seulement ce que le module a donné */
+  function depuisItem(it, o){
+    if(!it || typeof it !== 'object') return null;
+    var url = sur(it.url), d = {module:(o && o.module) || MOI || null};
+    if(it.direct){
+      var brut = String(it.id || ''), whep = sur(it.whep), hls = sur(it.hls);
+      d.type = 'direct'; d.id = brut.slice(0, 200);
+      /* un direct du Direct (« live:<id> ») se retrouve par son identifiant ; un autre direct (la scène d'une finale Baobab) doit donner son flux */
+      if(/^live:/.test(brut)) d.directId = brut.replace(/^live:/, '');
+      if(url){ if(/\.m3u8(\?|#|$)/i.test(url)) d.hls = url; else d.src = url; }
+      if(hls) d.hls = hls;
+      if(whep) d.whep = whep;
+      if(typeof it.jeton === 'string' && /^[A-Za-z0-9._~+\/=-]{1,2000}$/.test(it.jeton)) d.jeton = it.jeton;
+      if(!d.directId && !d.src && !d.hls && !d.whep) return null;   /* rien à transmettre : pas de passage */
+    } else {
+      if(!url) return null;                       /* blob: ou data: : la vidéo n'existe que sur ce téléphone */
+      d.id = String(it.clip || it.id || url).slice(0, 200); d.src = url;
+    }
+    if(sur(it.poster)) d.thumbnail = it.poster;
+    if(it.auteur) d.author = String(it.auteur).slice(0, 60);
+    if(it.chip) d.title = String(it.chip).slice(0, 120);
+    if(it.pays) d.country = String(it.pays).slice(0, 40);
+    return d;
+  }
+  function brancherNVLecteur(){
+    var L = window.NVLecteur; if(!L || typeof L.ouvrir !== 'function' || L.__versIris) return;
+    var orig = L.ouvrir;
+    L.ouvrir = function(o){
+      if(o && typeof o === 'object'){
+        var opt = o.options, items = Array.isArray(o.items) ? o.items : [];
+        o.options = function(it){
+          var l = []; try{ l = (typeof opt === 'function' ? opt.apply(this, arguments) : []) || []; }catch(e){ l = []; }
+          var c = depuisItem(it, o);
+          if(c){
+            var liste = items.map(function(x){ return depuisItem(x, o); }).filter(Boolean), k = liste.map(function(x){ return x.id; }).indexOf(c.id);
+            l = l.concat([{ico:'⤢', titre:TXT[lg()], sous:SOUS[lg()], action:function(){ ouvrir(c, k >= 0 && liste.length > 1 ? {liste:liste, index:k} : null); }}]);
+          }
+          return l;
+        };
+      }
+      return orig.apply(this, arguments);
+    };
+    L.__versIris = true;
+  }
+  /* une vidéo qui joue hors du lecteur des modules */
+  function decrire(v){
+    if(v.closest && v.closest('#nvl')) return null;      /* déjà dans NVLecteur : le menu « ⋯ » s'en charge */
+    var hls = sur(v.getAttribute('data-nv-hls')), whep = sur(v.getAttribute('data-nv-whep'));
+    var src = sur(v.currentSrc || v.getAttribute('src') || '');
+    if(!src && !hls && !whep) return null;
+    var porteur = v.closest('[data-nv-id],[data-clip],[data-id],[data-video]');
+    var id = v.getAttribute('data-nv-id') || (porteur && (porteur.getAttribute('data-nv-id') || porteur.getAttribute('data-clip') || porteur.getAttribute('data-id') || porteur.getAttribute('data-video'))) || src || hls || whep;
+    var d = {id:String(id).slice(0, 200), module:MOI || null};
+    if(src) d.src = src;
+    if(hls) d.hls = hls;
+    if(whep){ d.whep = whep; d.type = 'direct'; }
+    var ty = v.getAttribute('data-nv-type'); if(ty === 'direct' || ty === 'replay') d.type = ty;
+    var poster = sur(v.getAttribute('poster') || ''); if(poster) d.thumbnail = poster;
+    var titre = v.getAttribute('data-nv-titre') || v.getAttribute('aria-label') || ''; if(titre) d.title = String(titre).slice(0, 120);
+    var age = +v.getAttribute('data-nv-age'); if(age >= 13 && age <= 21) d.ageMin = age;
+    return d;
+  }
+  var bouton = null, cible = null, raf = 0;
+  function creer(){
+    bouton = document.createElement('button');
+    bouton.type = 'button'; bouton.id = 'nvVersIris'; bouton.setAttribute('data-brut', '');
+    bouton.style.cssText = 'position:fixed;z-index:2147483000;width:44px;height:44px;display:none;place-items:center;border:0;padding:0;cursor:pointer;' +
+      'background:linear-gradient(140deg,rgba(108,43,217,.92),rgba(224,36,154,.92));clip-path:polygon(25% 3%,75% 3%,100% 50%,75% 97%,25% 97%,0 50%)';
+    bouton.innerHTML = '<svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9V4h5M15 4h5v5M20 15v5h-5M9 20H4v-5" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+    bouton.addEventListener('click', function(e){ e.preventDefault(); e.stopPropagation(); var d = cible && decrire(cible); if(d) ouvrir(d); });
+    document.body.appendChild(bouton);
+  }
+  function placer(){
+    raf = 0;
+    if(!bouton || !cible) return;
+    var r = cible.getBoundingClientRect();
+    var visible = document.contains(cible) && !cible.paused && r.width >= 160 && r.height >= 120 && r.bottom > 50 && r.top < innerHeight - 50;
+    if(!visible){ bouton.style.display = 'none'; return; }
+    bouton.style.display = 'grid';
+    bouton.style.top = Math.max(8, r.top + 10) + 'px';
+    var rtl = document.documentElement.dir === 'rtl';
+    bouton.style.left = rtl ? Math.max(8, r.left + 10) + 'px' : Math.min(innerWidth - 52, r.right - 54) + 'px';
+    bouton.setAttribute('aria-label', TXT[lg()]); bouton.title = TXT[lg()];
+  }
+  function bientot(){ if(!raf) raf = requestAnimationFrame(placer); }
+  document.addEventListener('play', function(e){ var v = e.target; if(!v || v.tagName !== 'VIDEO' || !decrire(v)) return; cible = v; if(!bouton) creer(); bientot(); }, true);
+  ['pause', 'ended', 'emptied'].forEach(function(n){ document.addEventListener(n, function(e){ if(e.target === cible) bientot(); }, true); });
+  addEventListener('scroll', bientot, true); addEventListener('resize', bientot);
+  setInterval(function(){ if(cible) bientot(); }, 1000);
+  brancherNVLecteur();
+  if(!window.NVLecteur){ var n = 0, tm = setInterval(function(){ brancherNVLecteur(); if(window.NVLecteur || ++n > 20) clearInterval(tm); }, 500); }
+  window.NVIris = {ouvrir:ouvrir, depuisItem:depuisItem, decrire:decrire, version:1};
+})();
+
+</script><!--/NV_VERS_IRIS-->
 
 <!--NV_DEPUIS_IRIS--><script id="nv-depuis-iris">window.NV_DEPUIS_MODULE="Baobab_leger";
 /* NEURAVID — LA PRISE D'IRIS (21 novembre 2026, demande de Karamo : « lorsque l'on clique sur Relever le défi, la caméra de
