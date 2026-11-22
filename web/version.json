@@ -1,6 +1,6 @@
 {
- "version": "2026.11.22-e3c271eb4dbe",
- "date": "2026-11-22T15:03:12Z",
+ "version": "2026.11.22-63cd5a849045",
+ "date": "2026-11-22T15:30:32Z",
  "entree": "index.html",
  "modules": [
   "NV_MODULE_Academie.html",
@@ -99,8 +99,8 @@
    "taille": 1474775
   },
   "NV_MODULE_CallUniverse.html": {
-   "sha256": "87b14e21b1fdc230f874a27d7aa7a7b27438cba4e296ec425ef8c35c5dfd7038",
-   "taille": 1579161
+   "sha256": "af703eb39f744bd6bd48837cd1fb24afb0a4064340a47162fbab6acfe31e303d",
+   "taille": 1623565
   },
   "NV_MODULE_ChallengeUniverse.html": {
    "sha256": "be604be9fc5d465d93c5397309c1b3d5f34c166c18729c2a2174b3ddbb02b672",
@@ -151,8 +151,8 @@
    "taille": 392464
   },
   "NV_MODULE_Events.html": {
-   "sha256": "9ce727db871b41eed30fff0e838d16383186d942fd8ffc59a90f56eb949ef0da",
-   "taille": 1739706
+   "sha256": "01623ce111f7aaba0ab261fa0b6931e036364b572dd7bff8c1ffdcc8f98c51d2",
+   "taille": 1748955
   },
   "NV_MODULE_Festival.html": {
    "sha256": "3d21c923f8bbca4040ff68e4df9e7dfff3b5e770f90648b25f2f59fd7adca8f5",
