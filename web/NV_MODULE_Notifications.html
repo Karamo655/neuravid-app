@@ -672,6 +672,7 @@ html[data-theme=jour] .recit{background:linear-gradient(160deg,#fff,#F1EBFF);box
 .merci.fait{opacity:.7}
 /* 20 nov. 2026 : « Merci » et « Suivre en retour » côte à côte */
 .ab-actions{position:absolute;bottom:10px;inset-inline-start:56px;inset-inline-end:10px;display:flex;flex-wrap:wrap;gap:8px}.ab-actions .merci{position:static}
+.ecrire{min-height:34px;padding:0 12px;border-radius:11px;font-size:13px;font-weight:760;background:color-mix(in srgb,#7c3aed 16%,transparent);color:var(--encre);border:0}
 .retour{min-height:34px;padding:0 12px;border-radius:11px;font-size:13px;font-weight:760;background:var(--c);color:#0B0720;border:0}.retour.fait{background:color-mix(in srgb,var(--c) 18%,transparent);color:var(--encre);opacity:.8}
 /* le tambour au repos : tout est lu */
 .paix{display:grid;justify-items:center;gap:4px;margin:18px 0 8px;color:var(--brume)}
@@ -1341,18 +1342,40 @@ function htmlSquelette(){ var r = ''; for(var i = 0; i < 6; i++) r += '<li class
 
 /* une nouvelle */
 function nomActeur(a){ return '<b dir="auto" data-brut>' + esc(a.nom || '@' + (a.handle || a.id)) + '</b>'; }
+/* 22 nov. 2026 : un titre qui n'en est pas un (nom de fichier, suite de chiffres) ne s'affiche pas ; un titre long est coupé
+   à un mot entier, avec « … » (avant : « « 1001200495 » », « … on cons » ») */
+function titreLisible(t){
+  t = String(t == null ? '' : t).replace(/\s+/g, ' ').trim();
+  if(!t) return '';
+  if(/^[\w-]*\d{5,}[\w-]*(\.(mp4|mov|webm|m4v|3gp|mkv|jpg|jpeg|png|heic))?$/i.test(t) || /^[\w\s-]+\.(mp4|mov|webm|m4v|3gp|mkv|jpg|jpeg|png|heic)$/i.test(t)) return '';
+  var chars = Array.from(t); if(chars.length <= 60) return t;
+  var c = chars.slice(0, 60).join(''), i = c.lastIndexOf(' '); if(i > 30) c = c.slice(0, i);
+  return c.replace(/[\s,;:.!?-]+$/, '') + '…';
+}
 function phraseNotif(n){
-  var T = TYPES[n.type], grp = n.total > 1 && T.tn, tpl = grp ? T.tn : T.t1;
+  var T = TYPES[n.type], grp = n.total > 1 && T.tn, tpl = grp ? T.tn : T.t1, titre = n.type === 'systeme' ? n.titre : titreLisible(n.titre);
   /* 21 nov. 2026 : sans personne (t0), sans titre (ts / tns) */
   if(!n.acteurs.length && T.t0) tpl = T.t0;
-  else if(!n.titre && T.ts && /\{1\}/.test(tpl)) tpl = grp ? (T.tns || T.ts) : T.ts;
+  else if(!titre && T.ts && /\{1\}/.test(tpl)) tpl = grp ? (T.tns || T.ts) : T.ts;
+  /* 22 nov. 2026 : une publication sans vrai titre devient « … a publié une nouvelle vidéo. » */
+  else if(!titre && n.type === 'publication' && n.acteurs.length && /\{1\}/.test(tpl)) tpl = grp ? TYPES.nouvelle_video.tn : TYPES.nouvelle_video.t1;
   if(n.type === 'systeme') return '<b dir="auto" data-brut>' + esc(n.titre) + '</b>';
-  return phrase(tpl, n.acteurs[0] ? nomActeur(n.acteurs[0]) : '', '<bdi data-brut>' + esc(n.titre) + '</bdi>', '<span data-brut>' + fmt(Math.max(0, n.total - 1)) + '</span>', '<span data-brut>' + fmt(n.nombre) + '</span>');
+  if(LANGUE_UI === 'fr'){
+    /* « et 1 autres personnes » → « et 1 autre personne » */
+    if(grp && n.total - 1 === 1) tpl = tpl.replace('autres personnes', 'autre personne');
+    /* un direct d'il y a plus de 3 heures, sans fin annoncée : il n'est plus « en direct » */
+    if(n.type === 'direct' && !n.fin && n.at < maintenant() - 3 * 3600e3) tpl = grp && n.total - 1 === 1 ? '{0} et {2} autre personne étaient en direct.' : grp ? '{0} et {2} autres personnes étaient en direct.' : '{0} était en direct.';
+  }
+  return phrase(tpl, n.acteurs[0] ? nomActeur(n.acteurs[0]) : '', '<bdi data-brut>' + esc(titre) + '</bdi>', '<span data-brut>' + fmt(Math.max(0, n.total - 1)) + '</span>', '<span data-brut>' + fmt(n.nombre) + '</span>');
 }
+/* 22 nov. 2026 : écrire tout de suite à la personne qui vous suit ou vous remercie (Palabre) */
+function ecrireActeur(n){ return n && (n.type === 'abonne' || n.type === 'merci') && n.acteurs && n.acteurs.length === 1 && !(n.total > 1) && n.acteurs[0] && (n.acteurs[0].id || n.acteurs[0].handle) ? n.acteurs[0] : null; }
+function boutonEcrire(n){ return ecrireActeur(n) ? '<button class="ecrire" data-a="ecrireA" data-v="' + esc(n.id) + '">' + esc('💬 ' + tr('Écrire')) + '</button>' : ''; }
+function aActions(n){ return !estFutur(n) && ((n.type === 'abonne' && (CAP.merci || retourPossible(n))) || !!ecrireActeur(n)); }
 function htmlAvatars(n){ if(!n.acteurs.length) return '<span class="emo" aria-hidden="true">' + TYPES[n.type].ico + '</span>'; return '<span class="avs" data-k="' + Math.min(3, n.acteurs.length) + '" aria-hidden="true">' + n.acteurs.slice(0, 3).map(function(a){ return '<span class="av">' + (a.photo ? '<img data-src="' + esc(a.photo) + '" alt="">' : esc((a.nom || a.handle || '•').charAt(0).toUpperCase())) + '</span>'; }).join('') + '</span>'; }
 function htmlNotif(n){
   var m = n.module && moduleDe(n.module), fut = estFutur(n), live = !fut && n.fin && n.at <= maintenant() && maintenant() <= n.fin, r = fut && (rappelPour(n) || n.rappel);
-  var p = priorite(n), cls = 'nv' + (n.lu || fut || agenda(n) ? ' lu' : ' non-lu') + (n.fort ? ' fort' : '') + (p >= 70 && !n.lu ? ' p-haut' : '') + (live ? ' vivant' : '') + (NOUVELLES[n.id] ? ' arrive' : '') + (agenda(n) ? ' agenda' : '') + (silencieuse(n) ? ' silence' : '') + (revenue(n) ? ' revient' : '') + (n.type === 'abonne' && (CAP.merci || retourPossible(n)) && !fut ? ' a-merci' : '');
+  var p = priorite(n), cls = 'nv' + (n.lu || fut || agenda(n) ? ' lu' : ' non-lu') + (n.fort ? ' fort' : '') + (p >= 70 && !n.lu ? ' p-haut' : '') + (live ? ' vivant' : '') + (NOUVELLES[n.id] ? ' arrive' : '') + (agenda(n) ? ' agenda' : '') + (silencieuse(n) ? ' silence' : '') + (revenue(n) ? ' revient' : '') + (aActions(n) ? ' a-merci' : '');
   var quand = fut ? quandFutur(n.at) : live ? phraseTexte('jusqu\'à {0}', heure(n.fin)) : agenda(n) ? tr('en ce moment') : quandPasse(n.at);
   var att = enAttente(n) ? MEM.plusTard[n.id] : 0;
   if(att) quand = phraseTexte('revient {0}', quandFutur(att)); else if(revenue(n)) quand = tr('revenue, comme demandé');
@@ -1361,7 +1384,7 @@ function htmlNotif(n){
     (n.extrait ? '<q dir="auto" data-brut>' + esc(n.extrait) + '</q>' : '') + (n.texte ? '<span class="texte" dir="auto" data-brut>' + esc(n.texte) + '</span>' : '') +
     '<small>' + (n.fois > 1 && n.total <= 1 ? '<span class="fois" data-brut>×' + fmt(n.fois) + '</span>' : '') + (m ? '<span class="mod">' + esc(m.n) + '</span>' : '') + '<time datetime="' + isoSur(n.at) + '">' + esc(quand) + '</time>' + (!n.lu && !fut ? '<span class="sr">' + esc('Non lue') + '</span>' : '') + '</small></span>' +
     (n.image ? '<span class="vign" aria-hidden="true"><img data-src="' + esc(n.image) + '" alt=""></span>' : '') + '</button>' +
-    (n.type === 'abonne' && !fut && (CAP.merci || retourPossible(n)) ? '<span class="ab-actions">' + (CAP.merci ? '<button class="merci' + (MEM.mercis[n.id] ? ' fait' : '') + '" data-a="merci" data-v="' + esc(n.id) + '"' + (MEM.mercis[n.id] ? ' disabled' : '') + '>' + esc(MEM.mercis[n.id] ? 'Merci envoyé' : '🥁 Merci') + '</button>' : '') + boutonRetour(n) + '</span>' : '') +
+    (aActions(n) ? '<span class="ab-actions">' + (n.type === 'abonne' && CAP.merci ? '<button class="merci' + (MEM.mercis[n.id] ? ' fait' : '') + '" data-a="merci" data-v="' + esc(n.id) + '"' + (MEM.mercis[n.id] ? ' disabled' : '') + '>' + esc(MEM.mercis[n.id] ? 'Merci envoyé' : '🥁 Merci') + '</button>' : '') + boutonRetour(n) + boutonEcrire(n) + '</span>' : '') +
     (fut ? '<button class="rond cloche' + (r ? ' on' : '') + '" data-a="rappelBascule" data-v="' + esc(n.id) + '" aria-pressed="' + !!r + '" aria-label="' + esc(tr(r ? 'Ne plus me le rappeler' : 'Me le rappeler')) + '">' + ico(r ? 'clocheOn' : 'cloche') + '</button>' :
       '<button class="rond plus" data-a="menuNotif" data-v="' + esc(n.id) + '" aria-label="' + esc(tr('Options de cette nouvelle')) + '">' + ico('menu') + '</button>') + '</div></li>';
 }
@@ -1881,6 +1904,7 @@ function boutonRetour(n){ var a = retourActeur(n); if(!a || !(a.suivi === false 
   if(e === 'fait') return '<button class="retour fait" disabled>' + esc(tr('Vous suivez')) + '</button>';
   if(e === 'demande') return '<button class="retour fait" disabled>' + esc(tr('Demande envoyée')) + '</button>';
   return '<button class="retour" data-a="suivreRetour" data-v="' + esc(n.id) + '"' + (e === 'envoi' ? ' disabled aria-busy="true"' : '') + '>' + esc(tr('Suivre en retour')) + '</button>'; }
+A.ecrireA = function(id){ var n = trouver(id), a = ecrireActeur(n); if(!a) return; son('tic'); emit('notif_ecrire', {type:n.type}); ouvrir('CallUniverse', {user:a.id || null, avec:a.id || null, handle:a.handle ? '@' + String(a.handle).replace(/^@/, '') : null, depuis:MOI}); };
 A.suivreRetour = function(id){ var n = trouver(id), a = retourActeur(n); if(!a || RETOURS[a.id] || !api()) return; RETOURS[a.id] = 'envoi'; son('tic'); rendreSansSaut();
   envoyerJSON('POST', '/v1/profil/' + encodeURIComponent(a.id) + '/suivre').then(function(r){ var dm = r && r.demande === true; RETOURS[a.id] = dm ? 'demande' : 'fait'; if(!dm) a.suivi = true; rendreSansSaut();
     toast(dm ? tr('Demande envoyée') : phraseTexte('Vous suivez maintenant {0}.', a.handle ? '@' + a.handle : (a.nom || ''))); emit('notification_suivre_retour', {id:id}); })

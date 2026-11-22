@@ -4397,20 +4397,32 @@ function chercherPersonnes(){
   if(!api()) return;
   if(NOUV.ctrl) try{ NOUV.ctrl.abort(); }catch(e){ dbg(e); }
   NOUV.ctrl = typeof AbortController === 'function' ? new AbortController() : null;
-  lireJSON('/v1/palabre/contacts?' + qs({q:q, n:40}), NOUV.ctrl ? NOUV.ctrl.signal : undefined).then(function(d){
+  /* 22 nov. 2026 : on peut écrire à TOUT NEURAVID, pas seulement à ses contacts. Les contacts d'abord, puis les personnes
+     trouvées par La Boussole (/v1/recherche, type créateur) ; une personne qui ne vous connaît pas reçoit votre message dans
+     ses « Demandes » (elle décide d'y répondre). */
+  var sig = NOUV.ctrl ? NOUV.ctrl.signal : undefined;
+  var contacts = lireJSON('/v1/palabre/contacts?' + qs({q:q, n:40}), sig).then(function(d){ return (d && Array.isArray(d.items) ? d.items : []).map(personne).filter(Boolean); }).catch(function(e){ if(e && e.name === 'AbortError') throw e; dbg(e); return []; });
+  var monde = q.length >= 2 ? lireJSON('/v1/recherche?' + qs({q:q, type:'createur', n:20, lang:window.NV_LANGUE_UI || 'fr'}), sig).then(function(d){
+    var l = d && (Array.isArray(d.items) ? d.items : Array.isArray(d.resultats) ? d.resultats : Array.isArray(d) ? d : []);
+    return l.filter(function(x){ return x && (!x.type || x.type === 'createur'); }).map(function(x){ var a = x.auteur && typeof x.auteur === 'object' ? x.auteur : {};
+      var p = personne({id:x.id != null ? x.id : a.id, nom:x.titre || x.nom || a.nom, handle:a.handle || x.handle, image:x.image || a.image, iso:a.iso || x.iso, verifie:x.verifie === true || a.verifie === true});
+      if(p) p.inconnu = true; return p; }).filter(Boolean);
+  }).catch(function(e){ if(e && e.name === 'AbortError') throw e; dbg(e); return []; }) : Promise.resolve([]);
+  Promise.all([contacts, monde]).then(function(r){
     if(NOUV.q.trim() !== q) return;
-    var l = (d && Array.isArray(d.items) ? d.items : []).map(personne).filter(Boolean);
-    var tous = locaux.slice(); l.forEach(function(p){ if(!tous.some(function(x){ return x.id === p.id; })) tous.push(p); });
+    var tous = locaux.slice(), deja = function(p){ return tous.some(function(x){ return x.id === p.id || (p.handle && x.handle && cle(x.handle) === cle(p.handle)); }); };
+    r[0].forEach(function(p){ if(!deja(p)) tous.push(p); });
+    r[1].forEach(function(p){ if(!deja(p)) tous.push(p); });
     rendreNouv(tous, false);
   }).catch(function(e){ if(e && e.name === 'AbortError') return; dbg(e); rendreNouv(locaux, false); });
 }
 function rendreNouv(l, attente){
   var el = $('nouvRes'); if(!el) return;
   l = l.filter(function(p){ return p.id !== compteActuel(); });
-  if(!l.length){ poser(el, attente ? '<p class="petit">' + esc('Recherche…') + '</p>' : '<p class="petit">' + esc(NOUV.q ? 'Personne de ce nom.' : 'Vos contacts apparaîtront ici.') + '</p>'); return; }
+  if(!l.length){ poser(el, attente ? '<p class="petit">' + esc('Recherche…') + '</p>' : '<p class="petit">' + esc(NOUV.q ? (NOUV.q.trim().length < 2 ? 'Tapez au moins 2 lettres pour chercher dans tout NEURAVID.' : 'Personne de ce nom sur NEURAVID.') : 'Vos contacts apparaîtront ici. Cherchez un nom ou un @pseudo pour écrire à n\'importe qui sur NEURAVID.') + '</p>'); return; }
   poser(el, '<ul class="liste-p choix' + (NOUV.mode === 'groupe' ? ' multi' : '') + '">' + l.slice(0, 60).map(function(p){
     var ch = !!NOUV.choisis[p.id];
-    return '<li><button data-personne="' + esc(p.id) + '"' + (NOUV.mode === 'groupe' ? ' aria-pressed="' + ch + '"' : '') + '>' + visage(p.nom, p.image, 42) + '<span class="cc"><bdi dir="auto">' + esc(p.nom) + '</bdi>' + (p.handle ? '<small data-brut>@' + esc(p.handle) + '</small>' : '') + '</span>' + (p.verifie ? '<span class="verif">⬢</span>' : '') + (NOUV.mode === 'groupe' ? '<span class="case" aria-hidden="true"></span>' : '') + '</button></li>';
+    return '<li><button data-personne="' + esc(p.id) + '"' + (NOUV.mode === 'groupe' ? ' aria-pressed="' + ch + '"' : '') + '>' + visage(p.nom, p.image, 42) + '<span class="cc"><bdi dir="auto">' + esc(p.nom) + '</bdi>' + (p.handle ? '<small data-brut>@' + esc(p.handle) + '</small>' : '') + (p.inconnu && NOUV.mode !== 'groupe' ? '<small>' + esc('Pas encore en contact : votre message arrivera dans ses Demandes') + '</small>' : '') + '</span>' + (p.verifie ? '<span class="verif">⬢</span>' : '') + (NOUV.mode === 'groupe' ? '<span class="case" aria-hidden="true"></span>' : '') + '</button></li>';
   }).join('') + '</ul>');
   NOUV.l = l;
 }
@@ -4429,10 +4441,10 @@ function choisirPersonne(uid, b){
 function ecrireA(p){
   var deja = null; Object.keys(st.convs).forEach(function(k){ var c = st.convs[k], a = autre(c); if(c.type === 'direct' && a && a.id === p.id) deja = c; });
   if(deja){ fermerFeuille(function(){ changerOnglet('discussions'); ouvrirConversation(deja.id); }); return; }
-  envoyerJSON('POST', '/v1/palabre/conversations', {type:'direct', avec:p.id}).then(function(d){
+  envoyerJSON('POST', '/v1/palabre/conversations', corpsDirect(p.id, p.handle)).then(function(d){
     var c = normConv(d && d.conversation || d); if(!c) throw new Error('reponse');
     st.convs[c.id] = c; trierConvs(); fermerFeuille(function(){ changerOnglet('discussions'); ouvrirConversation(c.id); });
-  }).catch(function(e){ toast(e && e.status === 403 ? 'Cette personne n\'accepte pas de nouveaux messages.' : erreurLisible(e)); });
+  }).catch(function(e){ toast(refusEcrire(e)); });
 }
 function groupeSuite(){
   var n = Object.keys(NOUV.choisis).length; if(!n) return;
@@ -4696,7 +4708,7 @@ function appeler(video){
   var c = st.convs[st.cur]; if(!c) return;
   if(APPEL.actif){ toast('Un appel est déjà en cours.'); return; }
   if(!window.RTCPeerConnection || !navigator.mediaDevices){ toast('Ce téléphone ne permet pas les appels ici.'); return; }
-  if(!peutAppelerConv(c)){ toast(!estMajeur() ? 'Les appels sont réservés aux adultes.' : 'Un appel n\'est pas possible dans cette discussion.'); return; }
+  if(!peutAppelerConv(c)){ toast(!ageConnu() ? 'Votre âge n\'est pas encore confirmé dans votre compte : les appels sont ouverts à partir de 18 ans.' : !estMajeur() ? 'Les appels sont réservés aux adultes.' : c && c.demande ? 'Votre demande de discussion attend sa réponse : vous pourrez appeler dès qu\'elle vous répond.' : c && c.bloquee ? 'Cette discussion est bloquée.' : 'Un appel n\'est pas possible avec ce compte (protection des mineurs).'); return; }
   var a = autre(c), hc = c.type === 'direct' ? heureChez(a) : null;
   var go = function(){ lancerAppel(c, video); };
   if(hc && hc.nuit){ demander({brut:phraseTexte('Il est tard chez {0}', a.nom.split(' ')[0])}, phraseTexte('Chez {0}, il est {1}.', a.nom.split(' ')[0], hc.texte), 'Appeler quand même', go, 'Écrire plutôt'); return; }
@@ -4726,7 +4738,7 @@ function lancerAppel(c, video){
     if(e && e.annule) return;
     dbg(e); if(!encoreLa(j)) return;
     if(e && (e.name === 'NotAllowedError' || e.name === 'SecurityError')) toast(video ? 'La caméra ou le micro n\'est pas autorisé.' : 'Le micro n\'est pas autorisé.');
-    else if(e && e.status === 403) toast('Un appel n\'est pas possible avec ce compte.');
+    else if(e && e.status === 403) toast('Cette personne accepte les appels de ses contacts seulement. Écrivez-lui d\'abord : dès qu\'elle vous répond, vous pourrez l\'appeler.');
     else if(e && e.status === 409) toast('Cette personne est déjà en appel.');
     else toast(erreurLisible(e));
     finirAppel('local', true);
@@ -6181,9 +6193,30 @@ function agir(ctx){
   var part = ctx.partage ? normPartage(ctx.partage) : null;
   var suite = function(c){ ouvrirConversation(c.id); if(part) proposerPartage(c, part); if(ctx.texte){ var t = $('saisie'); if(t){ t.value = txt(ctx.texte, 2000); majSaisie(); } } if(ctx.action === 'appel') appeler(false); if(ctx.action === 'video') appeler(true); if(ctx.action === 'flamme') ouvrirCamera(c.id); };
   if(ctx.cid && st.convs[ctx.cid]){ suite(st.convs[ctx.cid]); return; }
-  var avec = ctx.avec || ctx.user; if(!avec){ if(ctx.cid && st.charge) CTX_ATTENTE = ctx; return; }
-  var deja = directAvec(String(avec)); if(deja){ suite(deja); return; }
-  envoyerJSON('POST', '/v1/palabre/conversations', {type:'direct', avec:String(avec)}).then(function(d){ var c = normConv(d && d.conversation || d); if(c){ st.convs[c.id] = c; trierConvs(); suite(c); } }).catch(function(e){ toast(e && e.status === 403 ? 'Cette personne n\'accepte pas de nouveaux messages.' : erreurLisible(e)); });
+  /* 22 nov. 2026 : un profil connu seulement par son @pseudo peut aussi recevoir un message (avant : rien ne se passait) */
+  var hdl = typeof ctx.handle === 'string' ? ctx.handle.replace(/^@+/, '').slice(0, 40) : '';
+  var avec = ctx.avec || ctx.user || null; if(avec && typeof avec === 'object') avec = avec.id || null;
+  if(!avec && !hdl){ if(ctx.cid && st.charge) CTX_ATTENTE = ctx; return; }
+  var deja = avec ? directAvec(String(avec)) : null;
+  if(!deja && hdl) Object.keys(st.convs).forEach(function(k){ var c = st.convs[k], a = autre(c); if(!deja && c.type === 'direct' && a && a.handle && cle(a.handle) === cle(hdl)) deja = c; });
+  if(deja){ suite(deja); return; }
+  if(!api()){ toast('Palabre a besoin du serveur NEURAVID pour écrire à quelqu\'un. Vérifiez votre connexion.'); return; }
+  envoyerJSON('POST', '/v1/palabre/conversations', corpsDirect(avec, hdl)).then(function(d){ var c = normConv(d && d.conversation || d); if(c){ st.convs[c.id] = c; trierConvs(); suite(c); } else toast('La discussion n\'a pas pu s\'ouvrir. Réessayez.'); }).catch(function(e){ toast(refusEcrire(e)); });
+}
+/* le corps d'une nouvelle discussion à deux : l'identifiant, et le @pseudo quand on le connaît (le serveur prend l'un ou l'autre) */
+function corpsDirect(id, handle){ var o = {type:'direct'}, h = String(handle || '').replace(/^@+/, ''), i = id != null ? String(id) : ''; if(i && cle(i) !== cle(h)) o.avec = i; else if(h) o.avec = '@' + h; else if(i) o.avec = i; if(h) o.handle = h; return o; }
+/* pourquoi le serveur refuse : dit simplement, avec ce que la personne peut faire */
+function refusEcrire(e){
+  var d = e && (e.d || e.body), code = d && typeof d === 'object' ? String(d.code || d.erreur || d.error || d.raison || '') : '';
+  if(e && e.status === 403){
+    if(code === 'bloque' || code === 'blocked') return 'Vous ne pouvez pas écrire à ce compte.';
+    if(code === 'abonnes' || code === 'followers_only') return 'Cette personne reçoit seulement les messages des personnes qu\'elle suit. Suivez-la : si elle vous suit en retour, vous pourrez lui écrire.';
+    if(code === 'contacts' || code === 'contacts_only') return 'Cette personne reçoit seulement les messages de ses contacts.';
+    if(code === 'age' || code === 'mineur') return 'Ce compte ne peut pas recevoir de message de vous (protection des mineurs).';
+    return 'Cette personne n\'accepte pas de nouveaux messages pour l\'instant.';
+  }
+  if(e && e.status === 404) return 'Ce compte n\'existe plus ou n\'a pas été trouvé.';
+  return erreurLisible(e);
 }
 /* les entrées pour l'application */
 window.NVPalabre = {

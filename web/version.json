@@ -1,6 +1,6 @@
 {
- "version": "2026.11.22-a2510d5ca31f",
- "date": "2026-11-22T00:21:36Z",
+ "version": "2026.11.22-2013c1ea3d21",
+ "date": "2026-11-22T01:00:38Z",
  "entree": "index.html",
  "modules": [
   "NV_MODULE_Academie.html",
@@ -99,8 +99,8 @@
    "taille": 1461847
   },
   "NV_MODULE_CallUniverse.html": {
-   "sha256": "b8a18cc2bdf221f8163fc41c45bc64b929dd757ee394b044b215ba2ed86924e7",
-   "taille": 1338813
+   "sha256": "6a7b880360771742aa9d9da9976d644482d40a9e2a7d18ef74bd6cf0ab37741a",
+   "taille": 1342969
   },
   "NV_MODULE_ChallengeUniverse.html": {
    "sha256": "7378f4012c7c5998f765d001763a319cd4ae15b5d07bd90a97b52c29f37084f4",
@@ -191,8 +191,8 @@
    "taille": 990209
   },
   "NV_MODULE_Notifications.html": {
-   "sha256": "21987a9ee56549bfebacb974a170e8f733f9779c5f217679e37424f628018c6e",
-   "taille": 719089
+   "sha256": "871293b5fa03cc579390276e3169067386ecbc9f86f377636ef3199d05fc1c31",
+   "taille": 721646
   },
   "NV_MODULE_Orbite.html": {
    "sha256": "5d59ef4c85ea8282812eaf2e85871833c75dfb37de6b99a58bb33c587a5e8dcd",
@@ -223,8 +223,8 @@
    "taille": 270931
   },
   "NV_MODULE_Profile.html": {
-   "sha256": "9f37cb669309791560256de32bd093caa76616191a02b9c2423919c949d67f8a",
-   "taille": 1045286
+   "sha256": "58502829662719e5bcd63efdf3e5c2e642becea181efe0b0a76a9dfcbe0efb58",
+   "taille": 1046043
   },
   "NV_MODULE_Progres.html": {
    "sha256": "1ee94f27ecf3ce94717507b6326ba6ce67c20f58f550f729854e06e659255ef1",

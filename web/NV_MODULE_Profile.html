@@ -1713,7 +1713,7 @@ var ICO = {
   retour:'<path d="M15 5l-7 7 7 7"/>', fermer:'<path d="M6 6l12 12M18 6L6 18"/>', plus:'<path d="M12 5v14M5 12h14"/>', ok:'<path d="M5 12.5l4.5 4.5L19 7"/>',
   partager:'<path d="M12 15V3M7 8l5-5 5 5"/><path d="M5 13v6a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-6"/>', menu:'<circle cx="5" cy="12" r="1.6" fill="currentColor"/><circle cx="12" cy="12" r="1.6" fill="currentColor"/><circle cx="19" cy="12" r="1.6" fill="currentColor"/>',
   crayon:'<path d="M4 20h4L19 9l-4-4L4 16z"/><path d="M14 6l4 4"/>', oeil:'<path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>', carte:'<rect x="3" y="5" width="18" height="14" rx="2"/><path d="M7 15h5M7 11h3"/><circle cx="16" cy="11" r="2"/>',
-  message:'<path d="M4 5h16v11H9l-5 4z"/>', cadeau:'<rect x="3" y="9" width="18" height="12" rx="1.5"/><path d="M12 9v12M3 13h18"/><path d="M12 9C9 9 7 7.5 7 6s1.5-2 2.5-1.5S12 9 12 9zM12 9c3 0 5-1.5 5-3s-1.5-2-2.5-1.5S12 9 12 9z"/>',
+  message:'<path d="M4 5h16v11H9l-5 4z"/>', telephone:'<path d="M6.6 3.5l2.6.4 1.2 4-2 1.6a12 12 0 0 0 6.1 6.1l1.6-2 4 1.2.4 2.6c.1.9-.6 1.7-1.5 1.7C10.4 19 5 13.6 4.9 5c0-.9.8-1.6 1.7-1.5z"/>', cadeau:'<rect x="3" y="9" width="18" height="12" rx="1.5"/><path d="M12 9v12M3 13h18"/><path d="M12 9C9 9 7 7.5 7 6s1.5-2 2.5-1.5S12 9 12 9zM12 9c3 0 5-1.5 5-3s-1.5-2-2.5-1.5S12 9 12 9z"/>',
   suivre:'<circle cx="10" cy="8" r="4"/><path d="M3 20c1-4 4-6 7-6s6 2 7 6"/><path d="M19 8v6M16 11h6"/>', suivi:'<circle cx="10" cy="8" r="4"/><path d="M3 20c1-4 4-6 7-6s6 2 7 6"/><path d="M16 11l2 2 4-4"/>',
   drapeau:'<path d="M5 21V4M5 4h11l-2 4 2 4H5"/>', bloquer:'<circle cx="12" cy="12" r="8"/><path d="M6.5 17.5l11-11"/>', telecharger:'<path d="M12 4v11M7 10l5 5 5-5"/><path d="M5 20h14"/>', image:'<rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="2"/><path d="M21 16l-5-5L5 20"/>',
   cadenas:'<rect x="5" y="10" width="14" height="10" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/>', monde:'<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c3 3 3 15 0 18M12 3c-3 3-3 15 0 18"/>', lien:'<path d="M10 14a4 4 0 0 0 6 0l3-3a4 4 0 0 0-6-6l-1 1"/><path d="M14 10a4 4 0 0 0-6 0l-3 3a4 4 0 0 0 6 6l1-1"/>',
@@ -1831,6 +1831,8 @@ function htmlActions(P){
   /* un compte privé : « Suivre » envoie une DEMANDE ; elle s'affiche comme telle (jamais « Abonné » avant l'acceptation) */
   return '<div class="actions" data-etape="4">' + (CAP.suivre ? '<button class="btn' + (s || dm ? ' leger' : '') + '" data-a="suivre" aria-pressed="' + (s || dm) + '">' + ico(s || dm ? 'suivi' : 'suivre') + '<span>' + esc(s ? 'Abonné' : dm ? 'Demande envoyée' : 'Suivre') + '</span></button>' : '') +
     '<button class="btn leger" data-a="ecrire">' + ico('message') + '<span>' + esc('Écrire') + '</span></button>' +
+    /* 22 nov. 2026 : appeler depuis le profil (adultes seulement, jamais un compte mineur ; Palabre et le serveur appliquent la règle de la personne appelée) */
+    (estMajeur() && P.mineur !== true ? '<button class="btn leger carre" data-a="appeler" aria-label="' + esc(tr('Appeler')) + '">' + ico('telephone') + '</button>' : '') +
     (peutOffrir ? '<button class="btn leger carre" data-a="offrir" aria-label="' + esc(tr('Offrir des NVCoins')) + '">' + ico('cadeau') + '</button>' : '') + '</div>' +
     (P.relation.suitMoi && !s ? '<p class="petit centre" data-etape="4">' + esc('Cette personne vous suit.') + '</p>' : '') +
     (P.gratitude.jeSoutiens && estMajeur() ? '<p class="soutien-moi" data-etape="4">' + ico('cadeau') + '<span>' + phrase('Vous soutenez {0}. Merci : vous êtes seul à voir ce mot.', nomB(P.nom || '@' + P.handle)) + '</span></p>' : '');
@@ -1983,6 +1985,7 @@ A.suivre = function(){ var P = ETAT.P, cle = cleProfil(); if(!P || !cle || !CAP.
       /* ce que l'on voit dépend de l'abonnement (parties « abonnés ») : le profil est relu, filtré par le serveur */
       if(ETAT.P === P) chargerProfil().then(rendreSansSaut); })
     .catch(function(e){ SUIVI_EN_COURS = false; P.relation.suivi = avant && !dmAvant; P.relation.demande = dmAvant; P.compteurs.abonnes = n; rendreSansSaut(); toast(erreurLisible(e)); }); };
+A.appeler = function(){ var P = ETAT.P; if(!P || !estMajeur() || P.mineur === true) return; emit('profile_call', {cle:cleProfil()}); ouvrir('CallUniverse', {user:P.id || null, avec:P.id || null, handle:P.handle ? '@' + P.handle : null, action:'appel', depuis:MOI}); };
 A.ecrire = function(){ var P = ETAT.P; if(!P) return; emit('profile_message', {cle:cleProfil()}); ouvrir('CallUniverse', {user:P.id || null, avec:P.id || null, handle:P.handle ? '@' + P.handle : null, depuis:MOI}); };
 /* offrir : 18 ans des deux côtés ; La Récolte fait le paiement et l'envoi */
 A.offrir = function(){ var P = ETAT.P; if(!P || !CAP.offrir || !estMajeur() || P.mineur) return; emit('profile_gift_open', {cle:cleProfil()}); ouvrir('Recolte', {envoyer:P.handle ? '@' + P.handle : P.id, depuis:MOI}, 'envoyer=' + encodeURIComponent(P.handle ? '@' + P.handle : P.id)); };
