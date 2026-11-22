@@ -1,6 +1,6 @@
 {
- "version": "2026.11.22-15fb8fdbb96e",
- "date": "2026-11-22T06:07:51Z",
+ "version": "2026.11.22-47ac39f7676d",
+ "date": "2026-11-22T06:19:59Z",
  "entree": "index.html",
  "modules": [
   "NV_MODULE_Academie.html",
@@ -75,16 +75,16 @@
    "taille": 317658
   },
   "NV_MODULE_Arena.html": {
-   "sha256": "f74910991b18de909e74db5348b8b3d1878b62102a02e9f1e211b0470af8d81f",
-   "taille": 1933585
+   "sha256": "b10919e958c6b059f58e56504dc895e69ad5fa22eedc1dd8d192337815b4b0ad",
+   "taille": 1943229
   },
   "NV_MODULE_ArenaArts.html": {
    "sha256": "f79305b2a1d6e7ab3852992b25f1c71c3f7a4cec9954fea9c5eeb841fa488ff1",
    "taille": 2035305
   },
   "NV_MODULE_Artistes.html": {
-   "sha256": "82dbe372a1e6343296cf1f5596db674d2e5701339dad0bef6972f440f6fa130c",
-   "taille": 1282148
+   "sha256": "92143a937b0a463aae793bd8545c73c1ad62073385c330bdd2835d2c1d30a371",
+   "taille": 1291792
   },
   "NV_MODULE_Baobab.html": {
    "sha256": "9d747af63dbba705612e69f6f23870c57619399f38732a97e205eed520778b7f",
@@ -103,8 +103,8 @@
    "taille": 1368231
   },
   "NV_MODULE_ChallengeUniverse.html": {
-   "sha256": "7378f4012c7c5998f765d001763a319cd4ae15b5d07bd90a97b52c29f37084f4",
-   "taille": 1948819
+   "sha256": "be604be9fc5d465d93c5397309c1b3d5f34c166c18729c2a2174b3ddbb02b672",
+   "taille": 1958463
   },
   "NV_MODULE_Champions.html": {
    "sha256": "f348841609312c369b54b3e9ae5121aeeec9c7ade6b45d027529dd9d5a193082",
@@ -187,8 +187,8 @@
    "taille": 384004
   },
   "NV_MODULE_MissMaster.html": {
-   "sha256": "57429f07a61fa2490d3d1506875d0dc897621d15c695a2eb2a42a5f84ae79d45",
-   "taille": 990209
+   "sha256": "67f2b8b04c2091dd9893b8e6c86623f2b64a6a6ac706ee0f3726cca04399fd79",
+   "taille": 999853
   },
   "NV_MODULE_Notifications.html": {
    "sha256": "38b979072a49d8d393c6383e4cdbc85a9e534b995c15a67582f3b41294b90cd7",
