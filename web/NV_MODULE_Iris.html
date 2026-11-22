@@ -325,6 +325,33 @@ button:focus-visible,[tabindex]:focus-visible{outline:2px solid var(--soleil);ou
 .fin{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;padding:32px;text-align:center}
 .fin h2{font-family:var(--etroit);font-weight:700;font-size:28px;margin:0;letter-spacing:.2px}
 .fin p{margin:0;color:var(--brume);font-size:15px;line-height:1.5;max-width:300px}
+/* 22 nov. 2026 — la carte de fin d'un profil et le bandeau « Nouveau chez tes abonnements » */
+#finSerie{position:fixed;inset:0;z-index:60;display:none;align-items:center;justify-content:center;padding:24px;background:radial-gradient(120% 80% at 50% 30%,rgba(124,58,237,.55),rgba(11,7,32,.96) 70%);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px)}
+#finSerie.on{display:flex;animation:fsEntre .35s ease-out}
+@keyframes fsEntre{from{opacity:0;transform:scale(.97)}to{opacity:1;transform:none}}
+#finSerie .fs-carte{width:100%;max-width:340px;display:flex;flex-direction:column;align-items:center;gap:14px;text-align:center}
+#finSerie .fs-hex{width:96px;height:96px;clip-path:polygon(25% 3%,75% 3%,100% 50%,75% 97%,25% 97%,0 50%);background:linear-gradient(135deg,#14b8a6,#7c3aed 55%,#ec4899);display:flex;align-items:center;justify-content:center}
+#finSerie .fs-hex i{width:88px;height:88px;clip-path:inherit;background:#1a1040 center/cover no-repeat;display:flex;align-items:center;justify-content:center;font-style:normal;font-size:34px;font-weight:800;color:#fff}
+#finSerie h2{margin:0;font-family:var(--etroit);font-size:26px;line-height:1.2}
+#finSerie p{margin:0;color:var(--brume);font-size:15px;line-height:1.5}
+#finSerie .fs-actions{display:flex;flex-direction:column;gap:10px;width:100%;margin-top:6px}
+#finSerie button{min-height:48px;border-radius:14px;font:700 16px/1 inherit;border:0;cursor:pointer;color:#fff}
+#finSerie .fs-suivre{background:linear-gradient(90deg,#7c3aed,#ec4899)}
+#finSerie .fs-suivre.on{background:rgba(255,255,255,.14)}
+#finSerie .fs-revoir{background:rgba(255,255,255,.12)}
+#finSerie .fs-fil{background:transparent;border:1.5px solid rgba(255,255,255,.35)}
+#nouveauxSuivis{position:fixed;left:0;right:0;top:calc(env(safe-area-inset-top,0px) + 62px);z-index:30;display:none;padding:6px 10px 8px;transition:opacity .3s}
+#nouveauxSuivis.on{display:block}
+#nouveauxSuivis .ns-tete{display:flex;align-items:center;gap:8px;margin:0 2px 6px;font-size:12px;font-weight:700;letter-spacing:.3px;color:#fff;text-shadow:0 0 4px #000}
+#nouveauxSuivis .ns-tete span{flex:1}
+#nouveauxSuivis .ns-fermer{background:rgba(0,0,0,.35);border:0;color:#fff;width:28px;height:28px;border-radius:50%;font-size:15px;line-height:28px;cursor:pointer}
+#nouveauxSuivis .ns-liste{display:flex;gap:12px;overflow-x:auto;scrollbar-width:none;padding-bottom:2px}
+#nouveauxSuivis .ns-liste::-webkit-scrollbar{display:none}
+#nouveauxSuivis .ns{flex:0 0 auto;width:62px;display:flex;flex-direction:column;align-items:center;gap:4px;background:none;border:0;color:#fff;cursor:pointer;padding:0}
+#nouveauxSuivis .ns b{width:58px;height:58px;clip-path:polygon(25% 3%,75% 3%,100% 50%,75% 97%,25% 97%,0 50%);background:linear-gradient(135deg,#14b8a6,#7c3aed 55%,#ec4899);display:flex;align-items:center;justify-content:center}
+#nouveauxSuivis .ns b i{width:52px;height:52px;clip-path:inherit;background:#1a1040 center/cover no-repeat;display:flex;align-items:center;justify-content:center;font-style:normal;font-weight:800;font-size:20px;color:#fff}
+#nouveauxSuivis .ns small{max-width:62px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11px;text-shadow:0 0 3px #000,0 0 6px #000}
+@media (prefers-reduced-motion:reduce){#finSerie.on{animation:none}}
 .btn{height:44px;padding:0 20px;border-radius:22px;font-weight:600;font-size:15px}
 .btn.plein{background:linear-gradient(100deg,var(--violet),var(--magenta));box-shadow:0 6px 24px rgba(224,36,154,.35)}
 .btn.trait{border:1.5px solid rgba(255,255,255,.55)}
@@ -834,6 +861,8 @@ body.calme *,body.calme *::before,body.calme *::after{animation-duration:.01ms!i
 </head>
 <body class="immersion"><!--NV_ATTENTE--><div id="nvAttente" aria-hidden="true" style="position:fixed;inset:0;z-index:2147483646;display:grid;place-items:center;background:#0B0720;color:#F7F3FF;font:600 17px/1.3 system-ui,-apple-system,Segoe UI,sans-serif;transition:opacity .25s"><div style="display:grid;justify-items:center;gap:14px"><svg width="64" height="64" viewBox="0 0 40 40"><polygon points="20,2 36,11 36,29 20,38 4,29 4,11" fill="none" stroke="#FF4F9E" stroke-width="2.5"><animate attributeName="stroke-opacity" values="1;.35;1" dur="1.6s" repeatCount="indefinite"/></polygon><circle cx="20" cy="20" r="6" fill="#FFC93D"/></svg><span>NEURAVID</span></div></div><style>@media (prefers-reduced-motion:reduce){#nvAttente animate{display:none}}</style><script>(function(){function fin(){var e=document.getElementById("nvAttente");if(!e)return;e.style.opacity="0";setTimeout(function(){if(e.parentNode)e.parentNode.removeChild(e);},260);}if(document.readyState!=="loading")setTimeout(fin,0);else document.addEventListener("DOMContentLoaded",function(){requestAnimationFrame(fin);});setTimeout(fin,30000);})();</script><!--/NV_ATTENTE-->
 <div id="scene" aria-live="off"></div>
+<div id="nouveauxSuivis" role="region" aria-label="Nouveau chez vos abonnements"><div class="ns-tete"><span id="nsTitre">Nouveau chez vos abonnements</span><button class="ns-fermer" id="nsFermer" aria-label="Masquer">✕</button></div><div class="ns-liste" id="nsListe"></div></div>
+<div id="finSerie" role="dialog" aria-modal="true" aria-labelledby="fsTitre"><div class="fs-carte"><div class="fs-hex"><i id="fsAvatar"></i></div><h2 id="fsTitre" dir="auto"></h2><p id="fsTexte"></p><div class="fs-actions"><button class="fs-suivre" id="fsSuivre"></button><button class="fs-revoir" id="fsRevoir">Revoir depuis le début</button><button class="fs-fil" id="fsFil">Continuer le fil</button></div></div></div>
 <div class="voile-haut"></div>
 <div class="voile-coin"></div>
 
@@ -2287,6 +2316,8 @@ function chargerCapacitesReco(){ var b = api(); if(!b) return;
     if(RECO.reprise){ var vr = st.vue[st.i], orr = slotDe(st.i); if(vr && orr && Date.now() - debutVue < 5000 && (orr.video.currentTime || 0) < 5) reprendre(vr, orr); }
     /* « Pour vous » est le fil par défaut (/v1/feed sans paramètre) : il s'écrit null */
     var f = filServeurActif() ? FIL_DE[st.lentille] : filUnivers(); if(f === 'pour-vous') f = null; if(f !== st.filServeur){ st.filServeur = f; definirFil([], 'attente'); charger(); }
+    /* le fil « abonnements » vient d'être annoncé : le bandeau des nouveautés le demande */
+    else if(RECO.fils.indexOf('abonnements') >= 0 && (st.source === 'api' || st.source === 'cache') && typeof chargerBandeau === 'function') chargerBandeau(true);
   }).catch(function(){}); }
 function urlFil(apres){ var q = []; var fm = /^module:([A-Za-z]{2,24})$/.exec(st.filServeur || '');
   if(fm) q.push('module=' + encodeURIComponent(fm[1])); else if(st.filServeur) q.push('fil=' + encodeURIComponent(st.filServeur)); if(apres) q.push('after=' + encodeURIComponent(apres)); q = q.concat(paramsReco()); return '/v1/feed' + (q.length ? '?' + q.join('&') : ''); }
@@ -2551,7 +2582,102 @@ function definirFil(liste, source){
   st.source = source;
   appliquerLentille(st.lentille, true, courant && courant.id);
   emit('feed_rendered', {count:st.tout.length, source:source});
+  if(source === 'api' || source === 'cache'){ var nsEl = $('nouveauxSuivis'); if(nsEl) delete nsEl.dataset.rendu; chargerBandeau(source === 'api'); }
 }
+/* ════════════════ 22 nov. 2026 — La carte de fin d'un profil ════════════════
+   Ouvert depuis L'Empreinte, Iris lit les œuvres du profil dans l'ordre. Juste après la dernière, une carte s'arrête :
+   « Tu as tout vu de @awa » — Suivre, Revoir depuis le début, Continuer le fil. Une seule fois par série ; rien n'est inventé. */
+function serieVideo(){ var se = st.serie; if(!se) return null; for(var q = 0; q < st.vue.length; q++) if(st.vue[q].id === se.dernier) return st.vue[q]; return null; }
+function verifierFinSerie(v, o){
+  var se = st.serie; if(!se || se.montree || se.ids[v.id] || st.i < 1) return false;
+  var avant = st.vue[st.i - 1]; if(!avant || avant.id !== se.dernier) return false;
+  se.montree = true;
+  try{ o.video.pause(); }catch(e){}
+  var vs = serieVideo() || avant;
+  $('fsTitre').textContent = t('Vous avez tout vu de') + ' @' + (se.handle || String(vs.author || '').replace(/^@/, ''));
+  $('fsTexte').textContent = se.n + ' ' + t(se.n > 1 ? 'vidéos regardées dans l\'ordre de son profil.' : 'vidéo regardée.');
+  var av = $('fsAvatar'), img = vs.avatar || vs.authorAvatar || vs.thumbnail || '';
+  if(img && /^https?:\/\//.test(img)){ av.style.backgroundImage = 'url("' + String(img).replace(/"/g, '') + '")'; av.textContent = ''; } else { av.style.backgroundImage = ''; av.textContent = (se.handle || '?').charAt(0).toUpperCase(); }
+  majFinSerie();
+  $('finSerie').classList.add('on');
+  setTimeout(function(){ try{ $('fsFil').focus({preventScroll:true}); }catch(e){} }, 50);
+  emit('profile_series_end', {author:se.id || se.handle, count:se.n});
+  return true;
+}
+function majFinSerie(){
+  var se = st.serie, b = $('fsSuivre'); if(!se || !b) return;
+  var vs = serieVideo(); if(!vs || estMaVideo(vs)){ b.style.display = 'none'; return; }
+  var suivi = !!st.suivis[vs.author], attente = !suivi && !!SUIVRE.demandes[vs.author];
+  b.style.display = ''; b.classList.toggle('on', suivi || attente);
+  b.textContent = suivi ? t('Abonné') + ' ✓' : attente ? t('Demande envoyée') : t('Suivre') + ' @' + se.handle;
+}
+function fermerFinSerie(jouerEnsuite){
+  var f = $('finSerie'); if(!f.classList.contains('on')) return; f.classList.remove('on');
+  if(jouerEnsuite){ var o = slotDe(st.i); if(o) activer(); }
+}
+$('fsSuivre').addEventListener('click', function(){ var vs = serieVideo(); if(vs){ if(!vs.authorId && st.serie && st.serie.id) vs.authorId = st.serie.id; suivre(vs); } });
+$('fsFil').addEventListener('click', function(){ emit('profile_series_continue', {}); fermerFinSerie(true); });
+$('fsRevoir').addEventListener('click', function(){
+  var se = st.serie; if(!se) return fermerFinSerie(true);
+  var k = st.vue.map(function(v){ return v.id; }).indexOf(se.premier);
+  emit('profile_series_replay', {count:se.n});
+  se.montree = false; $('finSerie').classList.remove('on');
+  if(k < 0) return activer();
+  quitterVue(); st.i = k; st.aBouge = true; slots.forEach(function(o){ o.idx = -99; o.el.dataset.rempli = ''; if(o.fin){ o.fin.remove(); o.fin = null; } }); placer(true);
+});
+document.addEventListener('keydown', function(e){ if(e.key === 'Escape' && $('finSerie').classList.contains('on')) fermerFinSerie(true); });
+
+/* ════════════════ 22 nov. 2026 — Le bandeau « Nouveau chez tes abonnements » ════════════════
+   Sur « Pour vous », au-dessus de la première vidéo : les créateurs suivis qui ont publié une vidéo pas encore vue
+   (une pastille hexagonale par créateur, la plus récente). Toucher une pastille ouvre ces nouveautés dans Iris, dans l'ordre.
+   Source : le fil « abonnements » du serveur s'il existe, sinon les vidéos des créateurs suivis déjà présentes dans le fil.
+   Jamais de faux créateur ; le bandeau disparaît dès qu'on glisse, et ✕ le masque pour la session. */
+var BANDEAU = {items:[], t:0, masque:false};
+try{ BANDEAU.masque = sessionStorage.getItem('nv_iris_ns_masque') === '1'; }catch(e){}
+function vuesSession(){ try{ return JSON.parse(sessionStorage.getItem('nvr_vues') || '{}') || {}; }catch(e){ return {}; } }
+function composerBandeau(l){
+  var vues = vuesSession(), par = {}, r = [];
+  (l || []).forEach(function(v){ if(!v || v.local || v.demo || v.type === 'direct' || vues[v.id] || !st.suivis[v.author] || estMaVideo(v)) return; if(par[v.author]) return; par[v.author] = 1; r.push(v); });
+  return r.slice(0, 12);
+}
+function chargerBandeau(force){
+  if(BANDEAU.masque) return;
+  var b = api(), maintenant = Date.now();
+  if(!force && maintenant - BANDEAU.t < 120000) { majBandeau(); return; }
+  BANDEAU.t = maintenant;
+  var local = composerBandeau(st.distants);
+  if(!b || !window.NV_TOKEN || RECO.fils.indexOf('abonnements') < 0){ poserBandeau(local); return; }
+  fetch(b + '/v1/feed?fil=abonnements', {mode:'cors', headers:entetes()}).then(function(r){ return r.ok ? r.json() : null; }).then(function(d){
+    var l = d && (Array.isArray(d) ? d : d.items);
+    var n = Array.isArray(l) ? l.map(normaliser).filter(function(v){ return v && jouable(v); }) : [];
+    n.forEach(function(v){ st.suivis[v.author] = 1; });   /* ce fil ne contient que des comptes suivis (dit par le serveur) */
+    poserBandeau(n.length ? composerBandeau(n) : local);
+  }).catch(function(){ poserBandeau(local); });
+}
+function poserBandeau(l){ BANDEAU.items = l; var el = $('nouveauxSuivis'); if(el) delete el.dataset.rendu; majBandeau(); }
+function majBandeau(){
+  var el = $('nouveauxSuivis'); if(!el || typeof BANDEAU === 'undefined' || !BANDEAU) return;
+  var voir = !BANDEAU.masque && st.lentille === 'pourtoi' && st.i === 0 && BANDEAU.items.length > 0 && !(st.epingles && st.epingles.length) && !$('finSerie').classList.contains('on');
+  if(voir && !el.dataset.rendu){
+    $('nsListe').innerHTML = BANDEAU.items.map(function(v, k){
+      var img = v.avatar || v.authorAvatar || v.thumbnail || '', nom = String(v.author || '').replace(/^@/, '');
+      return '<button class="ns" data-k="' + k + '" aria-label="' + esc(t('Nouveautés de') + ' @' + nom) + '"><b><i' + (img && /^https?:\/\//.test(img) ? ' style="background-image:url(&quot;' + esc(String(img).replace(/"/g, '')) + '&quot;)"' : '') + '>' + (img && /^https?:\/\//.test(img) ? '' : esc(nom.charAt(0).toUpperCase())) + '</i></b><small dir="ltr">@' + esc(nom) + '</small></button>';
+    }).join('');
+    el.dataset.rendu = '1';
+  }
+  el.classList.toggle('on', voir);
+}
+$('nsListe').addEventListener('click', function(e){
+  var bt = e.target.closest && e.target.closest('.ns'); if(!bt) return;
+  var k = +bt.getAttribute('data-k') || 0, l = BANDEAU.items.slice();
+  emit('following_strip_open', {author:l[k] && l[k].author, count:l.length});
+  $('nouveauxSuivis').classList.remove('on');
+  st.serie = null; epingler(l, k);
+});
+/* retour sur Iris après un moment ailleurs : les nouveautés sont relues (au plus toutes les 2 minutes) */
+document.addEventListener('visibilitychange', function(){ if(!document.hidden && (st.source === 'api' || st.source === 'cache')){ var nsEl = $('nouveauxSuivis'); if(nsEl) delete nsEl.dataset.rendu; chargerBandeau(false); } });
+$('nsFermer').addEventListener('click', function(){ BANDEAU.masque = true; try{ sessionStorage.setItem('nv_iris_ns_masque', '1'); }catch(e){} $('nouveauxSuivis').classList.remove('on'); emit('following_strip_hide', {}); });
+
 function avantSuivis(l){
   var suivis = st.suivis || {}; if(!Object.keys(suivis).length) return l;
   var vues = {}; try{ vues = JSON.parse(sessionStorage.getItem('nvr_vues') || '{}') || {}; }catch(e){ vues = {}; }
@@ -2875,6 +3001,8 @@ function activer(){
   var e = $('videLentille'); if(e) e.remove();
   var v = st.vue[st.i], o = slotDe(st.i);
   majInfos(v);
+  majBandeau();
+  if(v && o && typeof verifierFinSerie === 'function' && verifierFinSerie(v, o)) return;
   if(!v){ majScores(); }
   if(!v || !o){ document.body.classList.remove('lecture'); return; }
   o.video.playbackRate = st.vitesse;
@@ -3584,15 +3712,15 @@ function relationsLire(){
     })
     .catch(function(){ relationsLire.t = 0; ids.forEach(function(x){ delete SUIVRE.lus[x]; }); });
 }
-function suivre(){
-  var v = st.vue[st.i]; if(!v) return;
+function suivre(vv){
+  var v = vv && vv.id && vv.author ? vv : st.vue[st.i]; if(!v) return;
   if(suivreServeur(v)){
     var a = v.author, id = v.authorId;
     if(SUIVRE.enCours[id]) return;
     var avant = {suivi:!!st.suivis[a], demande:!!SUIVRE.demandes[a]};
     var on = !avant.suivi && !avant.demande;
     if(on) st.suivis[a] = 1; else { delete st.suivis[a]; delete SUIVRE.demandes[a]; }
-    majInfos(v);
+    majInfos(st.vue[st.i] || v); majFinSerie();
     SUIVRE.enCours[id] = 1;
     var h = entetes({'Content-Type':'application/json'});
     if(on) h['Idempotency-Key'] = 'suivre-' + id + '-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
@@ -3624,7 +3752,7 @@ function suivre(){
   }
   var on2 = !st.suivis[v.author];
   if(on2) st.suivis[v.author] = 1; else delete st.suivis[v.author];
-  ecrire('nv_suivis', st.suivis); majInfos(v);
+  ecrire('nv_suivis', st.suivis); majInfos(st.vue[st.i] || v); majFinSerie();
   emit('follow', {author:v.author, following:on2});
 }
 
@@ -4563,14 +4691,20 @@ function ouvrirContexte(ctx){
   if(sansSource.length && api()){
     Promise.all(sansSource.slice(0, 30).map(function(x){ x._demande = true; return fetch(api() + '/v1/clips/' + encodeURIComponent(x.id), {mode:'cors', headers:entetes()}).then(function(r){ return r.ok ? r.json() : null; })
       .then(function(d){ var c = d && (d.clip || d); if(c && typeof c === 'object') Object.keys(c).forEach(function(k){ if(x[k] == null || k === 'src' || k === 'sources') x[k] = c[k]; }); }).catch(function(){}); }))
-      .then(function(){ var c2 = Object.assign({}, ctx); delete c2.depuis; c2.liste = liste; ouvrirContexte(c2); });
+      .then(function(){ var c2 = Object.assign({}, ctx); delete c2.depuis; c2._serieDe = depuis; c2.liste = liste; ouvrirContexte(c2); });
     return true;
   }
   if(liste.length){
     var items = liste.map(normaliser).filter(jouable); if(!items.length) return false;
     var k = c && typeof c === 'object' ? items.map(function(x){ return x.id; }).indexOf(String(c.id || '')) : (+ctx.index || 0);
     if(k < 0) k = 0;
-    epingler(items, k); return true;
+    epingler(items, k);
+    /* 22 nov. 2026 : les œuvres d'un profil — après la dernière, la carte « Tu as tout vu de @… » */
+    var au = ctx.auteur && typeof ctx.auteur === 'object' ? ctx.auteur : null;
+    if((depuis || ctx._serieDe) === 'Profile' && au && items.length > 1){ var ids = {}; items.forEach(function(x){ ids[x.id] = 1; });
+      st.serie = {ids:ids, premier:items[0].id, dernier:items[items.length - 1].id, n:items.length, handle:String(au.handle || '').replace(/^@/, '').slice(0, 40), id:au.id != null ? String(au.id) : '', montree:false};
+    } else st.serie = null;
+    return true;
   }
   if(c == null) return false;
   var id = String(c);
@@ -5148,7 +5282,7 @@ function releverDefi(v){
 /* Boutons du carton-titre */
 $('btnSon').addEventListener('click', function(e){ e.stopPropagation(); if(st.muetForce){ debloquerSon(); return; } basculerSon(); });
 $('sonBloque').addEventListener('click', function(){ debloquerSon(); });
-$('btnSuivre').addEventListener('click', suivre);
+$('btnSuivre').addEventListener('click', function(){ suivre(); });
 $('btnCreateur').addEventListener('click', ouvrirCreateur);
 $('btnSuivreCoin').addEventListener('click', function(e){ e.stopPropagation(); suivre(); var b = this; b.style.transform = 'scale(1.3)'; setTimeout(function(){ b.style.transform = ''; }, 220); });
 $('coin').addEventListener('pointerdown', function(e){ e.stopPropagation(); });

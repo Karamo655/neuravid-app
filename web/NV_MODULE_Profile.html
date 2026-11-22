@@ -2057,7 +2057,7 @@ A.oeuvre = function(id){
   emit('profile_open_clip', {clip:id, rang:k, total:l.length});
   if(k < 0){ ouvrir('Player', {clip:id, auteur:aut, depuis:MOI}); return; }
   var debut = Math.max(0, Math.min(k - 5, l.length - 30)), part = l.slice(debut, debut + 30);
-  var liste = part.map(function(o){ var x = {id:o.id}; if(o.module && o.module !== 'Player') x.module = o.module; if(P.handle) x.author = '@' + P.handle; if(o.titre) x.title = o.titre; if(o.miniature) x.thumbnail = o.miniature; return x; });
+  var liste = part.map(function(o){ var x = {id:o.id}; if(o.module && o.module !== 'Player') x.module = o.module; if(P.handle) x.author = '@' + P.handle; if(P.id != null) x.authorId = String(P.id); if(o.titre) x.title = o.titre; if(o.miniature) x.thumbnail = o.miniature; return x; });
   ouvrir('Player', {clip:liste[k - debut], liste:liste, index:k - debut, auteur:aut, depuis:MOI});
 };
 A.lienOuvrir = function(i){ var l = ETAT.P && ETAT.P.liens[+i]; if(!l) return; ouvrirFeuille('Un lien hors de NEURAVID', '<p>' + esc('Ce lien quitte NEURAVID :') + '</p><p class="lien-plein" dir="ltr" data-brut>' + esc(l.url) + '</p><button class="btn plein" data-a="lienGo" data-v="' + (+i) + '">' + esc('Ouvrir le lien') + '</button>', 'lien'); };
