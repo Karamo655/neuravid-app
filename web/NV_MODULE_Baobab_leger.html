@@ -2128,10 +2128,37 @@ var CSS = '' +
 '#nvr-liste .outils .plusb{font-size:18px;line-height:1;letter-spacing:1px;color:rgba(255,255,255,.75)}' +
 '@media (prefers-reduced-motion:reduce){#nvr-fx *,.nvr-barre svg,.nvr-sticker i,#nvr-pluie i{animation-duration:.01ms!important;animation-iteration-count:1!important}}';
 
+/* 22 nov. 2026 — des commentaires plus beaux, sans rien de criard : visages hexagonaux cerclés, nom lisible,
+   bulle douce, l'auteur et le meilleur commentaire mis en lumière, un cœur qui bat. Mouvements réduits respectés. */
+var CSS_VISAGES = '' +
+'#nvr-liste li{gap:12px;padding:12px 0;border-bottom:1px solid rgba(255,255,255,.05);animation:nvrEntre .35s ease-out both}' +
+'#nvr-liste li:nth-child(2){animation-delay:.04s}#nvr-liste li:nth-child(3){animation-delay:.08s}#nvr-liste li:nth-child(4){animation-delay:.12s}#nvr-liste li:nth-child(n+5){animation-delay:.16s}' +
+'@keyframes nvrEntre{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}' +
+'#nvr-liste .av{position:relative;width:44px;height:48px;padding:2px;box-sizing:border-box;clip-path:polygon(50% 0,100% 25%,100% 75%,50% 100%,0 75%,0 25%);background:conic-gradient(from 200deg,#14b8a6,#7c3aed,#ec4899,#f59e0b,#14b8a6);cursor:pointer}' +
+'#nvr-liste .av .ini,#nvr-liste .av img{position:absolute;inset:2px;clip-path:polygon(50% 0,100% 25%,100% 75%,50% 100%,0 75%,0 25%)}' +
+'#nvr-liste .av .ini{display:flex;align-items:center;justify-content:center;font-weight:900;font-size:17px;color:#fff;background:linear-gradient(145deg,hsl(var(--h,280) 70% 46%),hsl(calc(var(--h,280) + 50) 75% 38%))}' +
+'#nvr-liste .av img{width:calc(100% - 4px);height:calc(100% - 4px);object-fit:cover;background:#1a1040}' +
+'#nvr-liste .av.petit{width:34px;height:38px}#nvr-liste .av.petit .ini{font-size:13px}' +
+'#nvr-liste .c b.qui{display:flex;flex-wrap:wrap;align-items:center;gap:2px 6px;font-size:14px;line-height:1.3}' +
+'#nvr-liste .c b.qui .nom{font-weight:800;color:#fff;cursor:pointer;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}' +
+'#nvr-liste .c b.qui small{flex-basis:100%;margin:0;font-weight:500;font-size:12px;color:rgba(255,255,255,.5)}' +
+'#nvr-liste .c b.qui .verif{display:inline-flex;align-items:center;justify-content:center;width:15px;height:15px;border-radius:50%;background:#14b8a6;color:#fff;font-size:9px}' +
+'#nvr-liste .badge{margin-left:0}#nvr-liste .b-auteur{background:linear-gradient(90deg,#7c3aed,#ec4899);color:#fff}' +
+'#nvr-liste .c > p{display:inline-block;max-width:100%;margin:6px 0 0;padding:8px 12px;border-radius:4px 16px 16px 16px;background:rgba(255,255,255,.07);box-shadow:inset 0 0 0 1px rgba(255,255,255,.06);font-size:15px;line-height:1.45}' +
+'#nvr-liste .c > p.gros{background:none;box-shadow:none;padding:2px 0}' +
+'#nvr-liste li.de-auteur > .c > p{background:linear-gradient(135deg,rgba(124,58,237,.28),rgba(236,72,153,.18));box-shadow:inset 0 0 0 1px rgba(236,72,153,.3)}' +
+'#nvr-liste li.top > .av{background:conic-gradient(from 200deg,#ffc531,#ff8a00,#ffc531,#fff3c4,#ffc531)}' +
+'#nvr-liste li.top > .c > p{box-shadow:inset 0 0 0 1px rgba(255,197,49,.35),0 0 18px rgba(255,197,49,.12)}' +
+'#nvr-liste .outils{gap:12px;margin-top:7px;flex-wrap:wrap}#nvr-liste .outils button{font-weight:650;color:rgba(255,255,255,.6)}' +
+'#nvr-liste .aimeC{padding-top:4px}#nvr-liste .aimeC.on svg{animation:nvrBat .45s ease}' +
+'@keyframes nvrBat{0%{transform:scale(1)}35%{transform:scale(1.35)}70%{transform:scale(.92)}100%{transform:scale(1)}}' +
+'#nvr-liste ul.rep{margin:8px 0 0;padding:0 0 0 12px;list-style:none;border-left:2px solid;border-image:linear-gradient(#7c3aed,#ec4899,transparent) 1}' +
+'#nvr-liste ul.rep li{border-bottom:0;padding:8px 0}' +
+'@media (prefers-reduced-motion:reduce){#nvr-liste li,#nvr-liste .aimeC.on svg{animation:none}}';
 var monte = false;
 function monter(){
   if(monte) return; monte = true;
-  var st = document.createElement('style'); st.textContent = CSS; document.head.appendChild(st);
+  var st = document.createElement('style'); st.textContent = CSS + CSS_VISAGES; document.head.appendChild(st);
   var d = document.createElement('div');
   d.innerHTML = '<div id="nvr-voile"></div>' +
     '<section id="nvr-pan" role="dialog" aria-modal="true" aria-label="Commentaires"><div id="nvr-pluie"></div><div class="tete"><h3 id="nvr-titre">Commentaires</h3><div class="tri" id="nvr-tri"><button data-tri="top" class="on">Top</button><button data-tri="recent">Récents</button></div><button class="x" id="nvr-x" aria-label="Fermer">✕</button></div>' +
@@ -2305,11 +2332,70 @@ var local = {
     }); });
   }
 };
+/* ════════ 22 nov. 2026 — Les visages des commentaires ════════
+   Avant : « @u-abeacfb21… » et un « U » pour tout le monde. Maintenant : le vrai nom et la vraie photo de profil, comme
+   dans L'Empreinte. Le serveur peut les donner dans chaque commentaire ({auteur:{id, nom, handle, photo}}, authorName,
+   avatar…) ; sinon on les lit par lots (GET /v1/profil/vignettes?ids=…, publique, 50 au plus). Un identifiant technique
+   (u-…) ne s'affiche jamais : « Membre NEURAVID » tant que le nom n'est pas connu. */
+function auteurObj(c){ var a = c && (c.author || c.auteur || c.user || c.utilisateur); return a && typeof a === 'object' ? a : null; }
+function estIdTech(h){ return /^@?u-[0-9a-f]{8,}$/i.test(String(h || '')); }
+function auteurHandle(c){ var a = auteurObj(c), h = a ? (a.handle || a.pseudo || '') : (typeof c.author === 'string' ? c.author : typeof c.auteur === 'string' ? c.auteur : c.authorHandle || ''); h = String(h || '').replace(/^@+/, '').trim().slice(0, 40); return estIdTech(h) ? '' : h; }
+function auteurId(c){ var a = auteurObj(c), i = c.authorId || c.auteurId || c.userId || c.user_id || c.author_id || (a && (a.id || a.uid)) || ''; if(!i){ var s = String(typeof c.author === 'string' ? c.author : typeof c.auteur === 'string' ? c.auteur : '').replace(/^@+/, ''); if(estIdTech(s)) i = s; } i = String(i || ''); return /^[\w.:-]{1,64}$/.test(i) ? i : ''; }
+function auteurNom(c){ var a = auteurObj(c), n = c.authorName || c.auteurNom || c.author_name || c.nom || c.name || (a && (a.nom || a.name || [a.prenom, a.nomFamille].filter(Boolean).join(' '))) || ''; n = String(n || '').replace(/\s+/g, ' ').trim().slice(0, 60); return estIdTech(n) ? '' : n; }
+function photoSureC(u){ return typeof u === 'string' && /^https:\/\/[^\s"'<>()\\]+$/.test(u) && u.length < 600 ? u : ''; }
+function auteurPhoto(c){ var a = auteurObj(c); return photoSureC(c.avatar || c.authorAvatar || c.author_avatar || c.photo || c.auteurPhoto || (a && (a.photo || a.avatar || a.image)) || ''); }
+function auteurTexte(c){ var a = auteurObj(c); if(a) return '@' + String(a.handle || a.id || 'membre').replace(/^@+/, ''); return c.author || c.auteur || 'Un membre'; }
+var VIGN = {d:{}, lu:{}, t:0, cap:null};
+function moiUser(){ return R.NV_USER || {}; }
+function nomMoi(){ var u = moiUser(), n = [u.prenom, u.nom].filter(Boolean).join(' ').trim(); if(u.prenom && u.nom && String(u.nom).indexOf(u.prenom) === 0) n = String(u.nom); return n || (u.handle && !estIdTech(u.handle) ? '@' + String(u.handle).replace(/^@/, '') : ''); }
+function estDeMoi(c){ var u = moiUser(); return !!(c.mine || (u.id && c.authorId && String(u.id) === String(c.authorId))); }
+function nomC(c){
+  if(estDeMoi(c)){ var m = nomMoi(); if(m) return m; }
+  var v = c.authorId && VIGN.d[c.authorId];
+  return c.authorName || (v && v.nom) || (c.authorHandle ? '@' + c.authorHandle : '') || (v && v.handle ? '@' + v.handle : '') || 'Membre NEURAVID';
+}
+function handleC(c){ var v = c.authorId && VIGN.d[c.authorId], h = c.authorHandle || (v && v.handle) || (estDeMoi(c) && moiUser().handle && !estIdTech(moiUser().handle) ? String(moiUser().handle).replace(/^@/, '') : ''); return h && nomC(c) !== '@' + h ? '@' + h : ''; }
+function photoC(c){ var v = c.authorId && VIGN.d[c.authorId]; return c.avatar || (v && v.photo) || (estDeMoi(c) ? photoSureC(moiUser().photo || moiUser().avatar) : '') || ''; }
+/* une couleur stable par personne (jamais la même pour tous) */
+function teinteC(c){ var s = String(c.authorId || c.author || ''), h = 0; for(var k = 0; k < s.length; k++) h = (h * 31 + s.charCodeAt(k)) >>> 0; return h % 360; }
+function avatarC(c, petit){
+  var u = photoC(c), ini = (nomC(c).replace(/^@/, '').trim()[0] || 'N').toUpperCase(), hue = teinteC(c);
+  return '<span class="av' + (u ? ' photo' : '') + (petit ? ' petit' : '') + '" style="--h:' + hue + '" data-profc="' + esc(c.id) + '" role="button" tabindex="0" aria-label="' + esc('Voir le profil de ' + nomC(c)) + '"><span class="ini">' + esc(ini) + '</span>' +
+    (u ? '<img alt="" loading="lazy" decoding="async" src="' + esc(u) + '" onerror="this.remove();this.parentNode&&this.parentNode.classList.remove(\'photo\')">' : '') + '</span>';
+}
+function vignettesC(l){
+  if(!api() || VIGN.cap === false || VIGN.t) return;
+  var ids = []; (l || []).forEach(function(c){ var i = c.authorId; if(i && !VIGN.lu[i] && !(c.avatar && c.authorName) && ids.length < 50){ VIGN.lu[i] = 1; ids.push(i); } });
+  if(!ids.length) return;
+  VIGN.t = 1;
+  fetch(api() + '/v1/profil/vignettes?ids=' + ids.map(encodeURIComponent).join(','), {headers:entetes()})
+    .then(function(r){ if(r.status === 404) VIGN.cap = false; return r.ok ? r.json() : null; })
+    .then(function(o){ VIGN.t = 0; var g = o && (o.vignettes || o.items || o); if(!g || typeof g !== 'object') return; var change = false;
+      ids.forEach(function(x){ var y = Array.isArray(g) ? g.filter(function(z){ return z && String(z.id) === x; })[0] : g[x]; if(!y) return;
+        var n = String(y.nom || y.name || [y.prenom, y.nomFamille].filter(Boolean).join(' ') || '').replace(/\s+/g, ' ').trim().slice(0, 60), h = String(y.handle || '').replace(/^@+/, '').slice(0, 40);
+        VIGN.d[x] = {nom:estIdTech(n) ? '' : n, handle:estIdTech(h) ? '' : h, photo:photoSureC(y.photo || y.avatar || '')}; change = true; });
+      if(change && ouvert) rendreListe(); vignettesC(toutes); })
+    .catch(function(){ VIGN.t = 0; ids.forEach(function(x){ delete VIGN.lu[x]; }); });
+}
+/* toucher un visage ou un nom : son profil (L'Empreinte) */
+function ouvrirProfilC(c){
+  if(!c) return; if(estDeMoi(c)){ allerProfil({depuis:MODULE}); return; }
+  var ctx = {auteur:{id:c.authorId || null, handle:c.authorHandle || (VIGN.d[c.authorId] || {}).handle || null}, depuis:MODULE};
+  if(!ctx.auteur.id && !ctx.auteur.handle) return;
+  emit('comment_profile_open', {comment:c.id}); allerProfil(ctx);
+}
+function allerProfil(ctx){
+  try{ if(R.NVLien && typeof R.NVLien.ouvrir === 'function'){ R.NVLien.ouvrir('NVProfile', ctx); return; } }catch(e){}
+  try{ R.sessionStorage.setItem('nv_ctx_Profile', JSON.stringify(ctx)); }catch(e){}
+  var b = R.NV_MODULES_BASE || ''; if(b && b.slice(-1) !== '/') b += '/';
+  try{ document.querySelectorAll('video').forEach(function(v){ try{ v.pause(); }catch(x){} }); }catch(e){}
+  R.location.href = b + 'NV_MODULE_Profile.html';
+}
 function norm(c, clip){
   var type = c.type || (c.sticker ? 'sticker' : c.audio_url ? 'voice' : c.video_url ? 'video' : 'text');
   var re = c.reacts || c.reactions || {}, mr = c.myReact || c.my_reaction || null;
   return {id:String(c.id || ('c' + Math.random().toString(36).slice(2))), clip:c.clip || clip, parent:c.parent || c.parentId || c.parent_id || null,
-    type:type, author:c.author || c.auteur || 'Un membre', text:c.text || c.texte || '', sticker:c.sticker || null,
+    type:type, author:auteurTexte(c), authorId:auteurId(c), authorName:auteurNom(c), avatar:auteurPhoto(c), authorHandle:auteurHandle(c), verifie:!!(c.verifie || c.verified || (auteurObj(c) || {}).verifie), text:c.text || c.texte || '', sticker:c.sticker || null,
     url:c.media_url || c.url || c.audio_url || c.video_url || null, blob:c.blob || null, duration:+(c.duration || 0), likes:+c.likes || 0, liked:!!c.liked,
     reacts:typeof re === 'object' ? re : {}, myReact:mr, pinned:!!(c.pinned || c.epingle), pinnedAt:c.pinnedAt || c.pinned_at || null, authorLiked:!!(c.authorLiked || c.author_liked),
     byOwner:!!(c.byOwner || c.by_owner), hidden:!!(c.hidden || c.masque), heldFor:typeof c.heldFor === 'string' ? c.heldFor : null, pending:c.pending === true, mine:!!c.mine, at:c.at || c.created_at || Date.now(), local:!!c.local || /^cl_/.test(String(c.id || ''))};
@@ -2383,7 +2469,8 @@ function itemC(c, topId, proprio, estRep){
     (!c.mine ? '<button data-signaler="' + esc(c.id) + '">⚠️ Signaler</button>' : '') + '<button class="plusb" data-menu="' + esc(c.id) + '" aria-label="Plus d\'actions">⋯</button></div>';
   if(c.auto && !c.voir) return '<li data-cid="' + esc(c.id) + '"><span class="av">!</span><div class="c"><div class="auto">🛡️ Masqué automatiquement : propos blessants<button data-voir="' + esc(c.id) + '">Voir</button></div>' +
     '<div class="outils">' + (!c.mine ? '<button data-signaler="' + esc(c.id) + '">⚠️ Signaler</button>' : '') + '<button class="plusb" data-menu="' + esc(c.id) + '" aria-label="Plus d\'actions">⋯</button></div>%REP%</div></li>';
-  return '<li class="' + (c.pinned && !estRep ? 'epingle' : '') + (c.hidden ? ' masque' : '') + '" data-cid="' + esc(c.id) + '"><span class="av">' + esc((String(c.author).replace(/^@/, '')[0] || '?').toUpperCase()) + '</span><div class="c"><b>' + esc(c.author) + badges + '<small>' + ilya(c.at) + '</small></b>' +
+  var hc = handleC(c);
+  return '<li class="' + (c.pinned && !estRep ? 'epingle' : '') + (c.hidden ? ' masque' : '') + (c.id === topId ? ' top' : '') + (c.byOwner ? ' de-auteur' : '') + '" data-cid="' + esc(c.id) + '">' + avatarC(c, estRep) + '<div class="c"><b class="qui"><bdi class="nom" dir="auto" data-profc="' + esc(c.id) + '">' + esc(nomC(c)) + '</bdi>' + (c.verifie ? '<span class="verif" aria-label="Compte vérifié">✔</span>' : '') + badges + '<small>' + (hc ? '<bdi dir="ltr">' + esc(hc) + '</bdi> · ' : '') + ilya(c.at) + '</small></b>' +
     corpsC(c) + reacs + (c.authorLiked ? '<span class="aime-auteur">❤️ Aimé par l\'auteur</span>' : '') + etiquetteMasque(c, proprio) + outils + '%REP%</div>' +
     '<button class="aimeC' + (c.liked ? ' on' : '') + '" data-aimec="' + esc(c.id) + '" aria-label="Aimer ce commentaire">' + svg('coeur') + '<span>' + (c.likes > 0 ? fmt(c.likes) : '') + '</span></button></li>';
 }
@@ -2541,6 +2628,7 @@ function rendreListe(l){
     }
     return itemC(c, top, proprio, false).replace('%REP%', h);
   }).join('');
+  vignettesC(vis);
 }
 function charger(){
   var o = ouvert; if(!o) return; var c = o.clip;
@@ -2587,7 +2675,7 @@ R.addEventListener('popstate', function(){
   if($('nvr-tq') && $('nvr-tq').classList.contains('on') && tqPousse){ R.__nvPopPris = Date.now(); fermerTq(true); return; }
   if(ouvert){ R.__nvPopPris = Date.now(); fermerComs(true); }
 });
-function majRepond(){ var el = $('nvr-repond'); if(!el) return; el.classList.toggle('on', !!reponse); if(reponse) $('nvr-repnom').textContent = '@' + String(reponse.author).replace(/^@/, ''); $('nvr-champ').placeholder = reponse ? 'Votre réponse…' : 'Un mot bienveillant…'; }
+function majRepond(){ var el = $('nvr-repond'); if(!el) return; el.classList.toggle('on', !!reponse); if(reponse) $('nvr-repnom').textContent = nomC(reponse); $('nvr-champ').placeholder = reponse ? 'Votre réponse…' : 'Un mot bienveillant…'; }
 function pluie(e){ var p = $('nvr-pluie'); if(!p || !e) return; var h = ''; for(var k = 0; k < 14; k++) h += '<i style="left:' + Math.round(Math.random() * 92) + '%;animation-delay:' + (Math.random() * .6).toFixed(2) + 's">' + e + '</i>'; p.innerHTML = h; clearTimeout(p.t); p.t = setTimeout(function(){ p.innerHTML = ''; }, 2600); }
 function premierEmoji(t){ try{ var m = t.match(/(?:\p{Extended_Pictographic}|\p{Regional_Indicator}{2})(?:\p{Emoji_Modifier}|️|‍\p{Extended_Pictographic})*/u); return m ? m[0] : null; }catch(e){ return null; } }
 function publier(c, fichier){
@@ -2661,7 +2749,7 @@ function fermerPop(){ var p = $('nvr-pop'); if(p) p.classList.remove('on'); popP
 var tqPour = null;
 function ouvrirTq(c){
   tqPour = c;
-  $('nvr-tqt').textContent = c ? 'Taquiner ' + c.author : 'Taquineries';
+  $('nvr-tqt').textContent = c ? 'Taquiner ' + nomC(c) : 'Taquineries';
   $('nvr-tqg').innerHTML = STICKERS.map(function(st, k){ return '<button data-st="' + k + '"><i>' + st[0] + '</i>' + esc(st[1]) + '</button>'; }).join('');
   $('nvr-tq').classList.add('on');
   if(!tqPousse){ try{ history.pushState({nvr:'tq'}, ''); tqPousse = true; }catch(e){} }
@@ -2863,7 +2951,8 @@ function brancher(){
   });
   $('nvr-liste').addEventListener('click', function(e){
     var t;
-    if((t = e.target.closest('[data-repondre]'))){ var cr = trouverC(t.dataset.repondre); if(!cr) return; reponse = cr; majRepond(); var ch = $('nvr-champ'); var nm = '@' + String(cr.author).replace(/^@/, '').replace(/\s+/g, '') + ' '; if(cr.parent && ch.value.indexOf(nm) !== 0) ch.value = nm + ch.value; ch.focus(); return; }
+    if((t = e.target.closest('[data-profc]'))){ ouvrirProfilC(trouverC(t.dataset.profc)); return; }
+    if((t = e.target.closest('[data-repondre]'))){ var cr = trouverC(t.dataset.repondre); if(!cr) return; reponse = cr; majRepond(); var ch = $('nvr-champ'); var hm = cr.authorHandle || (VIGN.d[cr.authorId] || {}).handle || ''; var nm = hm ? '@' + hm.replace(/\s+/g, '') + ' ' : ''; if(nm && cr.parent && ch.value.indexOf(nm) !== 0) ch.value = nm + ch.value; ch.focus(); return; }
     if((t = e.target.closest('[data-pop]'))){ var cp = trouverC(t.dataset.pop); if(cp) ouvrirPop(cp, t); return; }
     if((t = e.target.closest('[data-reac]'))){ var cx = trouverC(t.dataset.reac); if(cx) reagir(cx, t.dataset.e); return; }
     if((t = e.target.closest('[data-taquiner]'))){ var ct = trouverC(t.dataset.taquiner); if(ct) ouvrirTq(ct); return; }
