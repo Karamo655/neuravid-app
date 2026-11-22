@@ -672,6 +672,10 @@ html[data-theme=jour] .recit{background:linear-gradient(160deg,#fff,#F1EBFF);box
 .merci.fait{opacity:.7}
 /* 20 nov. 2026 : « Merci » et « Suivre en retour » côte à côte */
 .ab-actions{position:absolute;bottom:10px;inset-inline-start:56px;inset-inline-end:10px;display:flex;flex-wrap:wrap;gap:8px}.ab-actions .merci{position:static}
+.rep-form{display:flex;gap:8px;align-items:flex-end;padding:0 10px 10px 56px}
+.rep-form textarea{flex:1;min-height:44px;max-height:120px;resize:none;border-radius:12px;border:1.5px solid color-mix(in srgb,var(--c) 45%,transparent);background:var(--fond,#fff);color:var(--encre);padding:10px 12px;font-family:inherit;font-size:15px;line-height:1.35}
+.rep-form .retour{min-height:44px}
+.carte:has(.rep-form){flex-wrap:wrap}.carte:has(.rep-form) .ouvrir{order:1}.carte:has(.rep-form) .plus{order:2}.carte:has(.rep-form) .ab-actions{order:3}.carte:has(.rep-form) .rep-form{order:4}.rep-form textarea{min-width:0;width:100%}.carte:has(.rep-form) .ouvrir{flex:1 1 0;min-width:0}.carte:has(.rep-form) .ab-actions,.carte:has(.rep-form) .rep-form{flex:0 0 100%;box-sizing:border-box}.carte:has(.rep-form) .ab-actions{position:static;padding:0 10px 8px 56px}.a-merci .carte:has(.rep-form) .ouvrir{padding-bottom:8px}
 .ecrire{min-height:34px;padding:0 12px;border-radius:11px;font-size:13px;font-weight:760;background:color-mix(in srgb,#7c3aed 16%,transparent);color:var(--encre);border:0}
 .retour{min-height:34px;padding:0 12px;border-radius:11px;font-size:13px;font-weight:760;background:var(--c);color:#0B0720;border:0}.retour.fait{background:color-mix(in srgb,var(--c) 18%,transparent);color:var(--encre);opacity:.8}
 /* le tambour au repos : tout est lu */
@@ -1371,7 +1375,21 @@ function phraseNotif(n){
 /* 22 nov. 2026 : écrire tout de suite à la personne qui vous suit ou vous remercie (Palabre) */
 function ecrireActeur(n){ return n && (n.type === 'abonne' || n.type === 'merci') && n.acteurs && n.acteurs.length === 1 && !(n.total > 1) && n.acteurs[0] && (n.acteurs[0].id || n.acteurs[0].handle) ? n.acteurs[0] : null; }
 function boutonEcrire(n){ return ecrireActeur(n) ? '<button class="ecrire" data-a="ecrireA" data-v="' + esc(n.id) + '">' + esc('💬 ' + tr('Écrire')) + '</button>' : ''; }
-function aActions(n){ return !estFutur(n) && ((n.type === 'abonne' && (CAP.merci || retourPossible(n))) || !!ecrireActeur(n)); }
+/* 22 nov. 2026 : répondre à un commentaire sans quitter le Tam-tam ; rappeler après un appel manqué */
+var REP = {id:null, texte:'', envoi:false};
+function repCible(n){ if(!n || (n.type !== 'commentaire' && n.type !== 'reponse' && n.type !== 'mention') || !(n.acteurs && n.acteurs.length === 1) || n.total > 1 || !api() || !window.NV_TOKEN) return null;
+  var c = (n.cible && n.cible.ctx) || {}, clip = c.clip || c.video || c.id, parent = c.commentaire || c.comment || c.commentId;
+  return clip && parent ? {clip:String(clip), parent:String(parent)} : null; }
+function rappelActeur(n){ return n && n.type === 'appel_manque' && n.acteurs && n.acteurs.length === 1 && !(n.total > 1) && n.acteurs[0] && (n.acteurs[0].id || n.acteurs[0].handle) && aAuMoins(18) ? n.acteurs[0] : null; }
+function boutonsContact(n){
+  return (repCible(n) ? '<button class="ecrire" data-a="repOuvrir" data-v="' + esc(n.id) + '" aria-expanded="' + (REP.id === n.id) + '">' + esc('↩️ ' + tr('Répondre')) + '</button>' : '') +
+    (rappelActeur(n) ? '<button class="retour" data-a="rappeler" data-v="' + esc(n.id) + '">' + esc('📞 ' + tr('Rappeler')) + '</button><button class="ecrire" data-a="ecrireA" data-v="' + esc(n.id) + '">' + esc('💬 ' + tr('Écrire')) + '</button>' : ''); }
+function htmlRepondre(n){
+  if(REP.id !== n.id || !repCible(n)) return '';
+  var a = n.acteurs[0], nom = a.nom || '@' + (a.handle || '');
+  return '<div class="rep-form"><textarea id="repTxt" data-i="repTexte" maxlength="500" rows="2" dir="auto" placeholder="' + esc(phraseTexte('Répondre à {0}…', nom)) + '" aria-label="' + esc(phraseTexte('Répondre à {0}', nom)) + '">' + esc(REP.texte) + '</textarea>' +
+    '<button class="retour" data-a="repEnvoyer" data-v="' + esc(n.id) + '"' + (REP.envoi || !REP.texte.trim() ? ' disabled' : '') + '>' + esc(tr(REP.envoi ? 'Envoi…' : 'Envoyer')) + '</button></div>'; }
+function aActions(n){ return !estFutur(n) && ((n.type === 'abonne' && (CAP.merci || retourPossible(n))) || !!ecrireActeur(n) || !!repCible(n) || !!rappelActeur(n)); }
 function htmlAvatars(n){ if(!n.acteurs.length) return '<span class="emo" aria-hidden="true">' + TYPES[n.type].ico + '</span>'; return '<span class="avs" data-k="' + Math.min(3, n.acteurs.length) + '" aria-hidden="true">' + n.acteurs.slice(0, 3).map(function(a){ return '<span class="av">' + (a.photo ? '<img data-src="' + esc(a.photo) + '" alt="">' : esc((a.nom || a.handle || '•').charAt(0).toUpperCase())) + '</span>'; }).join('') + '</span>'; }
 function htmlNotif(n){
   var m = n.module && moduleDe(n.module), fut = estFutur(n), live = !fut && n.fin && n.at <= maintenant() && maintenant() <= n.fin, r = fut && (rappelPour(n) || n.rappel);
@@ -1384,7 +1402,7 @@ function htmlNotif(n){
     (n.extrait ? '<q dir="auto" data-brut>' + esc(n.extrait) + '</q>' : '') + (n.texte ? '<span class="texte" dir="auto" data-brut>' + esc(n.texte) + '</span>' : '') +
     '<small>' + (n.fois > 1 && n.total <= 1 ? '<span class="fois" data-brut>×' + fmt(n.fois) + '</span>' : '') + (m ? '<span class="mod">' + esc(m.n) + '</span>' : '') + '<time datetime="' + isoSur(n.at) + '">' + esc(quand) + '</time>' + (!n.lu && !fut ? '<span class="sr">' + esc('Non lue') + '</span>' : '') + '</small></span>' +
     (n.image ? '<span class="vign" aria-hidden="true"><img data-src="' + esc(n.image) + '" alt=""></span>' : '') + '</button>' +
-    (aActions(n) ? '<span class="ab-actions">' + (n.type === 'abonne' && CAP.merci ? '<button class="merci' + (MEM.mercis[n.id] ? ' fait' : '') + '" data-a="merci" data-v="' + esc(n.id) + '"' + (MEM.mercis[n.id] ? ' disabled' : '') + '>' + esc(MEM.mercis[n.id] ? 'Merci envoyé' : '🥁 Merci') + '</button>' : '') + boutonRetour(n) + boutonEcrire(n) + '</span>' : '') +
+    (aActions(n) ? '<span class="ab-actions">' + (n.type === 'abonne' && CAP.merci ? '<button class="merci' + (MEM.mercis[n.id] ? ' fait' : '') + '" data-a="merci" data-v="' + esc(n.id) + '"' + (MEM.mercis[n.id] ? ' disabled' : '') + '>' + esc(MEM.mercis[n.id] ? 'Merci envoyé' : '🥁 Merci') + '</button>' : '') + boutonRetour(n) + boutonEcrire(n) + boutonsContact(n) + '</span>' + htmlRepondre(n) : '') +
     (fut ? '<button class="rond cloche' + (r ? ' on' : '') + '" data-a="rappelBascule" data-v="' + esc(n.id) + '" aria-pressed="' + !!r + '" aria-label="' + esc(tr(r ? 'Ne plus me le rappeler' : 'Me le rappeler')) + '">' + ico(r ? 'clocheOn' : 'cloche') + '</button>' :
       '<button class="rond plus" data-a="menuNotif" data-v="' + esc(n.id) + '" aria-label="' + esc(tr('Options de cette nouvelle')) + '">' + ico('menu') + '</button>') + '</div></li>';
 }
@@ -1904,7 +1922,23 @@ function boutonRetour(n){ var a = retourActeur(n); if(!a || !(a.suivi === false 
   if(e === 'fait') return '<button class="retour fait" disabled>' + esc(tr('Vous suivez')) + '</button>';
   if(e === 'demande') return '<button class="retour fait" disabled>' + esc(tr('Demande envoyée')) + '</button>';
   return '<button class="retour" data-a="suivreRetour" data-v="' + esc(n.id) + '"' + (e === 'envoi' ? ' disabled aria-busy="true"' : '') + '>' + esc(tr('Suivre en retour')) + '</button>'; }
-A.ecrireA = function(id){ var n = trouver(id), a = ecrireActeur(n); if(!a) return; son('tic'); emit('notif_ecrire', {type:n.type}); ouvrir('CallUniverse', {user:a.id || null, avec:a.id || null, handle:a.handle ? '@' + String(a.handle).replace(/^@/, '') : null, depuis:MOI}); };
+A.repOuvrir = function(id){ if(REP.id === id){ REP.id = null; } else { REP.id = id; REP.texte = ''; } REP.envoi = false; rendreSansSaut(); if(REP.id) setTimeout(function(){ var t = $('repTxt'); if(t) try{ t.focus({preventScroll:true}); }catch(e){} }, 30); };
+A.repTexte = function(v){ REP.texte = String(v || '').slice(0, 500); var b = document.querySelector('[data-a="repEnvoyer"]'); if(b) b.disabled = REP.envoi || !REP.texte.trim(); };
+A.repEnvoyer = function(id){
+  var n = trouver(id), c = repCible(n), texte = REP.texte.trim(); if(!c || !texte || REP.envoi) return;
+  REP.envoi = true; rendreSansSaut();
+  fetch(api() + '/v1/posts/' + encodeURIComponent(c.clip) + '/comments', {method:'POST', mode:'cors', headers:entetes({'Content-Type':'application/json'}), body:JSON.stringify({type:'text', text:texte, parent:c.parent, module:'Player'})})
+    .then(function(r){ if(r.ok) return null; return r.json().catch(function(){ return {}; }).then(function(d){ return {code:r.status, d:d || {}}; }); })
+    .then(function(err){
+      REP.envoi = false;
+      if(!err){ var a = n.acteurs[0]; REP.id = null; REP.texte = ''; son('tic'); emit('notif_reply', {type:n.type}); toast(phraseTexte('Réponse envoyée à {0}.', a.nom || '@' + (a.handle || ''))); if(!n.lu && typeof A.lire === 'function') try{ A.lire(id); }catch(e){} rendreSansSaut(); return; }
+      if((err.code === 400 || err.code === 422) && (err.d.message || err.d.reason || err.d.moderation)) toast('Réponse non publiée : ' + String(err.d.message || err.d.reason || 'elle ne respecte pas la règle de bienveillance.').slice(0, 140), 5000);
+      else toast(err.code === 403 ? 'Vous ne pouvez pas répondre à ce commentaire.' : err.code === 404 ? 'Ce commentaire n\'existe plus.' : 'Réponse non envoyée : vérifiez votre connexion et réessayez.');
+      rendreSansSaut();
+    }).catch(function(){ REP.envoi = false; toast('Réponse non envoyée : vérifiez votre connexion et réessayez.'); rendreSansSaut(); });
+};
+A.rappeler = function(id){ var n = trouver(id), a = rappelActeur(n); if(!a) return; son('tic'); emit('notif_call_back', {}); ouvrir('CallUniverse', {user:a.id || null, avec:a.id || null, handle:a.handle ? '@' + String(a.handle).replace(/^@/, '') : null, action:'appel', depuis:MOI}); };
+A.ecrireA = function(id){ var n = trouver(id), a = ecrireActeur(n) || rappelActeur(n); if(!a) return; son('tic'); emit('notif_ecrire', {type:n.type}); ouvrir('CallUniverse', {user:a.id || null, avec:a.id || null, handle:a.handle ? '@' + String(a.handle).replace(/^@/, '') : null, depuis:MOI}); };
 A.suivreRetour = function(id){ var n = trouver(id), a = retourActeur(n); if(!a || RETOURS[a.id] || !api()) return; RETOURS[a.id] = 'envoi'; son('tic'); rendreSansSaut();
   envoyerJSON('POST', '/v1/profil/' + encodeURIComponent(a.id) + '/suivre').then(function(r){ var dm = r && r.demande === true; RETOURS[a.id] = dm ? 'demande' : 'fait'; if(!dm) a.suivi = true; rendreSansSaut();
     toast(dm ? tr('Demande envoyée') : phraseTexte('Vous suivez maintenant {0}.', a.handle ? '@' + a.handle : (a.nom || ''))); emit('notification_suivre_retour', {id:id}); })

@@ -443,6 +443,17 @@ p{margin:6px 0}
 .btn.plein{width:100%;margin:8px 0}
 .btn.petit{min-height:36px;padding:0 12px;font-size:14px;border-radius:11px}
 .btn.carre{width:46px;padding:0;flex:none}
+.mutuel{display:flex;align-items:center;justify-content:center;gap:6px;margin:8px auto 0;width:max-content;max-width:100%;padding:6px 14px;border-radius:999px;font-size:13.5px;font-weight:760;background:linear-gradient(90deg,color-mix(in srgb,#14b8a6 18%,transparent),color-mix(in srgb,#ec4899 18%,transparent))}
+.vedette{margin:14px 16px 4px}
+.vedette .vd-cadre{display:flex;align-items:center;gap:14px;width:100%;padding:10px;border-radius:20px;border:0;cursor:pointer;text-align:start;color:inherit;background:linear-gradient(135deg,color-mix(in srgb,#14b8a6 12%,transparent),color-mix(in srgb,#7c3aed 14%,transparent),color-mix(in srgb,#ec4899 12%,transparent))}
+.vedette .vd-media{position:relative;flex:none;width:96px;height:110px;clip-path:polygon(25% 3%,75% 3%,100% 50%,75% 97%,25% 97%,0 50%);background:#1a1040 center/cover no-repeat;display:flex;align-items:center;justify-content:center;overflow:hidden}
+.vedette video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+.vedette .vd-play{position:relative;font-style:normal;color:#fff;font-size:22px;text-shadow:0 0 6px #000;opacity:.85}
+.vedette video + .vd-play{opacity:0}
+.vedette .vd-txt{display:flex;flex-direction:column;gap:4px;min-width:0}
+.vedette .vd-txt small{font-size:12px;font-weight:780;letter-spacing:.3px;background:linear-gradient(90deg,#14b8a6,#7c3aed,#ec4899);-webkit-background-clip:text;background-clip:text;color:transparent}
+.vedette .vd-txt b{font-size:16px;line-height:1.3;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.vedette .vd-txt span{display:flex;align-items:center;gap:4px;font-size:13px;opacity:.75}.vedette .vd-txt .ico{width:15px;height:15px}
 .puces{display:flex;flex-wrap:wrap;gap:7px;margin:8px 0}
 .puces>button{min-height:34px;padding:0 12px;border-radius:17px;background:var(--surface2);box-shadow:inset 0 0 0 1px var(--fil);font-size:13px}
 .puces>button[aria-pressed="true"]{background:var(--encre);color:#0B1416;box-shadow:none;font-weight:650}
@@ -1784,7 +1795,7 @@ function rendre(){ rendreHaut(); var c = $('corps'); if(tropJeune()){ poser(c, '
   var alv = alveolesVues(), h = '';
   if(ETAT.apercu) h += '<div class="bandeau-apercu" role="status">' + ico('oeil') + '<span>' + esc(ETAT.Ps ? (ETAT.enAttente ? 'Vous voyez votre profil comme un visiteur. Vos dernières modifications ne sont pas encore envoyées.' : 'Vous voyez votre profil comme un visiteur.') : 'Sans réseau, cet aperçu peut différer de ce que voient les autres.') + '</span><button class="btn petit" data-a="apercu">' + esc('Revenir') + '</button></div>';
   if(ETAT.horsLigne) h += '<div class="bandeau-apercu" role="status">' + ico('monde') + '<span>' + esc(phraseTexte('Pas de réseau : voici ce profil tel qu\'il était le {0}.', dateJour(ETAT.horsLigne))) + '</span></div>';
-  h += htmlHero(P, alv) + htmlChiffres(P) + htmlActions(P) + '<div data-etape="4">' + htmlIdentite(P) + htmlAtelier(P);
+  h += htmlHero(P, alv) + htmlChiffres(P) + htmlActions(P) + htmlVedette(P) + '<div data-etape="4">' + htmlIdentite(P) + htmlAtelier(P);
   if(voitSection('ruche')) h += htmlRuche(alv) + htmlRoue(alv);
   h += htmlConstellation(P) + htmlLivreOr(P) + htmlGratitude(P) + htmlOnglets(P);
   if(ETAT.moi && !ETAT.apercu) h += htmlMonEspace();
@@ -1824,6 +1835,41 @@ function htmlChiffres(P){
   var case_ = function(n, lib, a, k){ return '<button class="chiffre-case' + (k ? ' ' + k : '') + '"' + (a ? ' data-a="' + a + '"' : ' disabled') + '><b data-brut>' + n + '</b><small>' + esc(lib) + '</small></button>'; };
   return '<div class="chiffres" data-etape="1">' + case_(fmtHvs(H.score), 'HVS', 'hvsInfo', 'hvs') + case_(fmt(c.abonnes), 'abonnés', api() && CAP.profils ? 'liste' : '', '') + case_(fmt(c.abonnements), 'abonnements', api() && CAP.profils ? 'listeSuivis' : '', '') + case_(fmt(c.videos), 'vidéos', '', '') + '</div>';
 }
+/* ════════ 22 nov. 2026 — La vidéo vedette ════════
+   En haut du profil, l'œuvre épinglée (sinon la plus vue) joue en silence, en boucle, dans un cadre hexagonal.
+   Seulement une vraie œuvre publiée ; jamais en économie de données ; un toucher l'ouvre dans Iris avec toute la série. */
+var VEDETTE = {cle:'', id:'', src:'', etat:''};
+function vedetteOeuvre(P){
+  if(!P || !Array.isArray(P.oeuvres) || !P.oeuvres.length || !voitSection('oeuvres')) return null;
+  var l = P.oeuvres.filter(function(o){ return !(ETAT.moi && typeof MV !== 'undefined' && MV.retires && MV.retires[o.id]); }); if(!l.length) return null;
+  var ep = l.filter(function(o){ return o.epingle; })[0]; if(ep) return ep;
+  return l.slice().sort(function(a, b){ return (b.vues || 0) - (a.vues || 0) || (b.at || 0) - (a.at || 0); })[0];
+}
+function reduireMouvement(){ try{ return matchMedia('(prefers-reduced-motion: reduce)').matches; }catch(e){ return false; } }
+function htmlVedette(P){
+  var o = vedetteOeuvre(P); if(!o) return '';
+  var cleV = (ETAT.moi ? 'moi' : ETAT.cle) + '|' + o.id;
+  if(VEDETTE.cle !== cleV){ VEDETTE.cle = cleV; VEDETTE.id = o.id; VEDETTE.src = ''; VEDETTE.etat = ''; chargerVedette(o.id, cleV); }
+  var mini = o.miniature || '', anime = VEDETTE.src && !economie() && !reduireMouvement();
+  return '<section class="vedette" data-etape="4" aria-label="' + esc(tr('Vidéo vedette')) + '"><button class="vd-cadre" data-a="oeuvre" data-v="' + esc(o.id) + '" aria-label="' + esc(phraseTexte('Voir la vidéo vedette : {0}', o.titre || tr('Vidéo'))) + '">' +
+    '<span class="vd-media" id="vedetteMedia"' + (mini ? ' style="background-image:url(&quot;' + esc(mini) + '&quot;)"' : '') + '>' + (anime ? '<video src="' + esc(VEDETTE.src) + '" muted playsinline loop autoplay preload="metadata"' + (mini ? ' poster="' + esc(mini) + '"' : '') + '></video>' : '') + '<i class="vd-play" aria-hidden="true">▶</i></span>' +
+    '<span class="vd-txt"><small>' + esc(o.epingle ? '⬢ ' + tr('Vidéo vedette · épinglée') : '⬢ ' + tr('Vidéo vedette')) + '</small><b dir="auto" data-brut>' + esc(o.titre || tr('Sans titre')) + '</b><span data-brut>' + ico('oeil') + fmt(o.vues) + (o.hvs != null ? ' · HVS ' + fmtHvs(o.hvs) : '') + '</span></span></button></section>';
+}
+function chargerVedette(id, cleV){
+  if(!api() || economie() || reduireMouvement()) return;
+  fetch(api() + '/v1/clips/' + encodeURIComponent(id), {mode:'cors', headers:entetes()}).then(function(r){ return r.ok ? r.json() : null; }).then(function(d){
+    var c = d && (d.clip || d); if(!c || VEDETTE.cle !== cleV) return;
+    var src = '', s = c.sources;
+    if(Array.isArray(s)){ var v = s.filter(function(x){ return x && (x.src || x.url); }).sort(function(a, b){ return (+(a.hauteur || a.height) || 0) - (+(b.hauteur || b.height) || 0); })[0]; if(v) src = v.src || v.url; }
+    else if(s && typeof s === 'object') src = s.low || s.high || s.hd || '';
+    src = urlSure(src || c.src || c.url || c.video || '');
+    if(!src || /\.m3u8(\?|#|$)/i.test(src)) return;
+    VEDETTE.src = src;
+    var m = $('vedetteMedia'); if(!m || m.querySelector('video')) return;
+    var vd = document.createElement('video'); vd.muted = true; vd.playsInline = true; vd.loop = true; vd.autoplay = true; vd.preload = 'metadata'; vd.setAttribute('muted', ''); vd.setAttribute('playsinline', ''); vd.src = src;
+    m.insertBefore(vd, m.firstChild); var pr = vd.play(); if(pr && pr.catch) pr.catch(function(){});
+  }).catch(dbg);
+}
 function htmlActions(P){
   if(ETAT.moi && !ETAT.apercu) return htmlDemandes(P) + '<div class="actions" data-etape="4"><button class="btn" data-a="modifier">' + ico('crayon') + '<span>' + esc('Modifier') + '</span></button><button class="btn leger" data-a="apercu">' + ico('oeil') + '<span>' + esc('Vu par les autres') + '</span></button><button class="btn leger carre" data-a="carte" aria-label="' + esc(tr('Ma carte d\'empreinte')) + '">' + ico('carte') + '</button></div><div class="actions" data-etape="4"><button class="btn leger" data-a="monPasseport">' + ico('passeport') + '<span>' + esc('Mon Passeport') + '</span></button></div>';
   if(ETAT.apercu) return '<div class="actions" data-etape="4"><button class="btn" disabled>' + ico('suivre') + '<span>' + esc('Suivre') + '</span></button><button class="btn leger" disabled>' + ico('message') + '<span>' + esc('Écrire') + '</span></button></div>';
@@ -1835,6 +1881,8 @@ function htmlActions(P){
     (estMajeur() && P.mineur !== true ? '<button class="btn leger carre" data-a="appeler" aria-label="' + esc(tr('Appeler')) + '">' + ico('telephone') + '</button>' : '') +
     (peutOffrir ? '<button class="btn leger carre" data-a="offrir" aria-label="' + esc(tr('Offrir des NVCoins')) + '">' + ico('cadeau') + '</button>' : '') + '</div>' +
     (P.relation.suitMoi && !s ? '<p class="petit centre" data-etape="4">' + esc('Cette personne vous suit.') + '</p>' : '') +
+    /* 22 nov. 2026 : le lien réciproque, bien visible */
+    (P.relation.suitMoi && s ? '<p class="mutuel" data-etape="4"><span aria-hidden="true">🤝</span>' + esc('Vous vous suivez') + '</p>' : '') +
     (P.gratitude.jeSoutiens && estMajeur() ? '<p class="soutien-moi" data-etape="4">' + ico('cadeau') + '<span>' + phrase('Vous soutenez {0}. Merci : vous êtes seul à voir ce mot.', nomB(P.nom || '@' + P.handle)) + '</span></p>' : '');
 }
 function htmlIdentite(P){
