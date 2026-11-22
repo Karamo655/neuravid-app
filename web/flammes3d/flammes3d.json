@@ -1,0 +1,13 @@
+{
+ "version": 1,
+ "boucle": 6,
+ "taille": 256,
+ "styles": [
+  "naissance",
+  "connexion",
+  "legendaire",
+  "nations",
+  "musicale",
+  "protectrice"
+ ]
+}

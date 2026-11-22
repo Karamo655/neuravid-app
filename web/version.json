@@ -1,6 +1,6 @@
 {
- "version": "2026.11.22-c9a9070dc54e",
- "date": "2026-11-22T12:46:35Z",
+ "version": "2026.11.22-0b5f2db819d0",
+ "date": "2026-11-22T14:01:17Z",
  "entree": "index.html",
  "modules": [
   "NV_MODULE_Academie.html",
@@ -99,8 +99,8 @@
    "taille": 1474775
   },
   "NV_MODULE_CallUniverse.html": {
-   "sha256": "f8ff0be720181a8c9998f7a0aa25fa28ebaef1c654431fa1102a6311583394f7",
-   "taille": 1403462
+   "sha256": "47847f6df35e9d98e0dbbdc4a141b05d4b367d5129115d7ea11741bb8ee85dd7",
+   "taille": 1456782
   },
   "NV_MODULE_ChallengeUniverse.html": {
    "sha256": "be604be9fc5d465d93c5397309c1b3d5f34c166c18729c2a2174b3ddbb02b672",
@@ -1693,6 +1693,58 @@
   "films/yo/tresse.mp4": {
    "sha256": "87f567a2a77413b906c61a8051f4c199581cd5e8b8a73ab3d917cb87b7fde907",
    "taille": 1609636
+  },
+  "flammes3d/connexion.webm": {
+   "sha256": "1444c7cb75f8a4083a219777e11fb1639e83e94b7c69c1fc2192c60d57234943",
+   "taille": 166478
+  },
+  "flammes3d/connexion.webp": {
+   "sha256": "faf76ff03b99ef9700ec195dbbe2c4bbb8679984ccd3fd0d55cc8b1b64a9d767",
+   "taille": 19496
+  },
+  "flammes3d/flammes3d.json": {
+   "sha256": "67600cf17536617dbb4639f34ecaa2a13ee6e8b9a2ee738f7754f938979b0179",
+   "taille": 153
+  },
+  "flammes3d/legendaire.webm": {
+   "sha256": "e822520934b9e6dc640ccd697c9bcc2e0d8299c22ef3be951a22ed41d32e9fbc",
+   "taille": 128366
+  },
+  "flammes3d/legendaire.webp": {
+   "sha256": "04aff7ece2b1043155088c01cbe0366d77a0f1aac528a66d434610b5e964896e",
+   "taille": 18026
+  },
+  "flammes3d/musicale.webm": {
+   "sha256": "a865bb7b41118a44b876c28143331a5610e56fb2cc49d46f099165619c82d99c",
+   "taille": 164207
+  },
+  "flammes3d/musicale.webp": {
+   "sha256": "9bdae372a1c6573cdf1f260728bb4235f0095593de6823cd53f98c8684afda06",
+   "taille": 17406
+  },
+  "flammes3d/naissance.webm": {
+   "sha256": "0765882d74c97b27519daef149825cecf81ef319ae10b609f13ffdf02617965c",
+   "taille": 118769
+  },
+  "flammes3d/naissance.webp": {
+   "sha256": "3581b09172f1a79f44ae02b8d46f5ff0cde34a558542157327300689797a3f82",
+   "taille": 16872
+  },
+  "flammes3d/nations.webm": {
+   "sha256": "aa5346953d8f0307cf82003a657ad510143bea3a720808af512b878b0ca047b1",
+   "taille": 157139
+  },
+  "flammes3d/nations.webp": {
+   "sha256": "ee9c8403dbae982088ec9535ca1cc2fa6a2836ff1053d91e094b35b107101358",
+   "taille": 18038
+  },
+  "flammes3d/protectrice.webm": {
+   "sha256": "65c9b0d19aab2bd50ea47c0abbdc6f41bc729a20b0f7a651276c86ffc62928d6",
+   "taille": 123694
+  },
+  "flammes3d/protectrice.webp": {
+   "sha256": "1269a1b0d7770b3000a456cae2f4a8bc57a85bac21e31302612bba69aa428c14",
+   "taille": 17664
   },
   "ia/LICENCE_MediaPipe_Apache-2.0.txt": {
    "sha256": "379dc9be621e253a565b178cfefb3b18976a56b6a10a9f7678f297cfed21f31a",
