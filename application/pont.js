@@ -71,4 +71,27 @@
     if(u){ try{ appel('nvOuvrirLien', {url:String(new URL(String(u), location.href))}); }catch(e){ /* rien */ } }
     return null;
   };
+
+  /* 5. (22 nov. 2026) Les alertes de l'application : l'application donne son jeton Firebase par
+        window.NVAppareilJeton(jeton, 'android'|'ios') ; la page l'enregistre au serveur avec la session ouverte, pour que
+        les appels de Palabre sonnent même NEURAVID fermé. Rien n'est envoyé sans session ni sans serveur. */
+  var APP = {jeton:null, plateforme:'android'};
+  function enregistrerAppareil(){
+    var api = String(window.NV_API_BASE || '').replace(/\/+$/, ''), tk = window.NV_TOKEN, u = window.NV_USER || {};
+    if(!APP.jeton || !/^https:\/\//.test(api) || !tk) return;
+    var cle = 'nv_appareil|' + (u.id || '') + '|' + api, deja = null;
+    try{ deja = JSON.parse(localStorage.getItem(cle) || 'null'); }catch(e){ deja = null; }
+    if(deja && deja.j === APP.jeton && Date.now() - deja.at < 86400000) return;
+    fetch(api + '/v1/notifications/appareil', {method:'POST', mode:'cors', headers:{'Content-Type':'application/json', Authorization:'Bearer ' + tk},
+      body:JSON.stringify({jeton:APP.jeton, plateforme:APP.plateforme})})
+      .then(function(r){ if(r.ok){ try{ localStorage.setItem(cle, JSON.stringify({j:APP.jeton, at:Date.now()})); }catch(e){ /* rien */ } } })
+      .catch(function(){ /* réessayé à la page suivante */ });
+  }
+  window.NVAppareilJeton = function(jeton, plateforme){
+    if(typeof jeton !== 'string' || jeton.length < 20 || jeton.length > 4096) return false;
+    APP.jeton = jeton; APP.plateforme = plateforme === 'ios' ? 'ios' : 'android';
+    if(document.readyState === 'complete') enregistrerAppareil(); else window.addEventListener('load', enregistrerAppareil);
+    return true;
+  };
+  appel('nvJetonAppareil', {}).then(function(r){ if(r && typeof r.jeton === 'string') window.NVAppareilJeton(r.jeton, r.plateforme); }).catch(function(){ /* application sans alertes */ });
 })();

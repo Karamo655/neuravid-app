@@ -11,8 +11,32 @@ self.addEventListener('install', function(){ self.skipWaiting(); });
 self.addEventListener('activate', function(e){ e.waitUntil(self.clients.claim()); });
 
 function propre(s, max){ return typeof s === 'string' ? s.replace(/[<>]/g, '').slice(0, max) : ''; }
+/* 22 nov. 2026 : un appel de Palabre qui sonne (NEURAVID fermé). Le serveur envoie {type:'appel_entrant', id, appel, cid, video, nom}
+   puis {type:'appel_fin', id} dès que l'appel est pris, refusé ou fini : l'alerte se ferme. Textes dans la langue du téléphone. */
+var APPEL_TXT = {
+  fr:['Appel vidéo entrant', 'Appel audio entrant', 'Répondre', 'Refuser'], en:['Incoming video call', 'Incoming voice call', 'Answer', 'Decline'],
+  es:['Videollamada entrante', 'Llamada de voz entrante', 'Responder', 'Rechazar'], pt:['Videochamada recebida', 'Chamada de voz recebida', 'Atender', 'Recusar'],
+  ar:['مكالمة فيديو واردة', 'مكالمة صوتية واردة', 'رد', 'رفض'], sw:['Simu ya video inaingia', 'Simu ya sauti inaingia', 'Jibu', 'Kataa'],
+  ha:['Kiran bidiyo mai shigowa', 'Kiran murya mai shigowa', 'Amsa', 'Ƙi'], yo:['Ìpè fídíò ń wọlé', 'Ìpè ohùn ń wọlé', 'Dáhùn', 'Kọ̀'],
+  wo:['Woote widewo buy dugg', 'Woote baat buy dugg', 'Tontu', 'Bañ'], bm:['Wideyo weleli bɛ na', 'Kumakan weleli bɛ na', 'Jaabi', 'Ban'],
+  ln:['Libiangi ya vidéo ezali koya', 'Libiangi ya mongongo ezali koya', 'Kozongisa', 'Koboya']
+};
+function langueAppel(){ var l = String((self.navigator && self.navigator.language) || 'fr').slice(0, 2).toLowerCase(); return APPEL_TXT[l] ? l : 'fr'; }
+function idSur(x){ return typeof x === 'string' && /^[\w-]{3,80}$/.test(x) ? x : ''; }
+function alerteAppel(d){
+  var aid = idSur(d.appel); if(!aid) return Promise.resolve();
+  var t = APPEL_TXT[langueAppel()], tag = 'nv-appel-' + aid;
+  if(d.type === 'appel_fin') return self.registration.getNotifications({tag:tag}).then(function(l){ l.forEach(function(n){ n.close(); }); });
+  return self.registration.showNotification(propre(d.nom, 80) || 'NEURAVID', {
+    body:d.video === true ? t[0] : t[1], tag:tag, renotify:true, requireInteraction:true, silent:false,
+    vibrate:[600, 300, 600, 300, 600, 300, 600], icon:/^https:\/\//.test(d.photo || '') ? d.photo : undefined,
+    actions:[{action:'repondre', title:t[2]}, {action:'refuser', title:t[3]}],
+    data:{appel:aid, cid:idSur(d.cid)}, timestamp:typeof d.at === 'number' ? d.at : Date.now()
+  });
+}
 self.addEventListener('push', function(e){
   var d = {}; try{ d = e.data ? e.data.json() : {}; }catch(x){ d = {}; }
+  if(d.type === 'appel_entrant' || d.type === 'appel_fin'){ e.waitUntil(alerteAppel(d)); return; }
   var titre = propre(d.titre, 80), texte = propre(d.texte, 240), id = propre(d.id, 80);
   /* un push doit toujours montrer quelque chose (sinon le navigateur affiche son propre message, puis retire l'abonnement) :
      le serveur n'envoie jamais de push vide ; s'il le faisait, on montre seulement « NEURAVID », sans rien inventer */
@@ -24,9 +48,19 @@ self.addEventListener('push', function(e){
     data:{id:id}, timestamp:typeof d.at === 'number' ? d.at : Date.now()
   })]));
 });
+var PALABRE = 'NV_MODULE_CallUniverse.html';
 self.addEventListener('notificationclick', function(e){
   e.notification.close();
-  var id = e.notification.data && e.notification.data.id, url = new URL(PAGE + (id ? '#id=' + encodeURIComponent(id) : ''), self.registration.scope).href;
+  var dn = e.notification.data || {};
+  if(dn.appel){
+    var refuser = e.action === 'refuser', page = new URL(PALABRE + '#appel=' + encodeURIComponent(dn.appel) + (refuser ? '&refuser=1' : ''), self.registration.scope).href;
+    e.waitUntil(self.clients.matchAll({type:'window', includeUncontrolled:true}).then(function(l){
+      for(var i = 0; i < l.length; i++){ if(l[i].url.indexOf(PALABRE) >= 0 && 'focus' in l[i]){ l[i].postMessage({type:'nv_appel', aid:dn.appel, refuser:refuser}); return l[i].focus(); } }
+      return self.clients.openWindow(page);
+    }));
+    return;
+  }
+  var id = dn.id, url = new URL(PAGE + (id ? '#id=' + encodeURIComponent(id) : ''), self.registration.scope).href;
   e.waitUntil(self.clients.matchAll({type:'window', includeUncontrolled:true}).then(function(l){
     for(var i = 0; i < l.length; i++){ if(l[i].url.indexOf(PAGE) >= 0 && 'focus' in l[i]){ l[i].postMessage({type:'tamtam_ouvrir', id:id}); return l[i].focus(); } }
     return self.clients.openWindow(url);

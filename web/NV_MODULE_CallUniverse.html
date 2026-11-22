@@ -2867,7 +2867,7 @@ function ouvrir(id, ctx){
 }
 
 /* ════════ Ce que le serveur sait faire (GET /v1/palabre/capacites) : rien n'est promis avant ════════ */
-var CAP = {ws:false, sfu:false, maxAppel:4, traduction:false, transcription:false, apercuLiens:false, recherche:false, ville:false, pro:false, flammes:false, serie:false, lieuDirect:false, programme:false, vivante:false, lucioles:false, chaines:false, marche:false, bilan:false, dispo:false, calme:false, carte:false};
+var CAP = {ws:false, sfu:false, maxAppel:4, traduction:false, transcription:false, apercuLiens:false, recherche:false, ville:false, pro:false, flammes:false, serie:false, lieuDirect:false, programme:false, vivante:false, lucioles:false, chaines:false, marche:false, bilan:false, dispo:false, calme:false, carte:false, appelsEntrants:false};
 var CAP_DEFAUT = Object.assign({}, CAP);
 function fusionCapacites(o){ if(!o || typeof o !== 'object') return; Object.keys(CAP).forEach(function(k){ if(typeof CAP[k] === 'boolean' && typeof o[k] === 'boolean') CAP[k] = o[k]; if(typeof CAP[k] === 'number' && typeof o[k] === 'number' && o[k] >= 2 && o[k] <= 1000) CAP[k] = o[k]; }); }
 
@@ -6177,6 +6177,7 @@ function demarrerDonnees(){
     if(g !== GEN.n) return;
     rendreBas(); rendreTete(); chargerConversations(demarrerTempsReel); chargerFlammes(); chargerAppels(); chargerReglages(); chargerPro(); identite(); suivreDirect(); envoyerFile();
     contexteEntrant();
+    sonneriesEnAttente();
   });
 }
 /* voir quelqu'un : L'Empreinte (id Profile), avec {auteur:{id, handle}} ; mon propre profil : sans contexte */
@@ -7262,6 +7263,48 @@ function statutExtra(a){
   if(a.dispo && new Date(a.dispo) > Date.now()) h += (h ? '<span class="sep" aria-hidden="true"> · </span>' : '') + '<span class="dispo-s">' + phrase('dispo vers {0}', '<span data-brut>' + esc(heureCourte(a.dispo)) + '</span>') + '</span>';
   return h;
 }
+/* ════════ 22 nov. 2026 : l'appel sonne même quand Palabre n'était pas ouvert ════════
+   Le serveur envoie une alerte au téléphone (web ou application). Quand Palabre s'ouvre par cette alerte, ou revient au
+   premier plan, la page demande les appels qui sonnent encore (/v1/palabre/appels/entrants) et fait sonner l'écran d'appel.
+   L'adresse peut porter #appel=<id> (et &refuser=1 : « Refuser » touché dans l'alerte). */
+var SONNERIE = {t:0, enCours:false};
+function lireAppelAdresse(){
+  var h = String(location.hash || ''), m = /[#&]appel=([\w-]{3,80})/.exec(h);
+  if(!m) return null;
+  var o = {aid:m[1], refuser:/[#&]refuser=1\b/.test(h)};
+  try{ history.replaceState(null, '', location.pathname + location.search); }catch(e){ dbg(e); }
+  return o;
+}
+var APPEL_ADRESSE = lireAppelAdresse();
+function sonneriesEnAttente(){
+  if(!api() || !connecte() || !CAP.appelsEntrants || !estMajeur() || SONNERIE.enCours) return;
+  if(Date.now() - SONNERIE.t < 1500) return;
+  SONNERIE.t = Date.now(); SONNERIE.enCours = true;
+  var voulu = APPEL_ADRESSE; APPEL_ADRESSE = null;
+  if(voulu && voulu.refuser){
+    envoyerJSON('POST', '/v1/palabre/appels/' + encodeURIComponent(voulu.aid) + '/refuser', {raison:'indisponible'}).catch(dbg).then(function(){ SONNERIE.enCours = false; });
+    return;
+  }
+  lireJSON('/v1/palabre/appels/entrants').then(function(d){
+    SONNERIE.enCours = false;
+    var l = d && Array.isArray(d.items) ? d.items : [];
+    if(!l.length || APPEL.actif) return;
+    var e = voulu ? (l.filter(function(x){ return x && x.aid === voulu.aid; })[0] || l[0]) : l[0];
+    if(!e || e.sous !== 'invitation') return;
+    signalAppel(e);
+    var reste = typeof e.resteMs === 'number' ? e.resteMs : 0;
+    if(APPEL.actif && APPEL.id === e.aid && reste > 0){
+      var j = APPEL.jeton; clearTimeout(APPEL.tSonne);
+      APPEL.tSonne = setTimeout(function(){ if(encoreLa(j) && APPEL.etat === 'entrant') finirAppel('manque', true); }, Math.max(4000, reste - 1500));
+    }
+  }).catch(function(e){ SONNERIE.enCours = false; dbg(e); });
+}
+document.addEventListener('visibilitychange', function(){ if(!document.hidden) sonneriesEnAttente(); });
+/* le service de notifications (sw-tamtam.js) prévient une page de Palabre déjà ouverte qu'on a touché l'alerte */
+if(navigator.serviceWorker) navigator.serviceWorker.addEventListener('message', function(ev){
+  var m = ev.data || {};
+  if(m.type === 'nv_appel' && typeof m.aid === 'string'){ APPEL_ADRESSE = {aid:m.aid, refuser:m.refuser === true}; SONNERIE.t = 0; sonneriesEnAttente(); }
+});
 
 /* ════════════════════════════════════════════════════════════════════
  PALABRE EN ONZE LANGUES : FR · EN · ES · PT · AR (de droite à gauche) · SW · HA · YO · WO · BM · LN
