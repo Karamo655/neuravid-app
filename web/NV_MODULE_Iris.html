@@ -974,7 +974,7 @@ body.calme *,body.calme *::before,body.calme *::after{animation-duration:.01ms!i
   <div class="poignee"><i></i></div>
   <h3>HVS · Score de valeur humaine</h3>
   <div class="corps">
-    <p>Le HVS mesure la valeur humaine d'une vidéo : chaque geste compte, et les gestes qui demandent le plus d'effort pèsent le plus.</p>
+    <p>Le HVS mesure la valeur humaine. Pour une vidéo, il mesure sa créativité, calculée par NEURAVID de la même façon pour tout le monde.</p>
     <div class="total"><div><small>HVS de cette vidéo</small><strong id="hvsTotal">0</strong></div><div><small>Vues</small><strong id="hvsVues">0</strong></div></div>
     <p class="hvs-source" id="hvsSource"></p>
     <div id="hvsServeur" aria-live="polite"></div>
@@ -3434,9 +3434,23 @@ function poserHvs(v, d){
   var x = null; for(var k = 0; k < CLES_HVS.length; k++){ if(typeof d[CLES_HVS[k]] === 'number' && isFinite(d[CLES_HVS[k]])){ x = d[CLES_HVS[k]]; break; } }
   if(x == null && d.stats && typeof d.stats === 'object') for(var j = 0; j < CLES_HVS.length; j++){ if(typeof d.stats[CLES_HVS[j]] === 'number'){ x = d.stats[CLES_HVS[j]]; break; } }
   if(x == null) return false;
-  etatClip(v).hv = Math.max(0, x); v.hvs = etatClip(v).hv; if(st.vue[st.i] === v) majScores(); return true;
+  etatClip(v).hv = Math.max(0, x); v.hvs = etatClip(v).hv; lireVersionHvs(v, d); if(st.vue[st.i] === v) majScores(); return true;
 }
 /* relire la fiche d'une vidéo (une fois à l'arrivée si le fil ne donnait pas le HVS ; puis après chaque geste, regroupés) */
+/* 22 nov. 2026 (décision de Karamo, option A) : pour une vidéo, le HVS 2.0 = sa Créativité × 100 (60 % originalité,
+   40 % regardée jusqu'au bout). Le serveur l'annonce par hvsVersion / hvsDimension / hvsProvisoire ; le panneau le dit. */
+function lireVersionHvs(v, d){
+  if(!v || !d) return; var c = etatClip(v);
+  if(typeof d.hvsVersion === 'string') c.hvsVersion = d.hvsVersion.slice(0, 20);
+  if(typeof d.hvsDimension === 'string') c.hvsDimension = d.hvsDimension.slice(0, 30);
+  if(typeof d.hvsProvisoire === 'boolean') c.hvsProvisoire = d.hvsProvisoire;
+}
+function texteHvsVideo(v){
+  var c = etatClip(v), ver = c.hvsVersion || (c.hvsSrv && c.hvsSrv.version) || '';
+  var creat = !c.hvsDimension || /^cr[ée]ativit[ée]|^creativity/i.test(c.hvsDimension);
+  var t1 = creat ? '' : t('Score officiel de NEURAVID.');
+  return t1 + (ver ? (t1 ? ' ' : '') + t('Formule {0}').replace('{0}', ver) + (c.hvsProvisoire !== false ? ', ' + t('provisoire') : '') + '.' : '');
+}
 var HVS_LU = {}, HVS_T = {};
 function relireHvs(v, apresGeste){
   if(!v || v.local || v.demo || v.type === 'direct' || !api()) return;
@@ -3462,7 +3476,7 @@ function majScores(){
   var v = st.vue[st.i];
   $('titre').querySelector('.scores').style.visibility = v && !v.demo ? 'visible' : 'hidden';
   if(!v || v.demo) return;
-  var hv = valeurHvs(v); $('valHvs').textContent = hv == null ? '—' : fmtScore(hv);
+  var hv = valeurHvs(v); if(hv != null && !etatClip(v).hvsVersion) lireVersionHvs(v, v); $('valHvs').textContent = hv == null ? '—' : fmtScore(hv);
   var vv = valeurVues(v); $('valVues').textContent = vv == null ? '—' : fmtScore(vv);
   $('scoreHvs').classList.remove('estime');
   $('scoreHvs').setAttribute('aria-label', t('HVS, score de valeur humaine de la vidéo') + (hv == null ? ', ' + t('en attente du serveur') : ''));
@@ -3489,7 +3503,7 @@ function dimensionOfficielle(v){ var s = etatClip(v).hvsSrv; if(!s || !s.dims) r
 function rendreHvsServeur(v){
   var box = $('hvsServeur'), s = etatClip(v).hvsSrv, off = dimensionOfficielle(v), est = off == null && etatClip(v).hv == null;
   var hvx = valeurHvs(v); $('hvsTotal').textContent = hvx == null ? '—' : fmtScore(hvx);
-  $('hvsSource').textContent = hvx != null ? t('Score officiel de NEURAVID, le même pour tout le monde.') + (s && s.version || HVSSRV.version ? ' ' + t('Formule {0}.').replace('{0}', (s && s.version) || HVSSRV.version) : '') : t('Le score officiel arrive du serveur NEURAVID.');
+  $('hvsSource').textContent = hvx != null ? t('Le même pour tout le monde.') + ' ' + texteHvsVideo(v) : t('Le score officiel arrive du serveur NEURAVID.');
   if(!s){ box.innerHTML = ''; return; }
   if(s.refus){ box.innerHTML = '<p>' + esc(t('Le score officiel détaillé n\'est visible que par l\'auteur de la vidéo.')) + '</p>'; return; }
   box.innerHTML = '<h4>' + esc(t('Score officiel de cette vidéo')) + '</h4><dl>' + Object.keys(NOMS_DIM).filter(function(k){ return s.dims[k] && s.dims[k].composantes && !(s.dims[k].valeur == null && (s.dims[k].composantes[0] || {}).code === 'non_applicable'); }).map(function(k){
@@ -3507,11 +3521,7 @@ function gagnerHvs(v, geste, signe){
   relireHvs(v, true);
   if(v === st.vue[st.i]){
     majScores();
-    if(pts > 0){
-      var el = $('scoreHvs'); el.classList.remove('monte'); void el.offsetWidth; el.classList.add('monte');
-      var g = document.createElement('span'); g.className = 'gainHvs'; g.textContent = '+' + pts; el.appendChild(g);
-      setTimeout(function(){ g.remove(); }, 1300);
-    }
+    /* 22 nov. 2026 (option A) : plus de « +5 » affiché : un j'aime ne change pas la créativité d'une vidéo */
   }
   emit('hvs_local_gain', {clip:v.id, add:pts, geste:geste});
 }
@@ -3521,7 +3531,8 @@ function ouvrirHvs(){
   var h0 = valeurHvs(v), v0 = valeurVues(v); $('hvsTotal').textContent = h0 == null ? '—' : fmtScore(h0); $('hvsVues').textContent = v0 == null ? '—' : fmtScore(v0);
   rendreHvsServeur(v);
   if(HVSSRV.ok) scoreHvsServeur(v).then(function(){ if(st.vue[st.i] === v){ rendreHvsServeur(v); majScores(); } });
-  $('hvsPoids').innerHTML = LIB_HVS.map(function(x){ return '<li><i>' + x[1] + '</i>' + esc(x[2]) + '<b>+' + Math.round(W_HVS[x[0]] * 10) + '</b></li>'; }).join('');
+  /* 22 nov. 2026 (option A) : la vraie composition du HVS d'une vidéo, pas des points par geste */
+  $('hvsPoids').innerHTML = [['🎨', 'Originalité', '60 %'], ['⏱️', 'Regardée jusqu\'au bout', '40 %']].map(function(x){ return '<li><i>' + x[0] + '</i>' + esc(t(x[1])) + '<b>' + x[2] + '</b></li>'; }).join('');
   ouvrirPan('panHvs');
   emit('hvs_explain', {clip:v.id});
 }
