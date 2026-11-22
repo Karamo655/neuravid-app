@@ -2154,6 +2154,8 @@ var CSS_VISAGES = '' +
 '@keyframes nvrBat{0%{transform:scale(1)}35%{transform:scale(1.35)}70%{transform:scale(.92)}100%{transform:scale(1)}}' +
 '#nvr-liste ul.rep{margin:8px 0 0;padding:0 0 0 12px;list-style:none;border-left:2px solid;border-image:linear-gradient(#7c3aed,#ec4899,transparent) 1}' +
 '#nvr-liste ul.rep li{border-bottom:0;padding:8px 0}' +
+'#nvr-liste li.surligne > .c > p,#nvr-liste li.surligne > .c > .nvr-vocal,#nvr-liste li.surligne > .c > .nvr-vid,#nvr-liste li.surligne > .c > .nvr-sticker{box-shadow:0 0 0 2px #ec4899,0 0 22px rgba(236,72,153,.55);transition:box-shadow .3s}' +
+'#nvr-liste li.surligne{background:linear-gradient(90deg,rgba(236,72,153,.16),transparent);border-radius:14px}' +
 '@media (prefers-reduced-motion:reduce){#nvr-liste li,#nvr-liste .aimeC.on svg{animation:none}}';
 var monte = false;
 function monter(){
@@ -2629,6 +2631,18 @@ function rendreListe(l){
     return itemC(c, top, proprio, false).replace('%REP%', h);
   }).join('');
   vignettesC(vis);
+  surlignerC(vis);
+}
+/* 22 nov. 2026 : ouvert depuis le Tam-tam (« Afaq Ahmad a commenté votre vidéo ») : son commentaire est montré et
+   éclairé quelques secondes ; une réponse repliée est dépliée. Une seule fois par ouverture. */
+function surlignerC(vis){
+  var o = ouvert, id = o && o.opts && o.opts.surligner; if(!id) return;
+  var c = vis.filter(function(x){ return String(x.id) === String(id); })[0]; if(!c) return;
+  if(c.parent && !deplies[c.parent]){ deplies[c.parent] = true; o.opts.surligner = id; setTimeout(function(){ rendreListe(); }, 0); return; }
+  o.opts.surligner = null;
+  setTimeout(function(){ var li = document.querySelector('#nvr-liste li[data-cid="' + String(id).replace(/["\\]/g, '') + '"]'); if(!li) return;
+    try{ li.scrollIntoView({block:'center', behavior:'smooth'}); }catch(e){ li.scrollIntoView(); }
+    li.classList.add('surligne'); setTimeout(function(){ li.classList.remove('surligne'); }, 3200); emit('comment_highlight', {comment:id}); }, 60);
 }
 function charger(){
   var o = ouvert; if(!o) return; var c = o.clip;
