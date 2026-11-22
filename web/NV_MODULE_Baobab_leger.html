@@ -2347,6 +2347,20 @@ function auteurNom(c){ var a = auteurObj(c), n = c.authorName || c.auteurNom || 
 function photoSureC(u){ return typeof u === 'string' && /^https:\/\/[^\s"'<>()\\]+$/.test(u) && u.length < 600 ? u : ''; }
 function auteurPhoto(c){ var a = auteurObj(c); return photoSureC(c.avatar || c.authorAvatar || c.author_avatar || c.photo || c.auteurPhoto || (a && (a.photo || a.avatar || a.image)) || ''); }
 function auteurTexte(c){ var a = auteurObj(c); if(a) return '@' + String(a.handle || a.id || 'membre').replace(/^@+/, ''); return c.author || c.auteur || 'Un membre'; }
+/* 22 nov. 2026 : les phrases des visages dans les 11 langues (jamais traduites par la page : data-brut) */
+var NVR_VISAGES = {
+  fr:['Membre NEURAVID', 'Voir le profil de {0}', 'Compte vérifié'],
+  en:['NEURAVID member', 'See {0}\'s profile', 'Verified account'],
+  es:['Miembro de NEURAVID', 'Ver el perfil de {0}', 'Cuenta verificada'],
+  pt:['Membro do NEURAVID', 'Ver o perfil de {0}', 'Conta verificada'],
+  ar:['عضو في NEURAVID', 'عرض الملف الشخصي لـ {0}', 'حساب موثّق'],
+  sw:['Mwanachama wa NEURAVID', 'Tazama wasifu wa {0}', 'Akaunti iliyothibitishwa'],
+  ha:['Memba na NEURAVID', 'Duba bayanan {0}', 'Asusun da aka tabbatar'],
+  yo:['Ọmọ ẹgbẹ́ NEURAVID', 'Wo àkọsílẹ̀ {0}', 'Àkọọ́lẹ̀ tí a ti fìdí rẹ̀ múlẹ̀'],
+  wo:['Bokk NEURAVID', 'Xool profil bu {0}', 'Kont bu ñu wóor'],
+  bm:['NEURAVID tɔndenba', '{0} ka porofili lajɛ', 'Jatebɔsɛbɛn sɛmɛntiyalen'],
+  ln:['Mosangani ya NEURAVID', 'Tala profil ya {0}', 'Compte endimami']};
+function visTxt(i, x){ var d = NVR_VISAGES[langueUI()] || NVR_VISAGES.fr; return String(d[i]).replace('{0}', x == null ? '' : x); }
 var VIGN = {d:{}, lu:{}, t:0, cap:null};
 function moiUser(){ return R.NV_USER || {}; }
 function nomMoi(){ var u = moiUser(), n = [u.prenom, u.nom].filter(Boolean).join(' ').trim(); if(u.prenom && u.nom && String(u.nom).indexOf(u.prenom) === 0) n = String(u.nom); return n || (u.handle && !estIdTech(u.handle) ? '@' + String(u.handle).replace(/^@/, '') : ''); }
@@ -2354,7 +2368,7 @@ function estDeMoi(c){ var u = moiUser(); return !!(c.mine || (u.id && c.authorId
 function nomC(c){
   if(estDeMoi(c)){ var m = nomMoi(); if(m) return m; }
   var v = c.authorId && VIGN.d[c.authorId];
-  return c.authorName || (v && v.nom) || (c.authorHandle ? '@' + c.authorHandle : '') || (v && v.handle ? '@' + v.handle : '') || 'Membre NEURAVID';
+  return c.authorName || (v && v.nom) || (c.authorHandle ? '@' + c.authorHandle : '') || (v && v.handle ? '@' + v.handle : '') || visTxt(0);
 }
 function handleC(c){ var v = c.authorId && VIGN.d[c.authorId], h = c.authorHandle || (v && v.handle) || (estDeMoi(c) && moiUser().handle && !estIdTech(moiUser().handle) ? String(moiUser().handle).replace(/^@/, '') : ''); return h && nomC(c) !== '@' + h ? '@' + h : ''; }
 function photoC(c){ var v = c.authorId && VIGN.d[c.authorId]; return c.avatar || (v && v.photo) || (estDeMoi(c) ? photoSureC(moiUser().photo || moiUser().avatar) : '') || ''; }
@@ -2362,7 +2376,7 @@ function photoC(c){ var v = c.authorId && VIGN.d[c.authorId]; return c.avatar ||
 function teinteC(c){ var s = String(c.authorId || c.author || ''), h = 0; for(var k = 0; k < s.length; k++) h = (h * 31 + s.charCodeAt(k)) >>> 0; return h % 360; }
 function avatarC(c, petit){
   var u = photoC(c), ini = (nomC(c).replace(/^@/, '').trim()[0] || 'N').toUpperCase(), hue = teinteC(c);
-  return '<span class="av' + (u ? ' photo' : '') + (petit ? ' petit' : '') + '" style="--h:' + hue + '" data-profc="' + esc(c.id) + '" role="button" tabindex="0" aria-label="' + esc('Voir le profil de ' + nomC(c)) + '"><span class="ini">' + esc(ini) + '</span>' +
+  return '<span class="av' + (u ? ' photo' : '') + (petit ? ' petit' : '') + '" style="--h:' + hue + '" data-profc="' + esc(c.id) + '" role="button" tabindex="0" aria-label="' + esc(visTxt(1, nomC(c))) + '" data-brut><span class="ini">' + esc(ini) + '</span>' +
     (u ? '<img alt="" loading="lazy" decoding="async" src="' + esc(u) + '" onerror="this.remove();this.parentNode&&this.parentNode.classList.remove(\'photo\')">' : '') + '</span>';
 }
 function vignettesC(l){
@@ -2472,7 +2486,7 @@ function itemC(c, topId, proprio, estRep){
   if(c.auto && !c.voir) return '<li data-cid="' + esc(c.id) + '"><span class="av">!</span><div class="c"><div class="auto">🛡️ Masqué automatiquement : propos blessants<button data-voir="' + esc(c.id) + '">Voir</button></div>' +
     '<div class="outils">' + (!c.mine ? '<button data-signaler="' + esc(c.id) + '">⚠️ Signaler</button>' : '') + '<button class="plusb" data-menu="' + esc(c.id) + '" aria-label="Plus d\'actions">⋯</button></div>%REP%</div></li>';
   var hc = handleC(c);
-  return '<li class="' + (c.pinned && !estRep ? 'epingle' : '') + (c.hidden ? ' masque' : '') + (c.id === topId ? ' top' : '') + (c.byOwner ? ' de-auteur' : '') + '" data-cid="' + esc(c.id) + '">' + avatarC(c, estRep) + '<div class="c"><b class="qui"><bdi class="nom" dir="auto" data-profc="' + esc(c.id) + '">' + esc(nomC(c)) + '</bdi>' + (c.verifie ? '<span class="verif" aria-label="Compte vérifié">✔</span>' : '') + badges + '<small>' + (hc ? '<bdi dir="ltr">' + esc(hc) + '</bdi> · ' : '') + ilya(c.at) + '</small></b>' +
+  return '<li class="' + (c.pinned && !estRep ? 'epingle' : '') + (c.hidden ? ' masque' : '') + (c.id === topId ? ' top' : '') + (c.byOwner ? ' de-auteur' : '') + '" data-cid="' + esc(c.id) + '">' + avatarC(c, estRep) + '<div class="c"><b class="qui"><bdi class="nom" dir="auto" data-brut data-profc="' + esc(c.id) + '">' + esc(nomC(c)) + '</bdi>' + (c.verifie ? '<span class="verif" data-brut aria-label="' + esc(visTxt(2)) + '">✔</span>' : '') + badges + '<small>' + (hc ? '<bdi dir="ltr">' + esc(hc) + '</bdi> · ' : '') + ilya(c.at) + '</small></b>' +
     corpsC(c) + reacs + (c.authorLiked ? '<span class="aime-auteur">❤️ Aimé par l\'auteur</span>' : '') + etiquetteMasque(c, proprio) + outils + '%REP%</div>' +
     '<button class="aimeC' + (c.liked ? ' on' : '') + '" data-aimec="' + esc(c.id) + '" aria-label="Aimer ce commentaire">' + svg('coeur') + '<span>' + (c.likes > 0 ? fmt(c.likes) : '') + '</span></button></li>';
 }
