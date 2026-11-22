@@ -2980,7 +2980,11 @@ function chargerConversations(suite){
   lireJSON('/v1/palabre/conversations?' + qs({n:100})).then(function(d){
     if(compte0 !== compteActuel()) return;
     st.convs = {}; (d && Array.isArray(d.items) ? d.items : []).map(normConv).filter(Boolean).forEach(function(c){ st.convs[c.id] = c; memoireE2E(c); });
-    st.demandes = nbS(d && d.demandes) || 0; st.curseur = d && typeof d.curseur === 'string' ? d.curseur : null;
+    /* 22 nov. 2026 : le serveur rend les demandes à part, en LISTE de discussions (avant, la page attendait un nombre : la personne
+       qui recevait le message d'un inconnu ne le voyait jamais). Les deux formes sont lues. */
+    if(d && Array.isArray(d.demandes)){ d.demandes.map(normConv).filter(Boolean).forEach(function(c){ c.demande = true; st.convs[c.id] = c; memoireE2E(c); }); st.demandes = d.demandes.length; }
+    else st.demandes = nbS(d && d.demandes) || 0;
+    st.curseur = d && typeof d.curseur === 'string' ? d.curseur : null;
     if(d && typeof d.seq === 'number' && d.seq > st.seq) st.seq = d.seq;
     st.charge = false; st.erreur = null; trierConvs(); rendreListe(); garderCache();
     dechiffrerApercus();
@@ -2990,6 +2994,11 @@ function chargerConversations(suite){
   }).catch(function(e){ dbg(e); if(compte0 !== compteActuel()) return; st.charge = false; st.erreur = e; rendreListe(); if(suite) suite(); });
 }
 /* une discussion déjà chiffrée qui ne l'est plus : Palabre le signale et demande l'accord avant d'envoyer en clair */
+function appliquerConv(c){
+  if(!c) return;
+  memoireE2E(c); var anc = st.convs[c.id], avant = anc ? anc.demande : null; st.convs[c.id] = Object.assign(anc || {}, c); trierConvs(); rendreListe();
+  if(st.cur === c.id){ rendreEntete(); if(avant !== null && avant !== c.demande) rendreCompo(); }   /* la saisie en cours n'est jamais effacée */
+}
 function memoireE2E(c){
   if(c.type !== 'direct') return;
   var k = cleCompte('nv_pa_e2e_vus'), l = lire(k, []); if(!Array.isArray(l)) l = [];
@@ -3083,7 +3092,12 @@ function appliquerEvenement(e){
   switch(e.type){
     case 'message': var m = normMessage(e.message); if(!m) return; recevoirMessage(m); return;
     case 'maj_message': var mm = normMessage(e.message); if(mm) majMessage(mm); return;
-    case 'conversation': var c = normConv(e.conversation); if(c){ memoireE2E(c); var anc = st.convs[c.id]; st.convs[c.id] = Object.assign(anc || {}, c); trierConvs(); rendreListe(); if(st.cur === c.id) rendreEntete(); } return;
+    case 'conversation':
+      /* 22 nov. 2026 : un serveur d'avant n'envoyait que l'identifiant ; la discussion devenait une coquille (nom « — »,
+         chiffrement perdu). Sans le détail, on relit la discussion complète au lieu de l'écraser. */
+      var ec = e.conversation;
+      if(ec && ec.id != null && !ec.type){ lireJSON('/v1/palabre/conversations/' + encodeURIComponent(ec.id)).then(function(d){ appliquerConv(normConv(d && d.conversation || d)); }).catch(dbg); return; }
+      appliquerConv(normConv(ec)); return;
     case 'conversation_quittee': delete st.convs[txt(e.cid, 80)]; trierConvs(); if(st.cur === e.cid) fermerConversation(); rendreListe(); return;
     case 'lecture': lectureRecue(txt(e.cid, 80), txt(e.de, 60), txt(e.jusqua, 80)); return;
     case 'ecrit': if(e.de !== compteActuel()){ var k = txt(e.cid, 80); st.ecrit[k] = st.ecrit[k] || {}; st.ecrit[k][txt(e.de, 60)] = Date.now(); majEcrit(k); } return;
@@ -3484,6 +3498,7 @@ function rendreListe(){
   h += bandeFlammes();
   h += harmattanHTML();
   h += '<div class="filtres" role="group" aria-label="Trier les discussions">' + filtresVisibles().map(function(f){ return '<button data-filtre="' + f.k + '" aria-pressed="' + (st.filtre === f.k) + '">' + esc(f.n) + '</button>'; }).join('') + '</div>';
+  var nDem = Object.keys(st.convs).filter(function(k){ return st.convs[k].demande; }).length; if(nDem) st.demandes = nDem;   /* une demande arrivée en direct compte aussi */
   if(st.demandes && !st.q) h += '<button class="demandes" data-act="demandes">' + ico('ajouter') + '<span>' + esc(st.demandes === 1 ? '1 demande de discussion' : '{0} demandes de discussion'.replace('{0}', fmt(st.demandes))) + '</span></button>';
   var l = convsVisibles();
   if(st.charge && !l.length) h += '<ul class="convs">' + [1, 2, 3, 4, 5].map(function(){ return '<li><div class="conv squelette"><span class="vis" style="--t:52px"><i class="ph"></i></span><span class="cc"><i></i><i></i></span></div></li>'; }).join('') + '</ul>';
@@ -4409,11 +4424,22 @@ function chercherPersonnes(){
       var p = personne({id:x.id != null ? x.id : a.id, nom:x.titre || x.nom || a.nom, handle:a.handle || x.handle, image:x.image || a.image, iso:a.iso || x.iso, verifie:x.verifie === true || a.verifie === true});
       if(p) p.inconnu = true; return p; }).filter(Boolean);
   }).catch(function(e){ if(e && e.name === 'AbortError') throw e; dbg(e); return []; }) : Promise.resolve([]);
-  Promise.all([contacts, monde]).then(function(r){
+  /* 22 nov. 2026 : tout le monde, même sans vidéo publiée, se trouve par son nom ou son @pseudo (annuaire de NEURAVID).
+     Les amis (on se suit l'un l'autre) et les personnes qui me suivent viennent d'abord, et ne sont jamais « inconnues ». */
+  var rels = {};
+  var gens = q.length >= 2 ? lireJSON('/v1/profil/personnes?' + qs({q:q, n:20}), sig).then(function(d){
+    return (d && Array.isArray(d.items) ? d.items : []).map(function(x){ var p = personne({id:x.id, nom:x.nom, handle:x.handle, image:x.photo || x.image, iso:x.iso, verifie:x.verifie === true});
+      if(p){ var r = x.relation || {}; rels[p.id] = r; p.inconnu = r.suitMoi !== true; } return p; }).filter(Boolean);
+  }).catch(function(e){ if(e && e.name === 'AbortError') throw e; dbg(e); return []; }) : Promise.resolve([]);
+  Promise.all([contacts, monde, gens]).then(function(r){
     if(NOUV.q.trim() !== q) return;
     var tous = locaux.slice(), deja = function(p){ return tous.some(function(x){ return x.id === p.id || (p.handle && x.handle && cle(x.handle) === cle(p.handle)); }); };
     r[0].forEach(function(p){ if(!deja(p)) tous.push(p); });
+    r[2].forEach(function(p){ if(!deja(p)) tous.push(p); });
     r[1].forEach(function(p){ if(!deja(p)) tous.push(p); });
+    /* une personne de la recherche du monde qui me suit (ou que l'annuaire connaît comme amie) n'est pas « inconnue » */
+    var dejaLocal = {}; locaux.forEach(function(p){ dejaLocal[p.id] = 1; });
+    tous.forEach(function(p){ var x = rels[p.id]; if(x && !dejaLocal[p.id]) p.inconnu = x.suitMoi !== true && (p.inconnu || p.mineur == null); });
     rendreNouv(tous, false);
   }).catch(function(e){ if(e && e.name === 'AbortError') return; dbg(e); rendreNouv(locaux, false); });
 }
