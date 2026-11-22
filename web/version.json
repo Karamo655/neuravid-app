@@ -1,6 +1,6 @@
 {
- "version": "2026.11.22-47ac39f7676d",
- "date": "2026-11-22T06:19:59Z",
+ "version": "2026.11.22-0653a9a840d9",
+ "date": "2026-11-22T07:12:08Z",
  "entree": "index.html",
  "modules": [
   "NV_MODULE_Academie.html",
@@ -171,12 +171,12 @@
    "taille": 1208404
   },
   "NV_MODULE_Live.html": {
-   "sha256": "f1b9781a1f99195deab04bf1dc1edd591c2f5e91e5b29e623b49ed9ea7e223e3",
-   "taille": 2662426
+   "sha256": "3993457147c786807757a4947dbdb30c88cbfc084ba215eead93392e8d35e780",
+   "taille": 2662641
   },
   "NV_MODULE_Live_leger.html": {
-   "sha256": "b940c0815b61e616ae1cfc0aa3d6f1f9f2cfac4c2a909140dde06371250f1a5f",
-   "taille": 2662438
+   "sha256": "83ebbe345de76b737f70452f3147d2012e5a70035cf344f320c60e6fb30c1ee0",
+   "taille": 2662653
   },
   "NV_MODULE_LoveUniverse.html": {
    "sha256": "db7201b1427c2f75244b248e20417baa56ec7c6c4b40b276c770b1ed6ec7b039",

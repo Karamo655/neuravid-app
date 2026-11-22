@@ -5074,8 +5074,8 @@ function regarder(id, depuis){
   fermerFeuille();
   var ok = NVLecteur.ouvrir({items:items, index:k, titre:'Le Direct', module:MOI, enchainer:false,
     signature:{ico:'👏', label:'Applaudir', labelFait:'Applaudir', fait:function(){ return false; }, action:function(it, b){ applaudir(it, b); }},
-    boutons:function(it){ var dd = directDe(it); return [{id:'ecrire', ico:'💬', label:'Écrire'}, dd && dd.mode === 'arene' && dd.arene && dd.arene.camps.length > 2 ? {id:'voter', ico:'🗳️', label:'Voter'} : null, {id:'partager', ico:'↗', label:'Partager'}].filter(Boolean); },
-    bouton:function(id, it){ if(id === 'ecrire') ouvrirEcrire(it); else if(id === 'partager') partagerDirect(directDe(it)); else if(id === 'voter') choisirCamp(directDe(it), 'voter'); },
+    boutons:function(it){ var dd = directDe(it); return [{id:'ecrire', ico:'💬', label:'Écrire'}, dd && dd.mode === 'arene' && dd.arene && dd.arene.camps.length > 2 ? {id:'voter', ico:'🗳️', label:'Voter'} : null, {id:'partager', ico:'↗', label:'Partager'}, dd && (dd.mode === 'table' || dd.tableOuverte) && !dd.moi && !estMoi(dd.hote) ? {id:'scene', ico:'🪑', label:'Scène'} : null].filter(Boolean); },
+    bouton:function(id, it){ if(id === 'ecrire') ouvrirEcrire(it); else if(id === 'partager') partagerDirect(directDe(it)); else if(id === 'voter') choisirCamp(directDe(it), 'voter'); else if(id === 'scene'){ var ds = directDe(it); if(ds) demanderScene(ds); } },
     cadeau:{peut:function(it){ var dd = directDe(it); return !!dd && !dd.moi && !dd.hote.mineur && !estMoi(dd.hote) && !spectateurMineur(); }, action:function(it){ offrir(directDe(it)); }},
     options:function(it){ return optionsDirect(directDe(it)); },
     calque:function(it, el){ var dd = directDe(it); if(dd) poserCalque(dd, el); },
@@ -9516,7 +9516,7 @@ function poserDico(d){
 }
 var MOTS_UI = null;
 function motUI(t){
-  if(!MOTS_UI){ MOTS_UI = {}; ['Partager', 'Cadeau', 'Fin', 'Applaudir', 'Écrire', 'Voter', 'Arène', 'Aperçu', 'Direct', 'Directs', 'Sondage', 'Pronostic', 'Tontine', 'Défi', 'Débat', 'Replay', 'Membre', 'Membres', 'Lumière', 'Nations', 'Poules', 'Finale', 'Qualifiée', 'Salle', 'Clip', 'Clips', 'Statistiques', 'Revoir', 'Vitrine', 'Masterclass'].concat(PORTES.map(function(p){ return p.nom; }), FILTRES.map(function(f){ return f.nom; }), JOURS).forEach(function(w){ MOTS_UI[w] = 1; }); }
+  if(!MOTS_UI){ MOTS_UI = {}; ['Partager', 'Cadeau', 'Fin', 'Applaudir', 'Écrire', 'Voter', 'Arène', 'Aperçu', 'Direct', 'Directs', 'Sondage', 'Pronostic', 'Tontine', 'Défi', 'Débat', 'Replay', 'Membre', 'Membres', 'Lumière', 'Nations', 'Poules', 'Finale', 'Qualifiée', 'Salle', 'Clip', 'Clips', 'Statistiques', 'Revoir', 'Vitrine', 'Masterclass', 'Scène'].concat(PORTES.map(function(p){ return p.nom; }), FILTRES.map(function(f){ return f.nom; }), JOURS).forEach(function(w){ MOTS_UI[w] = 1; }); }
   return !!(MOTS_UI[t] && I18N.exact && I18N.exact.has(t));
 }
 function trCapture(c, prof){
