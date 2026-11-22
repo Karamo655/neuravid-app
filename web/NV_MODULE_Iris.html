@@ -3402,10 +3402,36 @@ function nombreServeur(v, cles){
   for(var k = 0; k < cles.length; k++){ var x = v[cles[k]]; if(typeof x === 'number') return x; if(v.stats && typeof v.stats[cles[k]] === 'number') return v.stats[cles[k]]; }
   return null;
 }
+/* 22 nov. 2026 (Karamo : « exactement avec les vrais scores de valeur humaine ») : le HVS affiché est CELUI DU SERVEUR,
+   le même pour toutes les personnes qui regardent la vidéo. Plus aucune estimation propre à ce téléphone (« ≈ »).
+   Tant que le serveur n'a rien dit : « — ». Un geste fait ici montre seulement « +5 » (retour visuel), puis le serveur
+   est relu pour le vrai total. */
+var CLES_HVS = ['hvs', 'hv', 'humanValueScore', 'hvsTotal', 'hvs_total', 'scoreHvs'];
 function valeurHvs(v){
   var c = etatClip(v);
-  if(c.hv == null){ var s = nombreServeur(v, ['hv', 'hvs', 'humanValueScore']); if(s != null) c.hv = s; }
-  return c.hv != null ? c.hv : ((bilanHvs[v.id] || {}).h || 0);
+  if(c.hv == null){ var s = nombreServeur(v, CLES_HVS); if(s != null) c.hv = s; }
+  if(c.hv == null && c.hvsSrv && typeof c.hvsSrv.total === 'number') c.hv = c.hvsSrv.total;
+  return c.hv != null ? c.hv : null;
+}
+/* un total officiel reçu du serveur (fil, fiche de la vidéo, réponse à un geste) */
+function poserHvs(v, d){
+  if(!v || !d || typeof d !== 'object') return false;
+  var x = null; for(var k = 0; k < CLES_HVS.length; k++){ if(typeof d[CLES_HVS[k]] === 'number' && isFinite(d[CLES_HVS[k]])){ x = d[CLES_HVS[k]]; break; } }
+  if(x == null && d.stats && typeof d.stats === 'object') for(var j = 0; j < CLES_HVS.length; j++){ if(typeof d.stats[CLES_HVS[j]] === 'number'){ x = d.stats[CLES_HVS[j]]; break; } }
+  if(x == null) return false;
+  etatClip(v).hv = Math.max(0, x); v.hvs = etatClip(v).hv; if(st.vue[st.i] === v) majScores(); return true;
+}
+/* relire la fiche d'une vidéo (une fois à l'arrivée si le fil ne donnait pas le HVS ; puis après chaque geste, regroupés) */
+var HVS_LU = {}, HVS_T = {};
+function relireHvs(v, apresGeste){
+  if(!v || v.local || v.demo || v.type === 'direct' || !api()) return;
+  if(!apresGeste && (HVS_LU[v.id] || valeurHvs(v) != null)) return;
+  HVS_LU[v.id] = 1; clearTimeout(HVS_T[v.id]);
+  HVS_T[v.id] = setTimeout(function(){
+    fetch(api() + '/v1/clips/' + encodeURIComponent(v.id), {mode:'cors', headers:entetes()}).then(function(r){ return r.ok ? r.json() : null; })
+      .then(function(d){ var c = d && (d.clip || d); if(!c) return; poserHvs(v, c); var vu = nombreServeur(c, ['views', 'vues', 'viewCount', 'view_count', 'nbVues']); if(vu != null){ etatClip(v).views = vu; if(st.vue[st.i] === v) majScores(); } })
+      .catch(function(){});
+  }, apresGeste ? 1500 : 0);
 }
 /* 22 nov. 2026 (Karamo : « les vues ne sont pas réglées ») : les vues d'une vidéo publiée sont CELLES DU SERVEUR, les mêmes
    partout (Iris, L'Empreinte, les modules). Avant : sans chiffre du serveur, Iris montrait ce que CE téléphone avait vu (souvent 0).
@@ -3421,13 +3447,11 @@ function majScores(){
   var v = st.vue[st.i];
   $('titre').querySelector('.scores').style.visibility = v && !v.demo ? 'visible' : 'hidden';
   if(!v || v.demo) return;
-  $('valHvs').textContent = fmtScore(valeurHvs(v));
+  var hv = valeurHvs(v); $('valHvs').textContent = hv == null ? '—' : fmtScore(hv);
   var vv = valeurVues(v); $('valVues').textContent = vv == null ? '—' : fmtScore(vv);
-  /* le score officiel (s'il est connu pour cette vidéo), sinon l'estimation de ce téléphone, signalée par « ≈ » et dans l'étiquette */
-  var off = dimensionOfficielle(v), est = off == null && etatClip(v).hv == null;
-  if(off != null) $('valHvs').textContent = Math.round(off * 100) + ' %';
-  $('scoreHvs').classList.toggle('estime', est);
-  $('scoreHvs').setAttribute('aria-label', t('HVS, score de valeur humaine de la vidéo') + (est ? ', ' + t('estimation sur ce téléphone') : ''));
+  $('scoreHvs').classList.remove('estime');
+  $('scoreHvs').setAttribute('aria-label', t('HVS, score de valeur humaine de la vidéo') + (hv == null ? ', ' + t('en attente du serveur') : ''));
+  relireHvs(v, false);
 }
 /* le serveur du HVS 2.0 (GET /v1/hvs/capacites, sinon /v1/hvs/formule) : son score par contribution (vidéo) remplace l'estimation */
 var HVSSRV = {ok:false, version:null};
@@ -3441,7 +3465,7 @@ function scoreHvsServeur(v){
   var c = etatClip(v); if(c.hvsSrv !== undefined) return Promise.resolve(c.hvsSrv);
   return fetch(api() + '/v1/hvs/contributions/' + encodeURIComponent(v.id) + '/score', {mode:'cors', headers:entetes()}).then(function(r){
     if(r.ok) return r.json(); if(r.status === 401 || r.status === 403 || r.status === 404) return {refus:r.status}; throw r.status; })
-    .then(function(d){ c.hvsSrv = d && d.dimensions && typeof d.dimensions === 'object' ? {version:String(d.version || '').slice(0, 20), dims:d.dimensions} : {refus:(d && d.refus) || 404}; return c.hvsSrv; })
+    .then(function(d){ c.hvsSrv = d && d.dimensions && typeof d.dimensions === 'object' ? {version:String(d.version || '').slice(0, 20), dims:d.dimensions, total:typeof d.total === 'number' ? d.total : typeof d.hvs === 'number' ? d.hvs : null} : {refus:(d && d.refus) || 404}; if(c.hvsSrv.total != null && c.hv == null) c.hv = c.hvsSrv.total; return c.hvsSrv; })
     .catch(function(){ return null; });
 }
 var NOMS_DIM = {creativite:'Créativité', collaboration:'Collaboration', contribution_positive:'Contribution positive'};
@@ -3449,8 +3473,8 @@ function dimensionOfficielle(v){ var s = etatClip(v).hvsSrv; if(!s || !s.dims) r
   for(var k in NOMS_DIM){ var d = s.dims[k]; if(d && typeof d.valeur === 'number' && isFinite(d.valeur)) return Math.max(0, Math.min(1, d.valeur)); } return null; }
 function rendreHvsServeur(v){
   var box = $('hvsServeur'), s = etatClip(v).hvsSrv, off = dimensionOfficielle(v), est = off == null && etatClip(v).hv == null;
-  if(off != null) $('hvsTotal').textContent = Math.round(off * 100) + ' %';
-  $('hvsSource').textContent = off != null ? t('Score officiel de NEURAVID (formule {0}).').replace('{0}', s.version || HVSSRV.version || '—') : est ? t('Estimation sur ce téléphone, d\'après les gestes faits ici : ce n\'est pas le score officiel.') : '';
+  var hvx = valeurHvs(v); $('hvsTotal').textContent = hvx == null ? '—' : fmtScore(hvx);
+  $('hvsSource').textContent = hvx != null ? t('Score officiel de NEURAVID, le même pour tout le monde.') + (s && s.version || HVSSRV.version ? ' ' + t('Formule {0}.').replace('{0}', (s && s.version) || HVSSRV.version) : '') : t('Le score officiel arrive du serveur NEURAVID.');
   if(!s){ box.innerHTML = ''; return; }
   if(s.refus){ box.innerHTML = '<p>' + esc(t('Le score officiel détaillé n\'est visible que par l\'auteur de la vidéo.')) + '</p>'; return; }
   box.innerHTML = '<h4>' + esc(t('Score officiel de cette vidéo')) + '</h4><dl>' + Object.keys(NOMS_DIM).filter(function(k){ return s.dims[k] && s.dims[k].composantes && !(s.dims[k].valeur == null && (s.dims[k].composantes[0] || {}).code === 'non_applicable'); }).map(function(k){
@@ -3464,9 +3488,8 @@ function gagnerHvs(v, geste, signe){
   b.h = Math.max(0, b.h + pts); if(geste === 'view') b.v += 1;
   var cles = Object.keys(bilanHvs); if(cles.length > 400) delete bilanHvs[cles[0]];
   ecrire('nv_iris_hvs', bilanHvs);
-  var c = etatClip(v);
-  if(c.hv != null) c.hv = Math.max(0, c.hv + pts);
-  if(geste === 'view' && c.views != null) c.views += 1;
+  /* le chiffre officiel ne bouge qu'avec le serveur : on le relit juste après le geste */
+  relireHvs(v, true);
   if(v === st.vue[st.i]){
     majScores();
     if(pts > 0){
@@ -3480,7 +3503,7 @@ function gagnerHvs(v, geste, signe){
 var LIB_HVS = [['superlike', '💎', 'Super Like'], ['videocomment', '🎥', 'Commentaire vidéo'], ['voice', '🎙️', 'Commentaire vocal'], ['save', '🔖', 'Garder'], ['comment', '💬', 'Commentaire écrit'], ['like', '❤️', 'J\'aime'], ['view', '👁️', 'Vue']];
 function ouvrirHvs(){
   var v = st.vue[st.i]; if(!v || v.demo) return;
-  $('hvsTotal').textContent = fmtScore(valeurHvs(v)); $('hvsVues').textContent = fmtScore(valeurVues(v));
+  var h0 = valeurHvs(v), v0 = valeurVues(v); $('hvsTotal').textContent = h0 == null ? '—' : fmtScore(h0); $('hvsVues').textContent = v0 == null ? '—' : fmtScore(v0);
   rendreHvsServeur(v);
   if(HVSSRV.ok) scoreHvsServeur(v).then(function(){ if(st.vue[st.i] === v){ rendreHvsServeur(v); majScores(); } });
   $('hvsPoids').innerHTML = LIB_HVS.map(function(x){ return '<li><i>' + x[1] + '</i>' + esc(x[2]) + '<b>+' + Math.round(W_HVS[x[0]] * 10) + '</b></li>'; }).join('');
@@ -3568,7 +3591,7 @@ function aimer(forcerOui){
   if(api() && !v.local && !v.demo){
     fetch(api() + '/v1/clips/' + encodeURIComponent(v.id) + '/like', {method:deja ? 'DELETE' : 'POST', mode:'cors', headers:entetes({'Content-Type':'application/json'}), body:JSON.stringify({session:SESSION})})
       .then(function(r){ if(!r.ok) throw r.status; return r.json().catch(function(){ return null; }); })
-      .then(function(d){ if(d && typeof d.likes === 'number'){ etatClip(v).likes = d.likes; majActions(); } })
+      .then(function(d){ if(d && typeof d.likes === 'number'){ etatClip(v).likes = d.likes; majActions(); } poserHvs(v, d); })
       .catch(function(){
         if(deja) st.aimes[v.id] = 1; else delete st.aimes[v.id];
         var n2 = nombre(v, 'likes'); if(n2 != null) etatClip(v).likes = Math.max(0, n2 + (deja ? 1 : -1));
@@ -3670,7 +3693,7 @@ $('btnSuperOk').addEventListener('click', function(){
   fetch(api() + '/v1/clips/' + encodeURIComponent(v.id) + '/superlike', {method:'POST', mode:'cors', headers:entetes({'Content-Type':'application/json', 'Idempotency-Key':idem}),
     body:JSON.stringify({cost:COUT_SUPER, session:SESSION, author:v.author, idem:idem})})
     .then(function(r){ return r.json().catch(function(){ return {}; }).then(function(d){ d = d || {}; if(!r.ok && d.success == null){ d.success = false; if(r.status >= 500 || r.status === 408 || r.status === 429){ d.incertain = true; d.reason = 'Le résultat n\'est pas encore confirmé. Si un débit a eu lieu, il apparaîtra dans votre portefeuille et ne sera pas répété : vous pouvez réessayer sans risque.'; } else d.reason = d.reason || d.message || (r.status === 402 ? 'Solde de NVCoins insuffisant. Rien n\'a été débité.' : null); } return d; }); })
-    .then(function(d){ d.idem = d.idem || idem; window.NVSuperLikeConfirm(d, ctxEnvoi); })
+    .then(function(d){ d.idem = d.idem || idem; if(d.success !== false) poserHvs(v, d); window.NVSuperLikeConfirm(d, ctxEnvoi); })
     .catch(function(){ window.NVSuperLikeConfirm({success:false, idem:idem, incertain:true, reason:'Le serveur ne répond pas. Si un débit a eu lieu, il apparaîtra dans votre portefeuille et ne sera pas répété.'}, ctxEnvoi); });
 });
 window.NVSuperLikeConfirm = function(res, ctxDirect){
