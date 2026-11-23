@@ -1436,7 +1436,7 @@ function emit(type, payload){
   try{ R.dispatchEvent(new CustomEvent('nv:' + type, {detail:msg.payload})); }catch(e){}
 }
 function vibre(p){ try{ if(navigator.vibrate && !(navigator.userActivation && !navigator.userActivation.hasBeenActive)) navigator.vibrate(p); }catch(e){} }
-function chemin(){ if(R.flutter_inappwebview && (R.NV_WALLET || api())) return 'pont'; if(api()) return 'api'; return 'local'; }
+function chemin(){ if(R.flutter_inappwebview && R.NV_WALLET && !api()) return 'pont'; if(api()) return 'api'; return 'local'; }
 var toastT = 0;
 function dire(t){ var el = $('nvc-toast'); if(!el) return; el.textContent = t; el.classList.add('on'); clearTimeout(toastT); toastT = setTimeout(function(){ el.classList.remove('on'); }, 2800); }
 

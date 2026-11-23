@@ -1349,7 +1349,7 @@ function emit(type, payload){
   try{ R.dispatchEvent(new CustomEvent('nv:' + type, {detail:msg.payload})); }catch(e){}
 }
 function vibre(p){ try{ if(navigator.vibrate && !(navigator.userActivation && !navigator.userActivation.hasBeenActive)) navigator.vibrate(p); }catch(e){} }
-function chemin(){ if(R.flutter_inappwebview && (R.NV_WALLET || api())) return 'pont'; if(api()) return 'api'; return 'local'; }
+function chemin(){ if(R.flutter_inappwebview && R.NV_WALLET && !api()) return 'pont'; if(api()) return 'api'; return 'local'; }
 var toastT = 0;
 function dire(t){ var el = $('nvc-toast'); if(!el) return; el.textContent = t; el.classList.add('on'); clearTimeout(toastT); toastT = setTimeout(function(){ el.classList.remove('on'); }, 2800); }
 
@@ -1958,7 +1958,7 @@ function estMajeur(){
   return lire('nv_majeur', false) === true || lire('nv_mm_18', false) === true;
 }
 function usd(n){ return (n / 100).toFixed(2).replace('.', ',') + ' $'; }
-function cheminSuper(){ if(R.flutter_inappwebview && (R.NV_WALLET || api())) return 'pont'; if(api()) return 'api'; return 'local'; }
+function cheminSuper(){ if(R.flutter_inappwebview && R.NV_WALLET && !api()) return 'pont'; if(api()) return 'api'; return 'local'; }
 function serveur(c){ return !!(api() && c && !c.local); }
 function moiNom(){ var u = R.NV_USER || {}; return u.handle || u.nom || u.name || 'Vous'; }
 function ilya(t){ var ms = typeof t === 'string' ? Date.parse(t) : +t, s = (Date.now() - ms) / 1000; if(!(s >= 0)) return ''; if(s < 60) return 'à l\'instant'; if(s < 3600) return Math.floor(s / 60) + ' min'; if(s < 86400) return Math.floor(s / 3600) + ' h'; return Math.floor(s / 86400) + ' j'; }
@@ -4161,7 +4161,7 @@ function parAppli(type, charge, fin, delai){   /* v3 · j — 15 s pour un geste
   setTimeout(function(){ var f = attentesAppli[charge.idem]; if(f){ delete attentesAppli[charge.idem]; f({success:false, incertain:true, reason:'L\'application n\'a pas encore confirmé. Réessayez dans un instant.'}); } }, delai || 15000);
 }
 window.NVBattleConfirm = function(r){ r = r || {}; var f = attentesAppli[r.idem]; if(!f) return; delete attentesAppli[r.idem]; f(r); };
-function chemin(){ if(window.flutter_inappwebview && (window.NV_WALLET || api())) return 'pont'; if(api()) return 'api'; return 'local'; }
+function chemin(){ if(window.flutter_inappwebview && window.NV_WALLET && !api()) return 'pont'; if(api()) return 'api'; return 'local'; }
 function moiNom(){ var u = window.NV_USER || {}; return u.handle || u.nom || u.name || ''; }
 function cle(s){ return String(s || '').replace(/^@/, '').trim().toLowerCase(); }
 /* Adresses venues du serveur : seulement http(s) ou blob, et sans caractère qui puisse sortir d'un attribut ou d'un url(). */

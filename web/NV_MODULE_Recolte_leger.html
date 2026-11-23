@@ -773,6 +773,13 @@ body.feuille-on{overflow:hidden}
 .gch-t small{color:var(--doux);font-size:.74em}
 .gch-t .gch-delai{align-self:flex-start}
 .gch-frais{color:var(--pale)!important}
+/* 23 nov. 2026 — déposer simplement (r16.js) */
+.pg16-noms{display:block;color:var(--pale);font-size:.82em;line-height:1.3;margin-top:2px;white-space:normal}
+.pg16-aide{margin:-4px 0 4px}
+.pg16-precis{display:block;margin:0 0 12px;background:none;border:0;padding:6px 0;color:var(--nectar);font:inherit;font-weight:700;font-size:.9em;text-decoration:underline;text-underline-offset:3px;cursor:pointer;min-height:36px}
+.pg16-pays h3{margin:0 0 6px}
+.pg16-pays select{width:100%;min-height:46px;border-radius:12px;border:1px solid var(--trait);background:rgba(255,255,255,.06);color:inherit;font:inherit;padding:0 10px}
+.pg16-pays select option{color:#111}
 .gch-coche{position:absolute;top:6px;inset-inline-end:8px;font-style:normal;color:var(--miel);font-weight:800}
 .gch-note{display:flex;gap:8px;padding:8px 10px;border-radius:12px;background:rgba(183,156,255,.12)}
 .gch-comptes{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 12px}
@@ -1033,7 +1040,10 @@ function emit(type, payload){
   try{ R.dispatchEvent(new CustomEvent('nv:' + type, {detail:msg.payload})); }catch(e){}
 }
 function vibre(p){ try{ if(navigator.vibrate && !(navigator.userActivation && !navigator.userActivation.hasBeenActive)) navigator.vibrate(p); }catch(e){} }
-function chemin(){ if(R.flutter_inappwebview && (R.NV_WALLET || api())) return 'pont'; if(api()) return 'api'; return 'local'; }
+/* 23 nov. 2026 : avec un serveur, l'achat passe TOUJOURS par lui (la page de paiement de NEURAVID) ; le pont de l'application
+   seulement quand elle tient elle-même le portefeuille (NV_WALLET) sans serveur — avant, l'application attendait une réponse
+   qu'elle ne donne jamais (« Un paiement est déjà en cours… ») */
+function chemin(){ if(R.flutter_inappwebview && R.NV_WALLET && !api()) return 'pont'; if(api()) return 'api'; return 'local'; }
 var toastT = 0;
 function dire(t){ var el = $('nvc-toast'); if(!el) return; el.textContent = t; el.classList.add('on'); clearTimeout(toastT); toastT = setTimeout(function(){ el.classList.remove('on'); }, 2800); }
 
@@ -2314,6 +2324,7 @@ function chargerMoyens(){
   lireS('/v1/recolte/retrait/moyens', function(d, panne){
     if(d && Array.isArray(d.moyens)){
       st.retrait.devise = /^[A-Z]{3}$/.test(d.devise || '') ? d.devise : null;
+      st.retrait.paysConnu = 'pays' in d; st.retrait.pays = /^[A-Z]{2}$/.test(d.pays || '') ? d.pays : null;   /* 23 nov. : sans pays, l'écran le demande */
       st.retrait.tauxDevise = nbS(d.taux);   /* unités de la monnaie du pays pour 1 $ */
       st.retrait.moyens = d.moyens.slice(0, 12).map(function(m){ if(!m || m.id == null || !txt(m.nom, 50)) return null; var fr = m.frais || {};
         var fx = nbS(fr.fixe), pc = nbS(fr.pourcent, 100);
@@ -3976,7 +3987,8 @@ var majPuce12 = majPuce; majPuce = function(){ majPuce12(); var b = $('puceCoins
      · recharger : moyens du pays → montant → prix exact, frais et total AVANT de payer → paiement → suivi ;
      · payer : une personne ou une entreprise, avec ses NVCoins rechargés ;
      · retirer : la vue « Retirer » existante (moyens, frais et limites du serveur).
-   Dans l'application des magasins, les NVCoins s'achètent par le magasin (règle des magasins) : l'ancien chemin reste.
+   Dans l'application des magasins, les NVCoins s'achètent par le magasin SEULEMENT si le serveur l'annonce (capacité
+   « magasin ») ; sinon, depuis le 23 nov. 2026, le dépôt de NEURAVID (r16.js).
    Le téléphone n'annonce jamais qu'un paiement a réussi : il demande l'état au serveur, qui l'apprend du prestataire.
    L'aperçu (démonstration, sans serveur) simule un prestataire, toujours marqué « Aperçu ».
    ════════════════════════════════════════════════════════════════════════ */
@@ -4003,7 +4015,7 @@ function apercuRepondre(chemin, corps, methode){
     return {ok:true, devis:'apercu-' + (++APERCU_PG.seq), but:corps.but, montant:corps.montant, devise:dv[0], taux:{unites:dv[1], pourNvc:1}, montantLocal:loc, frais:fr, fraisPayeur:true, total:loc + fr, expire:Math.floor(Date.now() / 1000) + 600}; }
   if(chemin === '/v1/recolte/recharges' && methode === 'GET') return {items:APERCU_PG.recharges.map(function(x){ return dictRecharge(x); })};
   if(chemin === '/v1/recolte/recharges'){ var d = PG.devis || {}, r = {id:'apercu-r' + (++APERCU_PG.seq), at:Math.floor(Date.now() / 1000), but:d.but, etat:'en_attente', montant:d.montant, devise:d.devise, montantLocal:d.montantLocal, frais:d.frais, total:d.total,
-      moyen:PG.choisi, action:/carte|visa|mastercard/.test(PG.choisi || '') ? {type:'instructions', texte:'Aperçu : la page de paiement par carte du prestataire s\'ouvrirait ici.'} : {type:'telephone'}, nait:Date.now()};
+      moyen:PG.choisi, action:PG.choisi === 'tous_portefeuilles' ? {type:'instructions', texte:'Aperçu : la page de paiement du prestataire s\'ouvrirait ici, avec tous les portefeuilles du pays.'} : /carte|visa|mastercard/.test(PG.choisi || '') ? {type:'instructions', texte:'Aperçu : la page de paiement par carte du prestataire s\'ouvrirait ici.'} : {type:'telephone'}, nait:Date.now()};
     APERCU_PG.recharges.unshift(r); return dictRecharge(r, true); }
   var m = /^\/v1\/recolte\/recharges\/(.+)$/.exec(chemin);
   if(m){ var x = null; APERCU_PG.recharges.forEach(function(y){ if(y.id === m[1]) x = y; }); if(x && x.etat === 'en_attente' && Date.now() - x.nait > 3500){ x.etat = 'confirme'; x.action = null; } return x ? dictRecharge(x) : null; }
@@ -4021,6 +4033,8 @@ function apercuMoyens(dev, sens){
   var iso = String((window.NV_USER || {}).iso || 'GN').toUpperCase(), l = (APERCU_MOYENS[iso] || ['mobile_money']).map(function(id){
     var f = APERCU_FAMILLE[id] || ['mobile', 'telephone'];
     return {id:id, nom:APERCU_NOMS[id] || null, type:f[0], famille:f[0], devise:dev, min:100, max:100000, champ:f[1], delai:sens === 'retrait' ? 'minutes' : 'instantane', ouvert:true}; });
+  /* 23 nov. 2026 : en Guinée, un seul choix ouvre la page de paiement qui montre tous les portefeuilles */
+  if(sens === 'recharge' && iso === 'GN') l.unshift({id:'tous_portefeuilles', nom:'Mobile money et portefeuilles', type:'mobile', famille:'mobile', page:true, devise:dev, min:100, max:100000, champ:null, delai:'instantane', ouvert:true});
   if(sens === 'recharge') l.push({id:'carte_bancaire', nom:'Carte bancaire', type:'carte', famille:'carte', marques:['visa', 'mastercard'], devise:dev, min:500, max:100000, champ:null, delai:'instantane', ouvert:true});
   else l.push({id:'virement_bancaire', nom:null, type:'virement', famille:'virement', devise:dev, min:5000, max:100000, champ:'iban', delai:'jours', ouvert:true});
   return l;
@@ -4684,6 +4698,171 @@ document.addEventListener('click', function(e){
   else if(a === 'gch-ap-ok'){ fermerFeuille(); toast('Aperçu : dans l\'application, votre retrait partirait maintenant. Rien n\'a été envoyé.', 4200); return; }
   rendreRetraitApercu();
 }, true);
+/* ════════════════════════════════════════════════════════════════════════
+   v12 (23 nov. 2026) — DÉPOSER SIMPLEMENT
+   Demande de Karamo : « plus simple pour se diriger directement tous les moyens disponibles sur la page de paiement ».
+     · tous les boutons « Recharger / Déposer » ouvrent le dépôt de NEURAVID ; l'achat par le magasin (Google, Apple)
+       seulement s'il est VRAIMENT branché (capacité « magasin » du serveur) ;
+     · deux choix seulement : « Mobile money et portefeuilles » (la page sécurisée du prestataire montre tous les
+       portefeuilles du pays : Orange Money, MTN MoMo, PayCard, Kulu, Soutra Money, Akiba) et « Carte bancaire » ;
+       les moyens un par un restent derrière « Choisir un moyen précis » ;
+     · après « Payer », la page de paiement s'ouvre d'elle-même (le bouton reste si le téléphone l'a bloquée) ;
+     · un compte sans pays (compte Google, par exemple) : « Votre pays » est demandé d'abord, au dépôt comme au retrait.
+   Rien n'est retiré : l'ancien chemin et la liste complète restent.
+   ════════════════════════════════════════════════════════════════════════ */
+var PG16 = {precis:false, ouvert:null, paysChoix:'', paysEnvoi:false, paysFait:false, tRelire:0, essais:0};
+
+function magasinBranche(){ return dansMagasin() && !!(PG.cap && PG.cap.magasin === true); }
+function moyenPage(){ var l = PG.m ? PG.m.moyens : []; for(var i = 0; i < l.length; i++) if(l[i].page && l[i].ouvert) return l[i]; return null; }
+function nomsPortefeuilles(){
+  return (PG.m ? PG.m.moyens : []).filter(function(x){ return !x.page && x.ouvert && x.nom && (x.famille === 'mobile' || x.famille === 'portefeuille'); })
+    .map(function(x){ return x.nom; }).slice(0, 8);
+}
+
+/* le moyen garde « page » (annoncé par le serveur) */
+var normMoyenPG16 = normMoyenPG;
+normMoyenPG = function(m){ var x = normMoyenPG16(m); if(x) x.page = !!(m && m.page === true); return x; };
+
+/* tous les chemins « Recharger » : le dépôt de NEURAVID dès que le serveur l'annonce */
+rechargerPF = (function(avant){ return function(){
+  if(magasinBranche()){ avant(); return; }
+  if(rechargeOuverte()){ avecMajorite(function(){ feuilleRecharge(); }); return; }
+  if(api() && PG.capEtat !== 'ok' && !PG16.capRelue){       /* les capacités ne sont pas encore là : on les attend une fois */
+    PG16.capRelue = true;
+    chargerCapacitesPG(true, function(){ PG16.capRelue = false; if(rechargeOuverte() && !magasinBranche()) avecMajorite(function(){ feuilleRecharge(); }); else avant(); });
+    return;
+  }
+  avant();
+}; })(rechargerPF);
+var chargerCapacitesPG16 = chargerCapacitesPG;
+chargerCapacitesPG = function(force, apres){
+  if(typeof apres !== 'function') return chargerCapacitesPG16.apply(this, arguments);
+  if(!api() && !apercuPG()){ apres(); return; }
+  var fait = false, fin = function(){ if(!fait){ fait = true; apres(); } };
+  chargerCapacitesPG16(force);
+  (function attendre(n){ if(PG.capEtat === 'ok' || PG.capEtat === 'erreur' || n > 40){ fin(); return; } setTimeout(function(){ attendre(n + 1); }, 150); })(0);
+};
+/* une feuille ouverte repart toujours du choix simple */
+var feuilleRecharge16 = feuilleRecharge;
+feuilleRecharge = function(but){ PG16.precis = false; PG16.ouvert = null; if(PG.choisi && PG.m && !PG.m.moyens.some(function(x){ return x.id === PG.choisi && (x.page || x.famille === 'carte'); })) PG.choisi = null; return feuilleRecharge16(but); };
+
+/* ── la feuille « Déposer » ── */
+var rendreRecharge16 = rendreRecharge;
+rendreRecharge = function(){
+  var z = $('pgCorps'); if(!z) return;
+  /* 1. pas de pays sur le compte : on le demande d'abord */
+  if(!PG.suivi && !PG.devis && PG.mEtat === 'ok' && PG.m && !PG.m.pays && !(PG.m.moyens || []).length && api()){
+    z.innerHTML = marqueApercu() + htmlPays('pg'); return;
+  }
+  /* 2. le choix simple : la page de paiement (tous les portefeuilles) et la carte */
+  var pg = !PG.suivi && !PG.devis && PG.mEtat === 'ok' ? moyenPage() : null;
+  if(!pg){
+    /* sans page annoncée : l'écran d'avant, sans le moyen « page » s'il est au repos */
+    if(!PG.suivi && !PG.devis && PG.m && PG.m.moyens.some(function(x){ return x.page; })){ var t0 = PG.m.moyens; PG.m.moyens = t0.filter(function(x){ return !x.page; }); try{ rendreRecharge16(); } finally { PG.m.moyens = t0; } }
+    else rendreRecharge16();
+    ouvrirPageSiPrete(); return;
+  }
+  var tous = PG.m.moyens, vue;
+  if(PG16.precis) vue = tous.filter(function(x){ return !x.page; });
+  else vue = tous.filter(function(x){ return x.page || x.famille === 'carte'; });
+  if(!PG.choisi || !vue.some(function(x){ return x.id === PG.choisi; })) PG.choisi = PG16.precis ? null : pg.id;
+  PG.m.moyens = vue;
+  try{ rendreRecharge16(); } finally { PG.m.moyens = tous; }
+  /* sous la tuile de la page : les portefeuilles qu'elle montre */
+  var b = z.querySelector('[data-id="' + (window.CSS && CSS.escape ? CSS.escape(pg.id) : pg.id) + '"] .gch-t');
+  var n = nomsPortefeuilles();
+  if(b && n.length){ var s = document.createElement('small'); s.className = 'pg16-noms'; s.setAttribute('data-brut', ''); s.textContent = n.join(' · '); b.appendChild(s); }
+  /* le lien vers les moyens un par un (et le retour) */
+  var dernier = null; z.querySelectorAll('.gch-famille').forEach(function(f){ dernier = f; });
+  if(dernier){
+    var a = document.createElement('button'); a.className = 'btn lien pg16-precis'; a.setAttribute('data-act', 'pg16-precis');
+    a.textContent = PG16.precis ? 'Revenir au choix simple' : 'Choisir un moyen précis';
+    dernier.parentNode.insertBefore(a, dernier.nextSibling);
+    if(!PG16.precis){ var p = document.createElement('p'); p.className = 'petit pg16-aide';
+      p.textContent = 'Vous choisissez votre portefeuille sur la page de paiement sécurisée.'; dernier.parentNode.insertBefore(p, a); }
+  }
+  majEstimationPG();
+};
+/* après « Payer » : la page de paiement s'ouvre d'elle-même, une seule fois */
+function ouvrirPageSiPrete(){
+  var x = PG.suivi; if(!x || x.etat !== 'en_attente' || !x.action || x.action.type !== 'redirection' || PG16.ouvert === x.id) return;
+  PG16.ouvert = x.id; emit('payment_page_open', {url:x.action.url, auto:true});
+  try{ window.open(x.action.url, '_blank', 'noopener'); }catch(e){ dbg(e); }
+}
+
+/* ── « Votre pays » : la liste vient du serveur (pays où un moyen est ouvert), les noms du téléphone ── */
+function paysProposes(){
+  var l = [], c = PG.cap || {};
+  ['recharge', 'retrait'].forEach(function(s){ ((c[s] && c[s].pays) || []).forEach(function(p){ if(/^[A-Z]{2}$/.test(p) && l.indexOf(p) < 0) l.push(p); }); });
+  return l;
+}
+function nomPays(iso){
+  try{ var dn = new Intl.DisplayNames([document.documentElement.lang || 'fr'], {type:'region'}); return dn.of(iso) || iso; }catch(e){ return iso; }
+}
+function htmlPays(ou){
+  if(PG16.paysFait) return '<div class="carte pg16-pays"><h3>Votre pays est enregistré</h3><div class="pg-etat" aria-live="polite"><span class="pg-charge petit"><i></i><i></i><i></i></span>Les moyens de paiement de votre pays arrivent…</div></div>';
+  var l = paysProposes().map(function(p){ return [p, nomPays(p)]; }).sort(function(a, b){ return a[1].localeCompare(b[1]); });
+  if(!PG16.paysChoix && l.length === 1) PG16.paysChoix = l[0][0];
+  return '<div class="carte pg16-pays"><h3>Votre pays</h3><p class="petit">Votre compte n\'a pas encore de pays. Choisissez-le pour voir les moyens de paiement de chez vous.</p>' +
+    '<label class="champ"><span>Pays</span><select id="pg16Pays" data-ou="' + ou + '">' + '<option value="">—</option>' +
+    l.map(function(p){ return '<option value="' + p[0] + '"' + (PG16.paysChoix === p[0] ? ' selected' : '') + '>' + esc(drapeau(p[0]) + ' ' + p[1]) + '</option>'; }).join('') + '</select></label>' +
+    '<button class="btn miel large" data-act="pg16-pays" data-ou="' + ou + '"' + (PG16.paysEnvoi ? ' disabled' : '') + '>' + (PG16.paysEnvoi ? 'Envoi…' : 'Enregistrer mon pays') + '</button>' +
+    '<p class="petit">Vous pourrez le changer une fois par mois dans Réglages.</p></div>';
+}
+function envoyerPays(ou){
+  var p = PG16.paysChoix; if(!/^[A-Z]{2}$/.test(p) || PG16.paysEnvoi) { if(!p) toast('Choisissez votre pays.'); return; }
+  PG16.paysEnvoi = true; redessinerPays(ou);
+  poster('/v1/comptes/moi/pays', {pays:p}, function(r, s){
+    PG16.paysEnvoi = false;
+    if(s >= 200 && s < 300){
+      try{ if(window.NV_USER) window.NV_USER.iso = p; }catch(e){}
+      emit('user_update', {iso:p}); PG16.paysFait = true; PG16.essais = 0; redessinerPays(ou); relireApresPays(ou); return;
+    }
+    if(s === 429) toast('Votre pays a déjà été changé ce mois-ci.', 5000);
+    else toast(!s ? 'Pas de réponse. Réessayez.' : 'Ce n\'est pas possible pour le moment.', 5000);
+    redessinerPays(ou);
+  }, idem('pays'), 20000);
+}
+function redessinerPays(ou){ if(ou === 'pg'){ if(FEUILLE.nom === 'pg') rendreRecharge(); } else if(st.vue === 'retrait') rendreRetrait(); }
+/* le serveur relit le compte en quelques secondes : on redemande les moyens jusqu'à ce que le pays soit connu */
+function relireApresPays(ou){
+  clearTimeout(PG16.tRelire);
+  PG16.tRelire = setTimeout(function(){
+    oublierCache('/v1/recolte/'); GCH.etat = null;
+    if(ou === 'pg'){
+      lirePG('/v1/recolte/paiements/moyens?sens=recharge', function(d){
+        if(d && /^[A-Z]{2}$/.test(d.pays || '')){ PG16.paysFait = false; if(FEUILLE.nom === 'pg') feuilleRecharge(PG.but); return; }
+        if(++PG16.essais < 12 && FEUILLE.nom === 'pg') relireApresPays(ou);
+      }, 0);
+    } else {
+      st.retrait.moyens = null; chargerMoyens();
+      setTimeout(function(){ if(st.retrait.pays){ PG16.paysFait = false; if(st.vue === 'retrait') rendreRetrait(); } else if(++PG16.essais < 12 && st.vue === 'retrait') relireApresPays(ou); }, 1500);
+    }
+  }, PG16.essais ? 6000 : 3000);
+}
+
+/* ── le retrait : même question quand le compte n'a pas de pays ── */
+var rendreRetrait16 = rendreRetrait;
+rendreRetrait = function(){
+  rendreRetrait16();
+  var z = $('corpsRetrait'); if(!z || !api() || !estMajeur() || mineur()) return;
+  var mo = st.retrait.moyens;
+  if(!(mo && !mo.length && st.retrait.paysConnu && !st.retrait.pays)) return;
+  var d = document.createElement('div'); d.innerHTML = htmlPays('rt');
+  var t = z.querySelectorAll('h3.titre')[1]; if(t) t.parentNode.insertBefore(d.firstChild, t); else z.insertBefore(d.firstChild, z.firstChild);
+};
+
+document.addEventListener('change', function(e){ var t = e.target; if(t && t.id === 'pg16Pays') PG16.paysChoix = t.value; });
+document.addEventListener('click', function(e){
+  var b = e.target.closest && e.target.closest('[data-act^="pg16-"]'); if(!b) return;
+  if(b.dataset.act === 'pg16-precis'){ PG16.precis = !PG16.precis; PG.choisi = null; rendreRecharge(); }
+  if(b.dataset.act === 'pg16-pays'){ var s = $('pg16Pays'); if(s) PG16.paysChoix = s.value; envoyerPays(b.dataset.ou); }
+});
+var oublierV2_16 = oublierV2; oublierV2 = function(){ oublierV2_16(); PG16.precis = false; PG16.ouvert = null; PG16.paysFait = false; PG16.paysChoix = ''; clearTimeout(PG16.tRelire); };
+
+/* le ruban du guichet nomme chaque moyen : la page de paiement n'y est pas (elle les montre tous) */
+var htmlGuichet16 = htmlGuichet;
+htmlGuichet = function(){ var r = GCH.recharge; if(r) GCH.recharge = r.filter(function(x){ return !x.page; }); try{ return htmlGuichet16(); } finally { GCH.recharge = r; } };
 
 /* ════════════════════════════════════════════════════════════════════
  LA RÉCOLTE EN CINQ LANGUES : FR · EN · ES · PT · AR (de droite à gauche)
