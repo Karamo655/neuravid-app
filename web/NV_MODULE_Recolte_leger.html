@@ -365,7 +365,8 @@
     return new Promise(function(ok){ setTimeout(ok, 1500); }).then(function(){ return demander(20000); });
   }).then(function(x){ if(x.muet) noter(true, true); else noter(x.absent); });   /* le serveur ne répond toujours pas : l'aperçu, pour 2 minutes */
 }catch(e){ /* rien */ } })();
-</script><!--/NV_REPLI--><!--NV_DEMO--><script id="nv-demo">
+</script><!--/NV_REPLI-->
+<!--NV_DEMO--><script id="nv-demo">
 /* NEURAVID — LA DÉMONSTRATION dans chaque module (injectée en tête de page, avant le module).
    Jamais avec un serveur (NV_API_BASE) ; sans serveur, partout (17 nov. 2026, voir plus bas). Allumée si l'accueil l'a allumée pour la session
    (sessionStorage « nv_demo » = 1), ou « #demo » dans l'adresse, ou une page ouverte comme fichier (file:, content:).
@@ -719,6 +720,72 @@ body.feuille-on{overflow:hidden}
 .cg-pj small{color:var(--pale)}
 .cg-retard{color:var(--hibiscus)!important}
 @media (max-width:360px){.cg-compteur{grid-template-columns:1fr}.cg-e{grid-template-columns:48px minmax(0,1fr)}.cg-e b{grid-column:2}}
+
+/* ═══ 23 nov. 2026 — le guichet : déposer et retirer, partout dans le monde ═══ */
+.gch{position:relative;overflow:hidden;margin:14px 0;padding:18px 16px 14px;border-radius:22px;border:1px solid rgba(255,182,39,.35);
+  background:radial-gradient(120% 90% at 0% 0%,rgba(255,182,39,.20),transparent 55%),radial-gradient(110% 90% at 100% 100%,rgba(43,209,189,.18),transparent 60%),linear-gradient(160deg,rgba(40,22,70,.92),rgba(20,12,38,.95))}
+.gch::before{content:"";position:absolute;inset:-1px;border-radius:inherit;padding:1px;background:linear-gradient(120deg,var(--miel),var(--lilas),var(--nectar),var(--miel));background-size:300% 100%;
+  -webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);-webkit-mask-composite:xor;mask-composite:exclude;animation:gchBord 9s linear infinite;pointer-events:none}
+@keyframes gchBord{to{background-position:300% 0}}
+.gch-deco{position:absolute;inset:0;pointer-events:none;overflow:hidden}
+.gch-deco i{position:absolute;width:64px;height:72px;clip-path:polygon(50% 0,100% 25%,100% 75%,50% 100%,0 75%,0 25%);background:linear-gradient(160deg,rgba(255,224,122,.16),rgba(255,182,39,.04));animation:gchFlot 7s ease-in-out infinite}
+.gch-deco i:nth-child(1){top:-18px;inset-inline-end:-10px}
+.gch-deco i:nth-child(2){top:46px;inset-inline-end:44px;width:34px;height:38px;animation-delay:-2s;background:linear-gradient(160deg,rgba(127,242,227,.18),rgba(43,209,189,.04))}
+.gch-deco i:nth-child(3){bottom:-24px;inset-inline-start:-14px;width:80px;height:90px;animation-delay:-4s;background:linear-gradient(160deg,rgba(183,156,255,.16),rgba(183,156,255,.03))}
+@keyframes gchFlot{50%{transform:translateY(-8px) rotate(6deg)}}
+.gch h3{position:relative;margin:0;font:800 1.35em/1.15 var(--serif);background:linear-gradient(90deg,var(--pollen),var(--miel) 50%,var(--nectar));-webkit-background-clip:text;background-clip:text;color:transparent}
+.gch-sous{position:relative;margin:4px 0 14px;color:var(--doux);font-size:.9em}
+.gch-grands{position:relative;display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px;margin:0 0 14px}
+.gch-grand{display:grid;grid-template-columns:auto 1fr;grid-template-rows:auto auto;column-gap:10px;align-items:center;min-height:72px;padding:10px 14px 10px 10px;border-radius:18px;border:0;text-align:start;color:var(--surMiel);cursor:pointer;transition:transform .15s}
+.gch-grand:active{transform:scale(.97)}
+.gch-grand.depot{background:linear-gradient(160deg,var(--pollen),var(--miel) 50%,var(--ambre));box-shadow:0 8px 22px rgba(240,128,26,.32)}
+.gch-grand.retrait{background:linear-gradient(160deg,#a6fff2,var(--nectar));color:#0f2b2a;box-shadow:0 8px 22px rgba(43,209,189,.28)}
+.gch-gh{grid-row:1/3;display:grid;place-items:center;width:42px;height:48px;font:800 1.4em/1 var(--serif);background:rgba(255,255,255,.35);clip-path:polygon(50% 0,100% 25%,100% 75%,50% 100%,0 75%,0 25%)}
+.gch-grand b{font-size:1.15em}.gch-grand small{opacity:.82;font-size:.8em}
+.gch-pays{position:relative;margin:4px 0 8px;font-size:.82em;letter-spacing:.04em;text-transform:uppercase;color:var(--pale)}
+.gch-ruban{position:relative;display:flex;gap:8px;overflow-x:auto;padding:2px 2px 8px;margin:0 -2px 6px;scrollbar-width:none}
+.gch-ruban::-webkit-scrollbar{display:none}
+.gch-puce{flex:none;display:flex;align-items:center;gap:8px;padding:6px 12px 6px 6px;border-radius:14px;background:rgba(255,255,255,.06);border:1px solid var(--trait)}
+.gch-puce.repos{opacity:.55}
+.gch-puce b{display:block;font-size:.86em;white-space:nowrap}
+.gch-puce small{display:flex;gap:4px}
+.gch-puce em,.gch-delai{font-style:normal;font-size:.7em;padding:1px 6px;border-radius:99px;background:rgba(255,255,255,.09);color:var(--doux)}
+.gch-delai.vite{background:rgba(43,209,189,.18);color:var(--nectar)}
+.gch-hex{flex:none;display:grid;place-items:center;width:38px;height:42px;clip-path:polygon(50% 0,100% 25%,100% 75%,50% 100%,0 75%,0 25%);background:linear-gradient(160deg,var(--t1,#FFE07A),var(--t2,#F0801A))}
+.gch-hex b{font:800 .78em/1 var(--sans,system-ui);color:#1d1033;letter-spacing:.02em}
+.gch-monde{position:relative;display:flex;gap:8px;align-items:center;margin:2px 0 10px;padding:8px 12px;border-radius:12px;background:rgba(183,156,255,.12);font-size:.86em}
+.gch-confiance{position:relative;list-style:none;margin:0;padding:0;display:grid;gap:5px}
+.gch-confiance li{display:flex;gap:8px;align-items:flex-start;font-size:.8em;color:var(--doux)}
+.gch-etapes{display:flex;gap:6px;list-style:none;margin:0 0 14px;padding:0}
+.gch-etapes li{flex:1;display:flex;align-items:center;gap:6px;padding:6px 8px;border-radius:12px;background:rgba(255,255,255,.05);font-size:.78em;color:var(--pale);min-width:0}
+.gch-etapes li span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.gch-etapes i{flex:none;display:grid;place-items:center;width:20px;height:22px;font-style:normal;font-weight:800;font-size:.85em;background:rgba(255,255,255,.12);clip-path:polygon(50% 0,100% 25%,100% 75%,50% 100%,0 75%,0 25%)}
+.gch-etapes li.ici{background:rgba(255,182,39,.16);color:var(--pollen)}.gch-etapes li.ici i{background:var(--miel);color:var(--surMiel)}
+.gch-etapes li.fait{color:var(--nectar)}.gch-etapes li.fait i{background:var(--nectar);color:#0f2b2a}
+.gch-famille{margin:0 0 12px}
+.gch-famille h4{display:flex;gap:6px;align-items:center;margin:0 0 6px;font-size:.8em;color:var(--pale);letter-spacing:.03em}
+.gch-tuiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(148px,1fr));gap:8px}
+.gch-tuile{position:relative;display:flex;gap:10px;align-items:center;min-height:66px;padding:8px 10px 8px 8px;border-radius:16px;border:1px solid var(--trait);background:rgba(255,255,255,.04);text-align:start;line-height:1.2;color:inherit;min-width:0;cursor:pointer}
+.gch-tuile.on{border-color:var(--miel);background:rgba(255,182,39,.14);box-shadow:0 0 0 1px var(--miel) inset}
+.gch-tuile:disabled{opacity:.5}
+.gch-t{display:flex;flex-direction:column;gap:2px;min-width:0}
+.gch-t b{font-size:.92em;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow-wrap:anywhere}
+.gch-t small{color:var(--doux);font-size:.74em}
+.gch-t .gch-delai{align-self:flex-start}
+.gch-frais{color:var(--pale)!important}
+.gch-coche{position:absolute;top:6px;inset-inline-end:8px;font-style:normal;color:var(--miel);font-weight:800}
+.gch-note{display:flex;gap:8px;padding:8px 10px;border-radius:12px;background:rgba(183,156,255,.12)}
+.gch-comptes{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 12px}
+.gch-compte{display:flex;align-items:center;border-radius:12px;border:1px solid var(--trait);background:rgba(255,255,255,.05)}
+.gch-compte.on{border-color:var(--nectar);background:rgba(43,209,189,.14)}
+.gch-compte button{min-height:42px;padding:6px 10px;border:0;background:none;color:inherit;cursor:pointer}
+.gch-oublier{color:var(--pale)!important;padding:6px 10px!important}
+.gch-oublier.confirme{color:var(--hibiscus)!important;font-size:.78em}
+.gch-compte-autre{min-height:42px;padding:6px 12px;border-radius:12px;border:1px dashed var(--trait);background:none;color:var(--doux);cursor:pointer}
+.gch-compte-autre.on{border-style:solid;border-color:var(--miel);color:var(--pollen)}
+.gch-solde{display:grid;justify-items:start;gap:2px;margin:0 0 12px;padding:12px 14px;border-radius:16px;background:linear-gradient(160deg,rgba(43,209,189,.18),rgba(43,209,189,.05))}
+.gch-solde small{color:var(--doux)}.gch-solde b{font:800 1.7em/1.1 var(--serif);color:var(--nectar)}
+@media (prefers-reduced-motion:reduce){.gch::before,.gch-deco i{animation:none}}
 </style>
 </head>
 <body>
@@ -2179,7 +2246,7 @@ function chargerRegles(){
 /* ── mon espace : soldes, sources, confiance, identité, parrainage, collectifs ── */
 var dernierMoi = 0, seqMoi = 0, compteVu = compteActuel();
 /* un autre compte s'est connecté sans recharger la page : on oublie tout ce qui était à l'ancien */
-function verifierCompte(){ var c = compteActuel(); if(c === compteVu) return; compteVu = c; st.moi = null; st.moiEtat = 'attente'; st.solde = null; st.livre = {items:[], suivant:null, etat:'attente', filtre:'tout'}; st.retrait.historique = null; st.retrait.choisi = null; RT.montant = ''; RT.compte = ''; RT.cle = null; RT.sig = ''; CACHE = {}; ECH = {}; if(typeof oublierV2 === 'function') oublierV2(); }
+function verifierCompte(){ var c = compteActuel(); if(c === compteVu) return; compteVu = c; st.moi = null; st.moiEtat = 'attente'; st.solde = null; st.livre = {items:[], suivant:null, etat:'attente', filtre:'tout'}; st.retrait.historique = null; st.retrait.choisi = null; RT.montant = ''; RT.compte = ''; RT.compteRef = null; RT.compteFin = null; RT.cle = null; RT.sig = ''; CACHE = {}; ECH = {}; if(typeof oublierV2 === 'function') oublierV2(); }
 function chargerMoi(force, cb){
   verifierCompte();
   if(!api()){ st.moiEtat = 'hors'; rendreVue(); return; }
@@ -2251,8 +2318,10 @@ function chargerMoyens(){
       st.retrait.moyens = d.moyens.slice(0, 12).map(function(m){ if(!m || m.id == null || !txt(m.nom, 50)) return null; var fr = m.frais || {};
         var fx = nbS(fr.fixe), pc = nbS(fr.pourcent, 100);
         /* des frais inconnus restent inconnus : jamais « 0 » inventé */
+        var cc = {telephone:'Le numéro du compte', iban:'L\'IBAN ou le numéro du compte', compte:'Le compte', carte:'Le numéro de la carte'}[m.champCode];
         return {id:String(m.id), nom:txt(m.nom, 50), type:/^(mobile|banque|carte|autre)$/.test(m.type) ? m.type : 'autre', fixe:fx, pourcent:pc, fraisConnus:fx != null && pc != null,
-          min:nbS(m.min), max:nbS(m.max), delai:txt(m.delai, 60) || null, champ:txt(m.champ, 40) || (m.type === 'mobile' ? 'Le numéro du compte' : m.type === 'banque' ? 'L\'IBAN ou le numéro du compte' : 'Le compte'), ouvert:m.ouvert !== false}; }).filter(Boolean);
+          famille:/^(mobile|carte|portefeuille|virement)$/.test(m.famille) ? m.famille : null, generique:m.nomGenerique === true, delaiCode:/^(instantane|minutes|heures|jours)$/.test(m.delaiCode) ? m.delaiCode : null,
+          min:nbS(m.min), max:nbS(m.max), delai:txt(m.delai, 60) || null, champ:txt(m.champ, 40) || cc || (m.type === 'mobile' ? 'Le numéro du compte' : m.type === 'banque' ? 'L\'IBAN ou le numéro du compte' : 'Le compte'), ouvert:m.ouvert !== false}; }).filter(Boolean);
       st.retrait.etat = 'ok';
       if(st.retrait.choisi && !st.retrait.moyens.some(function(m){ return m.id === st.retrait.choisi && m.ouvert; })) st.retrait.choisi = null;
     } else if(panne) st.retrait.etat = 'erreur';
@@ -2446,7 +2515,7 @@ function partFonds(){ var l = REGLES.parts.pub || []; for(var i = 0; i < l.lengt
      ne retire jamais deux fois.
    · Le numéro du compte n'est jamais gardé sur le téléphone.
    ════════════════════════════════════════════════════════════════════════ */
-var RT = {montant:'', compte:'', cle:null, sig:'', envoi:false};
+var RT = {montant:'', compte:'', compteRef:null, compteFin:null, cle:null, sig:'', envoi:false};
 function rendreRetrait(){
   var z = $('corpsRetrait'); if(!z) return;
   if(mineur()){ z.innerHTML = etatVide('Retirer commence à ' + REGLES.ageArgent + ' ans', 'Et après une vérification d\'identité, une seule fois.'); return; }
@@ -2468,9 +2537,10 @@ function rendreRetrait(){
   h += '<h3 class="titre">Comment le recevoir' + (dev ? ' · ' + esc(dev) : '') + '</h3>';
   if(!mo) h += st.retrait.etat === 'erreur' ? etatVide('Les moyens ne sont pas arrivés', 'Vos NVCoins ne bougent pas.') + '<button class="btn trait large" data-act="retrait-reessayer">Réessayer</button>' : etatVide('Les moyens de votre pays arrivent…', '');
   else if(!mo.length) h += etatVide('Pas encore de moyen ouvert dans votre pays', 'Vos NVCoins restent disponibles. Vous serez prévenu dès que NEURAVID ouvre un moyen de retrait chez vous.');
-  else h += '<div class="choix">' + mo.map(function(x){ return '<button data-act="rt-moyen" data-id="' + esc(x.id) + '"' + (st.retrait.choisi === x.id ? ' class="on" aria-pressed="true"' : ' aria-pressed="false"') + (x.ouvert ? '' : ' disabled') + '><b>' + (x.type === 'mobile' ? '📱 ' : x.type === 'banque' ? '🏦 ' : x.type === 'carte' ? '💳 ' : '') + '<span data-brut>' + esc(x.nom) + '</span>' + '</b><small>' + (x.delai ? '<span data-brut>' + esc(x.delai) + '</span>' : '') + (x.delai ? ' · ' : '') + (x.fraisConnus ? 'Frais : ' + (x.pourcent ? x.pourcent.toLocaleString(LOC()) + ' %' : '') + (x.pourcent && x.fixe ? ' + ' : '') + (x.fixe ? nvc(x.fixe) + ' NVC' : '') + (!x.pourcent && !x.fixe ? '0' : '') : 'Frais : —') + '</small></button>'; }).join('') + '</div>';
+  else h += moyensRetraitG(mo);   /* 23 nov. 2026 : tuiles hexagonales rangées par famille (r15.js) */
   var mc = moyenChoisi();
-  if(mc) h += '<label class="champ"><span>' + esc(mc.champ) + '</span><input id="rtC" autocomplete="off" inputmode="' + (mc.type === 'mobile' ? 'tel' : 'text') + '" value="' + esc(RT.compte) + '"></label><p class="petit" style="margin:-6px 0 12px">Ce numéro part chiffré vers NEURAVID et n\'est pas gardé sur ce téléphone.</p>';
+  if(mc) h += comptesRetraitG(mc);   /* 23 nov. 2026 : mes comptes déjà utilisés (r15.js) */
+  if(mc && !RT.compteRef) h += '<label class="champ"><span>' + esc(mc.champ) + '</span><input id="rtC" autocomplete="off" inputmode="' + (mc.type === 'mobile' ? 'tel' : 'text') + '" value="' + esc(RT.compte) + '"></label><p class="petit" style="margin:-6px 0 12px">Ce numéro part chiffré vers NEURAVID et n\'est pas gardé sur ce téléphone.</p>';
   h += '<div class="recap" id="rtR"></div><button class="btn miel large" id="rtGo" data-act="rt-go">Retirer</button>';
   /* mes retraits */
   var hi = st.retrait.historique;
@@ -2497,8 +2567,8 @@ function calculRetrait(){
   else if(mc.min != null && n < mc.min) err = 'Le minimum pour ce moyen est de ' + nvc(mc.min) + ' NVCoins.';
   else if(mc.max != null && n > mc.max) err = 'Le maximum pour ce moyen est de ' + nvc(mc.max) + ' NVCoins.';
   else if(net <= 0) err = 'Les frais dépassent ce montant.';
-  else if(String(RT.compte).replace(/\s/g, '').length < 4) err = 'Écrivez le compte qui recevra l\'argent.';
-  else { var fe = formatCompte(mc.type, RT.compte); if(fe) err = fe; }
+  else if(!RT.compteRef && String(RT.compte).replace(/\s/g, '').length < 4) err = 'Écrivez le compte qui recevra l\'argent.';
+  else if(!RT.compteRef){ var fe = formatCompte(mc.type, RT.compte); if(fe) err = fe; }
   return {n:n, frais:frais, net:net, usd:usd, loc:loc, err:err, mc:mc};
 }
 function majRecap(){
@@ -2517,7 +2587,7 @@ function confirmerRetrait(){
   avecMajorite(function(){
     ouvrirFeuille('Confirmer le retrait', '<div class="recap"><span>Montant</span><b>' + nvc(c.n) + ' NVC</b><span>Frais (' + esc(c.mc.nom) + ')</span><b>− ' + nvc(c.frais) + ' NVC</b><span>Reste</span><b>' + nvc(c.net) + ' NVC</b>' +
       '<span class="tot">Vous recevez, environ</span><b class="tot">≈ ' + (c.loc != null ? esc(monnaie(c.loc, st.retrait.devise)) : esc(dollars(c.usd))) + '</b></div>' +
-      '<p class="petit">Vers : <b data-brut>' + esc(masquer(RT.compte)) + '</b>' + (c.mc.delai ? ' · <span data-brut>' + esc(c.mc.delai) + '</span>' : '') + '</p>' +
+      '<p class="petit">Vers : <b data-brut>' + esc(RT.compteRef ? '•••• ' + (RT.compteFin || '') : masquer(RT.compte)) + '</b>' + (c.mc.delai ? ' · <span data-brut>' + esc(c.mc.delai) + '</span>' : '') + '</p>' +
       '<p class="petit">Le taux du jour est fixé par NEURAVID au moment du versement. Si la demande est refusée, vos NVCoins reviennent dans « Disponible ».</p>' +
       '<button class="btn miel large" data-act="rt-confirmer">Confirmer le retrait</button>');
   });
@@ -2527,16 +2597,16 @@ function envoyerRetrait(){
   var c = calculRetrait(); if(c.err){ toast(c.err); return; }
   if(RT.envoi) return;
   /* la clé ne change que si la demande change (montant, moyen, compte) : un nouvel essai ne retire jamais deux fois */
-  var sig = c.n + '|' + c.mc.id + '|' + String(RT.compte).replace(/\s/g, '');
+  var sig = c.n + '|' + c.mc.id + '|' + (RT.compteRef || String(RT.compte).replace(/\s/g, ''));
   if(!RT.cle || RT.sig !== sig){ RT.cle = idem('retrait'); RT.sig = sig; }
-  var corps = {montant:c.n, moyen:c.mc.id, compte:String(RT.compte).replace(/\s/g, ''), idem:RT.cle};
-  if(!api()){ emit('payout_request', {montant:c.n, moyen:c.mc.id, compte:corps.compte, idem:RT.cle}); fermerFeuille(); toast(appli() ? 'Votre demande part avec l\'application NEURAVID.' : PAS_ICI); return; }
+  var corps = RT.compteRef ? {montant:c.n, moyen:c.mc.id, compteRef:RT.compteRef, idem:RT.cle} : {montant:c.n, moyen:c.mc.id, compte:String(RT.compte).replace(/\s/g, ''), idem:RT.cle};
+  if(!api()){ emit('payout_request', {montant:c.n, moyen:c.mc.id, compte:corps.compte, compteRef:corps.compteRef, idem:RT.cle}); fermerFeuille(); toast(appli() ? 'Votre demande part avec l\'application NEURAVID.' : PAS_ICI); return; }
   RT.envoi = true; majRecap();
   var j = jeton();
   var b = document.querySelector('[data-act="rt-confirmer"]'); if(b){ b.disabled = true; b.textContent = 'Envoi…'; }
   poster('/v1/recolte/retraits', corps, function(r, s){
     RT.envoi = false;
-    if(reussi(s, r)){ RT.cle = null; RT.sig = ''; RT.montant = ''; RT.compte = ''; fermerSi(j); toast('Retrait demandé. Vous suivez son état dans « Mes retraits ».', 4200); emit('payout_requested', {montant:c.n, moyen:c.mc.id}); oublierCache('/v1/recolte/'); chargerMoi(true); chargerRetraits(); rendreRetrait(); return; }
+    if(reussi(s, r)){ RT.cle = null; RT.sig = ''; RT.montant = ''; RT.compte = ''; RT.compteRef = null; RT.compteFin = null; if(typeof GCH === 'object') GCH.comptes = null; fermerSi(j); toast('Retrait demandé. Vous suivez son état dans « Mes retraits ».', 4200); emit('payout_requested', {montant:c.n, moyen:c.mc.id}); oublierCache('/v1/recolte/'); chargerMoi(true); chargerRetraits(); rendreRetrait(); return; }
     if(!s || s >= 500 || s === 429 || s === 408 || s === 409){ if(b){ b.disabled = false; b.textContent = 'Réessayer'; } toast('Pas de réponse. Votre demande n\'est pas perdue : réessayez, elle ne sera jamais faite deux fois.', 5200); majRecap(); return; }
     RT.cle = null; RT.sig = ''; fermerSi(j); toast(txt(r && (r.reason || r.message), 200) || 'Ce retrait n\'a pas été accepté.', 5000); chargerMoi(true); majRecap();
   }, RT.cle, 60000);
@@ -2777,7 +2847,7 @@ document.addEventListener('click', function(e){
     case 'contester': feuilleContester(b.dataset.id); break;
     case 'contester-ok': envoyerContestation(b.dataset.id); break;
     case 'rt-tout': var d = st.moi && st.moi.solde.disponible; if(d != null){ RT.montant = String(Math.floor(d)); var i = $('rtM'); if(i) i.value = RT.montant; majRecap(); } break;
-    case 'rt-moyen': st.retrait.choisi = b.dataset.id; rendreRetrait(); break;
+    case 'rt-moyen': st.retrait.choisi = b.dataset.id; RT.compteRef = null; RT.compteFin = null; rendreRetrait(); break;
     case 'rt-go': confirmerRetrait(); break;
     case 'rt-confirmer': envoyerRetrait(); break;
     case 'aller-retrait': fermerFeuille(function(){ montrer('retrait'); }); break;
@@ -3926,24 +3996,35 @@ function apercuDevise(){ var iso = String((window.NV_USER || {}).iso || 'GN').to
   var t = {GN:['GNF', 95], NG:['NGN', 16], KE:['KES', 2], CD:['CDF', 29], GH:['GHS', 1]}; return t[iso] || ['XOF', 6]; }
 function apercuRepondre(chemin, corps, methode){
   var dv = apercuDevise(), u = window.NV_USER || {};
-  if(chemin === '/v1/recolte/capacites') return {paiements:{recharge:{actif:true, pays:[u.iso || 'GN'], types:['carte', 'mobile']}, retrait:{actif:false}, payer:true, magasin:false}};
+  if(chemin === '/v1/recolte/capacites') return {paiements:{recharge:{actif:true, pays:[u.iso || 'GN'], types:['carte', 'mobile']}, retrait:{actif:true, pays:[u.iso || 'GN'], types:['mobile', 'virement']}, payer:true, magasin:false}};
   if(chemin.indexOf('/v1/recolte/paiements/moyens') === 0) return {pays:u.iso || 'GN', devise:dv[0], taux:{unites:dv[1], pourNvc:1}, entreprise:true, fraisPayeur:true,
-    moyens:[{id:'mobile', nom:'Mobile Money', type:'mobile', devise:dv[0], min:100, max:100000, champ:'telephone', ouvert:true},
-            {id:'carte', nom:'Carte bancaire', type:'carte', devise:dv[0], min:500, max:100000, champ:null, ouvert:true}]};
+    moyens:apercuMoyens(dv[0], /sens=retrait/.test(chemin) ? 'retrait' : 'recharge')};
   if(chemin === '/v1/recolte/recharges/devis'){ var loc = corps.montant * dv[1], fr = Math.floor(loc * 0.015);
     return {ok:true, devis:'apercu-' + (++APERCU_PG.seq), but:corps.but, montant:corps.montant, devise:dv[0], taux:{unites:dv[1], pourNvc:1}, montantLocal:loc, frais:fr, fraisPayeur:true, total:loc + fr, expire:Math.floor(Date.now() / 1000) + 600}; }
   if(chemin === '/v1/recolte/recharges' && methode === 'GET') return {items:APERCU_PG.recharges.map(function(x){ return dictRecharge(x); })};
   if(chemin === '/v1/recolte/recharges'){ var d = PG.devis || {}, r = {id:'apercu-r' + (++APERCU_PG.seq), at:Math.floor(Date.now() / 1000), but:d.but, etat:'en_attente', montant:d.montant, devise:d.devise, montantLocal:d.montantLocal, frais:d.frais, total:d.total,
-      moyen:PG.choisi, action:PG.choisi === 'carte' ? {type:'instructions', texte:'Aperçu : la page de paiement par carte du prestataire s\'ouvrirait ici.'} : {type:'telephone'}, nait:Date.now()};
+      moyen:PG.choisi, action:/carte|visa|mastercard/.test(PG.choisi || '') ? {type:'instructions', texte:'Aperçu : la page de paiement par carte du prestataire s\'ouvrirait ici.'} : {type:'telephone'}, nait:Date.now()};
     APERCU_PG.recharges.unshift(r); return dictRecharge(r, true); }
   var m = /^\/v1\/recolte\/recharges\/(.+)$/.exec(chemin);
   if(m){ var x = null; APERCU_PG.recharges.forEach(function(y){ if(y.id === m[1]) x = y; }); if(x && x.etat === 'en_attente' && Date.now() - x.nait > 3500){ x.etat = 'confirme'; x.action = null; } return x ? dictRecharge(x) : null; }
   if(chemin === '/v1/recolte/paiements') return {ok:true, paiement:'apercu-p' + (++APERCU_PG.seq), montant:corps.montant, recu:Math.round(corps.montant * 0.95), commission:corps.montant - Math.round(corps.montant * 0.95), etat:'attente'};
   return null;
 }
+/* l'aperçu suit le catalogue du serveur : les moyens habituels du pays (exemple, rien n'est ouvert pour de vrai) */
+var APERCU_MOYENS = {GN:['orange_money', 'mtn_momo'], SN:['orange_money', 'wave'], CI:['orange_money', 'mtn_momo', 'wave', 'moov_money'], ML:['orange_money', 'wave', 'moov_money'],
+  BF:['orange_money', 'wave', 'moov_money'], CM:['orange_money', 'mtn_momo'], GH:['mtn_momo', 'airtel_money'], NG:['mtn_momo', 'airtel_money'], KE:['mpesa', 'airtel_money'],
+  TZ:['mpesa', 'airtel_money'], UG:['mtn_momo', 'airtel_money'], CD:['orange_money', 'mpesa', 'airtel_money'], BJ:['mtn_momo', 'moov_money'], TG:['moov_money']};
+var APERCU_NOMS = {orange_money:'Orange Money', mtn_momo:'MTN MoMo', wave:'Wave', moov_money:'Moov Money', mpesa:'M-Pesa', airtel_money:'Airtel Money'};
+function apercuMoyens(dev, sens){
+  var iso = String((window.NV_USER || {}).iso || 'GN').toUpperCase(), l = (APERCU_MOYENS[iso] || ['mobile_money']).map(function(id){
+    return {id:id, nom:APERCU_NOMS[id] || null, type:'mobile', famille:'mobile', devise:dev, min:100, max:100000, champ:'telephone', delai:sens === 'retrait' ? 'minutes' : 'instantane', ouvert:true}; });
+  if(sens === 'recharge') l.push({id:'carte_bancaire', nom:'Carte bancaire', type:'carte', famille:'carte', marques:['visa', 'mastercard'], devise:dev, min:500, max:100000, champ:null, delai:'instantane', ouvert:true});
+  else l.push({id:'virement_bancaire', nom:null, type:'virement', famille:'virement', devise:dev, min:5000, max:100000, champ:'iban', delai:'jours', ouvert:true});
+  return l;
+}
 function dictRecharge(x, nouveau){ var o = {}; Object.keys(x).forEach(function(k){ if(k !== 'nait') o[k] = x[k]; }); if(nouveau){ o.ok = true; o.recharge = x.id; } return o; }
 function lirePG(chemin, cb, ttl){
-  if(apercuPG()){ setTimeout(function(){ cb(apercuRepondre(chemin.split('?')[0], {}, 'GET'), false); }, 260); return; }
+  if(apercuPG()){ setTimeout(function(){ cb(apercuRepondre(chemin, {}, 'GET'), false); }, 260); return; }
   lireS(chemin, cb, ttl);
 }
 function posterPG(chemin, corps, cb, cleIdem, ms){
@@ -3996,8 +4077,7 @@ function feuilleRecharge(but){
     if(d && Array.isArray(d.moyens)){
       PG.m = {pays:/^[A-Z]{2}$/.test(d.pays || '') ? d.pays : null, devise:/^[A-Z]{3}$/.test(d.devise || '') ? d.devise : null, entreprise:d.entreprise === true,
         taux:d.taux && nbS(d.taux.unites) && nbS(d.taux.pourNvc) ? {u:nbS(d.taux.unites), n:nbS(d.taux.pourNvc)} : null,
-        moyens:d.moyens.slice(0, 12).map(function(m){ if(!m || !/^[\w.:-]{1,64}$/.test(String(m.id || ''))) return null;
-          return {id:String(m.id), nom:txt(m.nom, 50) || null, type:PG_TYPES[m.type] ? m.type : 'mobile', min:nbS(m.min), max:nbS(m.max), champ:m.champ === 'telephone' ? 'telephone' : null, ouvert:m.ouvert === true}; }).filter(Boolean)};
+        moyens:d.moyens.slice(0, 24).map(normMoyenPG).filter(Boolean)};
       PG.mEtat = 'ok';
       if(PG.choisi && !PG.m.moyens.some(function(x){ return x.id === PG.choisi && x.ouvert; })) PG.choisi = null;
       if(!PG.choisi){ var o = PG.m.moyens.filter(function(x){ return x.ouvert; }); if(o.length === 1) PG.choisi = o[0].id; }
@@ -4083,6 +4163,13 @@ function payerRecharge(){
     PG.cle = null; PG.sig = ''; PG.devis = null; toast(motRefus(r), 5000); if(FEUILLE.nom === 'pg') rendreRecharge();
   }, PG.cle, 30000);
 }
+/* 23 nov. 2026 : famille, marques acceptées et délai annoncé par le serveur (catalogue mondial des moyens) */
+function normMoyenPG(m){ if(!m || !/^[\w.:-]{1,64}$/.test(String(m.id || ''))) return null;
+  var fam = {carte:1, mobile:1, portefeuille:1, virement:1};
+  return {id:String(m.id), nom:txt(m.nom, 50) || null, type:PG_TYPES[m.type] ? m.type : 'mobile', famille:fam[m.famille] ? m.famille : (PG_TYPES[m.type] ? m.type : 'mobile'),
+    marques:Array.isArray(m.marques) ? m.marques.filter(function(x){ return /^[a-z][a-z0-9_]{1,31}$/.test(String(x)); }).slice(0, 6) : [],
+    delai:{instantane:1, minutes:1, heures:1, jours:1}[m.delai] ? m.delai : null,
+    min:nbS(m.min), max:nbS(m.max), champ:m.champ === 'telephone' ? 'telephone' : null, ouvert:m.ouvert === true}; }
 function normRecharge(r){
   var a = r.action && typeof r.action === 'object' ? r.action : null, act = null;
   if(a && a.type === 'redirection' && urlSure(a.url) && /^https:/.test(a.url)) act = {type:'redirection', url:urlSure(a.url)};
@@ -4377,6 +4464,223 @@ function demoCagnotte(){
     fondsNation:Object.keys(ors).map(function(k){ return {pays:k, or:ors[k], montant:parts[k], disponible:parts[k], projets:po ? [] : k === 'GN' ? [{titre:'École de musique de Kankan', organisme:'Association des jeunes djélis', montant:Math.floor(parts.GN / 2), etat:'valide'}] : k === 'SN' ? [{titre:'Studio de cinéma de quartier', organisme:'Maison de la culture de Pikine', montant:Math.floor(parts.SN / 3), etat:'propose'}] : []}; }),
     medaillesFigees:true, versements:[], audit:null, prixAvant:null, prixEnRetard:false}, true);
 }
+/* ════════════════════════════════════════════════════════════════════════
+   v15 (23 nov. 2026) — LE GUICHET : déposer et retirer, partout dans le monde
+   · dans le portefeuille, juste sous le coffre : « Déposer » et « Retirer » en grand, puis les moyens
+     VRAIMENT ouverts dans le pays de la personne (le serveur les annonce : catalogue mondial des moyens),
+     rangés par famille, avec leur délai ; les cartes Visa et Mastercard « partout dans le monde » ;
+   · la feuille « Déposer » : trois étapes visibles (Choisir · Vérifier · Payer), moyens rangés par famille,
+     le total avec les frais AVANT de payer (inchangé), le suivi en direct jusqu'à l'arrivée des NVCoins.
+   Rien n'est inventé : un moyen non annoncé n'apparaît pas ; sans serveur, l'exemple est marqué « Aperçu ».
+   Les logos des marques ne sont pas reproduits : leurs noms sont écrits, dans nos hexagones.
+   ════════════════════════════════════════════════════════════════════════ */
+var GCH = {etat:null, recharge:null, retrait:null, devise:null, pays:null};
+var GCH_FAMILLES = [['mobile', 'Mobile money', '📱'], ['carte', 'Cartes bancaires', '💳'], ['portefeuille', 'Portefeuilles en ligne', '👛'], ['virement', 'Virements bancaires', '🏦']];
+var GCH_DELAIS = {instantane:'Instantané', minutes:'En quelques minutes', heures:'En quelques heures', jours:'En quelques jours'};
+var GCH_MARQUES = {visa:'Visa', mastercard:'Mastercard'};
+var GCH_TEINTES = [['#FFE07A', '#F0801A'], ['#7ff2e3', '#2BD1BD'], ['#d9c9ff', '#8a6cff'], ['#ff9fbd', '#FF5C8A'], ['#ffd29a', '#e0662a'], ['#a8f0ff', '#3aa0d8']];
+
+function retraitOuvertG(){ return !!(PG.cap && PG.cap.retrait && PG.cap.retrait.actif === true); }
+function nomMoyenG(x){ return x.nom || (PG_TYPES[x.type] || PG_TYPES.mobile)[1]; }
+function sigleG(x){
+  var n = String(x.nom || '').replace(/[^\p{L}\p{N} -]/gu, ' ').trim(); if(!n) return (PG_TYPES[x.type] || PG_TYPES.mobile)[0];
+  var m = n.split(/[\s-]+/).filter(Boolean); return (m.length > 1 ? m[0].charAt(0) + m[1].charAt(0) : m[0].slice(0, 2)).toUpperCase();
+}
+function teinteG(id){ var h = 0; String(id).split('').forEach(function(c){ h = (h * 31 + c.charCodeAt(0)) >>> 0; }); return GCH_TEINTES[h % GCH_TEINTES.length]; }
+function hexMoyenG(x){
+  var t = teinteG(x.id), fam = x.famille || x.type;
+  var dedans = fam === 'mobile' && x.nom ? '<b data-brut>' + esc(sigleG(x)) + '</b>' : '<b>' + (PG_TYPES[fam] || PG_TYPES.mobile)[0] + '</b>';
+  return '<span class="gch-hex" aria-hidden="true" style="--t1:' + t[0] + ';--t2:' + t[1] + '">' + dedans + '</span>';
+}
+function marquesG(x){ var l = (x.marques || []).map(function(m){ return GCH_MARQUES[m]; }).filter(Boolean); return l.length ? '<span data-brut>' + esc(l.join(' · ')) + '</span>' : ''; }
+function delaiG(x){ return x.delai && GCH_DELAIS[x.delai] ? '<em class="gch-delai' + (x.delai === 'instantane' ? ' vite' : '') + '">' + GCH_DELAIS[x.delai] + '</em>' : ''; }
+
+/* les moyens rangés par famille : des tuiles hexagonales (data-act au choix de l'appelant) */
+function moyensGroupesG(mo, act, choisi){
+  var h = '';
+  GCH_FAMILLES.forEach(function(f){
+    var l = mo.filter(function(x){ return (x.famille || x.type) === f[0]; }); if(!l.length) return;
+    h += '<div class="gch-famille"><h4><span aria-hidden="true">' + f[2] + '</span>' + f[1] + '</h4><div class="gch-tuiles">' + l.map(function(x){
+      var on = choisi === x.id;
+      return '<button class="gch-tuile' + (on ? ' on' : '') + '" data-act="' + act + '" data-id="' + esc(x.id) + '" aria-pressed="' + on + '"' + (x.ouvert ? '' : ' disabled') + '>' +
+        hexMoyenG(x) + '<span class="gch-t"><b>' + (x.nom ? '<span data-brut>' + esc(x.nom) + '</span>' : nomMoyenG(x)) + '</b>' + (x.marques && x.marques.length ? '<small>' + marquesG(x) + '</small>' : '') +
+        (x.ouvert ? delaiG(x) : '<em class="gch-delai">Momentanément indisponible</em>') + '</span>' + (on ? '<i class="gch-coche" aria-hidden="true">✓</i>' : '') + '</button>';
+    }).join('') + '</div></div>';
+  });
+  return h;
+}
+function etapesG(n){
+  var l = ['Choisir', 'Vérifier', 'Payer'];
+  return '<ol class="gch-etapes" aria-label="Étapes">' + l.map(function(x, i){ return '<li class="' + (i + 1 < n ? 'fait' : i + 1 === n ? 'ici' : '') + '"' + (i + 1 === n ? ' aria-current="step"' : '') + '><i aria-hidden="true">' + (i + 1 < n ? '✓' : i + 1) + '</i><span>' + x + '</span></li>'; }).join('') + '</ol>';
+}
+
+/* ── le guichet dans le portefeuille ── */
+function chargerGuichet(force){
+  if(!(rechargeOuverte() || retraitOuvertG()) || (GCH.etat === 'attente' && !force)) return;
+  GCH.etat = 'attente'; var n = 0;
+  function fin(){ if(++n < 2) return; GCH.etat = 'ok'; if(st.vue === 'portefeuille') poserGuichet(); }
+  ['recharge', 'retrait'].forEach(function(s){
+    var ouvert = s === 'recharge' ? rechargeOuverte() : retraitOuvertG();
+    if(!ouvert){ GCH[s] = []; fin(); return; }
+    lirePG('/v1/recolte/paiements/moyens?sens=' + s, function(d){
+      GCH[s] = d && Array.isArray(d.moyens) ? d.moyens.slice(0, 24).map(normMoyenPG).filter(Boolean) : [];
+      if(d && /^[A-Z]{3}$/.test(d.devise || '')) GCH.devise = GCH.devise || d.devise;
+      if(d && /^[A-Z]{2}$/.test(d.pays || '')) GCH.pays = d.pays;
+      fin();
+    }, force ? 0 : 120000);
+  });
+}
+function htmlGuichet(){
+  var r = GCH.recharge || [], w = GCH.retrait || [], vus = {}, tous = [];
+  r.concat(w).forEach(function(x){ if(vus[x.id]){ vus[x.id].sens.push(w.indexOf(x) >= 0 ? 'retrait' : 'recharge'); return; } var c = Object.assign({}, x, {sens:[w.indexOf(x) >= 0 ? 'retrait' : 'recharge']}); vus[x.id] = c; tous.push(c); });
+  var carte = r.some(function(x){ return (x.famille || x.type) === 'carte' && x.ouvert; });
+  var h = '<section id="guichet" class="gch" aria-labelledby="gchT">' + (apercuPG() ? '<p class="pg-apercu"><b>Aperçu</b> Exemple de démonstration : aucun argent réel ne bouge.</p>' : '') +
+    '<span class="gch-deco" aria-hidden="true"><i></i><i></i><i></i></span>' +
+    '<h3 id="gchT">Déposer et retirer</h3><p class="gch-sous">Votre argent, avec les moyens de votre pays et du monde entier.</p>' +
+    '<div class="gch-grands">' +
+      (rechargeOuverte() ? '<button class="gch-grand depot" data-act="gch-deposer"><span class="gch-gh" aria-hidden="true">↓</span><b>Déposer</b><small>Ajouter des NVCoins</small></button>' : '') +
+      (retraitOuvertG() ? '<button class="gch-grand retrait" data-act="gch-retirer"><span class="gch-gh" aria-hidden="true">↑</span><b>Retirer</b><small>Recevoir mes gains</small></button>' : '') +
+    '</div>';
+  if(GCH.etat !== 'ok') h += '<div class="pg-charge" aria-busy="true"><i></i><i></i><i></i></div>';
+  else if(!tous.length) h += '<p class="petit">Pas encore de moyen ouvert dans votre pays. Vous serez prévenu dès que NEURAVID en ouvre un.</p>';
+  else {
+    h += '<h4 class="gch-pays">Dans votre pays' + (GCH.pays ? ' <span data-brut>' + drapeau(GCH.pays) + '</span>' : '') + (GCH.devise ? ' · <bdi dir="ltr">' + esc(GCH.devise) + '</bdi>' : '') + '</h4><div class="gch-ruban">' + tous.map(function(x){
+      return '<span class="gch-puce' + (x.ouvert ? '' : ' repos') + '">' + hexMoyenG(x) + '<span><b>' + (x.nom ? '<span data-brut>' + esc(x.nom) + '</span>' : nomMoyenG(x)) + '</b><small>' +
+        (x.sens.indexOf('recharge') >= 0 ? '<em>Dépôt</em>' : '') + (x.sens.indexOf('retrait') >= 0 ? '<em>Retrait</em>' : '') + '</small></span></span>';
+    }).join('') + '</div>';
+    if(carte) h += '<p class="gch-monde"><span aria-hidden="true">🌍</span><span>Cartes Visa et Mastercard du monde entier</span></p>';
+  }
+  h += '<ul class="gch-confiance"><li><span aria-hidden="true">🔒</span>Les frais et le total s\'affichent avant de payer.</li><li><span aria-hidden="true">🛡️</span>Chaque paiement est confirmé par le prestataire, jamais par le téléphone.</li>' +
+    (carte ? '<li><span aria-hidden="true">💳</span>Le numéro de votre carte reste chez le prestataire : NEURAVID ne le voit jamais.</li>' : '') + '</ul></section>';
+  return h;
+}
+function poserGuichet(){
+  var z = $('corpsPortefeuille'); if(!z || mineur() || !estMajeur() || !(rechargeOuverte() || retraitOuvertG())) return;
+  var g = $('guichet'); if(g) g.remove();
+  var d = document.createElement('div'); d.innerHTML = htmlGuichet(); var n = d.firstChild;
+  var c = z.querySelector('.pf-coffre');
+  if(c && c.parentNode === z) z.insertBefore(n, c.nextSibling); else z.insertBefore(n, z.firstChild);
+}
+var rendrePortefeuille15 = rendrePortefeuille;
+rendrePortefeuille = function(){ rendrePortefeuille15(); poserGuichet(); if(!GCH.etat) chargerGuichet(); };
+var chargerCapacitesPG15 = chargerCapacitesPG;
+chargerCapacitesPG = function(force){ var r = chargerCapacitesPG15.apply(this, arguments); GCH.etat = null; return r; };
+
+/* ── la feuille « Déposer » : étapes, familles, délais ── */
+rendreRecharge = function(){
+  var z = $('pgCorps'); if(!z) return;
+  var h = marqueApercu();
+  if(PG.suivi){ z.innerHTML = h + etapesG(PG.suivi.etat === 'confirme' ? 4 : 3) + vueSuivi(); return; }
+  if(PG.devis){ z.innerHTML = h + etapesG(2) + vueDevis(); return; }
+  if(PG.mEtat === 'attente'){ z.innerHTML = h + '<div class="pg-charge" aria-busy="true"><i></i><i></i><i></i></div><p class="petit" style="text-align:center">Les moyens de votre pays arrivent…</p>'; return; }
+  if(PG.mEtat === 'erreur'){ z.innerHTML = h + etatVide('Les moyens ne sont pas arrivés', 'Rien n\'a été débité.') + '<button class="btn trait large" data-act="pg-reessayer">Réessayer</button>'; return; }
+  var mo = PG.m ? PG.m.moyens : [];
+  if(!mo.length){ z.innerHTML = h + etatVide('Pas encore de moyen de recharge dans votre pays', 'Vous serez prévenu dès que NEURAVID en ouvre un.'); return; }
+  h += etapesG(1);
+  if(PG.m.entreprise) h += '<div class="puces pg-but" role="group" aria-label="Pour qui ?"><button data-act="pg-but" data-v="recharge" aria-pressed="' + (PG.but === 'recharge') + '"' + (PG.but === 'recharge' ? ' class="on"' : '') + '>Pour moi</button><button data-act="pg-but" data-v="entreprise" aria-pressed="' + (PG.but === 'entreprise') + '"' + (PG.but === 'entreprise' ? ' class="on"' : '') + '>Pour mon entreprise</button></div>' +
+    (PG.but === 'entreprise' ? '<p class="petit">Le compte de votre entreprise finance vos campagnes, vos défis et vos partenariats dans L\'Étendard.</p>' : '');
+  h += '<h3 class="titre">Comment payer' + (PG.m.devise ? ' · <bdi dir="ltr">' + esc(PG.m.devise) + '</bdi>' : '') + '</h3>' + moyensGroupesG(mo, 'pg-moyen', PG.choisi);
+  var mc = moyenPG();
+  h += '<h3 class="titre">Combien de NVCoins ?</h3><div class="puces pg-paquets">' + PG_PAQUETS.filter(function(n){ return !mc || ((mc.min == null || n >= mc.min) && (mc.max == null || n <= mc.max)); }).map(function(n){ return '<button data-act="pg-paquet" data-v="' + n + '"' + (String(n) === String(PG.n) ? ' class="on"' : '') + '>' + nvc(n) + '</button>'; }).join('') + '</div>' +
+    '<label class="champ"><span>Autre montant</span><input id="pgN" class="montant" inputmode="numeric" autocomplete="off" placeholder="0" value="' + esc(PG.n) + '"></label><p class="petit nb" id="pgEq" style="margin:-6px 0 12px"></p>';
+  if(mc && mc.champ === 'telephone') h += '<label class="champ"><span>Le numéro qui paie</span><input id="pgP" inputmode="tel" autocomplete="tel" value="' + esc(PG.payeur) + '"></label><p class="petit" style="margin:-6px 0 12px">Ce numéro part chiffré vers NEURAVID et n\'est pas gardé sur ce téléphone.</p>';
+  if(mc && (mc.famille || mc.type) === 'carte') h += '<p class="petit gch-note"><span aria-hidden="true">💳</span>Vous payez sur la page sécurisée du prestataire. Le numéro de votre carte reste chez lui : NEURAVID ne le voit jamais.</p>';
+  h += '<button class="btn miel large" id="pgGo" data-act="pg-devis">Voir le prix exact</button><p class="petit" style="margin-top:10px">Le prix, les frais et le total s\'affichent avant de payer. Rien n\'est débité sans votre accord.</p>';
+  z.innerHTML = h; majEstimationPG();
+};
+
+document.addEventListener('click', function(e){
+  var b = e.target.closest && e.target.closest('[data-act^="gch-"]'); if(!b) return;
+  if(b.dataset.act === 'gch-deposer'){ emit('wallet_deposit_open', {}); rechargerPF(); }
+  if(b.dataset.act === 'gch-retirer'){ emit('wallet_withdraw_open', {}); if(apercuPG()) feuilleRetraitApercu(); else montrer('retrait'); }
+});
+var oublierV2_15 = oublierV2; oublierV2 = function(){ oublierV2_15(); GCH.etat = null; GCH.recharge = null; GCH.retrait = null; GCH.devise = null; GCH.pays = null; };
+
+/* ════════ RETIRER SES GAINS : moyens par famille, ce que l'on reçoit, comptes déjà utilisés ════════ */
+GCH.comptes = null; GCH.cEtat = null;
+function familleRetraitG(x){ return x.famille || {mobile:'mobile', banque:'virement', carte:'carte', autre:'portefeuille'}[x.type] || 'portefeuille'; }
+function fraisTexteG(x){
+  if(!x.fraisConnus) return 'Frais : —';
+  return 'Frais : ' + (x.pourcent ? x.pourcent.toLocaleString(LOC()) + ' %' : '') + (x.pourcent && x.fixe ? ' + ' : '') + (x.fixe ? nvc(x.fixe) + ' NVC' : '') + (!x.pourcent && !x.fixe ? '0' : '');
+}
+function moyensRetraitG(mo){
+  var l = mo.map(function(x){ return {id:x.id, nom:x.generique ? null : x.nom, type:x.type === 'banque' ? 'virement' : x.type === 'autre' ? 'portefeuille' : x.type, famille:familleRetraitG(x), marques:[], delai:x.delaiCode, ouvert:x.ouvert, _f:x}; });
+  var h = moyensGroupesG(l, 'rt-moyen', st.retrait.choisi);
+  /* les frais de chaque moyen, sous son nom (le serveur les publie ; inconnus = « — ») */
+  var d = document.createElement('div'); d.innerHTML = h;
+  l.forEach(function(x){ var b = d.querySelector('[data-id="' + (window.CSS && CSS.escape ? CSS.escape(x.id) : x.id) + '"] .gch-t'); if(b){ var s = document.createElement('small'); s.className = 'gch-frais'; s.textContent = fraisTexteG(x._f); b.appendChild(s); } });
+  return d.innerHTML;
+}
+function chargerComptesG(){
+  if(GCH.cEtat === 'attente' || !api() || !connecte()){ if(!api()) GCH.comptes = []; return; }
+  GCH.cEtat = 'attente';
+  lireS('/v1/recolte/retrait/comptes', function(d){
+    GCH.cEtat = 'ok';
+    GCH.comptes = d && Array.isArray(d.items) ? d.items.slice(0, 5).map(function(x){ return x && /^cr_[0-9a-f]{20}$/.test(x.ref || '') ? {ref:x.ref, moyen:String(x.moyen || ''), fin:/^[\w+]{1,4}$/.test(x.fin || '') ? x.fin : null} : null; }).filter(Boolean) : [];
+    if(RT.compteRef && !GCH.comptes.some(function(x){ return x.ref === RT.compteRef; })){ RT.compteRef = null; RT.compteFin = null; }   /* oublié ailleurs */
+    if(st.vue === 'retrait') rendreRetrait();
+  }, 60000);
+}
+function comptesRetraitG(mc){
+  if(GCH.comptes == null){ chargerComptesG(); return ''; }
+  var l = GCH.comptes.filter(function(x){ return x.moyen === mc.id; }); if(!l.length) return '';
+  return '<h4 class="gch-pays">Vos comptes</h4><div class="gch-comptes" role="group" aria-label="Vos comptes">' + l.map(function(x){
+    var on = RT.compteRef === x.ref;
+    return '<span class="gch-compte' + (on ? ' on' : '') + '"><button data-act="gch-compte" data-ref="' + esc(x.ref) + '" data-fin="' + esc(x.fin || '') + '" aria-pressed="' + on + '"><b data-brut dir="ltr">•••• ' + esc(x.fin || '') + '</b></button>' +
+      '<button class="gch-oublier" data-act="gch-oublier" data-ref="' + esc(x.ref) + '" aria-label="Oublier ce compte">×</button></span>';
+  }).join('') + '<button class="gch-compte-autre' + (RT.compteRef ? '' : ' on') + '" data-act="gch-autre" aria-pressed="' + !RT.compteRef + '">Un autre compte</button></div>' +
+  (RT.compteRef ? '<p class="petit" style="margin:-4px 0 12px">L\'argent part vers ce compte, déjà utilisé pour un retrait réussi.</p>' : '');
+}
+document.addEventListener('click', function(e){
+  var b = e.target.closest && e.target.closest('[data-act="gch-compte"],[data-act="gch-autre"],[data-act="gch-oublier"]'); if(!b) return;
+  if(b.dataset.act === 'gch-compte'){ RT.compteRef = b.dataset.ref; RT.compteFin = b.dataset.fin || null; rendreRetrait(); }
+  else if(b.dataset.act === 'gch-autre'){ RT.compteRef = null; RT.compteFin = null; rendreRetrait(); }
+  else {
+    if(b.dataset.ok !== '1'){ b.dataset.ok = '1'; b.textContent = 'Oublier ?'; b.classList.add('confirme'); return; }
+    var ref = b.dataset.ref;
+    poster('/v1/recolte/retrait/comptes/' + ref + '/oublier', {}, function(r, s){
+      if(reussi(s, r)){ GCH.comptes = (GCH.comptes || []).filter(function(x){ return x.ref !== ref; }); if(RT.compteRef === ref){ RT.compteRef = null; RT.compteFin = null; } toast('Ce compte est oublié.'); oublierCache('/v1/recolte/retrait/comptes'); rendreRetrait(); }
+      else toast('Pas de réponse. Réessayez.');
+    }, idem('oublier'));
+  }
+});
+var oublierV2_15b = oublierV2; oublierV2 = function(){ oublierV2_15b(); GCH.comptes = null; GCH.cEtat = null; };
+
+/* ── l'aperçu du retrait (démonstration sans serveur) : le même chemin, rien n'est envoyé ── */
+var GCH_AP = {choisi:null, n:'', ref:null};
+function feuilleRetraitApercu(){
+  ouvrirFeuille('Retirer', '<div id="gchAp"></div>', null, 'gch');
+  rendreRetraitApercu();
+}
+function rendreRetraitApercu(){
+  var z = $('gchAp'); if(!z) return;
+  var dv = apercuDevise(), mo = apercuMoyens(dv[0], 'retrait').map(function(x){ return Object.assign({}, x, {_f:{fraisConnus:true, pourcent:1, fixe:x.famille === 'virement' ? 50 : 0}}); });
+  var dispo = 12500, c = mo.filter(function(x){ return x.id === GCH_AP.choisi; })[0];
+  var h = '<p class="pg-apercu"><b>Aperçu</b> Exemple de démonstration : aucun argent réel ne bouge.</p>' + etapesG(GCH_AP.choisi && GCH_AP.n ? 2 : 1) +
+    '<div class="gch-solde"><small>Disponible pour un retrait</small><b class="nb">' + nvc(dispo) + '</b><span>NVCoins</span></div>' +
+    '<h3 class="titre"><span>Comment le recevoir</span> · <bdi dir="ltr">' + esc(dv[0]) + '</bdi></h3>';
+  var d = document.createElement('div'); d.innerHTML = moyensGroupesG(mo, 'gch-ap-moyen', GCH_AP.choisi);
+  mo.forEach(function(x){ var b = d.querySelector('[data-id="' + x.id + '"] .gch-t'); if(b){ var s = document.createElement('small'); s.className = 'gch-frais'; s.textContent = fraisTexteG(x._f); b.appendChild(s); } });
+  h += d.innerHTML;
+  if(c && c.famille === 'mobile') h += '<h4 class="gch-pays">Vos comptes</h4><div class="gch-comptes"><span class="gch-compte' + (GCH_AP.ref ? ' on' : '') + '"><button data-act="gch-ap-compte" aria-pressed="' + !!GCH_AP.ref + '"><b dir="ltr">•••• 4521</b></button></span><button class="gch-compte-autre' + (GCH_AP.ref ? '' : ' on') + '" data-act="gch-ap-autre">Un autre compte</button></div>';
+  h += '<h3 class="titre">Combien</h3><div class="puces pg-paquets">' + [1000, 2500, 5000, 12500].map(function(n){ return '<button data-act="gch-ap-n" data-v="' + n + '"' + (String(n) === GCH_AP.n ? ' class="on"' : '') + '>' + nvc(n) + '</button>'; }).join('') + '</div>';
+  var n = +GCH_AP.n || 0;
+  if(c && n){ var fr = Math.ceil(c._f.fixe + n * c._f.pourcent / 100), net = n - fr;
+    h += '<div class="recap"><span>Montant</span><b>' + nvc(n) + ' NVC</b><span>Frais du moyen</span><b>− ' + nvc(fr) + ' NVC</b><span class="tot">Vous recevez, environ</span><b class="tot">≈ ' + esc(monnaie(Math.round(net * dv[1] * 0.9), dv[0])) + '</b></div>' +
+      '<button class="btn miel large" data-act="gch-ap-ok">Retirer</button>'; }
+  else h += '<p class="petit">Choisissez un moyen et un montant : ce que vous recevrez s\'affiche avant de confirmer.</p>';
+  z.innerHTML = h;
+}
+document.addEventListener('click', function(e){
+  var b = e.target.closest && e.target.closest('[data-act^="gch-ap-"]'); if(!b) return;
+  var a = b.dataset.act;
+  if(a === 'gch-ap-moyen'){ GCH_AP.choisi = b.dataset.id; GCH_AP.ref = null; }
+  else if(a === 'gch-ap-n') GCH_AP.n = b.dataset.v;
+  else if(a === 'gch-ap-compte') GCH_AP.ref = 'ap';
+  else if(a === 'gch-ap-autre') GCH_AP.ref = null;
+  else if(a === 'gch-ap-ok'){ fermerFeuille(); toast('Aperçu : dans l\'application, votre retrait partirait maintenant. Rien n\'a été envoyé.', 4200); return; }
+  rendreRetraitApercu();
+}, true);
 
 /* ════════════════════════════════════════════════════════════════════
  LA RÉCOLTE EN CINQ LANGUES : FR · EN · ES · PT · AR (de droite à gauche)
@@ -4541,132 +4845,6 @@ demarrer();
 })();
 
 </script>
-<!--NV_VERS_IRIS--><script id="nv-vers-iris" data-module="Recolte">
-/* NEURAVID — VERS IRIS : toute vidéo d'un module peut s'ouvrir dans Iris, le lecteur principal.
-   Injecté dans chaque module (outils/injecter_vers_iris.py). Le module garde son propre lecteur (NVLecteur, avec ses
-   votes, cadeaux et calques) ; ce pont ajoute seulement le passage vers Iris :
-   1. window.NVIris.ouvrir(clip, {liste, index}) : ouvre une vidéo (ou une série) dans Iris.
-      clip = identifiant, ou objet {id, src | sources | hls | whep, type:'video'|'replay'|'direct', directId, title, author, module, thumbnail, ageMin}.
-   2. Dans le lecteur plein écran des modules (NVLecteur), le menu « ⋯ » de chaque vidéo gagne « Ouvrir dans Iris ».
-   3. Une vidéo qui joue ailleurs dans le module (hors NVLecteur) reçoit un bouton hexagonal « Ouvrir dans Iris »
-      si son adresse est lisible ailleurs (http(s), ou data-nv-hls / data-nv-whep posés par le module).
-   Un blob:, une caméra ou un flux local ne peuvent pas changer de page : pas de passage. Iris applique les âges. */
-(function(){
-  if(window.NVIris) return;
-  var S = document.currentScript, MOI = (S && S.getAttribute('data-module')) || '';
-  var TXT = {fr:'Ouvrir dans Iris', en:'Open in Iris', es:'Abrir en Iris', pt:'Abrir no Iris', ar:'افتح في Iris', sw:'Fungua kwenye Iris', ha:'Buɗe a Iris',
-    yo:'Ṣí i nínú Iris', wo:'Ubbi ko ci Iris', bm:'A da Iris kɔnɔ', ln:'Fungola na Iris'};
-  var SOUS = {fr:'Le lecteur principal', en:'The main player', es:'El reproductor principal', pt:'O player principal', ar:'المشغّل الرئيسي', sw:'Kicheza video kikuu', ha:'Babban mai kunna bidiyo',
-    yo:'Ẹ̀rọ ìwòran àkọ́kọ́', wo:'Lecteur bu mag bi', bm:'Videwo lajɛlan kunba', ln:'Lecteur ya liboso'};
-  function lg(){ var l = String(document.documentElement.lang || 'fr').slice(0, 2); return TXT[l] ? l : 'fr'; }
-  function sur(u){ u = typeof u === 'string' ? u.trim() : ''; return /^https?:\/\//.test(u) ? u : ''; }
-  function ouvrir(clip, o){
-    o = o || {};
-    var ctx = {clip:clip, depuis:MOI || null};
-    if(Array.isArray(o.liste)){ ctx.liste = o.liste.slice(0, 100); ctx.index = +o.index || 0; }
-    try{ document.querySelectorAll('video').forEach(function(v){ try{ v.pause(); }catch(e){} }); }catch(e){}
-    try{ if(window.NVLecteur && NVLecteur.ouvert && NVLecteur.ouvert()) NVLecteur.fermer(); }catch(e){}
-    try{ if(window.NVLien && typeof window.NVLien.ouvrir === 'function'){ window.NVLien.ouvrir('NVPlayer', ctx); return true; } }catch(e){}
-    try{ sessionStorage.setItem('nv_ctx_Player', JSON.stringify(ctx)); }catch(e){ return false; }
-    var base = window.NV_MODULES_BASE || ''; if(base && base.slice(-1) !== '/') base += '/';
-    location.href = base + 'NV_MODULE_Iris.html';
-    return true;
-  }
-  /* une vidéo du lecteur des modules (NVLecteur) → une vidéo pour Iris, avec seulement ce que le module a donné */
-  function depuisItem(it, o){
-    if(!it || typeof it !== 'object') return null;
-    var url = sur(it.url), d = {module:(o && o.module) || MOI || null};
-    if(it.direct){
-      var brut = String(it.id || ''), whep = sur(it.whep), hls = sur(it.hls);
-      d.type = 'direct'; d.id = brut.slice(0, 200);
-      /* un direct du Direct (« live:<id> ») se retrouve par son identifiant ; un autre direct (la scène d'une finale Baobab) doit donner son flux */
-      if(/^live:/.test(brut)) d.directId = brut.replace(/^live:/, '');
-      if(url){ if(/\.m3u8(\?|#|$)/i.test(url)) d.hls = url; else d.src = url; }
-      if(hls) d.hls = hls;
-      if(whep) d.whep = whep;
-      if(typeof it.jeton === 'string' && /^[A-Za-z0-9._~+\/=-]{1,2000}$/.test(it.jeton)) d.jeton = it.jeton;
-      if(!d.directId && !d.src && !d.hls && !d.whep) return null;   /* rien à transmettre : pas de passage */
-    } else {
-      if(!url) return null;                       /* blob: ou data: : la vidéo n'existe que sur ce téléphone */
-      d.id = String(it.clip || it.id || url).slice(0, 200); d.src = url;
-    }
-    if(sur(it.poster)) d.thumbnail = it.poster;
-    if(it.auteur) d.author = String(it.auteur).slice(0, 60);
-    if(it.chip) d.title = String(it.chip).slice(0, 120);
-    if(it.pays) d.country = String(it.pays).slice(0, 40);
-    return d;
-  }
-  function brancherNVLecteur(){
-    var L = window.NVLecteur; if(!L || typeof L.ouvrir !== 'function' || L.__versIris) return;
-    var orig = L.ouvrir;
-    L.ouvrir = function(o){
-      if(o && typeof o === 'object'){
-        var opt = o.options, items = Array.isArray(o.items) ? o.items : [];
-        o.options = function(it){
-          var l = []; try{ l = (typeof opt === 'function' ? opt.apply(this, arguments) : []) || []; }catch(e){ l = []; }
-          var c = depuisItem(it, o);
-          if(c){
-            var liste = items.map(function(x){ return depuisItem(x, o); }).filter(Boolean), k = liste.map(function(x){ return x.id; }).indexOf(c.id);
-            l = l.concat([{ico:'⤢', titre:TXT[lg()], sous:SOUS[lg()], action:function(){ ouvrir(c, k >= 0 && liste.length > 1 ? {liste:liste, index:k} : null); }}]);
-          }
-          return l;
-        };
-      }
-      return orig.apply(this, arguments);
-    };
-    L.__versIris = true;
-  }
-  /* une vidéo qui joue hors du lecteur des modules */
-  function decrire(v){
-    if(v.closest && v.closest('#nvl')) return null;      /* déjà dans NVLecteur : le menu « ⋯ » s'en charge */
-    var hls = sur(v.getAttribute('data-nv-hls')), whep = sur(v.getAttribute('data-nv-whep'));
-    var src = sur(v.currentSrc || v.getAttribute('src') || '');
-    if(!src && !hls && !whep) return null;
-    var porteur = v.closest('[data-nv-id],[data-clip],[data-id],[data-video]');
-    var id = v.getAttribute('data-nv-id') || (porteur && (porteur.getAttribute('data-nv-id') || porteur.getAttribute('data-clip') || porteur.getAttribute('data-id') || porteur.getAttribute('data-video'))) || src || hls || whep;
-    var d = {id:String(id).slice(0, 200), module:MOI || null};
-    if(src) d.src = src;
-    if(hls) d.hls = hls;
-    if(whep){ d.whep = whep; d.type = 'direct'; }
-    var ty = v.getAttribute('data-nv-type'); if(ty === 'direct' || ty === 'replay') d.type = ty;
-    var poster = sur(v.getAttribute('poster') || ''); if(poster) d.thumbnail = poster;
-    var titre = v.getAttribute('data-nv-titre') || v.getAttribute('aria-label') || ''; if(titre) d.title = String(titre).slice(0, 120);
-    var age = +v.getAttribute('data-nv-age'); if(age >= 13 && age <= 21) d.ageMin = age;
-    return d;
-  }
-  var bouton = null, cible = null, raf = 0;
-  function creer(){
-    bouton = document.createElement('button');
-    bouton.type = 'button'; bouton.id = 'nvVersIris'; bouton.setAttribute('data-brut', '');
-    bouton.style.cssText = 'position:fixed;z-index:2147483000;width:44px;height:44px;display:none;place-items:center;border:0;padding:0;cursor:pointer;' +
-      'background:linear-gradient(140deg,rgba(108,43,217,.92),rgba(224,36,154,.92));clip-path:polygon(25% 3%,75% 3%,100% 50%,75% 97%,25% 97%,0 50%)';
-    bouton.innerHTML = '<svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9V4h5M15 4h5v5M20 15v5h-5M9 20H4v-5" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>';
-    bouton.addEventListener('click', function(e){ e.preventDefault(); e.stopPropagation(); var d = cible && decrire(cible); if(d) ouvrir(d); });
-    document.body.appendChild(bouton);
-  }
-  function placer(){
-    raf = 0;
-    if(!bouton || !cible) return;
-    var r = cible.getBoundingClientRect();
-    var visible = document.contains(cible) && !cible.paused && r.width >= 160 && r.height >= 120 && r.bottom > 50 && r.top < innerHeight - 50;
-    if(!visible){ bouton.style.display = 'none'; return; }
-    bouton.style.display = 'grid';
-    bouton.style.top = Math.max(8, r.top + 10) + 'px';
-    var rtl = document.documentElement.dir === 'rtl';
-    bouton.style.left = rtl ? Math.max(8, r.left + 10) + 'px' : Math.min(innerWidth - 52, r.right - 54) + 'px';
-    bouton.setAttribute('aria-label', TXT[lg()]); bouton.title = TXT[lg()];
-  }
-  function bientot(){ if(!raf) raf = requestAnimationFrame(placer); }
-  document.addEventListener('play', function(e){ var v = e.target; if(!v || v.tagName !== 'VIDEO' || !decrire(v)) return; cible = v; if(!bouton) creer(); bientot(); }, true);
-  ['pause', 'ended', 'emptied'].forEach(function(n){ document.addEventListener(n, function(e){ if(e.target === cible) bientot(); }, true); });
-  addEventListener('scroll', bientot, true); addEventListener('resize', bientot);
-  setInterval(function(){ if(cible) bientot(); }, 1000);
-  brancherNVLecteur();
-  if(!window.NVLecteur){ var n = 0, tm = setInterval(function(){ brancherNVLecteur(); if(window.NVLecteur || ++n > 20) clearInterval(tm); }, 500); }
-  window.NVIris = {ouvrir:ouvrir, depuisItem:depuisItem, decrire:decrire, version:1};
-})();
-
-</script><!--/NV_VERS_IRIS-->
 <!--NV_CLOCHE--><script id="nv-cloche" data-module="Recolte" data-hote="#haut" data-avant="">
 /* NEURAVID — LA CLOCHE VIVANTE (le pouls du Tam-tam dans l'en-tête de chaque module).
    « Une cloche sonne ; un tambour parle. NEURAVID ne sonne pas — il bat à ton rythme. »
@@ -4822,6 +5000,132 @@ demarrer();
 })();
 
 </script><!--/NV_CLOCHE-->
+<!--NV_VERS_IRIS--><script id="nv-vers-iris" data-module="Recolte">
+/* NEURAVID — VERS IRIS : toute vidéo d'un module peut s'ouvrir dans Iris, le lecteur principal.
+   Injecté dans chaque module (outils/injecter_vers_iris.py). Le module garde son propre lecteur (NVLecteur, avec ses
+   votes, cadeaux et calques) ; ce pont ajoute seulement le passage vers Iris :
+   1. window.NVIris.ouvrir(clip, {liste, index}) : ouvre une vidéo (ou une série) dans Iris.
+      clip = identifiant, ou objet {id, src | sources | hls | whep, type:'video'|'replay'|'direct', directId, title, author, module, thumbnail, ageMin}.
+   2. Dans le lecteur plein écran des modules (NVLecteur), le menu « ⋯ » de chaque vidéo gagne « Ouvrir dans Iris ».
+   3. Une vidéo qui joue ailleurs dans le module (hors NVLecteur) reçoit un bouton hexagonal « Ouvrir dans Iris »
+      si son adresse est lisible ailleurs (http(s), ou data-nv-hls / data-nv-whep posés par le module).
+   Un blob:, une caméra ou un flux local ne peuvent pas changer de page : pas de passage. Iris applique les âges. */
+(function(){
+  if(window.NVIris) return;
+  var S = document.currentScript, MOI = (S && S.getAttribute('data-module')) || '';
+  var TXT = {fr:'Ouvrir dans Iris', en:'Open in Iris', es:'Abrir en Iris', pt:'Abrir no Iris', ar:'افتح في Iris', sw:'Fungua kwenye Iris', ha:'Buɗe a Iris',
+    yo:'Ṣí i nínú Iris', wo:'Ubbi ko ci Iris', bm:'A da Iris kɔnɔ', ln:'Fungola na Iris'};
+  var SOUS = {fr:'Le lecteur principal', en:'The main player', es:'El reproductor principal', pt:'O player principal', ar:'المشغّل الرئيسي', sw:'Kicheza video kikuu', ha:'Babban mai kunna bidiyo',
+    yo:'Ẹ̀rọ ìwòran àkọ́kọ́', wo:'Lecteur bu mag bi', bm:'Videwo lajɛlan kunba', ln:'Lecteur ya liboso'};
+  function lg(){ var l = String(document.documentElement.lang || 'fr').slice(0, 2); return TXT[l] ? l : 'fr'; }
+  function sur(u){ u = typeof u === 'string' ? u.trim() : ''; return /^https?:\/\//.test(u) ? u : ''; }
+  function ouvrir(clip, o){
+    o = o || {};
+    var ctx = {clip:clip, depuis:MOI || null};
+    if(Array.isArray(o.liste)){ ctx.liste = o.liste.slice(0, 100); ctx.index = +o.index || 0; }
+    try{ document.querySelectorAll('video').forEach(function(v){ try{ v.pause(); }catch(e){} }); }catch(e){}
+    try{ if(window.NVLecteur && NVLecteur.ouvert && NVLecteur.ouvert()) NVLecteur.fermer(); }catch(e){}
+    try{ if(window.NVLien && typeof window.NVLien.ouvrir === 'function'){ window.NVLien.ouvrir('NVPlayer', ctx); return true; } }catch(e){}
+    try{ sessionStorage.setItem('nv_ctx_Player', JSON.stringify(ctx)); }catch(e){ return false; }
+    var base = window.NV_MODULES_BASE || ''; if(base && base.slice(-1) !== '/') base += '/';
+    location.href = base + 'NV_MODULE_Iris.html';
+    return true;
+  }
+  /* une vidéo du lecteur des modules (NVLecteur) → une vidéo pour Iris, avec seulement ce que le module a donné */
+  function depuisItem(it, o){
+    if(!it || typeof it !== 'object') return null;
+    var url = sur(it.url), d = {module:(o && o.module) || MOI || null};
+    if(it.direct){
+      var brut = String(it.id || ''), whep = sur(it.whep), hls = sur(it.hls);
+      d.type = 'direct'; d.id = brut.slice(0, 200);
+      /* un direct du Direct (« live:<id> ») se retrouve par son identifiant ; un autre direct (la scène d'une finale Baobab) doit donner son flux */
+      if(/^live:/.test(brut)) d.directId = brut.replace(/^live:/, '');
+      if(url){ if(/\.m3u8(\?|#|$)/i.test(url)) d.hls = url; else d.src = url; }
+      if(hls) d.hls = hls;
+      if(whep) d.whep = whep;
+      if(typeof it.jeton === 'string' && /^[A-Za-z0-9._~+\/=-]{1,2000}$/.test(it.jeton)) d.jeton = it.jeton;
+      if(!d.directId && !d.src && !d.hls && !d.whep) return null;   /* rien à transmettre : pas de passage */
+    } else {
+      if(!url) return null;                       /* blob: ou data: : la vidéo n'existe que sur ce téléphone */
+      d.id = String(it.clip || it.id || url).slice(0, 200); d.src = url;
+    }
+    if(sur(it.poster)) d.thumbnail = it.poster;
+    if(it.auteur) d.author = String(it.auteur).slice(0, 60);
+    if(it.chip) d.title = String(it.chip).slice(0, 120);
+    if(it.pays) d.country = String(it.pays).slice(0, 40);
+    return d;
+  }
+  function brancherNVLecteur(){
+    var L = window.NVLecteur; if(!L || typeof L.ouvrir !== 'function' || L.__versIris) return;
+    var orig = L.ouvrir;
+    L.ouvrir = function(o){
+      if(o && typeof o === 'object'){
+        var opt = o.options, items = Array.isArray(o.items) ? o.items : [];
+        o.options = function(it){
+          var l = []; try{ l = (typeof opt === 'function' ? opt.apply(this, arguments) : []) || []; }catch(e){ l = []; }
+          var c = depuisItem(it, o);
+          if(c){
+            var liste = items.map(function(x){ return depuisItem(x, o); }).filter(Boolean), k = liste.map(function(x){ return x.id; }).indexOf(c.id);
+            l = l.concat([{ico:'⤢', titre:TXT[lg()], sous:SOUS[lg()], action:function(){ ouvrir(c, k >= 0 && liste.length > 1 ? {liste:liste, index:k} : null); }}]);
+          }
+          return l;
+        };
+      }
+      return orig.apply(this, arguments);
+    };
+    L.__versIris = true;
+  }
+  /* une vidéo qui joue hors du lecteur des modules */
+  function decrire(v){
+    if(v.closest && v.closest('#nvl')) return null;      /* déjà dans NVLecteur : le menu « ⋯ » s'en charge */
+    var hls = sur(v.getAttribute('data-nv-hls')), whep = sur(v.getAttribute('data-nv-whep'));
+    var src = sur(v.currentSrc || v.getAttribute('src') || '');
+    if(!src && !hls && !whep) return null;
+    var porteur = v.closest('[data-nv-id],[data-clip],[data-id],[data-video]');
+    var id = v.getAttribute('data-nv-id') || (porteur && (porteur.getAttribute('data-nv-id') || porteur.getAttribute('data-clip') || porteur.getAttribute('data-id') || porteur.getAttribute('data-video'))) || src || hls || whep;
+    var d = {id:String(id).slice(0, 200), module:MOI || null};
+    if(src) d.src = src;
+    if(hls) d.hls = hls;
+    if(whep){ d.whep = whep; d.type = 'direct'; }
+    var ty = v.getAttribute('data-nv-type'); if(ty === 'direct' || ty === 'replay') d.type = ty;
+    var poster = sur(v.getAttribute('poster') || ''); if(poster) d.thumbnail = poster;
+    var titre = v.getAttribute('data-nv-titre') || v.getAttribute('aria-label') || ''; if(titre) d.title = String(titre).slice(0, 120);
+    var age = +v.getAttribute('data-nv-age'); if(age >= 13 && age <= 21) d.ageMin = age;
+    return d;
+  }
+  var bouton = null, cible = null, raf = 0;
+  function creer(){
+    bouton = document.createElement('button');
+    bouton.type = 'button'; bouton.id = 'nvVersIris'; bouton.setAttribute('data-brut', '');
+    bouton.style.cssText = 'position:fixed;z-index:2147483000;width:44px;height:44px;display:none;place-items:center;border:0;padding:0;cursor:pointer;' +
+      'background:linear-gradient(140deg,rgba(108,43,217,.92),rgba(224,36,154,.92));clip-path:polygon(25% 3%,75% 3%,100% 50%,75% 97%,25% 97%,0 50%)';
+    bouton.innerHTML = '<svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9V4h5M15 4h5v5M20 15v5h-5M9 20H4v-5" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+    bouton.addEventListener('click', function(e){ e.preventDefault(); e.stopPropagation(); var d = cible && decrire(cible); if(d) ouvrir(d); });
+    document.body.appendChild(bouton);
+  }
+  function placer(){
+    raf = 0;
+    if(!bouton || !cible) return;
+    var r = cible.getBoundingClientRect();
+    var visible = document.contains(cible) && !cible.paused && r.width >= 160 && r.height >= 120 && r.bottom > 50 && r.top < innerHeight - 50;
+    if(!visible){ bouton.style.display = 'none'; return; }
+    bouton.style.display = 'grid';
+    bouton.style.top = Math.max(8, r.top + 10) + 'px';
+    var rtl = document.documentElement.dir === 'rtl';
+    bouton.style.left = rtl ? Math.max(8, r.left + 10) + 'px' : Math.min(innerWidth - 52, r.right - 54) + 'px';
+    bouton.setAttribute('aria-label', TXT[lg()]); bouton.title = TXT[lg()];
+  }
+  function bientot(){ if(!raf) raf = requestAnimationFrame(placer); }
+  document.addEventListener('play', function(e){ var v = e.target; if(!v || v.tagName !== 'VIDEO' || !decrire(v)) return; cible = v; if(!bouton) creer(); bientot(); }, true);
+  ['pause', 'ended', 'emptied'].forEach(function(n){ document.addEventListener(n, function(e){ if(e.target === cible) bientot(); }, true); });
+  addEventListener('scroll', bientot, true); addEventListener('resize', bientot);
+  setInterval(function(){ if(cible) bientot(); }, 1000);
+  brancherNVLecteur();
+  if(!window.NVLecteur){ var n = 0, tm = setInterval(function(){ brancherNVLecteur(); if(window.NVLecteur || ++n > 20) clearInterval(tm); }, 500); }
+  window.NVIris = {ouvrir:ouvrir, depuisItem:depuisItem, decrire:decrire, version:1};
+})();
+
+</script><!--/NV_VERS_IRIS-->
 
 <!--NV_DEPUIS_IRIS--><script id="nv-depuis-iris">window.NV_DEPUIS_MODULE="Recolte_leger";
 /* NEURAVID — LA PRISE D'IRIS (21 novembre 2026, demande de Karamo : « lorsque l'on clique sur Relever le défi, la caméra de
