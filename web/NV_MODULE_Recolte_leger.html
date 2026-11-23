@@ -4065,6 +4065,7 @@ function motRefus(r){
   var M = {
     age_argent:'L\'argent est réservé aux 18 ans et plus.',
     kyc_insuffisant:'Vérifiez d\'abord votre identité.',
+    kyc_mobile_seulement:'Sans vérification d\'identité, les retraits vont seulement vers un compte mobile money.',
     moyen_non_autorise:'Ce moyen n\'est pas ouvert dans votre pays.',
     montant_hors_limites:'Ce montant est hors des limites de ce moyen.',
     plafond_jour:'Vous avez atteint la limite du jour.',
@@ -4863,6 +4864,52 @@ var oublierV2_16 = oublierV2; oublierV2 = function(){ oublierV2_16(); PG16.preci
 /* le ruban du guichet nomme chaque moyen : la page de paiement n'y est pas (elle les montre tous) */
 var htmlGuichet16 = htmlGuichet;
 htmlGuichet = function(){ var r = GCH.recharge; if(r) GCH.recharge = r.filter(function(x){ return !x.page; }); try{ return htmlGuichet16(); } finally { GCH.recharge = r; } };
+/* ═══ r17 — 23 nov. 2026 (décision de Karamo) : déposer SANS vérification d'identité, et retirer un petit montant
+   vers un compte mobile money sans vérification. L'écran suit seulement ce que le serveur annonce dans
+   « sansIdentite » (/v1/recolte/moi) ; rien n'est inventé : sans cette annonce, tout reste comme avant. ═══ */
+function sansIdentite(){ var m = st.moi, b = m && m.brut; var s = b && b.sansIdentite; return s && typeof s === 'object' ? s : null; }
+function retraitSansIdentite(){
+  var s = sansIdentite(), r = s && s.retrait, m = st.moi;
+  if(!r || !m || m.identite === 'verifiee') return null;
+  var j = Math.floor(+r.jour), mo = Math.floor(+r.mois);
+  return j > 0 && mo > 0 ? {jour:j, mois:mo} : null;
+}
+function depotSansIdentite(){ var s = sansIdentite(); return !!(s && s.depot && (s.depot.libre === true || s.depot.jour > 0)); }
+
+/* le calcul du retrait : sans vérification, seulement vers le mobile money et sous la limite du jour */
+var calculRetrait17 = calculRetrait;
+calculRetrait = function(){
+  var r = retraitSansIdentite(), m = st.moi;
+  if(!r || m.identite === 'attente') return calculRetrait17();
+  var avant = m.identite; m.identite = 'verifiee';
+  var c; try{ c = calculRetrait17(); } finally { m.identite = avant; }
+  var dispo = m.solde ? m.solde.disponible : null;
+  if(c.n > r.jour && dispo != null && c.n <= dispo && m.confiance.etat !== 'bloque') c.err = 'Sans vérification d\'identité, la limite est de ' + nvc(r.jour) + ' NVCoins par jour.';
+  else if(!c.err && c.mc && c.mc.type !== 'mobile') c.err = 'Sans vérification d\'identité, les retraits vont seulement vers un compte mobile money.';
+  return c;
+};
+
+/* l'écran « Retirer » : plus d'impasse ; la vérification devient facultative, pour retirer plus */
+var rendreRetrait17 = rendreRetrait;
+rendreRetrait = function(){
+  rendreRetrait17();
+  var r = retraitSansIdentite(), z = $('corpsRetrait'); if(!r || !z || st.moi.identite === 'attente' || st.moi.identite === 'refusee') return;
+  var b = z.querySelector('.invite [data-act="identite"]'), inv = b && b.closest('.invite'); if(!inv) return;
+  inv.className = 'carte claire si17';
+  inv.innerHTML = '<p><b>Sans vérification d\'identité : jusqu\'à ' + nvc(r.jour) + ' NVCoins par jour et ' + nvc(r.mois) + ' par mois, vers un compte mobile money.</b></p>' +
+    '<p class="petit">Pour retirer plus, vérifiez votre identité.</p><button class="btn trait" data-act="identite">Vérifier mon identité</button>';
+};
+
+/* la feuille « Déposer » : on rassure, aucune vérification n'est demandée */
+var rendreRecharge17 = rendreRecharge;
+rendreRecharge = function(){
+  rendreRecharge17();
+  var z = $('pgCorps'); if(!z || PG.suivi || PG.devis || !depotSansIdentite() || z.querySelector('.si17-depot')) return;
+  var e = z.querySelector('.gch-famille'); if(!e) return;
+  var p = document.createElement('p'); p.className = 'petit si17-depot';
+  p.textContent = 'Déposer ne demande aucune vérification d\'identité.';
+  e.parentNode.insertBefore(p, e);
+};
 
 /* ════════════════════════════════════════════════════════════════════
  LA RÉCOLTE EN CINQ LANGUES : FR · EN · ES · PT · AR (de droite à gauche)
