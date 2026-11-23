@@ -6763,6 +6763,7 @@ function demarrer(){
     if(ctx.chaine) voirChaine(String(ctx.chaine).slice(0, 60));
     if(ctx.auteur) ouvrirAuteurCtx(String(ctx.auteur).slice(0, 64));   /* 22 nov. 2026 : la story d'une personne, depuis Palabre */
     if(ctx.tour) tourDuMonde(typeof ctx.debut === 'string' ? ctx.debut.slice(0, 80) : null);   /* « Le tour du monde en stories » de l'accueil */
+    if(ctx.story && !ctx.tour && !ctx.auteur) ouvrirStoryCtx(String(ctx.story).slice(0, 80));   /* 23 nov. 2026 : une story de l'accueil hors du tour */
   }
   try{ entreesPlus(ctx && typeof ctx === 'object' ? ctx : null); }catch(e){ dbg(e); }
   reprendreStudio();
@@ -6787,6 +6788,16 @@ function ouvrirAuteurCtx(a){
     if((st.source !== 'attente' && essais > 3) || essais > 40){ toast('Aucune story à montrer.'); return; }
     setTimeout(essai, 300);
   })();
+}
+
+/* 23 nov. 2026 : ouvrir une seule story, touchée sur l'accueil (hors du tour du monde) */
+function ouvrirStoryCtx(id){
+  if(!api() || !/^[\w-]{1,80}$/.test(id)) return;
+  lireS('/v1/stories/' + encodeURIComponent(id), function(d){
+    var s = d ? normStory(d) : null;
+    if(s && enVie(s) && !scellee(s)) ouvrirLecteur(groupesDeListe([s]), 0, 0, {nom:'une'});
+    else toast('Aucune story à montrer.');
+  }, 30000);
 }
 
 /* ════════════════════════════════════════════════════════════════════

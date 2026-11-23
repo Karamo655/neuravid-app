@@ -1236,6 +1236,9 @@ body.feuille-ouverte #app *,body.feuille-ouverte #app *::before,body.feuille-ouv
 .sto-b:active .sto-hx{transform:scale(.94)}
 .sto-b:focus-visible{outline:2px solid #2EE6C5;outline-offset:3px;border-radius:10px}
 .sto-b.vu .sto-hx{background:rgba(255,255,255,.28)}
+/* 23 nov. 2026 : ma story publiée, en tête, anneau d'or (ac39) */
+.sto-b.sto-mienne .sto-hx,.sto-b.sto-mienne.vu .sto-hx{background:conic-gradient(from 200deg,#FFE08A,#FFC93D,#FF9F1C,#FFE08A)}
+.sto-b.sto-mienne .sto-n{color:#FFD86B;font-weight:700}
 .sto-int{position:absolute;inset:3px;clip-path:polygon(50% 0,100% 25%,100% 75%,50% 100%,0 75%,0 25%);background:#0B0520;overflow:hidden;display:block}
 .sto-int img,.sto-int video,.sto-int canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block}
 .sto-texte{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;padding:8px 4px;font-size:8px;font-weight:800;line-height:1.15;text-align:center;color:#fff;overflow:hidden;word-break:break-word}
@@ -7930,6 +7933,72 @@ A.storyScene = function(){ var s = STO.l[STS.i]; if(s) A.storyOuvrir(s.id); };
 (function(){ var r0 = rendreStories; rendreStories = function(){ var r = r0.apply(this, arguments); stsPoser(); return r; };
   document.addEventListener('visibilitychange', function(){ if(!document.hidden && STS.el) stsRelancer(); });
   window.addEventListener('resize', function(){ STS.fondCle = ''; if(STS.el) stsDessiner(performance.now() / 1000); }); })();
+
+/* ════════ 23 nov. 2026 : une story publiée se voit sur l'accueil ════════
+   Demande de Karamo : « j'ai publié une story, mais on ne la trouve pas sur l'écran ».
+   Le tour du monde (/v1/stories/tour) ne garde qu'une story par fuseau. Une story fraîche pouvait donc ne jamais y paraître.
+   On ajoute maintenant de vraies stories seulement, sans doublon :
+   - mes stories en vie (/v1/stories/fil, « moi »), en tête, avec un anneau d'or ;
+   - la dernière story de chaque personne suivie (/v1/stories/fil, « rangs ») ;
+   - les stories publiques récentes (/v1/stories/pourvous) quand le tour est maigre.
+   Une story qui n'est pas dans le tour s'ouvre seule (contexte {story}) ; les miennes s'ouvrent toutes ({auteur}). */
+STO.extra = []; STO.mesIds = {}; STO.tourIds = {}; STO.auteurDe = {}; STO.exT = 0;
+var STO_TOUR_MAIGRE = 6;
+function stoEnVie(s){ var e = Date.parse(s && s.expire); return !e || e > Date.now(); }
+function stoExtras(g){
+  if(!api() || g !== STO.g) return;
+  STO.exT = Date.now();
+  var moi = aUnCompte();
+  lireJSON('/v1/univers/capacites').then(function(c){
+    if(g !== STO.g || !(c && c.stories && c.stories.stories === true)) return null;
+    return Promise.all([
+      moi ? lireJSON('/v1/stories/fil').catch(function(e){ dbg(e); return null; }) : Promise.resolve(null),
+      lireJSON('/v1/stories/pourvous').catch(function(e){ dbg(e); return null; })
+    ]);
+  }).then(function(r){
+    if(!r || g !== STO.g) return;
+    var fil = r[0] || {}, pv = r[1] || {}, mes = [], suivis = [], pub = [];
+    if(fil.moi && Array.isArray(fil.moi.stories)) mes = fil.moi.stories.filter(stoEnVie).slice(-1).reverse();   /* ma story la plus récente */
+    if(Array.isArray(fil.rangs)) fil.rangs.forEach(function(rg){ var l = rg && Array.isArray(rg.stories) ? rg.stories.filter(stoEnVie) : []; if(l.length) suivis.push(l[l.length - 1]); });
+    if(Array.isArray(pv.items)) pub = pv.items.filter(stoEnVie);
+    STO.mesIds = {}; mes.forEach(function(s){ if(s && typeof s.id === 'string') STO.mesIds[s.id] = 1; });
+    STO.extraSuivis = suivis; STO.extraPub = pub; STO.extraMes = mes;
+    poserStories(STO.brut || []);
+  }).catch(dbg);
+}
+(function(){
+  var p0 = poserStories;
+  poserStories = function(items, apercu){
+    if(apercu) return p0(items, apercu);
+    STO.brut = Array.isArray(items) ? items : [];
+    STO.tourIds = {}; STO.brut.forEach(function(s){ if(s && typeof s.id === 'string') STO.tourIds[s.id] = 1; });
+    var mes = STO.extraMes || [], suivis = STO.extraSuivis || [], pub = STO.extraPub || [];
+    var l = mes.concat(STO.brut, suivis), vus = {}, out = [];
+    /* les stories publiques récentes seulement si le tour est maigre : le tour garde sa place */
+    if(STO.brut.length < STO_TOUR_MAIGRE) l = l.concat(pub);
+    l.forEach(function(s){ if(!s || typeof s.id !== 'string' || vus[s.id]) return; vus[s.id] = 1; out.push(s);
+      if(s.auteur && typeof s.auteur === 'object' && typeof s.auteur.id === 'string') STO.auteurDe[s.id] = s.auteur.id; });
+    return p0(out, false);
+  };
+  var c0 = chargerStories;
+  chargerStories = function(g){ STO.extraMes = []; STO.extraSuivis = []; STO.extraPub = []; STO.brut = null; var r = c0.apply(this, arguments); stoExtras(g); return r; };
+  var r0 = rendreStories;
+  rendreStories = function(){ var r = r0.apply(this, arguments);
+    if(!STO.apercu) Object.keys(STO.mesIds).forEach(function(id){ var b = document.querySelector('#storiesMonde .sto-rang [data-v="' + CSS.escape(id) + '"]'); if(b) b.classList.add('sto-mienne'); });
+    return r; };
+  var o0 = A.storyOuvrir;
+  A.storyOuvrir = function(id){
+    if(STO.apercu || STO.tourIds[id]) return o0.apply(this, arguments);
+    var s = STO.l.filter(function(x){ return x.id === id; })[0]; if(!s) return;
+    stoNoterVue(id); emit('home_story', {action:'ouvrir', story:id});
+    var b = document.querySelector('#storiesMonde [data-v="' + CSS.escape(id) + '"]'); if(b) b.classList.add('vu');
+    var ctx = STO.mesIds[id] ? {auteur:compteActuel()} : {story:id};
+    fermerPuis(function(){ entrer('StoryUniverse', ctx); });
+  };
+  /* de retour sur l'accueil (après avoir publié) : les stories sont relues, au plus une fois par 30 s */
+  document.addEventListener('visibilitychange', function(){ if(!document.hidden && STO.cap && Date.now() - STO.exT > 30000) chargerStories(STO.g); });
+  window.addEventListener('pageshow', function(e){ if(e.persisted && STO.cap && Date.now() - STO.exT > 30000) chargerStories(STO.g); });
+})();
 
 /* ════════════════════════════════════════════════════════════════════
    LE DÉMARRAGE, CE QUE DIT LE SERVEUR, L'INTERFACE PUBLIQUE
