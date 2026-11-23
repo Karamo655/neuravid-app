@@ -1,6 +1,6 @@
 {
- "version": "2026.11.23-2a77d32cca4c",
- "date": "2026-11-23T12:46:11Z",
+ "version": "2026.11.23-87b091ec5b72",
+ "date": "2026-11-23T13:59:39Z",
  "entree": "index.html",
  "modules": [
   "NV_MODULE_Academie.html",
@@ -99,8 +99,8 @@
    "taille": 1474775
   },
   "NV_MODULE_CallUniverse.html": {
-   "sha256": "3ca924d4af716b262e2667e8ab6067b897e9cd00031798588f971619f3f03066",
-   "taille": 1741036
+   "sha256": "73cdd5273874e2b4d466bf9099135598202d7ea4d5c6d5188b7c802bb2f054c5",
+   "taille": 1741590
   },
   "NV_MODULE_ChallengeUniverse.html": {
    "sha256": "be604be9fc5d465d93c5397309c1b3d5f34c166c18729c2a2174b3ddbb02b672",
@@ -1694,6 +1694,14 @@
    "sha256": "87f567a2a77413b906c61a8051f4c199581cd5e8b8a73ab3d917cb87b7fde907",
    "taille": 1609636
   },
+  "flammes3d/art/connexion.webm": {
+   "sha256": "a4002df9e76bc49fe6349a0ac1c042d6fd625d58334a295a1c51a0f84c20ac11",
+   "taille": 105919
+  },
+  "flammes3d/art/connexion.webp": {
+   "sha256": "7b9a763a880a14ef6ee0cd68ffcfd9eb04ff48abe05719d42c17d971b6053e97",
+   "taille": 12850
+  },
   "flammes3d/art/flamme_1.webp": {
    "sha256": "9a724bfeec835492a62fc88ac0a2e4bee8d2672b476a4e3ef626168145af9146",
    "taille": 27230
@@ -1717,6 +1725,46 @@
   "flammes3d/art/flamme_6.webp": {
    "sha256": "80ff21dd3827501eeff6ade0fe35d036ae85df9713fcdc0a6c7ff1160339198e",
    "taille": 39842
+  },
+  "flammes3d/art/legendaire.webm": {
+   "sha256": "02ff9cc2a734e3781ab4c6eab8fc6ce1e62596387c72e788c6059c9943bf17b8",
+   "taille": 161930
+  },
+  "flammes3d/art/legendaire.webp": {
+   "sha256": "779dd81b678808f98948db5097ca045a8020b125c387f8d4391ee18faf414265",
+   "taille": 15770
+  },
+  "flammes3d/art/musicale.webm": {
+   "sha256": "7dcd2ffaf6a8591497ddb0504657e6cf20c85425736bacdb7d86852be4fb7dbb",
+   "taille": 198309
+  },
+  "flammes3d/art/musicale.webp": {
+   "sha256": "ff0c2a1bb5945ad9dddad685edcf79a6b2334abf9f38e0f44a065ad9c2d9fb0b",
+   "taille": 13298
+  },
+  "flammes3d/art/naissance.webm": {
+   "sha256": "5adf33972526299a15264dfe74836eb0eb6992ac846d5d8a9619fb21a3c4082a",
+   "taille": 78126
+  },
+  "flammes3d/art/naissance.webp": {
+   "sha256": "ca524dab0f40e4e6d68e7cc0265d50549b4f102c097444a2801fadd0c8608ab4",
+   "taille": 9860
+  },
+  "flammes3d/art/nations.webm": {
+   "sha256": "019add54207c94eaba2f25e7dbea61b303250bf80932ee4d126bd099ac63160d",
+   "taille": 166167
+  },
+  "flammes3d/art/nations.webp": {
+   "sha256": "8b3805ec6a94023eca8ac020b1d9d79a41f0da93d8ea1c54104c314410594f14",
+   "taille": 15956
+  },
+  "flammes3d/art/protectrice.webm": {
+   "sha256": "3b6564f7f2a7e4ea44fb2d24d85ef56fd69a9fb65c7eba31e652e6de9c6f5f3f",
+   "taille": 150430
+  },
+  "flammes3d/art/protectrice.webp": {
+   "sha256": "d4bf1102d9382e1edec309051be21f8d8c6f9be6534da1fb43327c6f370ae314",
+   "taille": 13750
   },
   "flammes3d/connexion.webm": {
    "sha256": "1444c7cb75f8a4083a219777e11fb1639e83e94b7c69c1fc2192c60d57234943",

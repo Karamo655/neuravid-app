@@ -3150,8 +3150,12 @@ function premiereImage(i){
   if(m === 'direct'){ i.g.drawImage(dessinerGL(i.o.style, 1.2, rendu(i), i.o), 0, 0, i.px, i.px); }
   else if(m === 'video' && BASE_VIDEO){
     var v = document.createElement('video'); v.muted = true; v.loop = true; v.playsInline = true; v.setAttribute('playsinline', ''); v.setAttribute('aria-hidden', 'true');
-    v.className = 'nv-f3d'; v.style.width = v.style.height = i.o.taille + 'px'; v.preload = 'metadata'; v.poster = BASE_VIDEO + i.o.style + '.webp';
-    v.src = BASE_VIDEO + i.o.style + '.webm'; v.onerror = function(){ if(v.parentNode) v.parentNode.removeChild(v); i.v = null; i.cv.hidden = false; dessiner2D(i.g, i.o.style, i.px, i.o); };
+    v.className = 'nv-f3d'; v.style.width = v.style.height = i.o.taille + 'px'; v.preload = 'metadata';
+    /* la flamme légère illustrée d'abord ; l'ancien cristal en secours si elle manque */
+    var bases = ART_BASE ? [ART_BASE, BASE_VIDEO] : [BASE_VIDEO], bi = 0;
+    var essayer = function(){ v.poster = bases[bi] + i.o.style + '.webp'; v.src = bases[bi] + i.o.style + '.webm'; };
+    essayer();
+    v.onerror = function(){ if(++bi < bases.length){ essayer(); var pr = v.play(); if(pr && pr.catch) pr.catch(function(){}); return; } if(v.parentNode) v.parentNode.removeChild(v); i.v = null; i.cv.hidden = false; dessiner2D(i.g, i.o.style, i.px, i.o); };
     i.v = v; i.cv.hidden = true; i.el.appendChild(v); dessiner2D(i.g, i.o.style, i.px, i.o);
     if(aDesEffets(i.o)){
       var f = document.createElement('canvas'); f.width = f.height = Math.min(i.px, 192); f.className = 'nv-f3d nv-f3d-fx'; f.setAttribute('aria-hidden', 'true');
@@ -3435,6 +3439,7 @@ window.NVFlamme3D = {
   base:function(){ return BASE_VIDEO; },
   art:function(base){ ART_BASE = base || null; ART = {}; ART_CACHE = {}; if(ART_BASE){ Object.keys(ART_NUM).forEach(function(k){ artImg(k); }); } MODE = null; toutRedessiner(); },
   artPret:function(style){ return artPret({style:style}); }, embraser:embraser,
+  cadreArt:function(style, t, w, o){ o = Object.assign({style:style}, o || {}); if(!artPret(o)) return null; var c = document.createElement('canvas'); c.width = c.height = w; dessinerArt(c.getContext('2d'), w, t, o, 0); return c; },
   son:function(style){ if(!sonActif()) return false; var ctx = audio(); if(!ctx) return false; try{ jouerSon(style, ctx, ctx.destination); return true; }catch(e){ return false; } },
   sonActif:sonActif, sonRegler:function(on){ try{ if(on) localStorage.removeItem('nv_flamme3d_son'); else localStorage.setItem('nv_flamme3d_son', '0'); }catch(e){} }
 };
