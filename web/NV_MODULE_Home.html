@@ -1971,6 +1971,8 @@ body.feuille-ouverte .raccourcis{visibility:hidden}
 @media (max-width:720px){#app .prisme-nom{max-width:calc(100% - 2 * max(0px, var(--rc-place,74px) - 16px))}#ciel #reprendre{padding-inline:max(0px, calc(var(--rc-place,74px) - 16px))!important}}
 /* 20 nov. 2026 : les points du carrousel en fenêtre */
 .points i[hidden]{display:none}.points i.bord{transform:scale(.6)}
+/* 23 nov. 2026 : le carrousel monte sous la vitrine (ac40) ; la vitrine reste au-dessus */
+#vitrine{position:relative;z-index:3}
 </style>
 </head>
 <body>
@@ -7998,6 +8000,31 @@ function stoExtras(g){
   /* de retour sur l'accueil (après avoir publié) : les stories sont relues, au plus une fois par 30 s */
   document.addEventListener('visibilitychange', function(){ if(!document.hidden && STO.cap && Date.now() - STO.exT > 30000) chargerStories(STO.g); });
   window.addEventListener('pageshow', function(e){ if(e.persisted && STO.cap && Date.now() - STO.exT > 30000) chargerStories(STO.g); });
+})();
+
+/* 23 nov. 2026 (demande de Karamo) : le carrousel monte sous la vitrine, avec le même
+   espace que la carte des stories et la vitrine. Les hexagones sont dessinés plus bas
+   dans la boîte du prisme : on mesure le haut de l'hexagone de devant et on remonte la
+   boîte d'autant. Rien n'est retiré ; la vitrine reste au-dessus (ses boutons restent touchables). */
+var CARR = {t: 0, mt: null};
+function carrApproche(){
+  var pr = $('prisme'), v = $('vitrine'), sto = $('storiesMonde'); if(!pr || !v || v.hidden || !pr.offsetHeight) return;
+  if(v.nextElementSibling !== pr) { if(CARR.mt !== null){ pr.style.marginTop = ''; CARR.mt = null; } return; }
+  var ec = pr.querySelector('.astre.devant .ec') || pr.querySelector('.astre .ec'); if(!ec) return;
+  var ecart = 12;
+  if(sto && !sto.hidden && sto.offsetHeight){ var e = v.getBoundingClientRect().top - sto.getBoundingClientRect().bottom; if(e >= 4 && e <= 24) ecart = Math.round(e); }
+  var actuel = parseFloat(getComputedStyle(pr).marginTop) || 0;
+  var dedans = ec.getBoundingClientRect().top - pr.getBoundingClientRect().top;
+  var haut = pr.getBoundingClientRect().top - v.getBoundingClientRect().bottom - actuel;
+  var mt = Math.round(ecart - haut - dedans);
+  if(mt > 4) mt = 4; if(Math.abs((CARR.mt === null ? actuel : CARR.mt) - mt) < 2) return;
+  CARR.mt = mt; pr.style.marginTop = mt + 'px';
+}
+function carrPlus_tard(){ clearTimeout(CARR.t); CARR.t = setTimeout(carrApproche, 250); }
+(function(){
+  setTimeout(carrApproche, 300); setTimeout(carrApproche, 1500); setTimeout(carrApproche, 4000);
+  window.addEventListener('resize', carrPlus_tard);
+  try { var ro = new ResizeObserver(carrPlus_tard); var pr = $('prisme'); if(pr) ro.observe(pr); var st = $('storiesMonde'); if(st) ro.observe(st); var v = $('vitrine'); if(v) ro.observe(v); } catch(e){}
 })();
 
 /* ════════════════════════════════════════════════════════════════════
