@@ -4016,13 +4016,16 @@ function apercuRepondre(chemin, corps, methode){
   return null;
 }
 /* l'aperçu suit le catalogue du serveur : les moyens habituels du pays (exemple, rien n'est ouvert pour de vrai) */
-var APERCU_MOYENS = {GN:['orange_money', 'mtn_momo'], SN:['orange_money', 'wave'], CI:['orange_money', 'mtn_momo', 'wave', 'moov_money'], ML:['orange_money', 'wave', 'moov_money'],
+var APERCU_MOYENS = {GN:['orange_money', 'mtn_momo', 'paycard', 'soutra_money', 'kulu', 'akiba'], SN:['orange_money', 'wave'], CI:['orange_money', 'mtn_momo', 'wave', 'moov_money'], ML:['orange_money', 'wave', 'moov_money'],
   BF:['orange_money', 'wave', 'moov_money'], CM:['orange_money', 'mtn_momo'], GH:['mtn_momo', 'airtel_money'], NG:['mtn_momo', 'airtel_money'], KE:['mpesa', 'airtel_money'],
   TZ:['mpesa', 'airtel_money'], UG:['mtn_momo', 'airtel_money'], CD:['orange_money', 'mpesa', 'airtel_money'], BJ:['mtn_momo', 'moov_money'], TG:['moov_money']};
-var APERCU_NOMS = {orange_money:'Orange Money', mtn_momo:'MTN MoMo', wave:'Wave', moov_money:'Moov Money', mpesa:'M-Pesa', airtel_money:'Airtel Money'};
+var APERCU_NOMS = {orange_money:'Orange Money', mtn_momo:'MTN MoMo', wave:'Wave', moov_money:'Moov Money', mpesa:'M-Pesa', airtel_money:'Airtel Money', paycard:'PayCard', soutra_money:'Soutra Money', kulu:'Kulu', akiba:'Akiba'};
+/* 23 nov. 2026 : les portefeuilles de Guinée (catalogue du serveur) */
+var APERCU_FAMILLE = {paycard:['portefeuille', 'compte'], kulu:['portefeuille', 'telephone'], akiba:['portefeuille', 'telephone']};
 function apercuMoyens(dev, sens){
   var iso = String((window.NV_USER || {}).iso || 'GN').toUpperCase(), l = (APERCU_MOYENS[iso] || ['mobile_money']).map(function(id){
-    return {id:id, nom:APERCU_NOMS[id] || null, type:'mobile', famille:'mobile', devise:dev, min:100, max:100000, champ:'telephone', delai:sens === 'retrait' ? 'minutes' : 'instantane', ouvert:true}; });
+    var f = APERCU_FAMILLE[id] || ['mobile', 'telephone'];
+    return {id:id, nom:APERCU_NOMS[id] || null, type:f[0], famille:f[0], devise:dev, min:100, max:100000, champ:f[1], delai:sens === 'retrait' ? 'minutes' : 'instantane', ouvert:true}; });
   if(sens === 'recharge') l.push({id:'carte_bancaire', nom:'Carte bancaire', type:'carte', famille:'carte', marques:['visa', 'mastercard'], devise:dev, min:500, max:100000, champ:null, delai:'instantane', ouvert:true});
   else l.push({id:'virement_bancaire', nom:null, type:'virement', famille:'virement', devise:dev, min:5000, max:100000, champ:'iban', delai:'jours', ouvert:true});
   return l;
@@ -4494,7 +4497,7 @@ function sigleG(x){
 function teinteG(id){ var h = 0; String(id).split('').forEach(function(c){ h = (h * 31 + c.charCodeAt(0)) >>> 0; }); return GCH_TEINTES[h % GCH_TEINTES.length]; }
 function hexMoyenG(x){
   var t = teinteG(x.id), fam = x.famille || x.type;
-  var dedans = fam === 'mobile' && x.nom ? '<b data-brut>' + esc(sigleG(x)) + '</b>' : '<b>' + (PG_TYPES[fam] || PG_TYPES.mobile)[0] + '</b>';
+  var dedans = (fam === 'mobile' || fam === 'portefeuille') && x.nom ? '<b data-brut>' + esc(sigleG(x)) + '</b>' : '<b>' + (PG_TYPES[fam] || PG_TYPES.mobile)[0] + '</b>';
   return '<span class="gch-hex" aria-hidden="true" style="--t1:' + t[0] + ';--t2:' + t[1] + '">' + dedans + '</span>';
 }
 function marquesG(x){ var l = (x.marques || []).map(function(m){ return GCH_MARQUES[m]; }).filter(Boolean); return l.length ? '<span data-brut>' + esc(l.join(' · ')) + '</span>' : ''; }
