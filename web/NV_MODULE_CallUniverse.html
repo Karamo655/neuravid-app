@@ -1100,6 +1100,10 @@ body.en-chat #toast{bottom:calc(84px + var(--sb))}
 #vivante.on{opacity:1}
 #vivante video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
 #vivante video.miroir{transform:scaleX(-1)}
+#vivante video.entier{object-fit:contain}
+#vivante video.viv-fond{object-fit:cover;filter:blur(24px) brightness(.55);transform:scale(1.15)}
+#vivante video.viv-fond.miroir{transform:scale(-1.15,1.15)}
+#vivante video.viv-fond[hidden]{display:none}
 .viv-haut{position:relative;z-index:2;display:flex;align-items:center;gap:8px;padding:calc(10px + env(safe-area-inset-top)) 12px 10px;background:linear-gradient(rgba(0,0,0,.55),rgba(0,0,0,0));flex-wrap:wrap}
 .viv-direct{display:flex;align-items:center;gap:6px;background:var(--braise);border-radius:999px;padding:4px 10px;font-size:13px}
 .viv-direct svg{width:15px;height:15px}
@@ -7468,7 +7472,7 @@ function allumerVivante(r){
   var duree = r ? r.duree : VIV.duree || 10, g = GEN.n; VIV.enCours = true;
   fermerFeuille(function(){
     var garde = null;
-    navigator.mediaDevices.getUserMedia({video:{facingMode:'user', width:{ideal:720}, height:{ideal:1280}}, audio:{echoCancellation:true, noiseSuppression:true}}).then(function(flux){
+    navigator.mediaDevices.getUserMedia(contraintesVivante()).then(function(flux){
       garde = flux; if(g !== GEN.n) throw new Error('session');
       var chemin = r ? '/v1/palabre/vivantes/' + encodeURIComponent(r.id) + '/rallumer' : '/v1/palabre/vivantes';
       return envoyerJSON('POST', chemin, {cids:cids, duree:duree}).then(function(d){
@@ -9281,6 +9285,43 @@ document.addEventListener('click', function(e){
   else if(t.hasAttribute('data-p25-retirer')) p25Envoyer(t.getAttribute('data-p25-retirer'), {retirer:true}, 'Défi retiré.');
   else { var p = (P25.props || [])[+t.getAttribute('data-p25-choix')]; if(p) p25Envoyer(t.getAttribute('data-p25-f'), {module:p.module, defi:p.id, titre:p.titre || undefined}, 'Défi relié à la flamme.'); }
 }, true);
+/* ════════ La flamme vivante sans zoom (23 nov. 2026, vidéo de Karamo : « la caméra est trop zoomée ») ════════
+   1. La caméra est demandée comme pour les appels (1280×720 idéal) : sur un téléphone debout, le navigateur
+      rend alors une image debout entière. L'ancienne demande (720×1280) donnait souvent une image carrée,
+      agrandie pour remplir un écran très haut : on ne voyait plus que le milieu du visage.
+   2. Si l'image reçue ne ressemble pas à l'écran (plus de 40 % coupés), elle est montrée ENTIÈRE, posée sur
+      un fond flou fait de la même image (rien de plus n'est envoyé ni décodé). Vrai pour l'auteur comme
+      pour les personnes qui regardent. */
+function contraintesVivante(){
+  return {video:{facingMode:'user', width:{ideal:1280}, height:{ideal:720}, frameRate:{ideal:30}}, audio:{echoCancellation:true, noiseSuppression:true}};
+}
+var P26 = {seuil:.6};
+function p26Cadrer(){
+  var vid = $('vivVid'), el = $('vivante'); if(!vid || !el) return;
+  var fond = el.querySelector('video.viv-fond');
+  if(!fond){
+    fond = document.createElement('video'); fond.className = 'viv-fond' + (vid.classList.contains('miroir') ? ' miroir' : '');
+    fond.muted = true; fond.autoplay = true; fond.setAttribute('playsinline', ''); fond.setAttribute('aria-hidden', 'true'); fond.tabIndex = -1;
+    vid.parentNode.insertBefore(fond, vid);
+  }
+  if(fond.srcObject !== vid.srcObject){ fond.srcObject = vid.srcObject || null; if(fond.srcObject){ var p = fond.play(); if(p && p.catch) p.catch(function(){}); } }
+  var vw = vid.videoWidth, vh = vid.videoHeight, ew = el.clientWidth, eh = el.clientHeight;
+  var entier = false;
+  if(vw && vh && ew && eh){ var rv = vw / vh, re = ew / eh; entier = Math.min(rv / re, re / rv) < P26.seuil; }
+  vid.classList.toggle('entier', entier); fond.hidden = !entier;
+}
+(function(){
+  var base = rendreVivante;
+  rendreVivante = function(){
+    var r = base.apply(this, arguments);
+    var vid = $('vivVid');
+    if(vid && !vid._p26){ vid._p26 = true; ['loadedmetadata', 'resize', 'playing'].forEach(function(e){ vid.addEventListener(e, p26Cadrer); }); }
+    p26Cadrer(); return r;
+  };
+  window.addEventListener('resize', function(){ if($('vivVid')) p26Cadrer(); });
+  /* l'image d'une personne qui regarde arrive après le rendu */
+  setInterval(function(){ var v = $('vivVid'); if(v && !$('vivante').hidden) p26Cadrer(); }, 1500);
+})();
 
 /* ════════════════════════════════════════════════════════════════════
  PALABRE EN ONZE LANGUES : FR · EN · ES · PT · AR (de droite à gauche) · SW · HA · YO · WO · BM · LN
