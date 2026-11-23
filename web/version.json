@@ -1,6 +1,6 @@
 {
- "version": "2026.11.23-8aef5a321142",
- "date": "2026-11-23T01:45:14Z",
+ "version": "2026.11.23-a5295db0de1e",
+ "date": "2026-11-23T02:04:05Z",
  "entree": "index.html",
  "modules": [
   "NV_MODULE_Academie.html",
@@ -99,8 +99,8 @@
    "taille": 1474775
   },
   "NV_MODULE_CallUniverse.html": {
-   "sha256": "c6136bf261034b087d1290dca1bbd9e4ae5f121ffdf1d0feefcd25630987654c",
-   "taille": 1695337
+   "sha256": "b6baf1e03eca6712e11b1f30181065e9eeb966499bfb4b8af98deca64ab57981",
+   "taille": 1712863
   },
   "NV_MODULE_ChallengeUniverse.html": {
    "sha256": "be604be9fc5d465d93c5397309c1b3d5f34c166c18729c2a2174b3ddbb02b672",
