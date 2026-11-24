@@ -4077,7 +4077,7 @@ function chargerCapacitesPG(force){
 
 /* ── un refus du serveur, en mots simples (le code vient du serveur, jamais inventé ici) ── */
 function motRefus(r){
-  var c = r && r.raison && r.raison.code, p = (r && r.raison && r.raison.params) || {};
+  var c = (r && r.raison && r.raison.code) || (r && typeof r.erreur === 'string' && r.erreur) || null, p = (r && r.raison && r.raison.params) || {};
   var M = {
     age_argent:'L\'argent est réservé aux 18 ans et plus.',
     kyc_insuffisant:'Vérifiez d\'abord votre identité.',
@@ -4095,7 +4095,8 @@ function motRefus(r){
     personne_inconnue:'Ce compte n\'existe pas.',
     destinataire_mineur:'Ce compte ne peut pas recevoir d\'argent.',
     source_fermee:'Payer n\'est pas encore ouvert.',
-    magasin_ferme:'Le magasin n\'est pas encore branché.'
+    magasin_ferme:'Le magasin n\'est pas encore branché.',
+    payeur_invalide:'Ce numéro de téléphone ne semble pas complet : 8 à 15 chiffres, avec l\'indicatif du pays si possible (+224…).'
   };
   if(c === 'montant_hors_limites' && (p.min != null || p.max != null)) return 'Ce montant est hors des limites de ce moyen : ' + (p.min != null ? nvc(p.min) : '—') + ' à ' + (p.max != null ? nvc(p.max) : '—') + ' NVCoins.';
   return M[c] || txt(r && (r.reason || r.message), 200) || 'Ce n\'est pas possible pour le moment.';
@@ -4187,7 +4188,7 @@ function payerRecharge(){
   if(!PG.cle || PG.sig !== d.id){ PG.cle = idem('pgr'); PG.sig = d.id; }
   var corps = {devis:d.id}, mc = moyenPG();
   if(mc && mc.champ === 'telephone') corps.payeur = String(PG.payeur).replace(/[^\d+]/g, '').slice(0, 20);
-  try{ if(/^https:/.test(location.protocol)) corps.retour = location.origin + location.pathname + '#recharge'; }catch(e){ dbg(e); }
+  try{ if(/^https:/.test(location.protocol)) corps.retour = location.origin + location.pathname + '?recharge=1';   /* 24 nov. 2026 : le serveur refuse un « # » dans l'adresse de retour (retour_invalide) */ }catch(e){ dbg(e); }
   PG.envoi = true;
   var b = document.querySelector('[data-act="pg-payer"]'); if(b){ b.disabled = true; b.textContent = 'Envoi…'; }
   posterPG('/v1/recolte/recharges', corps, function(r, s){
@@ -4357,7 +4358,7 @@ document.addEventListener('input', function(e){
   if(t.id === 'pyM') PG.py.motif = t.value.slice(0, 80);
 });
 /* retour d'une page de paiement (…#recharge) : on reprend le suivi de la dernière recharge */
-function retourPaiement(){ if(!/(^#|&)recharge(&|$)/.test(location.hash || '') || !estMajeur()) return; montrer('portefeuille'); chargerRecharges(true); }
+function retourPaiement(){ if((!/(^#|&)recharge(&|$)/.test(location.hash || '') && !/[?&]recharge=1(&|$)/.test(location.search || '')) || !estMajeur()) return; montrer('portefeuille'); chargerRecharges(true); }
 var demarrer13 = demarrer; demarrer = function(){ demarrer13(); if(tropJeune()) return; chargerCapacitesPG(); setTimeout(retourPaiement, 900); };
 addEventListener('nv:majorite', function(){ chargerCapacitesPG(true); });
 var oublierV2_13 = oublierV2; oublierV2 = function(){ oublierV2_13(); PG.liste = null; PG.lEtat = null; PG.suivi = null; PG.devis = null; PG.cle = null; arreterSuivi(); PG.py = {h:'', n:'', motif:'', cle:null, sig:'', envoi:false, ref:null}; };
