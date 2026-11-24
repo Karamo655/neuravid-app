@@ -2862,7 +2862,9 @@ function drapeau(x){
   return String.fromCodePoint(0x1F1E6 + code.charCodeAt(0) - 65, 0x1F1E6 + code.charCodeAt(1) - 65);
 }
 function filtrer(l){
-  if(filServeurActif() && (st.source === 'api' || st.source === 'cache') && (st.filServeur || null) === (FIL_DE[st.lentille] === 'pour-vous' ? null : FIL_DE[st.lentille])) return l.slice();
+  /* 24 nov. 2026 (Muhammar) : dans un fil du serveur, les vidéos gardées sur ce téléphone ne viennent plus après le fil
+     (on finissait sur ses seules vidéos) ; seules celles qu'on vient d'ajouter s'ouvrent en tête. Elles restent dans « Mes vidéos ». */
+  if(filServeurActif() && (st.source === 'api' || st.source === 'cache') && (st.filServeur || null) === (FIL_DE[st.lentille] === 'pour-vous' ? null : FIL_DE[st.lentille])) return l.filter(function(v){ return !v.local || (st.tete && st.tete[v.id]); });
   switch(st.lentille){
     case 'suivis': return l.filter(function(v){ return st.suivis[v.author]; });
     case 'defis': return l.filter(estDefi);
