@@ -4842,6 +4842,9 @@ function hlsMse(o, url, repli){
 st.epingles = [];
 function ouvrirContexte(ctx){
   if(!ctx || typeof ctx !== 'object') return false;
+  /* 24 nov. 2026 : les nouvelles du serveur (commentaire, réponse, mention, j'aime, Super Like, duo) nomment la vidéo « video » ;
+     Iris ne lisait que « clip » et n'ouvrait donc rien quand on touchait la nouvelle dans le Tam-tam */
+  if(ctx.clip == null){ var vAlias = ctx.video != null ? ctx.video : ctx.videoId; if(typeof vAlias === 'string' || typeof vAlias === 'number' || (vAlias && typeof vAlias === 'object')) ctx.clip = vAlias; }
   /* 22 nov. 2026 : une nouvelle du Tam-tam sur un commentaire ouvre la vidéo PUIS ses commentaires, sur le bon commentaire */
   var comCible = ctx.commentaire || ctx.comment || ctx.commentId || null, clipCible = ctx.clip && typeof ctx.clip === 'object' ? ctx.clip.id : ctx.clip;
   if((comCible || ctx.ouvrir === 'commentaires' || ctx.section === 'commentaires') && clipCible != null && !ctx._comsVu){ ctx._comsVu = 1; st.comsApres = {clip:String(clipCible), com:comCible ? String(comCible) : null, t:Date.now()}; }
