@@ -131,3 +131,9 @@ L'application elle-même est prête. Mais Apple et Google examinent ce qu'elle *
 | Contenu | exemples « Aperçu » | vraies données seulement |
 | Page de départ | `demo.html` | `index.html` (l'accueil) |
 | Signature | démonstration | **vos** clés (Google Play, App Store) |
+
+## Nouvelle icône « Gemme » (25 novembre 2026)
+
+- `icone_1024.png` : l'icône de l'application (iPhone, ancien format Android).
+- `icone_adaptative/` : l'icône adaptative d'Android (premier plan, fond, version d'une seule couleur pour les icônes à thème).
+- `icone_google_play_512.png` : à envoyer à la main dans la Play Console (Présence sur le Store → Fiche principale → Icône de l'application). L'icône de la fiche Google Play ne change pas toute seule avec une nouvelle version.

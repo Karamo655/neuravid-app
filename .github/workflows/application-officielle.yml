@@ -177,6 +177,16 @@ jobs:
           src = Image.open('application/icone_1024.png').convert('RGBA')
           for nom, t in [('mdpi', 48), ('hdpi', 72), ('xhdpi', 96), ('xxhdpi', 144), ('xxxhdpi', 192)]:
               src.resize((t, t), Image.LANCZOS).save('projet/android/app/src/main/res/mipmap-%s/ic_launcher.png' % nom)
+          # 25 nov. 2026 : icône adaptative (le téléphone découpe la forme) + version d'une seule couleur (icônes à thème)
+          import os, shutil
+          res = 'projet/android/app/src/main/res'
+          os.makedirs(res + '/drawable-nodpi', exist_ok=True); os.makedirs(res + '/mipmap-anydpi-v26', exist_ok=True)
+          for n in ('avant', 'fond', 'mono'):
+              shutil.copy('application/icone_adaptative/adaptatif_%s.png' % n, res + '/drawable-nodpi/nv_icone_%s.png' % n)
+          open(res + '/mipmap-anydpi-v26/ic_launcher.xml', 'w').write(
+              '<?xml version="1.0" encoding="utf-8"?>\n<adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">\n'
+              '  <background android:drawable="@drawable/nv_icone_fond"/>\n  <foreground android:drawable="@drawable/nv_icone_avant"/>\n'
+              '  <monochrome android:drawable="@drawable/nv_icone_mono"/>\n</adaptive-icon>\n')
           EOF
       - name: Signature
         id: signature
