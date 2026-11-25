@@ -2032,10 +2032,10 @@ A.pcBasculer = function(){ if(!PC.vue || PC.en) return; var veut = !PC.vue.actif
   viderDonnees = function(){ v0.apply(this, arguments); PC.vue = null; PC.en = false; PC.avant = null; };
 })();
 
-/* ════════ Aide et contact (25 novembre 2026, L'Observatoire : l'espace « Clientèle ») ════════
-   La personne écrit à l'équipe de NEURAVID et suit ses demandes ici ; l'équipe répond depuis L'Observatoire.
-   Le serveur (socle : /v1/aide/…) décide de tout : 3 demandes ouvertes au plus, jamais le nom de qui a répondu,
-   jamais les notes internes. Sans serveur, ou serveur qui n'annonce pas « aide » : un aperçu marqué, rien n'est envoyé. */
+/* ════════ Aide et contact (25 novembre 2026) ════════
+   La personne écrit à l'équipe de NEURAVID et suit ses demandes ici. Le serveur (socle : /v1/aide/…) décide de tout :
+   3 demandes ouvertes au plus, jamais le nom de qui a répondu. Sans serveur, ou serveur qui n'annonce pas « aide » :
+   un aperçu marqué, rien n'est envoyé. */
 CAP.aide = false;
 ICO.aide = '<path d="M12 2.8l8 4.6v9.2l-8 4.6-8-4.6V7.4z"/><path d="M8.5 10.2h7M8.5 13.6h4.6"/>';
 GROUPES.push({k:'aide', n:'Aide et contact', d:'Écrire à l’équipe de NEURAVID et suivre vos demandes', ico:'aide', c:'#29E3C8', cap:'aide'});
