@@ -1,6 +1,6 @@
 {
- "version": "2026.11.25-21c260b1848d",
- "date": "2026-11-25T09:10:20Z",
+ "version": "2026.11.25-c44b209c40a7",
+ "date": "2026-11-25T10:17:00Z",
  "entree": "index.html",
  "modules": [
   "NV_MODULE_Academie.html",
@@ -191,8 +191,8 @@
    "taille": 999850
   },
   "NV_MODULE_Notifications.html": {
-   "sha256": "38b979072a49d8d393c6383e4cdbc85a9e534b995c15a67582f3b41294b90cd7",
-   "taille": 734538
+   "sha256": "205ab6a16a1bdaf3481b93b90e8f1edd01a48fdb360a7093090243372218233c",
+   "taille": 736156
   },
   "NV_MODULE_Orbite.html": {
    "sha256": "2e608d97973df4f017558d7002cb9e17bd5cab675b99a73278f90c954f45c3d1",
@@ -243,8 +243,8 @@
    "taille": 558611
   },
   "NV_MODULE_Reglages.html": {
-   "sha256": "1a2ed654061fb027877797242b7cf17ac61845e026813840b4f5b9a2da294ac3",
-   "taille": 722475
+   "sha256": "c0b346bc2e368e15f252cb91e62cd6449dbe4286272568ef3c842e55cefab894",
+   "taille": 779668
   },
   "NV_MODULE_Report.html": {
    "sha256": "33e1cc4162025cffd70afb04906f13489feadbdb08ba7fc0b1ec060b2c345084",
