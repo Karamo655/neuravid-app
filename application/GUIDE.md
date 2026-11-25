@@ -132,7 +132,9 @@ L'application elle-même est prête. Mais Apple et Google examinent ce qu'elle *
 | Page de départ | `demo.html` | `index.html` (l'accueil) |
 | Signature | démonstration | **vos** clés (Google Play, App Store) |
 
-## Nouvelle icône « Gemme » (25 novembre 2026)
+## Icône renforcée (25 novembre 2026)
+
+L’icône d’origine (lueur néon, ciel étoilé, iris en hexagones) avec un seul cadre, un hexagone et un œil plus grands. Sur Android, le fond porte l’icône entière et la version d’une seule couleur garde le cadre hexagonal et l’œil.
 
 - `icone_1024.png` : l'icône de l'application (iPhone, ancien format Android).
 - `icone_adaptative/` : l'icône adaptative d'Android (premier plan, fond, version d'une seule couleur pour les icônes à thème).
