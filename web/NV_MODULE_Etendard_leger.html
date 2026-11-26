@@ -365,7 +365,8 @@
     return new Promise(function(ok){ setTimeout(ok, 1500); }).then(function(){ return demander(20000); });
   }).then(function(x){ if(x.muet) noter(true, true); else noter(x.absent); });   /* le serveur ne répond toujours pas : l'aperçu, pour 2 minutes */
 }catch(e){ /* rien */ } })();
-</script><!--/NV_REPLI--><!--NV_DEMO--><script id="nv-demo">
+</script><!--/NV_REPLI-->
+<!--NV_DEMO--><script id="nv-demo">
 /* NEURAVID — LA DÉMONSTRATION dans chaque module (injectée en tête de page, avant le module).
    Jamais avec un serveur (NV_API_BASE) ; sans serveur, partout (17 nov. 2026, voir plus bas). Allumée si l'accueil l'a allumée pour la session
    (sessionStorage « nv_demo » = 1), ou « #demo » dans l'adresse, ou une page ouverte comme fichier (file:, content:).
@@ -4046,7 +4047,7 @@ function psFeuilleDemande(id){
   var o = psOffreParId(id); if(!o) return;
   var dev = PS.d.saison && PS.d.saison.devise, pb = PS.d.partPb, m = PS.moi.d || {};
   if(!PS.apercu && m.peutDemander === false){
-    ouvrirFeuille('Devenir partenaire', '<p>' + (m.majeur === false ? 'Les partenariats de la Saison sont réservés aux 18 ans et plus.' : 'Votre compte de marque doit d\'abord être vérifié par NEURAVID (niveau 3).') + '</p>' +
+    ouvrirFeuille('Devenir partenaire', '<p>' + (m.majeur === false ? 'Les partenariats de la Saison sont réservés aux 18 ans et plus.' : 'Votre marque doit d\'abord être vérifiée par NEURAVID : son nom, son secteur et son pays suffisent.') + '</p>' +
       (m.majeur === false ? '' : '<button class="btn lum large" data-act="ouvrir-phare-pro">Faire vérifier ma marque dans Le Phare</button>'), null, 'ps'); return;
   }
   var mq = D.marque && D.marque.m || {}, lg = psLogoPermis(mq.logo) ? mq.logo : '';
@@ -4091,8 +4092,8 @@ function psEnvoyer(id){
   });
 }
 var PS_RAISONS = {secteur_ferme:'La Saison des Nations est ouverte dès 13 ans : ce secteur ne peut pas l\'accompagner.', complet:'Il n\'y a plus de place pour cette offre.', delai:'Les demandes pour cette offre sont closes.',
-  demande_ouverte:'Vous avez déjà une demande en cours pour cette offre.', trop_demandes:'Vous avez déjà cinq demandes en cours pour cette Saison.', kyc_insuffisant:'Votre compte de marque doit d\'abord être vérifié par NEURAVID (niveau 3).',
-  niveau:'Le compte de cette marque n\'est plus vérifié au niveau 3.', age_insuffisant:'Les partenariats de la Saison sont réservés aux 18 ans et plus.', majeur:'Le compte de cette marque n\'est pas celui d\'une personne de 18 ans ou plus.',
+  demande_ouverte:'Vous avez déjà une demande en cours pour cette offre.', trop_demandes:'Vous avez déjà cinq demandes en cours pour cette Saison.', kyc_insuffisant:'Votre marque doit d\'abord être vérifiée par NEURAVID : son nom, son secteur et son pays suffisent.',
+  niveau:'Cette marque n\'est plus vérifiée par NEURAVID.', age_insuffisant:'Les partenariats de la Saison sont réservés aux 18 ans et plus.', majeur:'Le compte de cette marque n\'est pas celui d\'une personne de 18 ans ou plus.',
   secteur_pris:'Une marque du même secteur accompagne déjà cette discipline, cette nation ou la Nuit.', quatre_yeux:'Une autre personne de NEURAVID doit faire ce geste.',
   conflit_interets:'Vous êtes lié à cette marque : une autre personne de NEURAVID doit faire ce geste.', etat:'Ce n\'est plus possible : la page est mise à jour.', offre_engagee:'Une marque tient déjà une place de cette offre : elle ne peut pas être retirée.',
   motif:'Écrivez un motif (5 à 300 caractères).', reference_invalide:'La référence du contrat : 3 à 80 caractères, lettres, chiffres, . / - _', offre_existe:'Cette offre existe déjà pour cette Saison.', nom_invalide:'Écrivez le nom de votre marque (2 à 60 caractères).', site_invalide:'Le site commence par https://',
@@ -4147,7 +4148,7 @@ function psEspaceEquipe(){
     else if(e === 'signee' || e === 'active') b = (x.ruptureProposee ? '<div class="alerte">Une rupture est proposée. Une autre personne peut la confirmer dans les 7 jours.</div>' + (x.ruptureMotif ? '<p class="petit" data-brut dir="auto">' + esc(txt(x.ruptureMotif, 300)) + '</p>' : '') : motif('Motif de la rupture (5 à 300 caractères)')) +
       '<button class="btn trait large" data-act="ps-rompre" data-id="' + esc(id) + '"' + env + '>' + (g === 'rompre' ? 'Touchez encore pour confirmer' : x.ruptureProposee ? 'Confirmer la rupture' : 'Proposer la rupture') + '</button>';
     return '<div class="carte"><div class="rangee"><b style="flex:1" data-brut dir="auto">' + esc(txt(x.nom, 60) || '—') + '</b><span class="etat verification">' + esc(PS_ETATS[e]) + '</span></div>' +
-      '<div class="recap"><span>Accompagne</span><b>' + esc(psCible(x.genre, x.cible)) + '</b><span>Le secteur</span><b>' + esc((secteur(x.secteur) || {}).nom || '—') + '</b><span>Compte vérifié</span><b>' + (n0(x.niveau) != null ? 'niveau ' + x.niveau : '—') + '</b><span>Part de la cagnotte</span><b>' + esc(psArgent(n0(x.part), dev)) + '</b><span>Déjà reçu</span><b>' + esc(psArgent(n0(x.recu), dev)) + '</b></div>' +
+      '<div class="recap"><span>Accompagne</span><b>' + esc(psCible(x.genre, x.cible)) + '</b><span>Le secteur</span><b>' + esc((secteur(x.secteur) || {}).nom || '—') + '</b><span>Marque vérifiée</span><b>' + (x.entreprise === true ? 'Oui' : x.entreprise === false ? 'Non' : '—') + '</b><span>Part de la cagnotte</span><b>' + esc(psArgent(n0(x.part), dev)) + '</b><span>Déjà reçu</span><b>' + esc(psArgent(n0(x.recu), dev)) + '</b></div>' +
       (x.site ? '<p class="petit" data-brut dir="ltr">' + esc(urlSure(x.site)) + '</p>' : '') + (x.message ? '<p class="petit" data-brut dir="auto">' + esc(txt(x.message, 500)) + '</p>' : '') + b + '</div>';
   }).join('') : '<p class="petit">Aucune demande en attente.</p>');
   return h;

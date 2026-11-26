@@ -1,6 +1,6 @@
 {
- "version": "2026.11.25-fabd594d8bdd",
- "date": "2026-11-25T23:09:45Z",
+ "version": "2026.11.26-e6d852f787bf",
+ "date": "2026-11-26T10:00:05Z",
  "entree": "index.html",
  "modules": [
   "NV_MODULE_Academie.html",
@@ -143,12 +143,12 @@
    "taille": 658539
   },
   "NV_MODULE_Etendard.html": {
-   "sha256": "e8023fb4bc5d180c0e6c08a013e003ef590ff6d9f1be6a859b2ff864dcc370b9",
-   "taille": 1167737
+   "sha256": "9fff047e85805666c60905593f2c707ab516abeec4653a2c6e7f379293c3d5b7",
+   "taille": 1171560
   },
   "NV_MODULE_Etendard_leger.html": {
-   "sha256": "f718d99bab3c4d448a4820dc76e1e30dcb4c6fc0d6c651144c732803bb10787d",
-   "taille": 392464
+   "sha256": "c4d60579a039af1d0fc4f157b94b6badbd2b484e0e3d7b0eb03333cfb82aff62",
+   "taille": 392524
   },
   "NV_MODULE_Events.html": {
    "sha256": "0e563d1dd34d18a4939be492ec375e93f707877fcb557e4b7fd4694d637d9a5d",
