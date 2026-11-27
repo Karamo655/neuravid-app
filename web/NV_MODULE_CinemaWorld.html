@@ -373,6 +373,299 @@
     taille: function(){ return CARTE.size; }
   };
 })();</script><!--/NV_QUALITE-->
+<!--NV_DUELS--><script>/* NEURAVID — LES DUELS DANS CHAQUE MODULE DE DÉFIS (27 novembre 2026, étape 2 des « vrais défis » de Karamo).
+   Le serveur de publication crée les duels (duels.py) : une vidéo qui en relève une autre, ou deux vidéos du même défi.
+   Iris les montre depuis l'étape 1 ; ce petit script fait la même chose DANS chaque univers de défis, sans toucher au code
+   de l'univers :
+     · il apprend, en lisant une COPIE des réponses JSON du serveur (jamais changées), quelle adresse de vidéo appartient à
+       quelle vidéo publiée (identifiant « cl_… ») ;
+     · il regarde la vidéo la plus visible de la page ; si elle est dans un duel, une pastille « Duel · Contre @… · Encore 31 h »
+       se pose sur elle ; la toucher ouvre le face-à-face : les deux vidéos, « Voter pour cette vidéo », les voix ;
+     · une voix par compte, jamais pour soi, un téléphone une fois (même identifiant d'appareil qu'Iris) ; voix cachées jusqu'au
+       vote ; un duel n'est montré que si la personne voit les deux vidéos (le serveur décide).
+   Sans serveur, dans la démonstration seulement : un duel d'exemple marqué « Aperçu », rien n'est envoyé.
+   Rien n'est montré si /v1/duels/capacites n'annonce pas les duels. window.NVDuels pour les essais. */
+(function(){
+  'use strict';
+  if (window.NVDuels) return;
+  var TXT = {"en":{"Duel":"Duel","Contre {0}":"Against {0}","Encore {0}":"{0} left","Duel terminé":"Duel over","Gagnant : {0}":"Winner: {0}","Égalité":"Tie","Voter pour cette vidéo":"Vote for this video","Votre choix":"Your choice","Le public vote pendant 48 heures. Une voix par compte, jamais pour soi.":"The public votes for 48 hours. One vote per account, never for yourself.","Connectez-vous pour voter.":"Sign in to vote.","C'est votre duel : vous ne votez pas.":"This is your duel: you don't vote.","{0} voix":"{0} votes","Les voix restent cachées jusqu'à votre vote.":"Votes stay hidden until you vote.","Signalement envoyé.":"Report sent.","Ce téléphone a déjà voté dans ce duel.":"This phone has already voted in this duel.","Aperçu":"Preview","Signaler":"Report","Fermer":"Close","Vérifiez votre connexion puis réessayez.":"Check your connection, then try again.","{0} min":"{0} min","Une personne de NEURAVID":"Someone on NEURAVID"},"es":{"Duel":"Duelo","Contre {0}":"Contra {0}","Encore {0}":"Quedan {0}","Duel terminé":"Duelo terminado","Gagnant : {0}":"Ganador: {0}","Égalité":"Empate","Voter pour cette vidéo":"Votar por este vídeo","Votre choix":"Tu elección","Le public vote pendant 48 heures. Une voix par compte, jamais pour soi.":"El público vota durante 48 horas. Un voto por cuenta, nunca por uno mismo.","Connectez-vous pour voter.":"Inicia sesión para votar.","C'est votre duel : vous ne votez pas.":"Es tu duelo: tú no votas.","{0} voix":"{0} votos","Les voix restent cachées jusqu'à votre vote.":"Los votos permanecen ocultos hasta que votes.","Signalement envoyé.":"Reporte enviado.","Ce téléphone a déjà voté dans ce duel.":"Este teléfono ya votó en este duelo.","Aperçu":"Vista previa","Signaler":"Denunciar","Fermer":"Cerrar","Vérifiez votre connexion puis réessayez.":"Compruebe su conexión e inténtelo de nuevo.","{0} min":"{0} min","Une personne de NEURAVID":"Una persona de NEURAVID"},"pt":{"Duel":"Duelo","Contre {0}":"Contra {0}","Encore {0}":"Faltam {0}","Duel terminé":"Duelo terminado","Gagnant : {0}":"Vencedor: {0}","Égalité":"Empate","Voter pour cette vidéo":"Votar neste vídeo","Votre choix":"A sua escolha","Le public vote pendant 48 heures. Une voix par compte, jamais pour soi.":"O público vota durante 48 horas. Um voto por conta, nunca em si próprio.","Connectez-vous pour voter.":"Inicie sessão para votar.","C'est votre duel : vous ne votez pas.":"É o seu duelo: não vota.","{0} voix":"{0} votos","Les voix restent cachées jusqu'à votre vote.":"Os votos ficam escondidos até votar.","Signalement envoyé.":"Denúncia enviada.","Ce téléphone a déjà voté dans ce duel.":"Este telefone já votou neste duelo.","Aperçu":"Pré-visualização","Signaler":"Denunciar","Fermer":"Fechar","Vérifiez votre connexion puis réessayez.":"Verifique sua conexão e tente novamente.","{0} min":"{0} min","Une personne de NEURAVID":"Uma pessoa do NEURAVID"},"ar":{"Duel":"مبارزة","Contre {0}":"ضد {0}","Encore {0}":"متبقٍّ {0}","Duel terminé":"انتهت المبارزة","Gagnant : {0}":"الفائز: {0}","Égalité":"تعادل","Voter pour cette vidéo":"صوِّت لهذا الفيديو","Votre choix":"اختيارك","Le public vote pendant 48 heures. Une voix par compte, jamais pour soi.":"يصوّت الجمهور لمدة 48 ساعة. صوت واحد لكل حساب، ولا تصويت لنفسك أبدًا.","Connectez-vous pour voter.":"سجّل الدخول للتصويت.","C'est votre duel : vous ne votez pas.":"هذه مبارزتك: لا يمكنك التصويت.","{0} voix":"{0} صوت","Les voix restent cachées jusqu'à votre vote.":"تبقى الأصوات مخفية حتى تصوّت.","Signalement envoyé.":"تم إرسال البلاغ.","Ce téléphone a déjà voté dans ce duel.":"صوّت هذا الهاتف بالفعل في هذه المبارزة.","Aperçu":"معاينة","Signaler":"إبلاغ","Fermer":"إغلاق","Vérifiez votre connexion puis réessayez.":"تحقّق من اتصالك ثم أعد المحاولة.","{0} min":"{0} د","Une personne de NEURAVID":"شخص من NEURAVID"},"sw":{"Duel":"Pambano","Contre {0}":"Dhidi ya {0}","Encore {0}":"Zimebaki {0}","Duel terminé":"Pambano limeisha","Gagnant : {0}":"Mshindi: {0}","Égalité":"Sare","Voter pour cette vidéo":"Pigia kura video hii","Votre choix":"Chaguo lako","Le public vote pendant 48 heures. Une voix par compte, jamais pour soi.":"Umma hupiga kura kwa saa 48. Kura moja kwa kila akaunti, kamwe si kwa nafsi yako.","Connectez-vous pour voter.":"Ingia ili upige kura.","C'est votre duel : vous ne votez pas.":"Hili ni pambano lako: hupigi kura.","{0} voix":"Kura {0}","Les voix restent cachées jusqu'à votre vote.":"Kura hubaki zimefichwa hadi upige kura.","Signalement envoyé.":"Ripoti imetumwa.","Ce téléphone a déjà voté dans ce duel.":"Simu hii tayari imepiga kura katika pambano hili.","Aperçu":"Onyesho","Signaler":"Ripoti","Fermer":"Funga","Vérifiez votre connexion puis réessayez.":"Angalia muunganisho wako kisha ujaribu tena.","{0} min":"dak {0}","Une personne de NEURAVID":"Mtu wa NEURAVID"},"ha":{"Duel":"Gasa","Contre {0}":"Da {0}","Encore {0}":"Saura {0}","Duel terminé":"Gasa ta ƙare","Gagnant : {0}":"Wanda ya ci: {0}","Égalité":"Kunnen doki","Voter pour cette vidéo":"Zaɓi wannan bidiyon","Votre choix":"Zaɓinka","Le public vote pendant 48 heures. Une voix par compte, jamais pour soi.":"Jama’a suna zaɓe na awa 48. Ƙuri’a ɗaya ga kowane asusu, ba don kanka ba.","Connectez-vous pour voter.":"Shiga don yin zaɓe.","C'est votre duel : vous ne votez pas.":"Wannan gasarka ce: ba ka zaɓe.","{0} voix":"Ƙuri’u {0}","Les voix restent cachées jusqu'à votre vote.":"Ƙuri’u suna ɓoye har sai ka yi zaɓe.","Signalement envoyé.":"An aika rahoto.","Ce téléphone a déjà voté dans ce duel.":"Wannan wayar ta riga ta yi zaɓe a wannan gasar.","Aperçu":"Samfoti","Signaler":"Kai rahoto","Fermer":"Rufe","Vérifiez votre connexion puis réessayez.":"Duba haɗin intanet ɗinku sannan ku sake gwadawa.","{0} min":"minti {0}","Une personne de NEURAVID":"Wani daga NEURAVID"},"yo":{"Duel":"Ìdíje ojúkojú","Contre {0}":"Lòdì sí {0}","Encore {0}":"Ó ku {0}","Duel terminé":"Ìdíje ti parí","Gagnant : {0}":"Olùborí: {0}","Égalité":"Ọ̀gbọ̀","Voter pour cette vidéo":"Dìbò fún fídíò yìí","Votre choix":"Àṣàyàn rẹ","Le public vote pendant 48 heures. Une voix par compte, jamais pour soi.":"Àwọn ènìyàn ń dìbò fún wákàtí 48. Ìbò kan fún àkọọ́lẹ̀ kọ̀ọ̀kan, kò sí ìbò fún ara rẹ.","Connectez-vous pour voter.":"Wọlé láti dìbò.","C'est votre duel : vous ne votez pas.":"Ìdíje rẹ ni èyí: o kò dìbò.","{0} voix":"Ìbò {0}","Les voix restent cachées jusqu'à votre vote.":"Àwọn ìbò wà ní ìpamọ́ títí o fi dìbò.","Signalement envoyé.":"A ti fi ìròyìn ránṣẹ́.","Ce téléphone a déjà voté dans ce duel.":"Fóònù yìí ti dìbò nínú ìdíje yìí tẹ́lẹ̀.","Aperçu":"Àyẹ̀wò","Signaler":"Jábọ̀","Fermer":"Pa á dé","Vérifiez votre connexion puis réessayez.":"Ẹ ṣàyẹ̀wò ìsopọ̀ yín kí ẹ sì tún gbìyànjú.","{0} min":"ìṣẹ́jú {0}","Une personne de NEURAVID":"Ẹnì kan lórí NEURAVID"},"wo":{"Duel":"Bëre","Contre {0}":"Ak {0}","Encore {0}":"Des na {0}","Duel terminé":"Bëre bi jeex na","Gagnant : {0}":"Ki daan: {0}","Égalité":"Yam nañu","Voter pour cette vidéo":"Tànn widewo bii","Votre choix":"Sa tànn","Le public vote pendant 48 heures. Une voix par compte, jamais pour soi.":"Mbooloo mi dañuy tànn diirub 48 waxtu. Benn tànn ci kont bu nekk, du kenn ci boppam.","Connectez-vous pour voter.":"Duggal ngir tànn.","C'est votre duel : vous ne votez pas.":"Sa bëre la: doo tànn.","{0} voix":"{0} tànn","Les voix restent cachées jusqu'à votre vote.":"Tànn yi dañuy nëbbu ba nga tànn.","Signalement envoyé.":"Yégle bi yónne nañu ko.","Ce téléphone a déjà voté dans ce duel.":"Telefon bii tànn na ba noppi ci bëre bii.","Aperçu":"Wone","Signaler":"Yégle","Fermer":"Tëj","Vérifiez votre connexion puis réessayez.":"Seetal sa internet te jéemaat.","{0} min":"{0} simili","Une personne de NEURAVID":"Benn nit ci NEURAVID"},"bm":{"Duel":"Kɛlɛ","Contre {0}":"Ni {0} ye","Encore {0}":"{0} tɔ","Duel terminé":"Kɛlɛ banna","Gagnant : {0}":"Setigi: {0}","Égalité":"U kɛra kelen ye","Voter pour cette vidéo":"I ka kalata nin widewo ye","Votre choix":"I ka sugandili","Le public vote pendant 48 heures. Une voix par compte, jamais pour soi.":"Jama bɛ kalata kɛ lɛrɛ 48 kɔnɔ. Kalata kelen jatebɔsɛbɛn kelen o kelen ye, abada i yɛrɛ ye.","Connectez-vous pour voter.":"Don walasa ka kalata kɛ.","C'est votre duel : vous ne votez pas.":"I ka kɛlɛ don: i tɛ kalata kɛ.","{0} voix":"Kalata {0}","Les voix restent cachées jusqu'à votre vote.":"Kalataw bɛ dogo fo i ka kalata kɛ.","Signalement envoyé.":"Kunnafoni cira.","Ce téléphone a déjà voté dans ce duel.":"Nin telefoni ye kalata kɛ ka ban nin kɛlɛ in na.","Aperçu":"Jirali","Signaler":"A fɔ","Fermer":"A datugu","Vérifiez votre connexion puis réessayez.":"Aw ka connexion lajɛ ka a kɛ kokura.","{0} min":"miniti {0}","Une personne de NEURAVID":"NEURAVID mɔgɔ dɔ"},"ln":{"Duel":"Etumba","Contre {0}":"Na {0}","Encore {0}":"Etikali {0}","Duel terminé":"Etumba esili","Gagnant : {0}":"Molongi: {0}","Égalité":"Bokokani","Voter pour cette vidéo":"Pona video oyo","Votre choix":"Eponi na yo","Le public vote pendant 48 heures. Une voix par compte, jamais pour soi.":"Bato bazali kopona mpo na ngonga 48. Voti moko mpo na kɔ́ntɛ moko, soki moke te mpo na yo moko.","Connectez-vous pour voter.":"Kɔtá mpo na kopona.","C'est votre duel : vous ne votez pas.":"Ezali etumba na yo: oponaka te.","{0} voix":"Bavoti {0}","Les voix restent cachées jusqu'à votre vote.":"Bavoti bazali kobombama tii okopona.","Signalement envoyé.":"Liyebisi etindami.","Ce téléphone a déjà voté dans ce duel.":"Telefone oyo esilaki kopona na etumba oyo.","Aperçu":"Emoniseli","Signaler":"Kofunda","Fermer":"Kokanga","Vérifiez votre connexion puis réessayez.":"Bótala réseau na bino mpe bómeka lisusu.","{0} min":"{0} min","Une personne de NEURAVID":"Moto moko ya NEURAVID"}};
+  var RE_CLIP = /^cl_[A-Za-z0-9]{8,40}$/;
+  var CLES_ID = ['id', 'clip', 'clipId', 'clip_id', 'videoId', 'video_id', 'idVideo', 'participation', 'publication', 'videoClip'];
+  var CLES_URL = ['url', 'src', 'video', 'media', 'videoUrl', 'video_url', 'lien', 'fichier', 'mp4', 'hls'];
+  var CARTE = new Map(), MAX = 6000;
+  var D = {cap: null, t: 0, lus: {}, par: {}, ouvert: null, demo: null, el: null, clip: null, host: null, root: null, pill: null, feuille: null};
+
+  function api(){ var a = window.NV_API_BASE || (window.NV_CONFIG && window.NV_CONFIG.api) || ''; return a ? String(a).replace(/\/$/, '') : ''; }
+  function jeton(){ return window.NV_TOKEN || ''; }
+  function entetes(h){ h = h || {}; if (jeton()) h.Authorization = 'Bearer ' + jeton(); return h; }
+  function langue(){ var l = ''; try { l = String(window.NV_LANG || document.documentElement.lang || JSON.parse(localStorage.getItem('nv_ui_langue') || '""') || navigator.language || 'fr'); } catch (e) { l = 'fr'; }
+    l = l.slice(0, 2).toLowerCase(); return TXT[l] || l === 'fr' ? l : 'fr'; }
+  function t(k){ var l = langue(); return l !== 'fr' && TXT[l] && TXT[l][k] ? TXT[l][k] : k; }
+  function esc(s){ return String(s == null ? '' : s).replace(/[&<>"']/g, function(c){ return {'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[c]; }); }
+  function appareilId(){ var k = 'nv_appareil', v = null; try { v = localStorage.getItem(k); } catch (e) {}
+    if (!v || !/^[A-Za-z0-9_-]{8,64}$/.test(v)) { v = 'ap_' + Math.random().toString(36).slice(2) + Date.now().toString(36); try { localStorage.setItem(k, v); } catch (e) {} } return v; }
+
+  // ── apprendre : adresse de vidéo → identifiant de la vidéo publiée ──
+  function nu(u){ return String(u).split('#')[0].split('?')[0]; }
+  function noter(u, id){
+    if (typeof u !== 'string' || !/^(https?:|blob:|\/)/.test(u)) return;
+    if (CARTE.size > MAX) CARTE.clear();
+    CARTE.set(u, id); CARTE.set(nu(u), id);
+  }
+  function apprendre(o, prof){
+    if (!o || typeof o !== 'object' || prof > 12) return;
+    if (Array.isArray(o)) { for (var i = 0; i < o.length && i < 3000; i++) apprendre(o[i], prof + 1); return; }
+    var id = null, k;
+    for (k = 0; k < CLES_ID.length; k++) { var v = o[CLES_ID[k]]; if (typeof v === 'string' && RE_CLIP.test(v)) { id = v; break; } }
+    if (id) {
+      for (k = 0; k < CLES_URL.length; k++) {
+        var u = o[CLES_URL[k]];
+        if (typeof u === 'string') noter(u, id);
+        else if (u && typeof u === 'object' && !Array.isArray(u)) { ['url', 'src'].forEach(function(c){ if (typeof u[c] === 'string') noter(u[c], id); }); }
+      }
+      if (Array.isArray(o.sources)) o.sources.forEach(function(x){ if (x && typeof x.src === 'string') noter(x.src, id); });
+    }
+    for (var c in o) if (o[c] && typeof o[c] === 'object') apprendre(o[c], prof + 1);
+  }
+  if (window.fetch) {
+    var f0 = window.fetch;
+    window.fetch = function(){
+      var p = f0.apply(this, arguments);
+      try {
+        p.then(function(r){
+          try {
+            var ty = (r.headers && r.headers.get('content-type')) || '';
+            if (!r.ok || ty.indexOf('json') < 0 || !/\/v1\//.test(r.url || '') || /\/v1\/duels/.test(r.url || '')) return;
+            if (+(r.headers.get('content-length') || 0) > 4e6) return;
+            r.clone().json().then(function(o){ apprendre(o, 0); }, function(){});
+          } catch (e) {}
+        }, function(){});
+      } catch (e) {}
+      return p;
+    };
+  }
+
+  function clipDe(el){
+    var a = el.closest && el.closest('[data-clip],[data-clip-id],[data-video-id]');
+    if (a) { var x = a.getAttribute('data-clip') || a.getAttribute('data-clip-id') || a.getAttribute('data-video-id'); if (RE_CLIP.test(x || '')) return x; }
+    var l = [el.currentSrc, el.getAttribute && el.getAttribute('src'), el.src, el.dataset && el.dataset.nvqOrigine];
+    try { var s = el.querySelector && el.querySelector('source[src]'); if (s) l.push(s.getAttribute('src')); } catch (e) {}
+    if (window.NVQualite && typeof window.NVQualite.origine === 'function') try { l.push(window.NVQualite.origine(el)); } catch (e) {}
+    for (var i = 0; i < l.length; i++) { var u = l[i]; if (!u) continue; var id = CARTE.get(u) || CARTE.get(nu(u)); if (id) return id; }
+    return null;
+  }
+
+  // ── la vidéo la plus visible de la page ──
+  function laPlusVisible(){
+    var best = null, bs = 0, W = window.innerWidth || 360, H = window.innerHeight || 640;
+    var vs = document.querySelectorAll('video');
+    for (var i = 0; i < vs.length; i++) {
+      var v = vs[i];
+      if (D.host && D.host.contains(v)) continue;
+      var r = v.getBoundingClientRect();
+      if (r.width < 110 || r.height < 110) continue;
+      var w = Math.min(r.right, W) - Math.max(r.left, 0), h = Math.min(r.bottom, H) - Math.max(r.top, 0);
+      if (w <= 0 || h <= 0) continue;
+      var part = (w * h) / (r.width * r.height);
+      if (part < 0.5) continue;
+      var st = getComputedStyle(v);
+      if (st.visibility === 'hidden' || +st.opacity < 0.2) continue;
+      // rien ne la recouvre (une feuille du module, un menu) : on regarde ce qui est au milieu
+      var cx = Math.max(1, Math.min(W - 1, (Math.max(r.left, 0) + Math.min(r.right, W)) / 2)), cy = Math.max(1, Math.min(H - 1, (Math.max(r.top, 0) + Math.min(r.bottom, H)) / 2));
+      var hit = document.elementFromPoint(cx, cy);
+      if (hit && hit !== v && !(v.parentElement && v.parentElement.contains(hit)) && !hit.contains(v)) continue;
+      var sc = w * h + (v.paused ? 0 : W * H);
+      if (sc > bs) { bs = sc; best = v; }
+    }
+    return best;
+  }
+
+  // ── lire les duels au serveur ──
+  function lire(ids){
+    if (!api() || D.cap === false || D.t) return;
+    if (D.cap === null) {
+      D.t = 1;
+      fetch(api() + '/v1/duels/capacites', {headers: entetes()}).then(function(r){ if (r.status === 404) return {duels: false}; return r.ok ? r.json() : null; })
+        .then(function(o){ D.t = 0; D.cap = o ? o.duels === true : null; if (D.cap) lire(ids); })
+        .catch(function(){ D.t = 0; });
+      return;
+    }
+    var now = Date.now();
+    ids = ids.filter(function(c){ return !(D.lus[c] && now - D.lus[c] < 60000); }).slice(0, 40);
+    if (!ids.length) return;
+    ids.forEach(function(c){ D.lus[c] = now; });
+    D.t = 1;
+    fetch(api() + '/v1/duels?clips=' + ids.map(encodeURIComponent).join(','), {headers: entetes()})
+      .then(function(r){ return r.ok ? r.json() : null; })
+      .then(function(o){ D.t = 0; if (!o || !o.duels) return;
+        ids.forEach(function(c){ var d = o.duels[c]; if (d) { d._lu = Date.now(); D.par[c] = d; } else delete D.par[c]; });
+        tour(); })
+      .catch(function(){ D.t = 0; ids.forEach(function(c){ delete D.lus[c]; }); });
+  }
+
+  // ── l'aperçu (démonstration sans serveur seulement) ──
+  function demo(el){
+    if (api() || !window.NV_DEMO) return null;
+    if (D.demo) return D.demo.el === el ? D.demo : null;
+    var autres = Array.prototype.filter.call(document.querySelectorAll('video'), function(v){ return v !== el && (v.currentSrc || v.getAttribute('src')); });
+    var s = el.currentSrc || el.getAttribute('src');
+    if (!s || !autres.length) return null;
+    var o = autres[0];
+    D.demo = {id: 'du_apercu', apercu: true, el: el, etat: 'en_cours', fin: Date.now() + 31 * 3600e3, maintenant: Date.now(), gagnant: null, origine: 'relever',
+      a: {id: 'a', author: '', src: s, thumbnail: el.getAttribute('poster') || ''}, b: {id: 'b', author: '', src: o.currentSrc || o.getAttribute('src'), thumbnail: o.getAttribute('poster') || ''},
+      votes: null, moi: {vote: null, cote: null, peutVoter: true}};
+    return D.demo;
+  }
+
+  // ── l'affichage (dans une ombre : rien ne touche le style du module) ──
+  var CSS = ':host{all:initial}' +
+    '.pill{position:fixed;z-index:30;display:flex;align-items:center;gap:6px;max-width:min(78vw,340px);border:1px solid rgba(243,210,122,.75);border-radius:14px;padding:6px 10px;' +
+    'background:linear-gradient(135deg,rgba(40,16,70,.9),rgba(10,40,52,.9));color:#fff;font:600 12.5px/1.25 system-ui,-apple-system,Roboto,sans-serif;text-align:start;cursor:pointer;' +
+    'box-shadow:0 4px 16px rgba(0,0,0,.45);overflow-wrap:anywhere;pointer-events:auto}' +
+    '.pill[hidden]{display:none}.pill i{flex:none;width:14px;height:16px;background:linear-gradient(135deg,#F3D27A,#21C8B8);clip-path:polygon(50% 0,100% 25%,100% 75%,50% 100%,0 75%,0 25%)}' +
+    '.dap{margin-inline-start:6px;padding:1px 7px;border-radius:8px;background:rgba(243,210,122,.2);color:#F3D27A;font-size:11px}' +
+    '.f{position:fixed;inset:0;z-index:2147482000;display:none;align-items:flex-end;justify-content:center;background:rgba(4,4,14,.72);pointer-events:auto}' +
+    '.f.on{display:flex}.df{width:100%;max-width:640px;max-height:92vh;overflow:auto;background:#0d0b1f;color:#fff;border-radius:22px 22px 0 0;border-top:2px solid rgba(243,210,122,.7);' +
+    'padding:14px 14px calc(16px + env(safe-area-inset-bottom,0px));font:14px/1.4 system-ui,-apple-system,Roboto,sans-serif;box-sizing:border-box}' +
+    'h2{margin:2px 0 4px;font-size:18px;display:flex;align-items:center;gap:8px}h2 i{width:18px;height:20px;background:linear-gradient(135deg,#F3D27A,#21C8B8);clip-path:polygon(50% 0,100% 25%,100% 75%,50% 100%,0 75%,0 25%)}' +
+    '.dr{color:#c9c6e6;font-size:12.5px;margin:0 0 10px}.dg{display:grid;grid-template-columns:1fr 1fr;gap:10px}' +
+    '.dc{background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.12);border-radius:16px;padding:8px;display:flex;flex-direction:column;gap:6px;min-width:0}' +
+    '.dc.choisi{border-color:#21C8B8;box-shadow:0 0 0 2px rgba(33,200,184,.35)}.dc.gagne{border-color:#F3D27A}' +
+    'video{width:100%;aspect-ratio:9/16;object-fit:cover;border-radius:12px;background:#000}.da{font-weight:700;font-size:13px;overflow-wrap:anywhere}' +
+    '.db{height:6px;border-radius:4px;background:rgba(255,255,255,.12);overflow:hidden}.db b{display:block;height:100%;background:linear-gradient(90deg,#21C8B8,#F3D27A)}' +
+    '.dv{border:0;border-radius:12px;min-height:40px;padding:8px;font:700 13px system-ui,-apple-system,Roboto,sans-serif;background:linear-gradient(135deg,#21C8B8,#7B5CFF);color:#fff;cursor:pointer}' +
+    '.dv[disabled]{opacity:.45;cursor:default}.dm{margin:10px 0 0;color:#e8e2ff;font-size:13px}.dbas{display:flex;justify-content:space-between;gap:8px;margin-top:12px}' +
+    '.dbas button{border:0;border-radius:12px;min-height:38px;padding:8px 12px;background:rgba(255,255,255,.1);color:#fff;font:600 13px system-ui,-apple-system,Roboto,sans-serif;cursor:pointer}';
+  function hote(){
+    if (D.host) return;
+    D.host = document.createElement('div'); D.host.id = 'nvDuels';
+    D.host.style.cssText = 'position:fixed;left:0;top:0;width:0;height:0;z-index:2147481000;pointer-events:none';
+    D.root = D.host.attachShadow ? D.host.attachShadow({mode: 'open'}) : D.host;
+    D.root.innerHTML = '<style>' + CSS + '</style><button type="button" class="pill" hidden></button><div class="f" role="dialog" aria-modal="true"></div>';
+    D.pill = D.root.querySelector('.pill'); D.feuille = D.root.querySelector('.f');
+    D.pill.addEventListener('click', function(e){ e.stopPropagation(); var id = D.pill.getAttribute('data-duel'); if (id) ouvrir(id); });
+    D.feuille.addEventListener('click', function(e){
+      var c = e.target;
+      if (c === D.feuille || (c.closest && c.closest('[data-df="fermer"]'))) { fermer(); return; }
+      var v = c.closest && c.closest('[data-dv]'); if (v && !v.disabled) { voter(v.getAttribute('data-dv')); return; }
+      if (c.closest && c.closest('[data-df="signaler"]')) signaler();
+    });
+    document.addEventListener('keydown', function(e){ if (e.key === 'Escape' && D.ouvert) fermer(); });
+    document.body.appendChild(D.host);
+  }
+  function reste(ms){ ms = Math.max(0, ms); var h = Math.floor(ms / 3600e3); return h >= 1 ? h + ' h' : t('{0} min').replace('{0}', String(Math.max(1, Math.ceil(ms / 60e3)))); }
+  function nom(x){ var n = x && x.author ? String(x.author) : ''; return n || t('Une personne de NEURAVID'); }
+
+  function poserPill(el, d, clip){
+    hote();
+    var autre = d.a && clip === d.a.id ? d.b : d.a, txt;
+    if (d.apercu) autre = d.b;
+    if (d.etat === 'fini') txt = t('Duel terminé') + ' · ' + (d.gagnant ? t('Gagnant : {0}').replace('{0}', nom(d[d.gagnant])) : t('Égalité'));
+    else txt = t('Contre {0}').replace('{0}', nom(autre)) + ' · ' + t('Encore {0}').replace('{0}', reste(d.fin - (d.maintenant || Date.now()) - (Date.now() - (d._lu || Date.now()))));
+    var h = '<i aria-hidden="true"></i><span><b>' + esc(t('Duel')) + '</b> · <bdi dir="auto">' + esc(txt) + '</bdi>' + (d.apercu ? '<span class="dap">' + esc(t('Aperçu')) + '</span>' : '') + '</span>';
+    if (D.pill._h !== h) { D.pill.innerHTML = h; D.pill._h = h; }
+    D.pill.setAttribute('data-duel', d.id); D.pill.setAttribute('aria-label', t('Duel') + ' · ' + txt);
+    D.pill.hidden = false;
+    placer(el);
+  }
+  function placer(el){
+    if (!D.pill || D.pill.hidden || !el) return;
+    var r = el.getBoundingClientRect(), W = window.innerWidth || 360, H = window.innerHeight || 640;
+    var rtl = (document.documentElement.dir || getComputedStyle(document.documentElement).direction) === 'rtl';
+    var pw = D.pill.offsetWidth || 200, ph = D.pill.offsetHeight || 30;
+    var top = Math.max(8, Math.min(H - ph - 8, Math.max(r.top, 0) + 10));
+    var left = rtl ? Math.min(r.right, W) - pw - 10 : Math.max(r.left, 0) + 10;
+    left = Math.max(6, Math.min(W - pw - 6, left));
+    D.pill.style.top = top + 'px'; D.pill.style.left = left + 'px';
+  }
+  function cacher(){ if (D.pill) D.pill.hidden = true; D.el = null; D.clip = null; }
+
+  function tour(){
+    if (document.hidden || D.ouvert) return;
+    var el = laPlusVisible();
+    if (!el) { cacher(); return; }
+    if (!api()) { var dm = demo(el); if (dm) { D.el = el; poserPill(el, dm, 'a'); } else cacher(); return; }
+    var c = clipDe(el);
+    if (!c) { cacher(); return; }
+    D.el = el; D.clip = c;
+    var d = D.par[c];
+    if (d) poserPill(el, d, c); else if (D.pill) D.pill.hidden = true;
+    // la vidéo regardée d'abord, puis les autres vidéos de la page
+    var ids = [c];
+    Array.prototype.forEach.call(document.querySelectorAll('video'), function(v){ if (ids.length < 20) { var x = clipDe(v); if (x && ids.indexOf(x) < 0) ids.push(x); } });
+    lire(ids);
+  }
+
+  // ── le face-à-face ──
+  function rendre(d, msg){
+    hote(); D.ouvert = d;
+    var fini = d.etat === 'fini', vo = d.votes, tot = vo && typeof vo.total === 'number' ? vo.total : 0;
+    var carte = function(k){
+      var x = d[k] || {}, n = vo && typeof vo[k] === 'number' ? vo[k] : null, pc = n != null && tot ? Math.round(100 * n / tot) : (n != null ? 0 : null);
+      var cl = 'dc' + (d.moi && d.moi.vote === k ? ' choisi' : '') + (fini && d.gagnant === k ? ' gagne' : '');
+      return '<div class="' + cl + '"><video playsinline controls preload="metadata"' + (x.thumbnail ? ' poster="' + esc(x.thumbnail) + '"' : '') + (x.src ? ' src="' + esc(x.src) + '"' : '') + '></video>' +
+        '<div class="da"><bdi dir="ltr">' + esc(nom(x)) + '</bdi>' + (fini && d.gagnant === k ? ' 🏆' : '') + '</div>' +
+        (pc != null ? '<div class="db" aria-hidden="true"><b style="width:' + pc + '%"></b></div><div>' + esc(t('{0} voix').replace('{0}', String(n))) + ' · ' + pc + ' %</div>' : '') +
+        (fini ? '' : '<button type="button" class="dv" data-dv="' + k + '"' + (d.moi && d.moi.peutVoter && (jeton() || d.apercu) ? '' : ' disabled') + '>' + esc(d.moi && d.moi.vote === k ? t('Votre choix') : t('Voter pour cette vidéo')) + '</button>') + '</div>';
+    };
+    var etat = fini ? (t('Duel terminé') + ' · ' + (d.gagnant ? t('Gagnant : {0}').replace('{0}', nom(d[d.gagnant])) : t('Égalité')))
+      : t('Encore {0}').replace('{0}', reste(d.fin - (d.maintenant || Date.now())));
+    var info = msg || (!fini && d.moi && d.moi.cote ? t('C\'est votre duel : vous ne votez pas.') : !fini && !jeton() && !d.apercu ? t('Connectez-vous pour voter.') : !fini && !vo ? t('Les voix restent cachées jusqu\'à votre vote.') : '');
+    var rtl = langue() === 'ar';
+    D.feuille.setAttribute('dir', rtl ? 'rtl' : 'ltr'); D.feuille.setAttribute('aria-label', t('Duel'));
+    D.feuille.innerHTML = '<div class="df"><h2><i aria-hidden="true"></i>' + esc(t('Duel')) + (d.apercu ? '<span class="dap">' + esc(t('Aperçu')) + '</span>' : '') + '</h2>' +
+      '<p class="dr">' + esc(etat) + ' — ' + esc(t('Le public vote pendant 48 heures. Une voix par compte, jamais pour soi.')) + '</p>' +
+      '<div class="dg">' + carte('a') + carte('b') + '</div>' + (info ? '<p class="dm" role="status">' + esc(info) + '</p>' : '') +
+      '<div class="dbas">' + (d.apercu || fini || !jeton() ? '<span></span>' : '<button type="button" data-df="signaler">' + esc(t('Signaler')) + '</button>') + '<button type="button" data-df="fermer">' + esc(t('Fermer')) + '</button></div></div>';
+    D.feuille.classList.add('on');
+    if (D.pill) D.pill.hidden = true;
+    var b = D.feuille.querySelector('[data-df="fermer"]'); if (b && b.focus) try { b.focus({preventScroll: true}); } catch (e) {}
+  }
+  function fermer(){
+    if (!D.feuille) return;
+    D.feuille.querySelectorAll('video').forEach(function(x){ try { x.pause(); } catch (e) {} });
+    D.feuille.classList.remove('on'); D.feuille.innerHTML = ''; D.ouvert = null;
+    setTimeout(tour, 50);
+  }
+  function ouvrir(id){
+    if (D.el) try { if (!D.el.paused) D.el.pause(); } catch (e) {}
+    if (D.demo && id === D.demo.id) { rendre(D.demo); return; }
+    if (!api()) return;
+    fetch(api() + '/v1/duels/' + encodeURIComponent(id), {headers: entetes()}).then(function(r){ return r.ok ? r.json() : null; })
+      .then(function(d){ if (d) rendre(d); }).catch(function(){});
+  }
+  function voter(k){
+    var d = D.ouvert; if (!d || (k !== 'a' && k !== 'b')) return;
+    if (d.apercu) { d.moi.vote = k; d.votes = {a: k === 'a' ? 1 : 0, b: k === 'b' ? 1 : 0, total: 1}; rendre(d, t('Aperçu')); return; }
+    var h = entetes({'Content-Type': 'application/json', 'Idempotency-Key': 'dv-' + d.id + '-' + k + '-' + Date.now(), 'X-NV-Appareil': appareilId()});
+    fetch(api() + '/v1/duels/' + encodeURIComponent(d.id) + '/voter', {method: 'POST', headers: h, body: JSON.stringify({choix: k})})
+      .then(function(r){ return r.json().catch(function(){ return {}; }).then(function(o){ return {ok: r.ok, o: o}; }); })
+      .then(function(x){
+        if (x.ok) { rendre(x.o); ['a', 'b'].forEach(function(c){ var w = x.o[c]; if (w && w.id && D.par[w.id]) D.par[w.id].moi = x.o.moi; }); return; }
+        var e = x.o && x.o.erreur;
+        rendre(d, e === 'deja_vote_appareil' ? t('Ce téléphone a déjà voté dans ce duel.') : e === 'pas_pour_soi' ? t('C\'est votre duel : vous ne votez pas.') : e === 'duel_fini' ? t('Duel terminé') : t('Vérifiez votre connexion puis réessayez.'));
+      }).catch(function(){ rendre(d, t('Vérifiez votre connexion puis réessayez.')); });
+  }
+  function signaler(){
+    var d = D.ouvert; if (!d || d.apercu || !api() || !jeton()) return;
+    fetch(api() + '/v1/duels/' + encodeURIComponent(d.id) + '/signaler', {method: 'POST', headers: entetes({'Content-Type': 'application/json', 'Idempotency-Key': 'ds-' + d.id}), body: JSON.stringify({motif: 'abus'})})
+      .then(function(){ rendre(d, t('Signalement envoyé.')); }).catch(function(){});
+  }
+
+  // ── la cadence : léger, rien en arrière-plan ──
+  var minuteur = null;
+  function demarrer(){
+    if (minuteur) return;
+    minuteur = setInterval(tour, 1500);
+    window.addEventListener('scroll', function(){ if (D.el) placer(D.el); }, {passive: true, capture: true});
+    window.addEventListener('resize', function(){ if (D.el) placer(D.el); });
+    document.addEventListener('play', function(){ setTimeout(tour, 120); }, true);
+    document.addEventListener('visibilitychange', function(){ if (document.hidden) cacher(); else tour(); });
+    setTimeout(tour, 400);
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', demarrer); else demarrer();
+  window.NVDuels = {apprendre: apprendre, clipDe: clipDe, tour: tour, ouvrir: ouvrir, etat: D, carte: CARTE};
+})();</script><!--/NV_DUELS-->
 <!--NV_CONFIG--><script src="nv-config.js"></script><!--/NV_CONFIG-->
 <!--NV_REPLI--><script id="nv-repli">window.NV_REPLI_MODULE="CinemaWorld";window.NV_REPLI_SONDE={"url": "/v1/univers/capacites", "cle": "cinema"};
 /* NEURAVID — L'APERÇU EN REPLI (17 novembre 2026, rappel de Karamo : « ne plus dépendre l'affichage des contenus ou
