@@ -1983,6 +1983,48 @@ demarrer();
 </script>
 
 <!--NV_DEPUIS_IRIS--><script id="nv-depuis-iris">window.NV_DEPUIS_MODULE="Marche";
+/* NEURAVID — LE DUEL DU DÉFI RELEVÉ (27 novembre 2026, demande de Karamo : « un défi relevé sur le lecteur principal devient
+   directement un défi contre la vidéo à laquelle on l'a relevé »).
+   Quand une personne relève une vidéo (Iris → La Forge → cet univers, ou Iris → cet univers), l'identifiant de la vidéo
+   relevée voyage dans le contexte de la caméra (nv_cam_ctx.repondA) ou dans nv_depuis_iris (clip). Ce script le lit AU
+   CHARGEMENT (avant que l'univers ne relise son contexte), le garde 45 minutes pour CE module et CE compte, puis l'ajoute
+   (champ « repondA ») au premier envoi de vidéo de l'univers (POST /v1/participations, /v1/publications ou /v1/posts) qui ne
+   l'a pas déjà. Le serveur de publication crée alors le duel (duels.py) ; rien d'autre n'est envoyé. */
+(function(){ try{
+  var MOD = String(window.NV_DEPUIS_MODULE || '').replace(/_leger$/, '');
+  if(!MOD || window._nvDuelReleve) return;
+  window._nvDuelReleve = true;
+  var CLE = 'nv_duel_releve|' + MOD, VIE = 45 * 60e3;
+  function compte(){ var u = window.NV_USER; return u && u.id != null ? String(u.id) : ''; }
+  function sur(v){ return typeof v === 'string' && /^[A-Za-z0-9_.:-]{1,80}$/.test(v) ? v : null; }
+  function noter(id, c){ id = sur(id); if(!id) return; try{ localStorage.setItem(CLE, JSON.stringify({repondA:id, compte:c || compte() || '', at:Date.now()})); }catch(e){} }
+  function lire(){ var o = null; try{ o = JSON.parse(localStorage.getItem(CLE) || 'null'); }catch(e){ o = null; }
+    if(!o || !sur(o.repondA) || Date.now() - (+o.at || 0) > VIE){ if(o) oublier(); return null; }
+    if(o.compte && compte() && o.compte !== compte()) return null; return o; }
+  function oublier(){ try{ localStorage.removeItem(CLE); }catch(e){} }
+  function json(k){ var v = null; try{ v = JSON.parse(sessionStorage.getItem(k) || 'null'); }catch(e){} if(!v) try{ v = JSON.parse(localStorage.getItem(k) || 'null'); }catch(e){} return v; }
+  var c = json('nv_cam_ctx');
+  if(c && c.module === MOD && (c.relever || c.depuisIris) && sur(c.repondA) && Date.now() - (+c.quand || 0) < VIE) noter(c.repondA, c.compte);
+  var d = json('nv_depuis_iris');
+  if(d && d.module === MOD && d.action === 'relever' && sur(d.clip) && Date.now() - (+d.at || Date.now()) < VIE) noter(d.clip);
+  window.NVDuelReleve = {noter:noter, lire:lire, oublier:oublier};
+  var RE = /\/v1\/(participations|publications|posts)(\?|$)/;
+  var F = window.fetch;
+  if(typeof F === 'function'){
+    window.fetch = function(u, o){
+      try{
+        var url = typeof u === 'string' ? u : (u && u.url) || '';
+        var m = (o && o.method) || (u && u.method) || 'GET';
+        var p = String(m).toUpperCase() === 'POST' && RE.test(url) && o && typeof FormData !== 'undefined' && o.body instanceof FormData ? lire() : null;
+        if(p && !o.body.has('repondA')){
+          o.body.append('repondA', p.repondA);
+          return F.apply(this, arguments).then(function(r){ if(r && r.ok) oublier(); return r; });
+        }
+      }catch(e){}
+      return F.apply(this, arguments);
+    };
+  }
+}catch(e){ /* rien */ } })();
 /* NEURAVID — LA PRISE D'IRIS (21 novembre 2026, demande de Karamo : « lorsque l'on clique sur Relever le défi, la caméra de
    La Forge s'ouvre directement… au lieu d'accéder au module entier »).
    Pour les univers qui demandent d'abord un formulaire, une épreuve, un couple ou un adversaire (Miss & Master, Voix d'Or, Battle,
