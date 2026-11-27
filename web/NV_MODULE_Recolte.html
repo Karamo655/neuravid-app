@@ -4009,7 +4009,7 @@ var majPuce12 = majPuce; majPuce = function(){ majPuce12(); var b = $('puceCoins
    L'aperçu (démonstration, sans serveur) simule un prestataire, toujours marqué « Aperçu ».
    ════════════════════════════════════════════════════════════════════════ */
 var PG = {cap:null, capEtat:'attente', m:null, mEtat:null, but:'recharge', choisi:null, n:'', payeur:'', devis:null, cle:null, sig:'', suivi:null, tSuivi:null, liste:null, lEtat:null, envoi:false, py:{h:'', n:'', motif:'', cle:null, sig:'', envoi:false, ref:null}};
-var PG_PAQUETS = [500, 1000, 5000, 10000, 50000];
+var PG_PAQUETS = [500, 1000, 5000, 10000, 50000, 100000, 1000000, 10000000, 50000000];   // 27 nov. 2026 : jusqu'à 50 000 000 (montrés seulement si le moyen le permet)
 var PG_TYPES = {mobile:['📱', 'Mobile Money'], carte:['💳', 'Carte bancaire'], virement:['🏦', 'Virement'], portefeuille:['👛', 'Portefeuille']};
 var PG_ETATS = {en_attente:'En attente', confirme:'Ajoutés', echec:'Non abouti', revue:'En vérification', expire:'Délai passé', close:'Clos'};
 
@@ -4048,10 +4048,10 @@ var APERCU_FAMILLE = {paycard:['portefeuille', 'compte'], kulu:['portefeuille', 
 function apercuMoyens(dev, sens){
   var iso = String((window.NV_USER || {}).iso || 'GN').toUpperCase(), l = (APERCU_MOYENS[iso] || ['mobile_money']).map(function(id){
     var f = APERCU_FAMILLE[id] || ['mobile', 'telephone'];
-    return {id:id, nom:APERCU_NOMS[id] || null, type:f[0], famille:f[0], devise:dev, min:100, max:100000, champ:f[1], delai:sens === 'retrait' ? 'minutes' : 'instantane', ouvert:true}; });
+    return {id:id, nom:APERCU_NOMS[id] || null, type:f[0], famille:f[0], devise:dev, min:100, max:sens === 'recharge' ? 50000000 : 100000, champ:f[1], delai:sens === 'retrait' ? 'minutes' : 'instantane', ouvert:true}; });
   /* 23 nov. 2026 : en Guinée, un seul choix ouvre la page de paiement qui montre tous les portefeuilles */
-  if(sens === 'recharge' && iso === 'GN') l.unshift({id:'tous_portefeuilles', nom:'Mobile money et portefeuilles', type:'mobile', famille:'mobile', page:true, devise:dev, min:100, max:100000, champ:null, delai:'instantane', ouvert:true});
-  if(sens === 'recharge') l.push({id:'carte_bancaire', nom:'Carte bancaire', type:'carte', famille:'carte', marques:['visa', 'mastercard'], devise:dev, min:500, max:100000, champ:null, delai:'instantane', ouvert:true});
+  if(sens === 'recharge' && iso === 'GN') l.unshift({id:'tous_portefeuilles', nom:'Mobile money et portefeuilles', type:'mobile', famille:'mobile', page:true, devise:dev, min:100, max:50000000, champ:null, delai:'instantane', ouvert:true});
+  if(sens === 'recharge') l.push({id:'carte_bancaire', nom:'Carte bancaire', type:'carte', famille:'carte', marques:['visa', 'mastercard'], devise:dev, min:500, max:50000000, champ:null, delai:'instantane', ouvert:true});
   else l.push({id:'virement_bancaire', nom:null, type:'virement', famille:'virement', devise:dev, min:5000, max:100000, champ:'iban', delai:'jours', ouvert:true});
   return l;
 }
