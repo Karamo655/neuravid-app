@@ -1,6 +1,6 @@
 {
- "version": "2026.11.27-e79e20b6f3f3",
- "date": "2026-11-27T13:45:00Z",
+ "version": "2026.11.27-7daa0c77943c",
+ "date": "2026-11-27T14:30:04Z",
  "entree": "index.html",
  "modules": [
   "NV_MODULE_Academie.html",
@@ -79,8 +79,8 @@
    "taille": 1982209
   },
   "NV_MODULE_ArenaArts.html": {
-   "sha256": "d575209a9b7f82d15df41ef7d1e58d5fe050763329f2cbb39c17273f997e8770",
-   "taille": 2074285
+   "sha256": "219c098864fc465b6953f1a65744ce37453741d57f3e8f8c9e92392965d94248",
+   "taille": 2076685
   },
   "NV_MODULE_Artistes.html": {
    "sha256": "783bff8c4da8ad6384d734b8438cf3e369a6a830b46d52272fa12c5d408553c3",
@@ -107,8 +107,8 @@
    "taille": 1997443
   },
   "NV_MODULE_Champions.html": {
-   "sha256": "74898f923e562617ce0763b2689a380e5bd934fa72ae896fa8017b67c2a7a9fb",
-   "taille": 412436
+   "sha256": "c3144f00b18c0743041fb6652e9187d3c22d09cef0064646430224abdc263f22",
+   "taille": 412085
   },
   "NV_MODULE_CinemaWorld.html": {
    "sha256": "60c220b6df78ff9be70a20d29df59b73b219b8f0168526a6db0f3f9cbb3779ca",
@@ -155,8 +155,8 @@
    "taille": 1755997
   },
   "NV_MODULE_Festival.html": {
-   "sha256": "f35fa93ff2bb7d593d0da48d14ad451e5adf05cbc97ddaa4f38a68739623da23",
-   "taille": 303955
+   "sha256": "d25fb222e9d21b426d0cbc3ae10f21a2f3d2b152aa8b011bfa4e6c34e5c56edb",
+   "taille": 314613
   },
   "NV_MODULE_Griot.html": {
    "sha256": "3bf6eae55561ae309fea118c9692e4456e2cf3709db8ccb87b8d37227e739ffb",
@@ -199,8 +199,8 @@
    "taille": 1537203
   },
   "NV_MODULE_Pagne.html": {
-   "sha256": "540a0eb53e5b0ddad2997721f91605e2f471d8de26cfc66c0724ba8b63e9b7ea",
-   "taille": 268428
+   "sha256": "1a7d581095a6fefc1cc6659c4efaa6625b962a95e0de6ed4489f074800b67aae",
+   "taille": 267845
   },
   "NV_MODULE_Passeport.html": {
    "sha256": "f617e454966a4a9e37fc76d9d7f9b865e109b7e28ce4693705795d4c88a7efa5",
@@ -283,8 +283,8 @@
    "taille": 1351517
   },
   "NV_MODULE_StyleUniverse.html": {
-   "sha256": "0ceceaa1d864e676b84a2386043c3510a9b18635dcbb16ff80986cd19307d4af",
-   "taille": 301271
+   "sha256": "b8036ed3c229eb3b4d4886d2572d6fa9947968d5d21cdf1fae91c93c7616ba86",
+   "taille": 301617
   },
   "NV_MODULE_TalentJour.html": {
    "sha256": "4a53dde536e23e3b2c173ff1ad5bf13522ef350386a073af1e73d80a02103d5b",
@@ -295,8 +295,8 @@
    "taille": 242817
   },
   "NV_MODULE_Transformation.html": {
-   "sha256": "d1fea725365b96c478802c9835d9ee29f66ef66ec53a3cbd18b57ece1e1e5d77",
-   "taille": 286697
+   "sha256": "0d7ee1e1480bea8a95d6379545f183884e14dedeebf8d220b26e3f45dc0b5fcb",
+   "taille": 285583
   },
   "NV_MODULE_Tresse.html": {
    "sha256": "994fa6e9f39c9ae2c2a96e4ad7bcb6a7ef26363f4d7a93cc9760fdf60778bc2a",
