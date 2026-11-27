@@ -1,6 +1,6 @@
 {
- "version": "2026.11.27-4d40232348a2",
- "date": "2026-11-27T15:28:20Z",
+ "version": "2026.11.27-95774f0d68d4",
+ "date": "2026-11-27T15:54:42Z",
  "entree": "index.html",
  "modules": [
   "NV_MODULE_Academie.html",
@@ -111,8 +111,8 @@
    "taille": 412085
   },
   "NV_MODULE_CinemaWorld.html": {
-   "sha256": "60c220b6df78ff9be70a20d29df59b73b219b8f0168526a6db0f3f9cbb3779ca",
-   "taille": 1131712
+   "sha256": "02145b5f51d5f7b7727867f76783908ef3b3fb1dc221d37496907b4093fcab2e",
+   "taille": 1135425
   },
   "NV_MODULE_Communautes.html": {
    "sha256": "21060404b98827212cb9c9b87b22534b352c5dace7221d65a9017cf15c0c64f4",
