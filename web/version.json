@@ -1,6 +1,6 @@
 {
- "version": "2026.11.27-7daa0c77943c",
- "date": "2026-11-27T14:30:04Z",
+ "version": "2026.11.27-4d40232348a2",
+ "date": "2026-11-27T15:28:20Z",
  "entree": "index.html",
  "modules": [
   "NV_MODULE_Academie.html",
@@ -75,8 +75,8 @@
    "taille": 324701
   },
   "NV_MODULE_Arena.html": {
-   "sha256": "fb3c4792ace31354e5eb6dbf5d659253f955cd40f797a4f5a1e1f28d6471186f",
-   "taille": 1982209
+   "sha256": "bfcd9e964c7b326ff9a8248da1d225238a77a63647f70fd0b2d2f96339b27d99",
+   "taille": 1993353
   },
   "NV_MODULE_ArenaArts.html": {
    "sha256": "219c098864fc465b6953f1a65744ce37453741d57f3e8f8c9e92392965d94248",
