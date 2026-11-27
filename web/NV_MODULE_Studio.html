@@ -111,6 +111,77 @@
   window.NVVitesse = {faible:faible, repos:repos, capture:enCapture, cadence:function(){ var iv = intervalle(); return iv ? Math.round(1000 / iv) : 60; }, cran:function(){ return cran; },
     pilotees:function(){ return {css:pilotes.length, svg:svgs.length}; }};
 })();</script><!--/NV_VITESSE-->
+<!--NV_EXPERIENCE--><script>/* NEURAVID — l'expérience vécue (27 nov. 2026). Une fois par visite, ce petit script envoie au
+   socle QUELQUES MESURES ANONYMES : le temps de chargement de la page, le démarrage de la première vidéo, le nombre de
+   calages et d'erreurs, le type de réseau, et si la page est ouverte dans l'application. Jamais un identifiant, un compte,
+   un cookie, une adresse de page complète, un contenu ou une position. Le socle n'en garde que des totaux par jour.
+   Rien n'est envoyé : sans serveur, dans l'aperçu, ou si le navigateur demande de ne pas être suivi (GPC, Do Not Track).
+   window.NVExperience pour les essais. */
+(function(){
+  'use strict';
+  if (window.NVExperience) return;
+  var M = {video:null, calages:0, erreurs:0, parti:false, debut:Date.now()};
+  var joue = new WeakSet();
+  function maintenant(){ try { return performance.now(); } catch(e){ return Date.now() - M.debut; } }
+  document.addEventListener('playing', function(ev){
+    var v = ev.target; if (!v || v.tagName !== 'VIDEO') return;
+    if (M.video == null) M.video = Math.round(maintenant());
+    joue.add(v);
+  }, true);
+  document.addEventListener('waiting', function(ev){ if (ev.target && joue.has(ev.target) && M.calages < 50) M.calages++; }, true);
+  window.addEventListener('error', function(){ if (M.erreurs < 50) M.erreurs++; });
+  window.addEventListener('unhandledrejection', function(){ if (M.erreurs < 50) M.erreurs++; });
+  function refuse(){
+    var n = navigator;
+    return n.globalPrivacyControl === true || n.doNotTrack === '1' || window.doNotTrack === '1';
+  }
+  function api(){
+    if (window.NV_APERCU || window.NV_DEMO || window.NV_REPLI) return '';
+    var a = String(window.NV_API_BASE || '').replace(/\/+$/, '');
+    return /^https:\/\//.test(a) || /^http:\/\/(127\.0\.0\.1|localhost)(:\d+)?$/.test(a) ? a : '';
+  }
+  function module(){
+    var m = /NV_MODULE_([A-Za-z_]{1,40})\.html/.exec(location.pathname || '');
+    return m ? m[1] : (/\/(index\.html)?$/.test(location.pathname || '/') ? 'Home' : 'Autre');
+  }
+  function reseau(){
+    var c = navigator.connection || {};
+    if (c.type === 'wifi' || c.type === 'ethernet') return c.type;
+    return ['4g', '3g', '2g', 'slow-2g'].indexOf(c.effectiveType) >= 0 ? c.effectiveType : 'inconnu';
+  }
+  function charge(){
+    try {
+      var n = performance.getEntriesByType('navigation')[0];
+      if (n && n.loadEventEnd > 0) return Math.round(n.loadEventEnd);
+      if (n && n.domContentLoadedEventEnd > 0) return Math.round(n.domContentLoadedEventEnd);
+    } catch(e){}
+    return null;
+  }
+  function mesure(){
+    var c = charge();
+    if (c == null || c > 120000) return null;
+    var o = {module:module(), charge:c, calages:M.calages, erreurs:M.erreurs, reseau:reseau(), app:!!window.flutter_inappwebview};
+    if (M.video != null && M.video <= 120000) o.video = M.video;
+    return o;
+  }
+  function envoyer(){
+    if (M.parti || refuse()) return false;
+    var a = api(), o = mesure();
+    if (!a || !o) return false;
+    M.parti = true;
+    var corps = JSON.stringify(o);
+    try {
+      if (navigator.sendBeacon && navigator.sendBeacon(a + '/v1/experience', new Blob([corps], {type:'text/plain'}))) return true;
+    } catch(e){}
+    try { fetch(a + '/v1/experience', {method:'POST', body:corps, keepalive:true, mode:'no-cors', credentials:'omit'}); } catch(e){}
+    return true;
+  }
+  // après le chargement : on attend jusqu'à 20 s pour voir démarrer une vidéo ; on part plus tôt si la page se cache
+  window.addEventListener('load', function(){ setTimeout(envoyer, 20000); });
+  document.addEventListener('visibilitychange', function(){ if (document.visibilityState === 'hidden') envoyer(); });
+  window.addEventListener('pagehide', envoyer);
+  window.NVExperience = {mesure:mesure, envoyer:envoyer, etat:function(){ return {parti:M.parti, video:M.video, calages:M.calages, erreurs:M.erreurs}; }};
+})();</script><!--/NV_EXPERIENCE-->
 <!--NV_CONFIG--><script src="nv-config.js"></script><!--/NV_CONFIG-->
 <!--NV_REPLI--><script id="nv-repli">window.NV_REPLI_MODULE="Studio";window.NV_REPLI_SONDE={"url": "/v1/univers/capacites", "cle": "balafon"};
 /* NEURAVID — L'APERÇU EN REPLI (17 novembre 2026, rappel de Karamo : « ne plus dépendre l'affichage des contenus ou
