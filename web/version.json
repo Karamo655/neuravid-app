@@ -1,6 +1,6 @@
 {
- "version": "2026.11.28-c392af3cbd3c",
- "date": "2026-11-28T05:40:59Z",
+ "version": "2026.11.28-837780fc8ebe",
+ "date": "2026-11-28T06:26:22Z",
  "entree": "index.html",
  "modules": [
   "NV_MODULE_Academie.html",
@@ -119,8 +119,8 @@
    "taille": 378512
   },
   "NV_MODULE_Conditions.html": {
-   "sha256": "baba1d719a124c5a8fb2b12c57138932c23a3c2cfa9f4f7e546d6086d5548741",
-   "taille": 472974
+   "sha256": "1a1bad20fdf9424f2d9a68c4110b5c01551a4273f7b61cff6cced4bfa7bf198d",
+   "taille": 484792
   },
   "NV_MODULE_Conteur.html": {
    "sha256": "42dc01b34dff2b8324e03cbc7785868038c4daa910a7effb74be5d21fe84a33b",
@@ -131,8 +131,8 @@
    "taille": 249215
   },
   "NV_MODULE_Create.html": {
-   "sha256": "30bb5007de92462171cda7b0bb27b5625af4d4446a41b10ed4b5050ca4e4b8bf",
-   "taille": 2280960
+   "sha256": "f101d1701f0ddf42a7ab5da65e653615003dc3bee1cdf5d0a5724f97d683a066",
+   "taille": 2295244
   },
   "NV_MODULE_Dashboard.html": {
    "sha256": "a2e99f8f2df0f38b3dc17b8c5f22f2ae49206de90cef1de80be1ac5d471178c1",
