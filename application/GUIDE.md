@@ -151,3 +151,17 @@ L’icône d’origine (lueur néon, ciel étoilé, iris en hexagones) avec un s
 - `icone_1024.png` : l'icône de l'application (iPhone, ancien format Android).
 - `icone_adaptative/` : l'icône adaptative d'Android (premier plan, fond, version d'une seule couleur pour les icônes à thème).
 - `icone_google_play_512.png` : à envoyer à la main dans la Play Console (Présence sur le Store → Fiche principale → Icône de l'application). L'icône de la fiche Google Play ne change pas toute seule avec une nouvelle version.
+
+## Les alertes natives sur iPhone et Android (28 novembre 2026, v131)
+
+L'application sait maintenant recevoir de vraies alertes du téléphone (règle 4.2 d'Apple). Elles restent éteintes tant que le projet Firebase n'est pas réglé : rien ne change avant.
+
+Ce que vous faites (une seule fois) :
+1. Dans la console Firebase (console.firebase.google.com), avec le compte de TENAGON GROUP : créer le projet « NEURAVID », puis y ajouter une application iPhone (identifiant `com.neuravid.app`) et une application Android (identifiant `com.neuravid.app`).
+2. Dans votre compte Apple Developer : Certificates, IDs & Profiles → Keys → créer une clé « Apple Push Notifications service (APNs) ». Téléchargez le fichier .p8 et envoyez-le VOUS-MÊME dans Firebase : Paramètres du projet → Cloud Messaging → application iPhone → Clé d'authentification APNs (avec l'ID de la clé et votre Team ID). Ne l'envoyez à personne.
+3. Dans GitHub, dépôt `neuravid-app` → Settings → Secrets and variables → Actions → onglet **Variables** : créer six variables avec les valeurs affichées par Firebase (Paramètres du projet → Vos applications) :
+   `FIREBASE_PROJET` (ID du projet), `FIREBASE_EXPEDITEUR` (numéro de l'expéditeur), `FIREBASE_CLE_ANDROID` et `FIREBASE_APPLI_ANDROID` (clé d'API et ID de l'application Android), `FIREBASE_CLE_IOS` et `FIREBASE_APPLI_IOS` (clé d'API et ID de l'application iPhone).
+4. Relancer « Application officielle ».
+5. Afaq branche le serveur : `ALERTES_APPLICATION` avec le compte de service Firebase (secret `nv-fcm-compte-service`), déjà prévu dans `deployer.sh`.
+
+La question « Autoriser les notifications ? » n'est posée qu'après la connexion, jamais au premier lancement. Les alertes montrent un texte général sans rien de privé (« Vous avez un nouveau message. »), sauf le nom de qui appelle.

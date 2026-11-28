@@ -26,6 +26,7 @@ import 'package:permission_handler/permission_handler.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import 'alertes.dart';
 import 'magasin.dart';
 import 'pont.dart';
 import 'rideau.dart';
@@ -89,6 +90,11 @@ class _EcranNeuravidState extends State<EcranNeuravid> {
   @override
   void initState() {
     super.initState();
+    // v131 : les alertes du téléphone (Firebase et APNs) ; toucher une alerte ouvre sa page dans l'application
+    Alertes.instance.demarrer((chemin) {
+      final c = _controleur;
+      if (c != null) c.loadUrl(urlRequest: URLRequest(url: WebUri(kSite + chemin)));
+    });
     Magasin.instance.demarrer(); // achats intégrés de l'App Store (iPhone) : les achats payés arrivent même après un redémarrage
     Future.delayed(const Duration(seconds: 12), _leverRideau); // jamais bloqué : au plus 12 s
   }
@@ -360,6 +366,8 @@ window.NV_ACHATS_INTEGRES = ${Platform.isIOS ? 'true' : 'false'};
             onWebViewCreated: (c) {
               _controleur = c;
               Magasin.instance.controleur = c;
+              Alertes.instance.controleur = c;
+              c.addJavaScriptHandler(handlerName: 'nvJetonAppareil', callback: Alertes.instance.jeton);
               c.addJavaScriptHandler(handlerName: 'nvMagasin', callback: Magasin.instance.gerer);
               c.addJavaScriptHandler(handlerName: 'nvEvent', callback: _evenement);
               c.addJavaScriptHandler(handlerName: 'nvEnregistrer', callback: _morceau);

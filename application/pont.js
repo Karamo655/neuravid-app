@@ -83,7 +83,7 @@
     try{ deja = JSON.parse(localStorage.getItem(cle) || 'null'); }catch(e){ deja = null; }
     if(deja && deja.j === APP.jeton && Date.now() - deja.at < 86400000) return;
     fetch(api + '/v1/notifications/appareil', {method:'POST', mode:'cors', headers:{'Content-Type':'application/json', Authorization:'Bearer ' + tk},
-      body:JSON.stringify({jeton:APP.jeton, plateforme:APP.plateforme})})
+      body:JSON.stringify({jeton:APP.jeton, plateforme:APP.plateforme, langue:String(window.NV_LANGUE_UI || document.documentElement.lang || 'fr').slice(0, 2)})})
       .then(function(r){ if(r.ok){ try{ localStorage.setItem(cle, JSON.stringify({j:APP.jeton, at:Date.now()})); }catch(e){ /* rien */ } } })
       .catch(function(){ /* réessayé à la page suivante */ });
   }
@@ -93,5 +93,10 @@
     if(document.readyState === 'complete') enregistrerAppareil(); else window.addEventListener('load', enregistrerAppareil);
     return true;
   };
-  appel('nvJetonAppareil', {}).then(function(r){ if(r && typeof r.jeton === 'string') window.NVAppareilJeton(r.jeton, r.plateforme); }).catch(function(){ /* application sans alertes */ });
+  /* v131 : la question des alertes n'est posée qu'à une personne connectée (jamais au premier lancement, sans contexte) */
+  function demanderJeton(){
+    if(!window.NV_TOKEN) return;
+    appel('nvJetonAppareil', {}).then(function(r){ if(r && typeof r.jeton === 'string') window.NVAppareilJeton(r.jeton, r.plateforme); }).catch(function(){ /* application sans alertes */ });
+  }
+  if(document.readyState === 'complete') setTimeout(demanderJeton, 1500); else window.addEventListener('load', function(){ setTimeout(demanderJeton, 1500); });
 })();

@@ -108,3 +108,11 @@ Apple Guideline 3.1.1: in the iPhone app, NVCoins are bought **only** with Apple
 - A reviewer test account.
 - In-app purchases through Apple / Google billing for digital goods (coins, gifts).
 - Fill the `nvEvent` JavaScript handler in `lib/main.dart` if native events are needed (session, purchases).
+
+## Native push alerts (v131, 28 November 2026)
+
+- `lib/alertes.dart`: Firebase Messaging (APNs on iPhone). Always compiled; Firebase is started only when the six GitHub **variables** `FIREBASE_PROJET`, `FIREBASE_EXPEDITEUR`, `FIREBASE_CLE_ANDROID`, `FIREBASE_APPLI_ANDROID`, `FIREBASE_CLE_IOS`, `FIREBASE_APPLI_IOS` are set (passed as `--dart-define`; no google-services files needed).
+- The page asks for the token (`nvJetonAppareil`) only when a session is open; the token is registered with `POST /v1/notifications/appareil {jeton, plateforme, langue}`.
+- iPhone: when `FIREBASE_PROJET` is set, the workflow adds `aps-environment=production` and `UIBackgroundModes: remote-notification`. Karamo uploads the APNs key in the Firebase console himself.
+- Tapping an alert opens `NV_MODULE_Notifications.html#id=…` (or Palabre for a call).
+- Server side: set `ALERTES_APPLICATION` (secret `nv-fcm-compte-service`, the Firebase service account JSON) and redeploy the socle (v131 package). The socle now sends a visible title and text in the device language.
