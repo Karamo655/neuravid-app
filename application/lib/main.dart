@@ -26,6 +26,7 @@ import 'package:permission_handler/permission_handler.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import 'magasin.dart';
 import 'pont.dart';
 import 'rideau.dart';
 
@@ -88,6 +89,7 @@ class _EcranNeuravidState extends State<EcranNeuravid> {
   @override
   void initState() {
     super.initState();
+    Magasin.instance.demarrer(); // achats intégrés de l'App Store (iPhone) : les achats payés arrivent même après un redémarrage
     Future.delayed(const Duration(seconds: 12), _leverRideau); // jamais bloqué : au plus 12 s
   }
 
@@ -117,6 +119,7 @@ window.NV_MODULES_BASE = ${jsonEncode(base)};
 if(!window.NV_LANG) window.NV_LANG = ${jsonEncode(langue)};
 window.NV_PLATEFORME = ${jsonEncode(Platform.isIOS ? 'ios' : 'android')};
 window.NV_MAGASIN = ${jsonEncode(Platform.isIOS ? 'app_store' : 'google_play')};
+window.NV_ACHATS_INTEGRES = ${Platform.isIOS ? 'true' : 'false'};
 ''',
         injectionTime: UserScriptInjectionTime.AT_DOCUMENT_START,
       ),
@@ -356,6 +359,8 @@ window.NV_MAGASIN = ${jsonEncode(Platform.isIOS ? 'app_store' : 'google_play')};
             ),
             onWebViewCreated: (c) {
               _controleur = c;
+              Magasin.instance.controleur = c;
+              c.addJavaScriptHandler(handlerName: 'nvMagasin', callback: Magasin.instance.gerer);
               c.addJavaScriptHandler(handlerName: 'nvEvent', callback: _evenement);
               c.addJavaScriptHandler(handlerName: 'nvEnregistrer', callback: _morceau);
               c.addJavaScriptHandler(handlerName: 'nvTelecharger', callback: _morceau);

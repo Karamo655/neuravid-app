@@ -89,6 +89,18 @@ The modules hand some actions to the native app. The official app implements eve
 
 **Still to do, needs servers and native screens:** `login_required` → `NVSession`, verifications (phone, age, KYC), account requests, payments and in-app purchases, `push_subscribe` (FCM / APNs), `live_broadcast_request`, the Baobab `NVRoom*` functions, `qr_scan_request`. Until then, some modules display « l'application ouvre… » for these features.
 
+## App Store in-app purchases — NVCoins on iPhone (28 November 2026)
+
+Apple Guideline 3.1.1: in the iPhone app, NVCoins are bought **only** with Apple in-app purchases.
+- `lib/magasin.dart` (package `in_app_purchase`, StoreKit 2; iOS minimum raised to 15.0). One JavaScript handler `nvMagasin`:
+  `produits` (prices from Apple), `acheter` (returns the Apple-signed transaction, JWS), `terminer` (called by the page only
+  after the server credited the purchase), `en_attente` (paid purchases not yet credited are never lost: StoreKit gives them
+  back at the next launch and the page credits them).
+- The app sets `window.NV_ACHATS_INTEGRES = true` on iPhone. The pages (`nv_magasin.js` in every module) then show the
+  App Store sheet and never the NEURAVID deposit page. Android does not change.
+- Server and App Store Connect steps: server package v127 (`READ_FIRST.md`), `economie/modeles_passerelles/README.md`.
+- Product IDs: `com.neuravid.app.nvc.100`, `.500`, `.1000`, `.5000`, `.10000`, `.30000`, `.50000`, `.100000` (Consumable).
+
 ## Still to do before public store submission (servers, not this shell)
 
 - Real servers behind `web/nv-config.js`.

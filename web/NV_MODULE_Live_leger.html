@@ -666,6 +666,201 @@
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', demarrer); else demarrer();
   window.NVDuels = {apprendre: apprendre, clipDe: clipDe, tour: tour, ouvrir: ouvrir, etat: D, carte: CARTE};
 })();</script><!--/NV_DUELS-->
+<!--NV_MAGASIN--><script>/* NEURAVID — les NVCoins dans l'App Store (28 nov. 2026).
+   Dans l'application iPhone, les NVCoins s'achètent SEULEMENT par les achats intégrés d'Apple (règle 3.1.1).
+   Ce script ne fait rien ailleurs (site, Android, aperçu). Sur iPhone :
+     · window.NVMagasin.ouvrir({manque, choix}) : la feuille « Acheter des NVCoins », prix donnés par l'App Store ;
+     · toute demande de dépôt vers la page de paiement de NEURAVID (/v1/wallet/purchase, /v1/recolte/recharges)
+       passe par cette feuille : aucun lien ni bouton vers un autre moyen de paiement n'est montré ;
+     · un achat payé n'est « terminé » auprès d'Apple qu'une fois crédité par le serveur (jamais perdu) ;
+     · les retraits des gains ne changent pas.
+   Les produits viennent du serveur (/v1/recolte/capacites → paiements.magasinProduits.apple), jamais du téléphone. */
+(function () {
+  var R = window;
+  if (R.NVMagasin) return;
+  var TXT = {"en":{"Acheter des NVCoins":"Buy NVCoins","Les NVCoins s'achètent ici avec votre compte Apple.":"NVCoins are bought here with your Apple account.","Il vous manque {0} NVCoins.":"You need {0} more NVCoins.","Les achats dans l'App Store ne sont pas encore ouverts.":"App Store purchases are not open yet.","Achat en cours…":"Purchase in progress…","Acheter":"Buy","Prix de l'App Store.":"App Store price.","Fermer":"Close","Achat annulé. Rien n'a été débité.":"Purchase cancelled. Nothing was charged.","Réservé aux personnes de 18 ans et plus.":"For people aged 18 and over.","L'achat n'a pas abouti. Rien n'a été débité.":"The purchase did not go through. Nothing was charged.","Votre achat est payé : vos NVCoins arrivent dès que NEURAVID le confirme.":"Your purchase is paid: your NVCoins arrive as soon as NEURAVID confirms it.","{0} NVCoins ajoutés à votre portefeuille":"{0} NVCoins added to your wallet","Connectez-vous pour acheter des NVCoins.":"Sign in to buy NVCoins."},"es":{"Acheter des NVCoins":"Comprar NVCoins","Les NVCoins s'achètent ici avec votre compte Apple.":"Los NVCoins se compran aquí con tu cuenta de Apple.","Il vous manque {0} NVCoins.":"Te faltan {0} NVCoins.","Les achats dans l'App Store ne sont pas encore ouverts.":"Las compras en la App Store aún no están abiertas.","Achat en cours…":"Compra en curso…","Acheter":"Comprar","Prix de l'App Store.":"Precio de la App Store.","Fermer":"Cerrar","Achat annulé. Rien n'a été débité.":"Compra cancelada. No se ha cobrado nada.","Réservé aux personnes de 18 ans et plus.":"Reservado a personas de 18 años o más.","L'achat n'a pas abouti. Rien n'a été débité.":"La compra no se completó. No se ha cobrado nada.","Votre achat est payé : vos NVCoins arrivent dès que NEURAVID le confirme.":"Tu compra está pagada: tus NVCoins llegarán en cuanto NEURAVID la confirme.","{0} NVCoins ajoutés à votre portefeuille":"{0} NVCoins añadidos a tu monedero","Connectez-vous pour acheter des NVCoins.":"Inicia sesión para comprar NVCoins."},"pt":{"Acheter des NVCoins":"Comprar NVCoins","Les NVCoins s'achètent ici avec votre compte Apple.":"Os NVCoins são comprados aqui com a sua conta Apple.","Il vous manque {0} NVCoins.":"Faltam-lhe {0} NVCoins.","Les achats dans l'App Store ne sont pas encore ouverts.":"As compras na App Store ainda não estão abertas.","Achat en cours…":"Compra em curso…","Acheter":"Comprar","Prix de l'App Store.":"Preço da App Store.","Fermer":"Fechar","Achat annulé. Rien n'a été débité.":"Compra cancelada. Nada foi cobrado.","Réservé aux personnes de 18 ans et plus.":"Reservado a pessoas com 18 anos ou mais.","L'achat n'a pas abouti. Rien n'a été débité.":"A compra não foi concluída. Nada foi cobrado.","Votre achat est payé : vos NVCoins arrivent dès que NEURAVID le confirme.":"A sua compra está paga: os seus NVCoins chegam assim que a NEURAVID a confirmar.","{0} NVCoins ajoutés à votre portefeuille":"{0} NVCoins adicionados à sua carteira","Connectez-vous pour acheter des NVCoins.":"Inicie sessão para comprar NVCoins."},"ar":{"Acheter des NVCoins":"شراء NVCoins","Les NVCoins s'achètent ici avec votre compte Apple.":"تُشترى NVCoins هنا بحساب Apple الخاص بك.","Il vous manque {0} NVCoins.":"ينقصك {0} NVCoins.","Les achats dans l'App Store ne sont pas encore ouverts.":"الشراء عبر App Store غير متاح بعد.","Achat en cours…":"الشراء جارٍ…","Acheter":"شراء","Prix de l'App Store.":"سعر App Store.","Fermer":"إغلاق","Achat annulé. Rien n'a été débité.":"أُلغي الشراء. لم يُخصم أي مبلغ.","Réservé aux personnes de 18 ans et plus.":"مخصّص لمن هم في سن 18 عامًا فأكثر.","L'achat n'a pas abouti. Rien n'a été débité.":"لم يكتمل الشراء. لم يُخصم أي مبلغ.","Votre achat est payé : vos NVCoins arrivent dès que NEURAVID le confirme.":"تم دفع ثمن الشراء: ستصل NVCoins بمجرد أن تؤكده NEURAVID.","{0} NVCoins ajoutés à votre portefeuille":"أُضيفت {0} NVCoins إلى محفظتك","Connectez-vous pour acheter des NVCoins.":"سجّل الدخول لشراء NVCoins."},"sw":{"Acheter des NVCoins":"Nunua NVCoins","Les NVCoins s'achètent ici avec votre compte Apple.":"NVCoins hununuliwa hapa kwa akaunti yako ya Apple.","Il vous manque {0} NVCoins.":"Unahitaji NVCoins {0} zaidi.","Les achats dans l'App Store ne sont pas encore ouverts.":"Ununuzi kwenye App Store bado haujafunguliwa.","Achat en cours…":"Ununuzi unaendelea…","Acheter":"Nunua","Prix de l'App Store.":"Bei ya App Store.","Fermer":"Funga","Achat annulé. Rien n'a été débité.":"Ununuzi umesitishwa. Hakuna kilichotozwa.","Réservé aux personnes de 18 ans et plus.":"Kwa watu wenye umri wa miaka 18 na zaidi.","L'achat n'a pas abouti. Rien n'a été débité.":"Ununuzi haukukamilika. Hakuna kilichotozwa.","Votre achat est payé : vos NVCoins arrivent dès que NEURAVID le confirme.":"Ununuzi wako umelipwa: NVCoins zako zitafika mara NEURAVID itakapothibitisha.","{0} NVCoins ajoutés à votre portefeuille":"NVCoins {0} zimeongezwa kwenye pochi yako","Connectez-vous pour acheter des NVCoins.":"Ingia ili ununue NVCoins."},"ha":{"Acheter des NVCoins":"Sayi NVCoins","Les NVCoins s'achètent ici avec votre compte Apple.":"Ana sayen NVCoins a nan da asusun Apple ɗinka.","Il vous manque {0} NVCoins.":"Kana buƙatar ƙarin NVCoins {0}.","Les achats dans l'App Store ne sont pas encore ouverts.":"Har yanzu ba a buɗe sayayya a App Store ba.","Achat en cours…":"Ana kan saye…","Acheter":"Saya","Prix de l'App Store.":"Farashin App Store.","Fermer":"Rufe","Achat annulé. Rien n'a été débité.":"An soke saye. Ba a cire komai ba.","Réservé aux personnes de 18 ans et plus.":"Don mutane masu shekaru 18 zuwa sama.","L'achat n'a pas abouti. Rien n'a été débité.":"Sayen bai kammala ba. Ba a cire komai ba.","Votre achat est payé : vos NVCoins arrivent dès que NEURAVID le confirme.":"An biya sayen ka: NVCoins ɗinka za su zo da zarar NEURAVID ta tabbatar.","{0} NVCoins ajoutés à votre portefeuille":"An ƙara NVCoins {0} a walat ɗinka","Connectez-vous pour acheter des NVCoins.":"Shiga don sayen NVCoins."},"yo":{"Acheter des NVCoins":"Ra NVCoins","Les NVCoins s'achètent ici avec votre compte Apple.":"A máa ń ra NVCoins níbí pẹ̀lú àkáǹtì Apple rẹ.","Il vous manque {0} NVCoins.":"O nílò NVCoins {0} sí i.","Les achats dans l'App Store ne sont pas encore ouverts.":"Ìrajà nínú App Store kò tíì ṣí sílẹ̀.","Achat en cours…":"Ìrajà ń lọ lọ́wọ́…","Acheter":"Rà á","Prix de l'App Store.":"Iye owó App Store.","Fermer":"Pa á dé","Achat annulé. Rien n'a été débité.":"A fagi ìrajà. Kò sí owó tí a gbà.","Réservé aux personnes de 18 ans et plus.":"Fún àwọn ọmọ ọdún méjìdínlógún sókè.","L'achat n'a pas abouti. Rien n'a été débité.":"Ìrajà kò parí. Kò sí owó tí a gbà.","Votre achat est payé : vos NVCoins arrivent dès que NEURAVID le confirme.":"A ti sanwó ìrajà rẹ: NVCoins rẹ yóò dé ní kété tí NEURAVID bá jẹ́rìí sí i.","{0} NVCoins ajoutés à votre portefeuille":"A ti fi NVCoins {0} kún àpamọ́wọ́ rẹ","Connectez-vous pour acheter des NVCoins.":"Wọlé láti ra NVCoins."},"wo":{"Acheter des NVCoins":"Jënd NVCoins","Les NVCoins s'achètent ici avec votre compte Apple.":"NVCoins dañuy jënd fii ak sa kontu Apple.","Il vous manque {0} NVCoins.":"Dafa la des {0} NVCoins.","Les achats dans l'App Store ne sont pas encore ouverts.":"Jënd ci App Store ubbiwul ba léegi.","Achat en cours…":"Jënd bi ngi dox…","Acheter":"Jënd","Prix de l'App Store.":"Njëgu App Store.","Fermer":"Tëj","Achat annulé. Rien n'a été débité.":"Jënd bi neenal nañu ko. Dara wàññikuwul.","Réservé aux personnes de 18 ans et plus.":"Ñi am 18 at ak lu ko ëpp rekk.","L'achat n'a pas abouti. Rien n'a été débité.":"Jënd bi àntuwul. Dara wàññikuwul.","Votre achat est payé : vos NVCoins arrivent dès que NEURAVID le confirme.":"Sa jënd fey nañu ko: sa NVCoins dinañu ñëw su NEURAVID dëggalee.","{0} NVCoins ajoutés à votre portefeuille":"{0} NVCoins yokku nañu ci sa kalpe","Connectez-vous pour acheter des NVCoins.":"Duggal ngir jënd NVCoins."},"bm":{"Acheter des NVCoins":"NVCoins san","Les NVCoins s'achètent ici avec votre compte Apple.":"NVCoins bɛ san yan ni i ka Apple jatebɔsɛbɛn ye.","Il vous manque {0} NVCoins.":"NVCoins {0} bɛ i dɛsɛ.","Les achats dans l'App Store ne sont pas encore ouverts.":"San App Store kɔnɔ ma da yɛlɛ fɔlɔ.","Achat en cours…":"San bɛ ka taa…","Acheter":"San","Prix de l'App Store.":"App Store sɔngɔ.","Fermer":"A datugu","Achat annulé. Rien n'a été débité.":"San dabila. Foyi ma bɔ.","Réservé aux personnes de 18 ans et plus.":"San 18 ni ka tɛmɛ mɔgɔw dɔrɔn ta.","L'achat n'a pas abouti. Rien n'a été débité.":"San ma dafa. Foyi ma bɔ.","Votre achat est payé : vos NVCoins arrivent dès que NEURAVID le confirme.":"I ka san sara ra: i ka NVCoins bɛna se ni NEURAVID y'a sinsin.","{0} NVCoins ajoutés à votre portefeuille":"NVCoins {0} farala i ka wariminɛ kan","Connectez-vous pour acheter des NVCoins.":"Don walasa ka NVCoins san."},"ln":{"Acheter des NVCoins":"Kosomba NVCoins","Les NVCoins s'achètent ici avec votre compte Apple.":"Basombaka NVCoins awa na compte na yo ya Apple.","Il vous manque {0} NVCoins.":"Ozangi NVCoins {0}.","Les achats dans l'App Store ne sont pas encore ouverts.":"Kosomba na App Store efungwami naino te.","Achat en cours…":"Kosomba ezali kokende…","Acheter":"Somba","Prix de l'App Store.":"Ntalo ya App Store.","Fermer":"Kanga","Achat annulé. Rien n'a été débité.":"Kosomba elongolami. Eloko moko te elongwe.","Réservé aux personnes de 18 ans et plus.":"Mpo na bato ya mbula 18 mpe koleka.","L'achat n'a pas abouti. Rien n'a été débité.":"Kosomba esilaki te. Eloko moko te elongwe.","Votre achat est payé : vos NVCoins arrivent dès que NEURAVID le confirme.":"Kosomba na yo efutami: NVCoins na yo ekoya soki NEURAVID endimisi yango.","{0} NVCoins ajoutés à votre portefeuille":"NVCoins {0} ebakisami na portefeuille na yo","Connectez-vous pour acheter des NVCoins.":"Kota mpo na kosomba NVCoins."}};
+  function actif(){ return R.NV_MAGASIN === 'app_store' && R.NV_ACHATS_INTEGRES === true && !R.NV_APERCU &&
+    !!(R.flutter_inappwebview && typeof R.flutter_inappwebview.callHandler === 'function'); }
+  function api(){ var a = R.NV_API_BASE || (R.NV_CONFIG && R.NV_CONFIG.api) || ''; return a ? String(a).replace(/\/$/, '') : ''; }
+  function jeton(){ return R.NV_TOKEN || ''; }
+  function entetes(h){ h = h || {}; if (jeton()) h.Authorization = 'Bearer ' + jeton(); return h; }
+  function langue(){ var l = ''; try { l = String(R.NV_LANG || document.documentElement.lang || JSON.parse(localStorage.getItem('nv_ui_langue') || '""') || navigator.language || 'fr'); } catch (e) { l = 'fr'; }
+    l = l.slice(0, 2).toLowerCase(); return TXT[l] || l === 'fr' ? l : 'fr'; }
+  function t(k, a){ var l = langue(), s = l !== 'fr' && TXT[l] && TXT[l][k] ? TXT[l][k] : k; return a == null ? s : s.replace('{0}', a); }
+  function esc(s){ return String(s == null ? '' : s).replace(/[&<>"']/g, function(c){ return {'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[c]; }); }
+  function fmt(n){ try { return Number(n).toLocaleString(langue()); } catch (e) { return String(n); } }
+  var vraiFetch = R.fetch ? R.fetch.bind(R) : null;
+  function natif(o){ try { return Promise.resolve(R.flutter_inappwebview.callHandler('nvMagasin', o)).then(function(x){ return x || {ok:false, raison:'erreur'}; }); }
+    catch (e) { return Promise.resolve({ok:false, raison:'erreur'}); } }
+  function json(url, o){ if (!vraiFetch) return Promise.resolve(null);
+    return vraiFetch(url, o || {mode:'cors', headers:entetes()}).then(function(r){ return r.json().catch(function(){ return {}; }).then(function(d){ d = d || {}; d.__s = r.status; return d; }); }).catch(function(){ return null; }); }
+
+  /* ── les produits : ceux du serveur, avec le prix de l'App Store ── */
+  var P = {liste:null, at:0, enCours:null};
+  function produits(){
+    if (P.liste && Date.now() - P.at < 60000) return Promise.resolve(P.liste);
+    if (P.enCours) return P.enCours;
+    if (!api()) return Promise.resolve([]);
+    P.enCours = json(api() + '/v1/recolte/capacites', {mode:'cors'}).then(function(d){
+      var l = d && d.paiements && d.paiements.magasinProduits && Array.isArray(d.paiements.magasinProduits.apple) ? d.paiements.magasinProduits.apple : [];
+      l = l.filter(function(x){ return x && typeof x.id === 'string' && typeof x.nvc === 'number' && x.nvc > 0; }).slice(0, 30);
+      if (!l.length) return [];
+      return natif({action:'produits', ids:l.map(function(x){ return x.id; })}).then(function(n){
+        var prix = {}; (n && n.ok && Array.isArray(n.produits) ? n.produits : []).forEach(function(p){ if (p && p.id) prix[p.id] = p; });
+        return l.filter(function(x){ return prix[x.id]; }).map(function(x){ return {id:x.id, nvc:x.nvc, prix:String(prix[x.id].prix || '—')}; })
+          .sort(function(a, b){ return a.nvc - b.nvc; });
+      });
+    }).then(function(l){ P.enCours = null; P.liste = l; P.at = Date.now(); return l; }, function(){ P.enCours = null; return []; });
+    return P.enCours;
+  }
+
+  /* ── créditer une transaction payée, puis la terminer auprès d'Apple ── */
+  var credites = {};
+  function crediter(r){
+    if (!r || !r.recu || !r.transaction) return Promise.resolve({ok:false});
+    if (credites[r.transaction]) return credites[r.transaction];
+    var p = json(api() + '/v1/recolte/recharges/magasin', {method:'POST', mode:'cors',
+      headers:entetes({'Content-Type':'application/json', 'Idempotency-Key':'mag-' + String(r.transaction).replace(/[^\w.-]/g, '').slice(0, 60)}),
+      body:JSON.stringify({magasin:'apple', recu:r.recu})}).then(function(d){
+      var code = d && d.raison && d.raison.code;
+      if (d && (d.ok || d.rejoue)) { natif({action:'terminer', transaction:r.transaction}); return {ok:true, nvc:d.montant}; }
+      if (code === 'recu_deja_utilise') { natif({action:'terminer', transaction:r.transaction}); return {ok:false, code:code}; }
+      delete credites[r.transaction];
+      return {ok:false, code:code || 'reseau'};                    /* gardée : elle sera redonnée et recréditée */
+    });
+    credites[r.transaction] = p; return p;
+  }
+  function soldeEtFin(res){
+    if (!res.ok) return Promise.resolve(res);
+    return json(api() + '/v1/wallet').then(function(w){ if (w && typeof w.solde === 'number') { res.solde = w.solde; try { R.NV_WALLET = Object.assign(R.NV_WALLET || {}, {solde:w.solde}); } catch (e) {} }
+      try { R.dispatchEvent(new CustomEvent('nv:wallet', {detail:{solde:res.solde}})); } catch (e) {} return res; });
+  }
+  R.NVMagasinRecu = function(r){ if (!actif() || !api() || !jeton()) return; crediter(r).then(soldeEtFin).then(function(x){ if (x.ok) annonce(t('{0} NVCoins ajoutés à votre portefeuille', fmt(x.nvc || 0))); }); };
+  function reprendre(){ if (!actif() || !api() || !jeton()) return;
+    natif({action:'en_attente'}).then(function(x){ (x && Array.isArray(x.recus) ? x.recus : []).slice(0, 10).forEach(R.NVMagasinRecu); }); }
+
+  /* ── la feuille ── */
+  var F = {hote:null, ombre:null, ouvert:false, choix:null, fin:null, occupe:false, liste:[], manque:0, msg:''};
+  var CSS = ':host{all:initial}*{box-sizing:border-box}' +
+    '.voile{position:fixed;inset:0;background:rgba(8,3,24,.62);z-index:1}' +
+    '.feuille{position:fixed;left:0;right:0;bottom:0;z-index:2;max-width:560px;margin:0 auto;max-height:86vh;overflow:auto;background:linear-gradient(180deg,#1a0f3a,#0e0822);color:#fff;border-radius:22px 22px 0 0;padding:18px 16px calc(18px + env(safe-area-inset-bottom));font:15px/1.4 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;border-top:1px solid rgba(255,215,120,.35)}' +
+    'h2{margin:0 0 4px;font-size:19px;display:flex;gap:10px;align-items:center}h2 i{display:inline-block;width:26px;height:26px;background:linear-gradient(135deg,#ffd36e,#f39b2b);clip-path:polygon(25% 4%,75% 4%,100% 50%,75% 96%,25% 96%,0 50%)}' +
+    'p{margin:0 0 10px;color:#cfc6ea;font-size:13.5px}.manque{color:#ffd36e;font-weight:600}' +
+    '.grille{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin:10px 0}' +
+    '.pack{background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.14);border-radius:14px;color:#fff;padding:12px 10px;text-align:center;font:inherit;cursor:pointer;min-height:64px}' +
+    '.pack b{display:block;font-size:16px}.pack span{display:block;color:#ffd36e;margin-top:2px;font-size:13.5px}.pack[aria-pressed=true]{border-color:#ffd36e;background:rgba(255,211,110,.16)}' +
+    '.acheter{width:100%;border:0;border-radius:14px;padding:14px;font:600 16px system-ui,-apple-system,sans-serif;background:linear-gradient(135deg,#ffd36e,#f39b2b);color:#2a1300;cursor:pointer}.acheter[disabled]{opacity:.5}' +
+    '.fermer{width:100%;margin-top:8px;border:1px solid rgba(255,255,255,.2);border-radius:14px;padding:12px;background:transparent;color:#fff;font:inherit;cursor:pointer}' +
+    '.etat{min-height:20px;margin:8px 0 0;color:#fff;font-size:13.5px;text-align:center}.note{font-size:12px;color:#a99fc8;text-align:center;margin-top:8px}' +
+    '.annonce{position:fixed;left:50%;bottom:calc(24px + env(safe-area-inset-bottom));transform:translateX(-50%);background:#24164f;color:#fff;border:1px solid rgba(255,211,110,.5);border-radius:14px;padding:10px 14px;font:14px system-ui,-apple-system,sans-serif;z-index:3;max-width:90vw}';
+  function hote(){
+    if (F.hote && F.hote.isConnected) return F.ombre;
+    F.hote = document.createElement('div'); F.hote.id = 'nvMagasin';
+    F.hote.style.cssText = 'position:fixed;inset:0;z-index:2147483000;pointer-events:none';
+    (document.body || document.documentElement).appendChild(F.hote);
+    F.ombre = F.hote.attachShadow({mode:'open'});
+    F.ombre.addEventListener('click', clic);
+    F.ombre.addEventListener('keydown', function(e){ if (e.key === 'Escape') fermer(); });
+    return F.ombre;
+  }
+  var annT = 0;
+  function annonce(s){ var o = hote(); var a = o.querySelector('.annonce'); if (!a) { a = document.createElement('div'); a.className = 'annonce'; a.setAttribute('role', 'status'); o.appendChild(a); }
+    a.textContent = s; a.hidden = false; clearTimeout(annT); annT = setTimeout(function(){ a.hidden = true; }, 3600); }
+  function rendre(){
+    var o = hote(); F.hote.style.pointerEvents = F.ouvert ? 'auto' : 'none';
+    var a = o.querySelector('.annonce');
+    o.innerHTML = '<style>' + CSS + '</style>';
+    if (a) o.appendChild(a);
+    if (!F.ouvert) return;
+    var d = langue() === 'ar' ? ' dir="rtl"' : '', h = '<div class="voile" data-m="fermer"></div><div class="feuille" role="dialog" aria-modal="true" aria-labelledby="nvmT"' + d + ' lang="' + langue() + '">' +
+      '<h2 id="nvmT"><i aria-hidden="true"></i>' + esc(t('Acheter des NVCoins')) + '</h2><p>' + esc(t('Les NVCoins s\'achètent ici avec votre compte Apple.')) + '</p>';
+    if (F.manque > 0) h += '<p class="manque">' + esc(t('Il vous manque {0} NVCoins.', fmt(F.manque))) + '</p>';
+    if (F.liste === null) h += '<p class="etat">…</p>';
+    else if (!F.liste.length) h += '<p class="etat">' + esc(t('Les achats dans l\'App Store ne sont pas encore ouverts.')) + '</p>';
+    else {
+      h += '<div class="grille" role="group" aria-label="' + esc(t('Acheter des NVCoins')) + '">' + F.liste.map(function(x){
+        var on = F.choix === x.id; return '<button class="pack" data-m="pack" data-id="' + esc(x.id) + '" aria-pressed="' + on + '"><b>' + esc(fmt(x.nvc)) + ' NVCoins</b><span>' + esc(x.prix) + '</span></button>'; }).join('') + '</div>' +
+        '<button class="acheter" data-m="acheter"' + (F.choix && !F.occupe ? '' : ' disabled') + '>' + esc(F.occupe ? t('Achat en cours…') : t('Acheter')) + '</button>' +
+        '<p class="note">' + esc(t('Prix de l\'App Store.')) + '</p>';
+    }
+    h += '<p class="etat" role="status">' + esc(F.msg) + '</p><button class="fermer" data-m="fermer">' + esc(t('Fermer')) + '</button></div>';
+    var z = document.createElement('div'); z.innerHTML = h; while (z.firstChild) o.appendChild(z.firstChild);
+    var f = o.querySelector('[aria-pressed=true]') || o.querySelector('.pack') || o.querySelector('.fermer'); if (f) try { f.focus({preventScroll:true}); } catch (e) {}
+  }
+  function finir(res){ var f = F.fin; F.fin = null; F.ouvert = false; F.occupe = false; rendre(); if (f) try { f(res); } catch (e) {} }
+  function fermer(){ if (F.occupe) return; finir({success:false, annule:true, reason:t('Achat annulé. Rien n\'a été débité.')}); }
+  function clic(e){
+    var b = e.target.closest && e.target.closest('[data-m]'); if (!b) return;
+    var m = b.getAttribute('data-m');
+    if (m === 'fermer') fermer();
+    else if (m === 'pack' && !F.occupe) { F.choix = b.getAttribute('data-id'); F.msg = ''; rendre(); }
+    else if (m === 'acheter' && F.choix && !F.occupe) acheter();
+  }
+  var RAISONS = {annule:'Achat annulé. Rien n\'a été débité.', age_argent:'Réservé aux personnes de 18 ans et plus.'};
+  function acheter(){
+    var x = F.liste.filter(function(p){ return p.id === F.choix; })[0]; if (!x) return;
+    F.occupe = true; F.msg = ''; rendre();
+    json(api() + '/v1/recolte/recharges/magasin/jeton').then(function(j){
+      return natif({action:'acheter', id:x.id, compte:j && j.appAccountToken || null});
+    }).then(function(r){
+      if (!r || !r.ok) {
+        F.occupe = false;
+        if (r && r.raison === 'attente') { F.msg = t('Votre achat est payé : vos NVCoins arrivent dès que NEURAVID le confirme.'); rendre(); return; }
+        F.msg = t(RAISONS[r && r.raison] || 'L\'achat n\'a pas abouti. Rien n\'a été débité.'); rendre(); return;
+      }
+      return crediter(r).then(soldeEtFin).then(function(c){
+        F.occupe = false;
+        if (c.ok) { annonce(t('{0} NVCoins ajoutés à votre portefeuille', fmt(c.nvc || x.nvc))); finir({success:true, solde:c.solde, nvc:c.nvc || x.nvc}); return; }
+        F.msg = t(c.code === 'age_argent' ? RAISONS.age_argent : 'Votre achat est payé : vos NVCoins arrivent dès que NEURAVID le confirme.'); rendre();
+      });
+    });
+  }
+  function ouvrir(o){
+    o = o || {};
+    return new Promise(function(res){
+      if (!actif()) { res({success:false, reason:''}); return; }
+      if (F.fin) { var a = F.fin; F.fin = null; try { a({success:false, annule:true}); } catch (e) {} }
+      F.fin = res; F.ouvert = true; F.occupe = false; F.msg = ''; F.manque = Math.max(0, +o.manque || 0); F.liste = null;
+      if (!api() || !jeton()) { F.liste = []; F.msg = t('Connectez-vous pour acheter des NVCoins.'); rendre(); return; }
+      rendre();
+      produits().then(function(l){
+        F.liste = l || []; var voulu = +o.choix || F.manque || 0;
+        var c = F.liste.filter(function(p){ return p.nvc >= voulu; })[0] || F.liste[F.liste.length - 1];
+        F.choix = voulu && c ? c.id : (F.choix && F.liste.some(function(p){ return p.id === F.choix; }) ? F.choix : null); rendre();
+      });
+    });
+  }
+
+  /* ── aucune page de paiement de NEURAVID sur iPhone : chaque demande de dépôt ouvre l'App Store ── */
+  if (vraiFetch) R.fetch = function(entree, init){
+    try {
+      if (actif()) {
+        var url = typeof entree === 'string' ? entree : (entree && entree.url) || '', meth = String((init && init.method) || (entree && entree.method) || 'GET').toUpperCase();
+        var ch = url.replace(/^https?:\/\/[^/]+/, '').split('?')[0];
+        if (meth === 'POST' && (ch === '/v1/wallet/purchase' || ch === '/v1/recolte/recharges' || ch === '/v1/recolte/recharges/devis')) {
+          var corps = {}; try { corps = JSON.parse(init && typeof init.body === 'string' ? init.body : '{}') || {}; } catch (e) {}
+          var rep = function(o, s){ return new Response(JSON.stringify(o), {status:s || 200, headers:{'Content-Type':'application/json'}}); };
+          if (ch !== '/v1/wallet/purchase') { ouvrir({}); return Promise.resolve(rep({ok:false, erreur:'magasin_seulement', raison:{code:'magasin_seulement'}}, 409)); }
+          return ouvrir({choix:+corps.coins || 0}).then(function(x){
+            return rep(x.success ? {success:true, solde:x.solde, idem:corps.idem} : {success:false, idem:corps.idem, reason:x.reason || t('Achat annulé. Rien n\'a été débité.')});
+          });
+        }
+      }
+    } catch (e) {}
+    return vraiFetch(entree, init);
+  };
+  if (actif()) {
+    try { document.documentElement.classList.add('nv-app-store'); } catch (e) {}
+    var st = document.createElement('style');
+    /* le panneau des cadeaux : ni prix indicatif ni mention d'un autre moyen de paiement ; seul le prix de l'App Store compte */
+    st.textContent = 'html.nv-app-store .nvc-pack span,html.nv-app-store #nvc-pan .nvc-rep{display:none!important}';
+    (document.head || document.documentElement).appendChild(st);
+    var relabel = function(){ var b = document.querySelector('#nvc-pan [data-nvc="acheter"]'); if (b && b.getAttribute('data-nvm') !== langue()) { b.textContent = t('Acheter des NVCoins'); b.setAttribute('data-nvm', langue()); } };
+    var rlT = 0; try { new MutationObserver(function(){ if (!rlT) rlT = setTimeout(function(){ rlT = 0; relabel(); }, 60); }).observe(document.documentElement, {childList:true, subtree:true}); } catch (e) {}
+    setTimeout(reprendre, 2500);
+  }
+  R.NVMagasin = {actif:actif, ouvrir:ouvrir, produits:produits, _crediter:crediter};
+})();</script><!--/NV_MAGASIN-->
 <!--NV_CONFIG--><script src="nv-config.js"></script><!--/NV_CONFIG-->
 <!--NV_REPLI--><script id="nv-repli">window.NV_REPLI_MODULE="Live_leger";window.NV_REPLI_SONDE={"url": "/v1/live/capacites"};
 /* NEURAVID — L'APERÇU EN REPLI (17 novembre 2026, rappel de Karamo : « ne plus dépendre l'affichage des contenus ou

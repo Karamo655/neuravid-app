@@ -101,6 +101,18 @@ Dans ce cas : **Actions → Application officielle → Run workflow**, avec « E
    - **Run workflow** ; plateformes : ios ; « Envoyer aux magasins » coché.
    - L'application arrive dans **TestFlight** après le traitement d'Apple, 10 à 30 minutes.
 
+## Les NVCoins sur iPhone (28 novembre 2026)
+
+Sur iPhone, Apple exige que les NVCoins s'achètent par ses achats intégrés (règle 3.1.1). L'application iPhone ne montre donc
+jamais le dépôt de NEURAVID (Chap Chap Pay, mobile money, cartes) : elle montre « Acheter des NVCoins » avec le prix de
+l'App Store. Les retraits des gains ne changent pas. Android et le site ne changent pas.
+
+À faire par vous (titulaire du compte Apple) :
+1. App Store Connect → « Business » (Accords, taxes et banques) : accepter l'accord des applications payantes et remplir la banque et les taxes.
+2. App Store Connect → NEURAVID → Achats intégrés : 8 produits « Consommables » (`com.neuravid.app.nvc.100` à `…100000`),
+   avec le prix que vous choisissez (Apple garde 15 % ou 30 %).
+3. Donner à Afaq la liste des comptes d'essai (le compte de démonstration de l'examen compris) pour `APPLE_SANDBOX`.
+
 ## Avant de soumettre au public : ce que les magasins vérifieront
 
 L'application elle-même est prête. Mais Apple et Google examinent ce qu'elle **fait** :

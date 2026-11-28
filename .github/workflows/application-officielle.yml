@@ -110,7 +110,7 @@ jobs:
           cp application/lib/*.dart projet/lib/
           rm -rf projet/test && cp -r application/test projet/test
           mkdir -p projet/assets && cp application/pont.js projet/assets/pont.js
-          cd projet && flutter pub add flutter_inappwebview:^6.1.5 permission_handler:^11.3.1 url_launcher:^6.3.0 share_plus:^10.1.4 gal:^2.3.1 path_provider:^2.1.5
+          cd projet && flutter pub add flutter_inappwebview:^6.1.5 permission_handler:^11.3.1 url_launcher:^6.3.0 share_plus:^10.1.4 gal:^2.3.1 path_provider:^2.1.5 in_app_purchase:^3.2.0
       - name: Essais du pont (Dart)
         run: cd projet && flutter test
       - name: Embarquer le site (copie hors connexion)
@@ -344,7 +344,7 @@ jobs:
           cp application/lib/*.dart projet/lib/
           rm -rf projet/test && cp -r application/test projet/test
           mkdir -p projet/assets && cp application/pont.js projet/assets/pont.js
-          cd projet && flutter pub add flutter_inappwebview:^6.1.5 permission_handler:^11.3.1 url_launcher:^6.3.0 share_plus:^10.1.4 gal:^2.3.1 path_provider:^2.1.5
+          cd projet && flutter pub add flutter_inappwebview:^6.1.5 permission_handler:^11.3.1 url_launcher:^6.3.0 share_plus:^10.1.4 gal:^2.3.1 path_provider:^2.1.5 in_app_purchase:^3.2.0
       - name: Essais du pont (Dart)
         run: cd projet && flutter test
       - name: Embarquer le site (copie hors connexion)
@@ -375,7 +375,7 @@ jobs:
           /usr/libexec/PlistBuddy -c "Delete :LSApplicationQueriesSchemes" "$P" 2>/dev/null || true
           /usr/libexec/PlistBuddy -c "Add :LSApplicationQueriesSchemes array" "$P"
           i=0; for sch in https mailto tel sms whatsapp; do /usr/libexec/PlistBuddy -c "Add :LSApplicationQueriesSchemes:$i string $sch" "$P"; i=$((i+1)); done
-          sed -i '' -E "s/^# platform :ios, '[0-9.]+'/platform :ios, '13.0'/" projet/ios/Podfile || true
+          sed -i '' -E "s/^# platform :ios, '[0-9.]+'/platform :ios, '15.0'/" projet/ios/Podfile || true
           python3 - <<'EOF'
           import json, shutil, os
           d = 'projet/ios/Runner/Assets.xcassets/AppIcon.appiconset'

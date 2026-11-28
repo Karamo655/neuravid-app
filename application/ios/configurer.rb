@@ -34,7 +34,7 @@ proj.root_object.known_regions = (proj.root_object.known_regions + langues + ['B
 cible.build_configurations.each do |c|
   c.build_settings['CODE_SIGN_ENTITLEMENTS'] = 'Runner/Runner.entitlements'
   c.build_settings['TARGETED_DEVICE_FAMILY'] = '1'
-  c.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '13.0'
+  c.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '15.0'   # StoreKit 2 (achats intégrés)
 end
 proj.save
 puts "Projet iPhone réglé : #{langues.size} langues, manifeste de confidentialité, domaines associés, iPhone seulement."
