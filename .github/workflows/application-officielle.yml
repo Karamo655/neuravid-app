@@ -320,7 +320,7 @@ jobs:
   ios:
     needs: reglages
     if: needs.reglages.outputs.ios == 'oui'
-    runs-on: macos-latest
+    runs-on: macos-26   # Xcode 26 et le SDK iOS 26 : exigés par l'App Store depuis le 28 avril 2026
     timeout-minutes: 90
     env:
       NOM: ${{ needs.reglages.outputs.nom }}
@@ -363,12 +363,18 @@ jobs:
           P=projet/ios/Runner/Info.plist
           pb(){ /usr/libexec/PlistBuddy -c "Delete :$1" "$P" 2>/dev/null || true; /usr/libexec/PlistBuddy -c "Add :$1 $2 $3" "$P"; }
           pb CFBundleDisplayName string "$NOM"
-          pb NSCameraUsageDescription string "NEURAVID utilise la caméra pour filmer vos vidéos, vos défis et vos directs."
-          pb NSMicrophoneUsageDescription string "NEURAVID utilise le micro pour le son de vos vidéos, de vos directs et de vos appels."
-          pb NSLocationWhenInUseUsageDescription string "NEURAVID utilise votre position seulement si vous choisissez de la partager (votre pays, les directs proches)."
-          pb NSPhotoLibraryUsageDescription string "NEURAVID ouvre vos photos et vidéos seulement quand vous choisissez d'en publier une."
-          pb NSPhotoLibraryAddUsageDescription string "NEURAVID enregistre dans vos photos les vidéos que vous choisissez de garder."
+          # textes de base en anglais (lus par l'équipe d'Apple) ; les 11 langues sont dans InfoPlist.strings (étape suivante)
+          pb NSCameraUsageDescription string "NEURAVID uses the camera to film your videos, challenges and live streams."
+          pb NSMicrophoneUsageDescription string "NEURAVID uses the microphone for the sound of your videos, live streams and calls."
+          pb NSLocationWhenInUseUsageDescription string "NEURAVID uses your location only if you choose to share it (your country, nearby live streams)."
+          pb NSPhotoLibraryUsageDescription string "NEURAVID opens your photos and videos only when you choose one to publish."
+          pb NSPhotoLibraryAddUsageDescription string "NEURAVID saves to your photos the videos you choose to keep."
           pb ITSAppUsesNonExemptEncryption bool false
+          pb CFBundleDevelopmentRegion string fr
+          pb CFBundleAllowMixedLocalizations bool true
+          /usr/libexec/PlistBuddy -c "Delete :LSApplicationQueriesSchemes" "$P" 2>/dev/null || true
+          /usr/libexec/PlistBuddy -c "Add :LSApplicationQueriesSchemes array" "$P"
+          i=0; for sch in https mailto tel sms whatsapp; do /usr/libexec/PlistBuddy -c "Add :LSApplicationQueriesSchemes:$i string $sch" "$P"; i=$((i+1)); done
           sed -i '' -E "s/^# platform :ios, '[0-9.]+'/platform :ios, '13.0'/" projet/ios/Podfile || true
           python3 - <<'EOF'
           import json, shutil, os
@@ -377,6 +383,11 @@ jobs:
           shutil.copy('application/icone_1024.png', d + '/icone_1024.png')   # sans transparence (exigé par l'App Store)
           json.dump({'images': [{'filename': 'icone_1024.png', 'idiom': 'universal', 'platform': 'ios', 'size': '1024x1024'}], 'info': {'author': 'xcode', 'version': 1}}, open(d + '/Contents.json', 'w'), indent=2)
           EOF
+      - name: Réglages App Store (11 langues, confidentialité, domaines associés, iPhone seulement)
+        run: |
+          python3 application/ios/InfoPlist/fabriquer.py projet/ios/Runner
+          gem list -i xcodeproj >/dev/null 2>&1 || gem install xcodeproj --user-install --no-document
+          ruby application/ios/configurer.rb projet/ios application/ios
       - name: Compiler
         run: |
           cd projet

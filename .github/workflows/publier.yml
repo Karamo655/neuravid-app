@@ -27,6 +27,24 @@ jobs:
         run: python3 outils/verifier_reference.py web web
       - name: Vérifier que chaque module ouvert par un bouton existe
         run: python3 outils/audit_liens_statique.py web
+      - name: Lier le site à l'application iPhone (clé d'accès et liens), si le Team ID est réglé
+        # Réglage du dépôt : Settings → Secrets and variables → Actions → Variables → APPLE_TEAM_ID (10 caractères, pas un secret).
+        env:
+          TEAM: ${{ vars.APPLE_TEAM_ID }}
+        run: |
+          if [ -z "$TEAM" ]; then echo "APPLE_TEAM_ID non réglé : pas de fichier apple-app-site-association."; exit 0; fi
+          ID=$(grep -E '^IDENTIFIANT=' application/config.env | cut -d= -f2 | tr -d ' \r')
+          mkdir -p web/.well-known
+          python3 - "$TEAM" "$ID" <<'PY'
+          import json, re, sys
+          team, ident = sys.argv[1].strip(), sys.argv[2].strip()
+          assert re.fullmatch(r'[A-Z0-9]{10}', team), 'Team ID invalide'
+          assert re.fullmatch(r'[A-Za-z0-9.-]+', ident), 'identifiant invalide'
+          app = team + '.' + ident
+          d = {'applinks': {'details': [{'appIDs': [app], 'components': [{'/': '/*'}]}]}, 'webcredentials': {'apps': [app]}}
+          open('web/.well-known/apple-app-site-association', 'w').write(json.dumps(d, separators=(',', ':')))
+          print('apple-app-site-association pour', app)
+          PY
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:

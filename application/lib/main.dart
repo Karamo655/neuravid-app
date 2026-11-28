@@ -115,6 +115,8 @@ class _EcranNeuravidState extends State<EcranNeuravid> {
         source: '''
 window.NV_MODULES_BASE = ${jsonEncode(base)};
 if(!window.NV_LANG) window.NV_LANG = ${jsonEncode(langue)};
+window.NV_PLATEFORME = ${jsonEncode(Platform.isIOS ? 'ios' : 'android')};
+window.NV_MAGASIN = ${jsonEncode(Platform.isIOS ? 'app_store' : 'google_play')};
 ''',
         injectionTime: UserScriptInjectionTime.AT_DOCUMENT_START,
       ),
